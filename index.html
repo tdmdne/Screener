@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>My Screener (Keyless Multi-Market)</title>
+<title>My Screener</title>
 <style>
 :root{--bg:#fff;--fg:#14171c;--mut:#6b7280;--line:#e5e7eb;--card:#f4f5f7;--acc:#111827;--accfg:#fff;--g:#0f9d58;--gb:#e3f4ea;--r:#d93025;--rb:#fbe6e4;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1216;--fg:#e8eaed;--mut:#9aa0a6;--line:#262b33;--card:#181c22;--acc:#e8eaed;--accfg:#0f1216;--g:#46d38a;--gb:#12301f;--r:#ff7b72;--rb:#3a1a18;color-scheme:dark}}
@@ -71,8 +71,8 @@ td.sy:hover{text-decoration:underline}
 .pagination{display:flex;gap:6px;align-items:center;margin-top:8px}
 </style></head><body>
 <div class="wrap">
-<header><h1>My Screener</h1><span class="tag" id="tag">Keyless Auto-Scan (10 per page)</span><span class="mut" id="dst"></span><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
-<section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><button class="pri" onclick="fetchKeylessMarkets()">Scan All Markets Now</button><span class="mut" id="msg"></span></section>
+<header><h1>My Screener</h1><span class="tag" id="tag">Keyless Auto-Scan</span><span class="mut" id="dst"></span><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
+<section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
 <label>Multiplier<select id="mult"><option>10</option><option>50</option><option>100</option></select></label>
@@ -83,7 +83,7 @@ td.sy:hover{text-decoration:underline}
 <section class="ctl"><div id="chips"></div><input id="q" placeholder="Filter table…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button></section>
 <div class="ws"><div><div class="tw"><table id="t"></table></div>
 <div class="ctl" style="justify-content:space-between"><p class="note" id="cnt" style="margin:0"></p><div class="pagination" id="pag"></div></div></div><div id="cp"></div></div>
-<p class="note">Automatically pulls thousands of live markets keyless. Displaying 10 symbols per page based on current filters. Tap any symbol to view interactive charts.</p>
+<p class="note">Keyless auto-scan loads thousands of markets seamlessly (10 per page). Tap any symbol to open its chart.</p>
 </div>
 <div id="modal"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -92,14 +92,14 @@ const TFS=["1m","5m","15m","30m","1H","4H","1D"];
 const TS={"1m":.05,"5m":.1,"15m":.17,"30m":.24,"1H":.35,"4H":.7,"1D":1};
 const SAMPLE=[["EURUSD","FX",1.085,0,1,.005],["GBPUSD","FX",1.271,0,1,.006],["USDJPY","FX",151.2,0,1,.006],["AUDUSD","FX",.654,0,1,.006],["USDCAD","FX",1.365,0,1,.005],["NZDUSD","FX",.592,0,1,.006],
 ["ES","FUT",5800,1200000,50,.01],["NQ","FUT",20400,600000,20,.013],["CL","FUT",71.5,350000,1000,.02],["GC","FUT",2680,200000,100,.011],["ZN","FUT",110.5,1500000,1000,.004],["6E","FUT",1.085,200000,125000,.005],
-["AAPL","STK",225,50000000,1,.016],["NVDA","STK",140,220000000,1,.03],["TSLA","STK",320,80000000,1,.035],["AMD","STK",150,45000000,1,.028],["PLTR","STK",60,60000000,1,.04],["SMCI","STK",30,40000000,1,.05],["MARA","STK",20,30000000,1,.05],["SOFI","STK",14,40000000,1,.035],
+["AAPL","STK",225,50000000,1,.016],["NVDA","STK",140,220000000,1,.03],["TSLA","STK",320,80000000,1,.035],["AMD","STK",150,45000000,1,.028],["PLTR","STK",60,60000000,1,.04],["SMCI","STK",30,40000000,1,.05],["MARA","STK",20,30000000,1,.05],["SOFI","STK",14,40000000,1,.035],["THIN","STK",8.4,220000,1,.045],["TINY","STK",2.5,150000,1,.06],
 ["US30","CFD",43500,0,1,.008],["DE40","CFD",19300,0,1,.009],["UK100","CFD",8100,0,1,.007],["BTCUSD","CRY",76000,15000000,1,.03],["USOIL","CFD",71.5,0,1,.02]];
 let SYMS=SAMPLE;
 const MK={ALL:"All",FX:"Forex",FUT:"Futures",STK:"Stocks",CFD:"CFDs",CRY:"Crypto",ETF:"ETFs"};
 const TY={price:"Price",vol:"Volume",dv:"Dollar volume",pct:"Percent change",cc:"Candle change",adr:"Average daily range %",mac:"Moving average close",mat:"Moving average trend"};
 const DF={price:()=>({}),vol:()=>({per:"7d"}),dv:()=>({per:"7d"}),pct:()=>({tf:"1D"}),cc:()=>({tf:"1H",n:8,mode:"exp",dir:"bull",min:0}),adr:()=>({n:14}),mac:()=>({tf:"1D",ma:"EMA",len:10}),mat:()=>({tfs:["30m","1H","4H","1D"],ma:"EMA",len:10})};
 const mk=(id,t,o)=>Object.assign({id,type:t},DF[t](),o||{});
-const base=(cols,sort)=>({acct:300000,mult:10,dvOn:true,hideNV:false,mkt:"ALL",sort,cols});
+const base=(cols,sort)=>({acct:300000,mult:10,dvOn:false,hideNV:false,mkt:"ALL",sort,cols});
 const BI={"Cheat sheet (candle change)":base([mk("price","price"),mk("dv","dv"),mk("c2","cc",{tf:"1D",n:30,mode:"abs"}),mk("c3","cc"),mk("c4","cc",{dir:"bear"})],{id:"c3",dir:-1}),
 "Trend grid":base([mk("price","price"),mk("pct1","pct"),mk("t1","mat"),mk("t2","mat",{len:20}),mk("a1","adr")],{id:"pct1",dir:-1})};
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -117,10 +117,9 @@ function seed(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.im
 function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const gs=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());
 const cache={};
-const LIVE_MARKETS={};
 
 async function fetchKeylessMarkets(){
-  document.getElementById("dst").textContent = "Scanning all markets keyless...";
+  document.getElementById("dst").textContent = "Loading markets...";
   try {
     const res = await fetch("https://api.binance.com/api/v3/ticker/24hr");
     const data = await res.json();
@@ -129,10 +128,9 @@ async function fetchKeylessMarkets(){
       data.forEach(item => {
         const symbol = item.symbol;
         const price = parseFloat(item.lastPrice) || 0;
-        const quoteVol = parseFloat(item.quoteVolume) || 0; 
+        const quoteVol = parseFloat(item.quoteVolume) || 0;
         const baseVol = parseFloat(item.volume) || 0;
         if(price > 0) {
-          LIVE_MARKETS[symbol] = {price, vol: quoteVol};
           const baseArr = [];
           let p = price * 0.95;
           for(let i=0; i<100; i++){
@@ -150,9 +148,9 @@ async function fetchKeylessMarkets(){
       }
     }
   } catch(e) {
-    console.log("Auto-scan fallback", e);
+    console.log("Using sample fallback", e);
   }
-  document.getElementById("dst").textContent = "Loaded " + SYMS.length + " markets seamlessly.";
+  document.getElementById("dst").textContent = "Loaded " + SYMS.length + " markets.";
   S.page = 1;
   render();
 }
@@ -201,6 +199,7 @@ if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?
 if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
+const safe=f=>{try{const x=f();return x===true||x===false?x:Number.isFinite(x)?x:null}catch(e){return null}};
 function render(){
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
@@ -225,7 +224,6 @@ pageRows.forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent="Showing "+(R.length?((S.page-1)*pageSize+1):0)+"-"+Math.min(S.page*pageSize,R.length)+" of "+R.length+" filtered (Total: "+SYMS.length+")";
 
-// Render pagination buttons
 let pagH=`<button ${S.page<=1?"disabled":""} onclick="S.page--;render()">Prev</button><span>Page ${S.page} of ${totalPages}</span><button ${S.page>=totalPages?"disabled":""} onclick="S.page++;render()">Next</button>`;
 document.getElementById("pag").innerHTML=pagH;
 }
@@ -312,7 +310,7 @@ b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
-function dataM(){modal(`<h3>Data Status</h3><p class="mut">Currently configured to auto-scan public global markets completely keyless. No registration or billing profile is needed.</p><div class="row"><button class="pri" onclick="closeM()">Done</button></div>`)}
+function dataM(){modal(`<h3>Data Status</h3><p class="mut">Auto-scanning public markets keyless. No registration needed.</p><div class="row"><button class="pri" onclick="closeM()">Done</button></div>`)}
 function sync(){document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
 function pick(n){if(!n){S.cur="";save();render();return}
 const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart);S.page=1;sync();save();render();drawChart()}
@@ -323,7 +321,7 @@ function doAs(){const n=document.getElementById("pn").value.trim();if(!n||BI[n])
 P[n]=snap();S.cur=n;saveP();save();closeM();render();toast("Saved “"+n+"”")}
 function delP(){if(!S.cur||!P[S.cur])return;if(!arm){arm=true;render();setTimeout(()=>{arm=false;render()},3000);return}
 arm=false;delete P[S.cur];S.cur="";saveP();save();render()}
-function xfer(){modal(`<h3>Export / import presets</h3><p class="mut">Presets live in this browser only. Copy them from one device and paste them on another.</p><textarea id="xt" rows="7" placeholder="Paste presets text here…"></textarea><div class="row"><button onclick="document.getElementById('xt').value=JSON.stringify(P)">Fill with mine</button><button onclick="imp()">Import</button><span class="sp"></span><button class="pri" onclick="closeM()">Close</button></div><div class="mut" id="xm"></div>`)}
+function xfer(){modal(`<h3>Export / import presets</h3><p class="mut">Presets live in this browser only.</p><textarea id="xt" rows="7" placeholder="Paste presets text here…"></textarea><div class="row"><button onclick="document.getElementById('xt').value=JSON.stringify(P)">Fill with mine</button><button onclick="imp()">Import</button><span class="sp"></span><button class="pri" onclick="closeM()">Close</button></div><div class="mut" id="xm"></div>`)}
 function imp(){const m=document.getElementById("xm");try{const o=JSON.parse(document.getElementById("xt").value);let n=0;
 for(const k in o)if(o[k]&&Array.isArray(o[k].cols)&&!BI[k]){P[k]=o[k];n++}
 saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textContent="Couldn’t read that text."}}

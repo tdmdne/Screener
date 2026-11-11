@@ -11,26 +11,30 @@ export async function onRequest(context) {
     });
   }
 
-  // Format currency/crypto properly for Yahoo if needed
-  let sym = symbol.trim();
-  if (sym.length === 6 && !sym.includes("=")) {
-    sym = sym + "=X";
-  }
-
-  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}`;
+  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
 
   try {
-    const res = await fetch(target, {
+    const response = await fetch(yahooUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://finance.yahoo.com"
       }
     });
 
-    const data = await res.json();
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: `Yahoo HTTP ${response.status}` }), {
+        status: response.status,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    const data = await response.json();
     return new Response(JSON.stringify(data), {
-      status: res.status,
       headers: {
         "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=300",
         "Access-Control-Allow-Origin": "*"
       }
     });

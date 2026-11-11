@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>My Screener (prototype)</title>
+<title>My Screener (IC Markets)</title>
 <style>
 :root{--bg:#fff;--fg:#14171c;--mut:#6b7280;--line:#e5e7eb;--card:#f4f5f7;--acc:#111827;--accfg:#fff;--g:#0f9d58;--gb:#e3f4ea;--r:#d93025;--rb:#fbe6e4;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1216;--fg:#e8eaed;--mut:#9aa0a6;--line:#262b33;--card:#181c22;--acc:#e8eaed;--accfg:#0f1216;--g:#46d38a;--gb:#12301f;--r:#ff7b72;--rb:#3a1a18;color-scheme:dark}}
@@ -96,7 +96,7 @@ td.sy:hover{text-decoration:underline}
 .sqs i.n{background:var(--line)}
 </style></head><body>
 <div class="wrap">
-<header><h1>My Screener</h1><span class="tag" id="tag">Live data</span><span class="mut" id="dst"></span><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
+<header><h1>My Screener</h1><span class="tag" id="tag">IC Markets Live</span><span class="mut" id="dst"></span><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -117,7 +117,7 @@ td.sy:hover{text-decoration:underline}
 const TFS=["1m","5m","15m","30m","1H","4H","1D","1W","1M"];
 const TS={"1m":.05,"5m":.1,"15m":.17,"30m":.24,"1H":.35,"4H":.7,"1D":1,"1W":2.2,"1M":4.5};
 let SYMS=[];
-const MK={ALL:"All",FX:"Forex",FUT:"Futures",STK:"Stocks",CFD:"CFDs",CRY:"Crypto",ETF:"ETFs",IDX:"Indices"};
+const MK={ALL:"All",FX:"Forex",CFD:"CFDs",CRY:"Crypto",IDX:"Indices"};
 const TY={price:"Price",vol:"Volume",dv:"Dollar volume",pct:"Percent change",cc:"Candle change",adr:"Average daily range %",mac:"Moving average close",mat:"Moving average trend"};
 const DF={price:()=>({}),vol:()=>({per:"7d"}),dv:()=>({per:"7d"}),pct:()=>({tf:"1D"}),cc:()=>({tf:"1H",n:8,mode:"exp",dir:"bull",min:0}),adr:()=>({n:14}),mac:()=>({tf:"1D",ma:"EMA",len:10}),mat:()=>({tfs:["30m","1H","4H","1D"],ma:"EMA",len:10})};
 const mk=(id,t,o)=>Object.assign({id,type:t},DF[t](),o||{});
@@ -133,7 +133,8 @@ try{P=JSON.parse(localStorage.getItem("scr2p")||"{}")}catch(e){}
 try{const x=JSON.parse(localStorage.getItem("scr2")||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}
 const WL0=[];
 const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",sym:"",ind:[{id:"i1",t:"ema",len:10,col:"#f5a623"},{id:"i2",t:"ema",len:20,col:"#4a90e2"}]};
-S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);if(!S.data.icId||!S.data.icSecret||!S.data.icToken)Object.assign(S.data,{icId:"48268_ERLvtukwIDdY4bsHqCaM4y3fa6kM7Y0gFDxeETE9shbNyTaesd",icSecret:"Rq0FmGOMnvzOHZcjRTRQE2wdVllLbR8ZMiJ6CvNEZup9G8yYXp",icToken:"3MyzHSgMYVy7moLQmfl0Sp06jH-li3TG_0RXAJT-zHI"});
+S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
+if(!S.data.icId||!S.data.icSecret||!S.data.icToken)Object.assign(S.data,{icId:"48268_ERLvtukwIDdY4bsHqCaM4y3fa6kM7Y0gFDxeETE9shbNyTaesd",icSecret:"Rq0FmGOMnvzOHZcjRTRQE2wdVllLbR8ZMiJ6CvNEZup9G8yYXp",icToken:"3MyzHSgMYVy7moLQmfl0Sp06jH-li3TG_0RXAJT-zHI"});
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
 function saveP(){try{localStorage.setItem("scr2p",JSON.stringify(P))}catch(e){}}
 function candles(s,tf){return LIVE[s[0]+"|"+tf]||null;}
@@ -193,8 +194,8 @@ const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]
 const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||10)));if(S.page>=pages)S.page=0;let b="";
 R.slice(S.page*(S.rows||10),(S.page+1)*(S.rows||10)).forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
-document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
-document.getElementById("tag").textContent="Live data";kick()}
+document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in IC Markets";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
+document.getElementById("tag").textContent="IC Markets Live";kick()}
 function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id==="sym"?1:-1};save();render()}
 const MD=document.getElementById("modal");
 let ch=null,ch2=null;
@@ -241,9 +242,9 @@ function pal(){const cs=getComputedStyle(document.documentElement),v=k=>cs.getPr
 return b==="dark"?{bg:"#131722",tx:"#9aa0a6",gr:"#262b33"}:b==="light"?{bg:"#ffffff",tx:"#6b7280",gr:"#e5e7eb"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
-if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
+if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets from IC Markets…</p>`;return}
 let s=SYMS.find(x=>x[0]===C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
-const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
+const tv=s[7]||"ICMARKETS:"+s[0],hasR=C.ind.some(d=>d.t==="rsi");
 cp.innerHTML=`<div class="cpb"><div class="row wrap"><b class="sp">${s[0]} <span class="mut">${MK[s[1]]}</span></b><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="tfs">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">Live data. Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
@@ -277,7 +278,7 @@ modal(`<h3>Indicators</h3><div class="list">${C.ind.length?C.ind.map(d=>`<div cl
 function addInd(){const g=i=>document.getElementById(i).value;S.chart.ind.push({id:"i"+Date.now(),t:g("in_t"),len:Math.max(2,Math.min(200,parseInt(g("in_l"))||20)),col:g("in_c")});save();drawChart();indM()}
 function rmInd(id){S.chart.ind=S.chart.ind.filter(d=>d.id!==id);save();drawChart();indM()}
 function srch(){const q=document.getElementById("sq").value.trim().toUpperCase(),b=document.getElementById("sr");if(!q){b.style.display="none";return}
-b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown="openChart('${s[0]}');hideSr()">${s[0]} <span class="mut">${MK[s[1]]}</span></div>`).join("")+`<a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(q)}" target="_blank" rel="noopener">Look up “${esc(q)}” on TradingView ↗</a>`;b.style.display="block"}
+b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown="openChart('${s[0]}');hideSr()">${s[0]} <span class="mut">${MK[s[1]]}</span></div>`).join("")+`<a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent('ICMARKETS:'+q)}" target="_blank" rel="noopener">Look up “${esc(q)}” on TradingView ↗</a>`;b.style.display="block"}
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
@@ -301,7 +302,7 @@ IC.pend[id]=m=>{clearTimeout(t);delete IC.pend[id];m.payloadType===2142?rej(Erro
 IC.ws.send(JSON.stringify({clientMsgId:id,payloadType:type,payload}))})}
 function icClose(){clearInterval(IC.hb);const w=IC.ws;IC.ws=null;IC.pend={};if(w){try{w.close()}catch(e){}}}
 async function icSession(live){const D=S.data,ws=new WebSocket(`wss://${live?"live":"demo"}.ctraderapi.com:5036`);IC.ws=ws;
-await new Promise((ok,no)=>{ws.onopen=ok;ws.onerror=()=>no(Error("can’t reach cTrader (check your connection)"))});
+await new Promise((ok,no)=>{ws.onopen=ok;ws.onerror=()=>no(Error("can’t reach IC Markets cTrader API"))});
 ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}const f=m.clientMsgId&&IC.pend[m.clientMsgId];if(f)f(m)};
 ws.onclose=()=>{clearInterval(IC.hb);if(IC.ws===ws){IC.ready=false;IC.ws=null;if(!IC.err)IC.err="connection closed (Reload data to reconnect)"}status()};
 IC.hb=setInterval(()=>{try{ws.send(JSON.stringify({payloadType:51,payload:{}}))}catch(e){}},9000);
@@ -312,7 +313,7 @@ const id=+a.ctidTraderAccountId;IC.acct=id;
 await icReq(2102,{ctidTraderAccountId:id,accessToken:D.icToken});
 const cr=await icReq(2160,{ctidTraderAccountId:id}),cats={};(cr.symbolCategory||[]).forEach(c=>{cats[c.id]=c.name||""});
 const sr=await icReq(2114,{ctidTraderAccountId:id,includeArchivedSymbols:false});
-IC.list=(sr.lightSymbol||[]).filter(x=>x.enabled!==false).map(x=>{const cn=cats[x.symbolCategoryId]||"",m=/share|stock|equit|etf/i.test(cn)?null:/forex|currenc|fx/i.test(cn)?"FX":/index|indic/i.test(cn)?"IDX":/crypto/i.test(cn)?"CRY":"CFD";return m&&[x.symbolName,m,null,0,1,.01,x.symbolId,"ICMARKETS:"+x.symbolName,"ic"]}).filter(Boolean);
+IC.list=(sr.lightSymbol||[]).filter(x=>x.enabled!==false).map(x=>{const cn=cats[x.symbolCategoryId]||"",m=/forex|currenc|fx/i.test(cn)?"FX":/index|indic/i.test(cn)?"IDX":/crypto/i.test(cn)?"CRY":"CFD";return[x.symbolName,m,null,0,1,.01,x.symbolId,"ICMARKETS:"+x.symbolName,"ic"]});
 IC.ready=true}
 async function icConnect(){IC.busy=true;status();let last=null;
 for(const live of S.data.icLive===false?[false,true]:[true,false]){try{await icSession(live);last=null;break}catch(e){last=e;icClose()}}
@@ -345,7 +346,7 @@ icKick();
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
 const cut=S.acct*S.mult,cs=SYMS.find(x=>x[0]===S.chart.sym);if(cs)need(cs,S.chart.tf,true);
 SYMS.forEach(s=>{const ts=new Set([...base,"1D"]);ts.forEach(t=>need(s,t))});status()}
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically from IC Markets (cTrader Open API).</p><div class="mut">IC Markets (cTrader Open API)</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account (untick for demo)</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
+function dataM(){const D=S.data;modal(`<h3>Data Settings</h3><p class="mut">Loaded directly from IC Markets cTrader Open API.</p><div class="mut">IC Markets Credentials</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account (untick for demo)</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.icId=g("i_id").value.trim();S.data.icSecret=g("i_sc").value.trim();S.data.icToken=g("i_tk").value.trim();S.data.icLive=g("i_lv").checked;icReset();save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QI.length=0;icReset();try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}closeM();render();drawChart()}
 let UIM="pc",rz=0;

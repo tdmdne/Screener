@@ -444,5 +444,40 @@ document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();render()};
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
 applyUI();sync();render();drawChart();
+
+// Auto-refresh background loop (every 15 minutes)
+const AUTO_REFRESH_INTERVAL = 15 * 60 * 1000;
+
+setInterval(() => {
+  if (!isLive()) return;
+  const now = Date.now();
+  for (const k in LT) {
+    if (now - LT[k] >= ttl(k)) {
+      delete LIVE[k];
+      delete LT[k];
+      delete ERR[k];
+    }
+  }
+  if (BN.loaded) BN.loaded = false;
+  kick();
+}, AUTO_REFRESH_INTERVAL);
+
+// Instantly refresh when returning to tab if data is older than 15m
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isLive()) {
+    const now = Date.now();
+    let updated = false;
+    for (const k in LT) {
+      if (now - LT[k] >= ttl(k)) {
+        delete LIVE[k];
+        delete LT[k];
+        delete ERR[k];
+        updated = true;
+      }
+    }
+    if (updated) kick();
+  }
+});
+
 loadCache().then(()=>{render();drawChart()});
 </script></body></html>

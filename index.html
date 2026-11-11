@@ -142,7 +142,7 @@ try{P=JSON.parse(localStorage.getItem("scr2p")||"{}")}catch(e){}
 try{const x=JSON.parse(localStorage.getItem("scr2")||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}
 const WL0=[];
 const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",sym:"",ind:[{id:"i1",t:"ema",len:10,col:"#f5a623"},{id:"i2",t:"ema",len:20,col:"#4a90e2"}]};
-S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all"},S.data||{});S.page=S.page||0;
+S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all"},S.data||{});S.page=S.page||0;if(S.data.v!==4){S.data.mode="all";S.data.v=4;Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
 if(!S.data.icId||!S.data.icSecret||!S.data.icToken)Object.assign(S.data,{icId:"48268_ERLvtukwIDdY4bsHqCaM4y3fa6kM7Y0gFDxeETE9shbNyTaesd",icSecret:"Rq0FmGOMnvzOHZcjRTRQE2wdVllLbR8ZMiJ6CvNEZup9G8yYXp",icToken:"3MyzHSgMYVy7moLQmfl0Sp06jH-li3TG_0RXAJT-zHI"});
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
 function saveP(){try{localStorage.setItem("scr2p",JSON.stringify(P))}catch(e){}}

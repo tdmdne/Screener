@@ -292,7 +292,7 @@ b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
-const LIVE={},LT={},ERR={},PEND={},Q [];let busy=false;
+const LIVE={},LT={},ERR={},PEND={},Q=[];let busy=false;
 const TDI={"1m":"1min","5m":"5min","15m":"15min","30m":"30min","1H":"1h","4H":"4h","1D":"1day","1W":"1week","1M":"1month"};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ttl=k=>/\|(1D|1W|1M)$/.test(k)?216e5:9e5;
@@ -302,15 +302,16 @@ const TDN=new Set();
 const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","EURSEK"],["EUR/NOK","FX","EURNOK"],["EUR/PLN","FX","EURPLN"],["EUR/TRY","FX","EURTRY"],["EUR/HUF","FX","EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
-const QT=[],QB=[],QY=[],bz={},YF={fails:0,dead:0},BN={list:[],loaded:false,busy:false,err:"",host:""};
+const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0},BN={list:[],loaded:false,busy:false,err:"",host:""};
 const BNH=["https://data-api.binance.vision","https://api.binance.com"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
+const PX=[u=>"https://corsproxy.io/?"+encodeURIComponent(u),u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),u=>"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u)];
 const YI={"1m":["1m","5d"],"5m":["5m","1mo"],"15m":["15m","1mo"],"30m":["30m","1mo"],"1H":["60m","3mo"],"4H":["60m","6mo"],"1D":["1d","2y"],"1W":["1wk","10y"],"1M":["1mo","max"]};
 const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:n+"=F",tv:n+"1!"})),
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
-...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
+...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
 const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},500)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
@@ -334,17 +335,11 @@ catch(e){ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
 await Promise.all([w(),w(),w(),w(),w()]);bz.bn=0;if(QB.length)pumpBN()}
 
-// Cloudflare Pages Function Proxy Bridge for Yahoo Finance
-async function yGet(sym, tf) {
-  const [iv, rg] = YI[tf] || ["1d", "2y"];
-  const res = await fetch(`/api/yahoo?symbol=${encodeURIComponent(sym)}&interval=${iv}&range=${rg}`);
-  if (!res.ok) throw E("HTTP " + res.status, true);
-  const json = await res.json();
-  if (json.error) throw E(json.error, false);
-  const result = json?.chart?.result?.[0];
-  if (!result || !result.timestamp) throw E("No data available", true);
-  return result;
-}
+async function yGet(sym,tf){const[iv,rg]=YI[tf]||["1d","2y"];const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${iv}&range=${rg}`;let err;
+const order=YF.px>=0?[YF.px,...[0,1,2].filter(i=>i!==YF.px)]:[0,1,2];
+for(const i of order){try{const r=await fetch(PX[i](u));if(!r.ok){if(r.status===404)throw E("Symbol not found",false);err=E("HTTP "+r.status,true);continue}
+const j=await r.json(),c=j.chart&&j.chart.result&&j.chart.result[0];if(j.chart&&j.chart.error)throw E(j.chart.error.description||"no data",false);
+if(!c||!c.timestamp){err=E("no data",true);continue}YF.px=i;return c}catch(e){if(e.soft===false)throw e;err=E("proxy error",true)}}throw err}
 
 function yParse(c,tf){const q=c.indicators.quote[0],t=c.timestamp;let a=[];
 for(let i=0;i<t.length;i++)if(q.close[i]!=null&&q.open[i]!=null)a.push({t:t[i],o:q.open[i],h:q.high[i],l:q.low[i],c:q.close[i],v:q.volume[i]||0});
@@ -357,8 +352,8 @@ const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
 if(YF.dead){if(s[9])toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo unavailable";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
 catch(e){if(e.soft){if(++YF.fails>=15)YF.dead=1;if(s[9]){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
-fin(s,tf);await sleep(250)}};
-await Promise.all([w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
+fin(s,tf);await sleep(350)}};
+await Promise.all([w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
 
 async function pumpTD(){if(bz.td)return;bz.td=1;
 while(QT.length){const[s,tf,k]=QT.shift();status();
@@ -422,7 +417,7 @@ const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf
 const cut=S.acct*S.mult,cs=SYMS.find(x=>x[0]===S.chart.sym);if(cs)need(cs,S.chart.tf,true);
 SYMS.forEach(s=>{const bn=s[8]==="bn";if(bn){const d=dvOf(s);if(S.dvOn&&d!=null&&d<cut)return}
 const ts=bn?base:new Set([...base,"1D"]);ts.forEach(t=>need(s,t))});status()}
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo via Cloudflare backend proxy.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><div class="mut">IC Markets (cTrader Open API)</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account</label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo via public proxies.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><div class="mut">IC Markets (cTrader Open API)</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account</label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.icId=g("i_id").value.trim();S.data.icSecret=g("i_sc").value.trim();S.data.icToken=g("i_tk").value.trim();S.data.icLive=g("i_lv").checked;icReset();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;icReset();BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}closeM();render();drawChart()}
 let UIM="pc",rz=0;

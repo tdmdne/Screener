@@ -123,12 +123,11 @@ td.sy:hover{text-decoration:underline}
 <div id="modal"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-// FORCE CLEAR OLD CACHED STATE
 try {
-  if (localStorage.getItem("scr_schema") !== "ic_v5") {
+  if (localStorage.getItem("scr_schema") !== "ic_v6") {
     localStorage.removeItem("scr2");
     localStorage.removeItem("scr2p");
-    localStorage.setItem("scr_schema", "ic_v5");
+    localStorage.setItem("scr_schema", "ic_v6");
   }
 } catch(e){}
 

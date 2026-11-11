@@ -137,7 +137,7 @@ try{P=JSON.parse(localStorage.getItem("scr2p")||"{}")}catch(e){}
 try{const x=JSON.parse(localStorage.getItem("scr2")||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}
 const WL0=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["AAPL","STK","NASDAQ:AAPL"],["NVDA","STK","NASDAQ:NVDA"],["TSLA","STK","NASDAQ:TSLA"],["AMD","STK","NASDAQ:AMD"],["BTC/USD","CRY","BITSTAMP:BTCUSD"],["ETH/USD","CRY","BITSTAMP:ETHUSD"],["SPY","ETF","AMEX:SPY"],["QQQ","ETF","NASDAQ:QQQ"],["GLD","ETF","AMEX:GLD"],["USO","ETF","AMEX:USO"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",sym:"EURUSD",ind:[{id:"i1",t:"ema",len:10,col:"#f5a623"},{id:"i2",t:"ema",len:20,col:"#4a90e2"}]};
-S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
+S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);if(!S.data.icId||!S.data.icSecret||!S.data.icToken)Object.assign(S.data,{icId:"48268_ERLvtukwIDdY4bsHqCaM4y3fa6kM7Y0gFDxeETE9shbNyTaesd",icSecret:"Rq0FmGOMnvzOHZcjRTRQE2wdVllLbR8ZMiJ6CvNEZup9G8yYXp",icToken:"3MyzHSgMYVy7moLQmfl0Sp06jH-li3TG_0RXAJT-zHI"});
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
 function saveP(){try{localStorage.setItem("scr2p",JSON.stringify(P))}catch(e){}}
 function seed(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -317,13 +317,13 @@ const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},500)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};
-function setLive(){const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
-const icN=new Set(IC.list.map(x=>x[0])),ic=IC.list.map(x=>{const d=LIVE[x[0]+"|1D"];if(d&&d.length)x[2]=d[d.length-1].c;return x});
-SYMS=[...ic,...BN.list,...FXW.filter(w=>!icN.has(w.n)).map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.filter(w=>!icN.has(w.n)).map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.filter(w=>!icN.has(w.n)).map(w=>mk2(w,"yf",w.td)):[])]}
+function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
+const D=S.data,icOn=IC.list.length>0||!!(D.icId&&D.icSecret&&D.icToken&&!IC.err&&!IC.ready),icN=new Set(IC.list.map(x=>x[0])),ic=IC.list.map(x=>{const d=LIVE[x[0]+"|1D"];if(d&&d.length)x[2]=d[d.length-1].c;return x});
+SYMS=[...ic,...BN.list,...FXW.filter(w=>!icOn).map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.filter(w=>!icN.has(w.n)&&!(icOn&&["FX","CFD","IDX"].includes(w.m))).map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.filter(w=>!icN.has(w.n)).map(w=>mk2(w,"yf",w.td)):[])]}
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length+QI.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
-d.textContent=(IC.busy?"Connecting to IC Markets… ":"")+(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(IC.err?" · IC Markets: "+IC.err:"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&lt?" · Updated "+ago(lt):"")}
-function need(s,tf,front){const k=s[0]+"|"+tf;if(PEND[k]||ERR[k]||(LIVE[k]&&Date.now()-(LT[k]||0)<ttl(k)))return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:p==="ic"?QI:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:p==="ic"?pumpIC:pumpTD)()}
+d.textContent=(IC.busy?"Connecting to IC Markets… ":"")+(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(IC.err?" · IC Markets: "+IC.err:"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
+function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn")return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:p==="ic"?QI:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:p==="ic"?pumpIC:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""))}catch(e){err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
 async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/ticker/24hr");
 BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn")}catch(e){BN.err=e.message}
@@ -374,21 +374,24 @@ function icReq(type,payload){return new Promise((res,rej)=>{if(!IC.ws||IC.ws.rea
 const t=setTimeout(()=>{delete IC.pend[id];rej(Error("timeout"))},20000);
 IC.pend[id]=m=>{clearTimeout(t);delete IC.pend[id];m.payloadType===2142?rej(Error((m.payload&&m.payload.description)||"request failed")):res(m.payload||{})};
 IC.ws.send(JSON.stringify({clientMsgId:id,payloadType:type,payload}))})}
-async function icConnect(){IC.busy=true;status();const D=S.data;
-try{const ws=new WebSocket(`wss://${D.icLive===false?"demo":"live"}.ctraderapi.com:5036`);IC.ws=ws;
-await new Promise((ok,no)=>{ws.onopen=ok;ws.onerror=()=>no(Error("can’t reach cTrader (check live/demo and your connection)"))});
+function icClose(){clearInterval(IC.hb);const w=IC.ws;IC.ws=null;IC.pend={};if(w){try{w.close()}catch(e){}}}
+async function icSession(live){const D=S.data,ws=new WebSocket(`wss://${live?"live":"demo"}.ctraderapi.com:5036`);IC.ws=ws;
+await new Promise((ok,no)=>{ws.onopen=ok;ws.onerror=()=>no(Error("can’t reach cTrader (check your connection)"))});
 ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}const f=m.clientMsgId&&IC.pend[m.clientMsgId];if(f)f(m)};
 ws.onclose=()=>{clearInterval(IC.hb);if(IC.ws===ws){IC.ready=false;IC.ws=null;if(!IC.err)IC.err="connection closed (Reload data to reconnect)"}status()};
 IC.hb=setInterval(()=>{try{ws.send(JSON.stringify({payloadType:51,payload:{}}))}catch(e){}},9000);
 await icReq(2100,{clientId:D.icId,clientSecret:D.icSecret});
 const al=await icReq(2149,{accessToken:D.icToken}),accs=al.ctidTraderAccount||[];
-const live=D.icLive!==false,a=accs.find(x=>!!x.isLive===live)||accs[0];if(!a)throw Error("no trading account found for this token");
+const a=accs.find(x=>!!x.isLive===live)||accs[0];if(!a)throw Error("no trading account found for this token");
 const id=+a.ctidTraderAccountId;IC.acct=id;
 await icReq(2102,{ctidTraderAccountId:id,accessToken:D.icToken});
 const cr=await icReq(2160,{ctidTraderAccountId:id}),cats={};(cr.symbolCategory||[]).forEach(c=>{cats[c.id]=c.name||""});
 const sr=await icReq(2114,{ctidTraderAccountId:id,includeArchivedSymbols:false});
 IC.list=(sr.lightSymbol||[]).filter(x=>x.enabled!==false).map(x=>{const cn=cats[x.symbolCategoryId]||"",m=/share|stock|equit|etf/i.test(cn)?null:/forex|currenc|fx/i.test(cn)?"FX":/index|indic/i.test(cn)?"IDX":/crypto/i.test(cn)?"CRY":"CFD";return m&&[x.symbolName,m,null,0,1,.01,x.symbolId,"ICMARKETS:"+x.symbolName,"ic"]}).filter(Boolean);
-IC.ready=true}catch(e){IC.err=e.message}
+IC.ready=true}
+async function icConnect(){IC.busy=true;status();let last=null;
+for(const live of S.data.icLive===false?[false,true]:[true,false]){try{await icSession(live);last=null;break}catch(e){last=e;icClose()}}
+if(last)IC.err=last.message;
 IC.busy=false;render();drawChart()}
 async function pumpIC(){if(bz.ic)return;bz.ic=1;
 while(QI.length){const[s,tf,k]=QI.shift();status();
@@ -404,21 +407,30 @@ function idb(){return new Promise(res=>{try{const r=indexedDB.open("scr",1);r.on
 async function loadCache(){try{IDB=await idb();if(IDB)await new Promise(done=>{const q=IDB.transaction("c").objectStore("c").openCursor();
 q.onsuccess=()=>{const c=q.result;if(!c){done();return}const k=c.key,v=c.value;
 if(k==="@bn"){BN.list=v.list||[];BN.loaded=Date.now()-v.t<9e5}else{LIVE[k]=v.d;LT[k]=v.t}c.continue()};q.onerror=()=>done()});
-try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}}catch(e){}READY=true}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}}catch(e){}}
 function dirty(k){DIRTY.add(k);clearTimeout(fl);fl=setTimeout(flush,2000)}
 function flush(){if(!IDB||!DIRTY.size)return;try{const st=IDB.transaction("c","readwrite").objectStore("c");
 for(const k of DIRTY){if(k==="@bn")st.put({t:Date.now(),list:BN.list},k);else if(LIVE[k])st.put({t:LT[k],d:LIVE[k]},k)}DIRTY.clear()}catch(e){}}
+const SNAP={ok:false,t:0,uni:[],tfs:[],loaded:{}},SN={};
+const snapOn=()=>SNAP.ok&&Date.now()-SNAP.t<216e5;
+async function snapInit(){try{const r=await fetch("data/manifest.json",{cache:"no-cache"});if(!r.ok)return;const m=await r.json();if(!m.universe||!m.universe.length)return;
+if(m.t!==SNAP.t)SNAP.loaded={};
+SNAP.t=m.t;SNAP.tfs=m.tfs;SNAP.uni=m.universe.map(u=>[u[0],u[1],u[3],u[4],1,.01,u[6],u[2],u[5]]);SNAP.ok=true;
+const want=new Set(["1D",S.chart.tf]);S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)want.add(c.tf);if(c.tfs)c.tfs.forEach(t=>want.add(t))});
+await Promise.all([...want].filter(t=>m.tfs.includes(t)).map(snapTf))}catch(e){}}
+function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{const r=await fetch(`data/c_${tf}.json?v=${SNAP.t}`);if(!r.ok)return;const j=await r.json();
+for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1}}}catch(e){}})())}
+async function autoRefresh(){if(!isLive()||!READY)return;await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;render()}
 function pgGo(d){S.page+=d;save();render()}
 function kick(){if(!isLive()||!READY)return;
-if(!BN.loaded&&!BN.busy&&!BN.err)loadBN();
-icKick();
+if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN();icKick()}
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
 const cut=S.acct*S.mult,cs=SYMS.find(x=>x[0]===S.chart.sym);if(cs)need(cs,S.chart.tf,true);
 SYMS.forEach(s=>{const bn=s[8]==="bn";if(bn){const d=dvOf(s);if(S.dvOn&&d!=null&&d<cut)return}
 const ts=bn?base:new Set([...base,"1D"]);ts.forEach(t=>need(s,t))});status()}
 function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><div class="mut">IC Markets (cTrader Open API)</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account (untick for demo)</label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.icId=g("i_id").value.trim();S.data.icSecret=g("i_sc").value.trim();S.data.icToken=g("i_tk").value.trim();S.data.icLive=g("i_lv").checked;icReset();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
-function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;icReset();BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}closeM();render();drawChart()}
+function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;icReset();BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.getElementById("uim").value=m}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
@@ -444,40 +456,8 @@ document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();render()};
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
 applyUI();sync();render();drawChart();
-
-// Auto-refresh background loop (every 15 minutes)
-const AUTO_REFRESH_INTERVAL = 15 * 60 * 1000;
-
-setInterval(() => {
-  if (!isLive()) return;
-  const now = Date.now();
-  for (const k in LT) {
-    if (now - LT[k] >= ttl(k)) {
-      delete LIVE[k];
-      delete LT[k];
-      delete ERR[k];
-    }
-  }
-  if (BN.loaded) BN.loaded = false;
-  kick();
-}, AUTO_REFRESH_INTERVAL);
-
-// Instantly refresh when returning to tab if data is older than 15m
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && isLive()) {
-    const now = Date.now();
-    let updated = false;
-    for (const k in LT) {
-      if (now - LT[k] >= ttl(k)) {
-        delete LIVE[k];
-        delete LT[k];
-        delete ERR[k];
-        updated = true;
-      }
-    }
-    if (updated) kick();
-  }
-});
-
-loadCache().then(()=>{render();drawChart()});
+loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
+// every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
+setInterval(autoRefresh,15*60*1000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}});
 </script></body></html>

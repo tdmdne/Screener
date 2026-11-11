@@ -286,7 +286,7 @@ else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
-else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)));
+else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)))
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
 [1,-1].forEach(g=>ls(d.col,1).setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i]))))}
 else if(d.t==="vol"){const h=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});h.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});

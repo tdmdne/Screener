@@ -57,7 +57,33 @@ a.btn{display:inline-block;text-decoration:none;border-radius:8px;padding:7px 12
 td.sy{cursor:pointer}
 td.sy:hover{text-decoration:underline}
 .ws{display:grid;gap:12px}
-@media (min-width:1000px){.wrap{max-width:1500px}.ws{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}.cpb{position:sticky;top:8px}}
+.phone-only{display:none}
+:root[data-ui="phone"] .phone-only{display:flex}
+#uim{padding:4px 6px;font-size:12px}
+:root[data-ui="pc"] .wrap{max-width:1700px}
+:root[data-ui="pc"] .ws{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}
+:root[data-ui="pc"] .cpb{position:sticky;top:8px}
+:root[data-ui="pc"] #cv{height:min(64vh,640px)}
+:root[data-ui="tablet"] .wrap{max-width:100%;padding:10px}
+:root[data-ui="tablet"] button,:root[data-ui="tablet"] select,:root[data-ui="tablet"] input{min-height:38px}
+:root[data-ui="tablet"] #cv{height:380px}
+@media (min-width:900px){:root[data-ui="tablet"] .ws{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}:root[data-ui="tablet"] .cpb{position:sticky;top:8px}}
+:root[data-ui="phone"] body{font-size:13px}
+:root[data-ui="phone"] .wrap{padding:8px}
+:root[data-ui="phone"] button,:root[data-ui="phone"] select,:root[data-ui="phone"] input{min-height:40px}
+:root[data-ui="phone"] .srch{flex-basis:100%;max-width:none;order:5}
+:root[data-ui="phone"] #cv{height:300px}
+:root[data-ui="phone"] .tfs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+:root[data-ui="phone"] .tfs .chip{white-space:nowrap}
+:root[data-ui="phone"] .ov{align-items:flex-end;padding:0}
+:root[data-ui="phone"] .box{max-width:100%;border-radius:14px 14px 0 0;max-height:88vh}
+:root[data-ui="phone"] .tw{border:0;overflow:visible}
+:root[data-ui="phone"] table,:root[data-ui="phone"] tbody{display:block;min-width:0}
+:root[data-ui="phone"] thead{display:none}
+:root[data-ui="phone"] tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+:root[data-ui="phone"] td{border:0;padding:0;white-space:normal;display:flex;flex-direction:column;gap:2px;position:static;background:none}
+:root[data-ui="phone"] td:first-child{grid-column:1/-1;font-size:15px}
+:root[data-ui="phone"] td[data-l]::before{content:attr(data-l);font-size:10px;text-transform:uppercase;color:var(--mut)}
 .cpb{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
 #cv{height:min(58vh,520px)}
 #cv2{height:120px;width:100%}
@@ -70,7 +96,7 @@ td.sy:hover{text-decoration:underline}
 .sqs i.n{background:var(--line)}
 </style></head><body>
 <div class="wrap">
-<header><h1>My Screener</h1><span class="tag" id="tag">Prototype · sample data</span><span class="mut" id="dst"></span><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
+<header><h1>My Screener</h1><span class="tag" id="tag">Prototype · sample data</span><span class="mut" id="dst"></span><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -79,7 +105,8 @@ td.sy:hover{text-decoration:underline}
 <label class="chk"><input type="checkbox" id="dvOn">Dollar volume filter</label>
 <label class="chk"><input type="checkbox" id="hideNV">Hide FX/CFD</label>
 </section>
-<section class="ctl"><div id="chips"></div><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button></section>
+<section class="ctl"><div id="chips"></div><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></section>
+<section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="ws"><div><div class="tw"><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p></div><div id="cp"></div></div>
 <p class="note">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
@@ -166,6 +193,7 @@ if(isLive())setLive();else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
 document.getElementById("cut").textContent="Cutoff: $"+fm(S.acct*S.mult);
+const ss=document.getElementById("srtsel");if(ss){ss.innerHTML=`<option value="sym">Sort: Symbol</option>`+vis.map(c=>`<option value="${c.id}">Sort: ${esc(label(c))}</option>`).join("");ss.value=S.sort.id}
 document.getElementById("chips").innerHTML=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)).map(k=>`<button class="chip ${S.mkt===k?"on":""}" onclick="S.mkt='${k}';save();render()">${MK[k]}</button>`).join("");
 const o=k=>`<option value="${esc(k)}" ${S.cur===k?"selected":""}>${esc(k)}</option>`;
 document.getElementById("ps").innerHTML=`<option value="">Working copy</option><optgroup label="Built-in">${Object.keys(BI).map(o).join("")}</optgroup><optgroup label="My presets">${Object.keys(P).map(o).join("")}</optgroup>`;
@@ -174,8 +202,8 @@ const ar=id=>S.sort.id===id?(S.sort.dir<0?" ▼":" ▲"):"";
 let h=`<tr><th><span class="h" onclick="srt('sym')">Symbol${ar("sym")}</span></th>`;
 vis.forEach(c=>{h+=`<th><span class="h" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">⚙</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
-const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/10));if(S.page>=pages)S.page=0;let b="";
-R.slice(S.page*10,S.page*10+10).forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td>${cell(r,c)}</td>`).join("")+"</tr>"});
+const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||10)));if(S.page>=pages)S.page=0;let b="";
+R.slice(S.page*(S.rows||10),(S.page+1)*(S.rows||10)).forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
 document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";kick()}
@@ -223,7 +251,7 @@ function vols(s,tf){if(isLive())return candles(s,tf).map(x=>x.v||0);const a=cand
 function killCharts(){[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
 function pal(){const cs=getComputedStyle(document.documentElement),v=k=>cs.getPropertyValue(k).trim(),b=S.chart.bg;
 return b==="dark"?{bg:"#131722",tx:"#9aa0a6",gr:"#262b33"}:b==="light"?{bg:"#ffffff",tx:"#6b7280",gr:"#e5e7eb"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
-function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();if(innerWidth<1000)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
+function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=SYMS.find(x=>x[0]===C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
@@ -381,7 +409,11 @@ const ts=bn?base:new Set([...base,"1D"]);ts.forEach(t=>need(s,t))});status()}
 function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><div class="mut">IC Markets (cTrader Open API)</div><label>Client ID<input id="i_id" value="${esc(D.icId||"")}"></label><label>Client secret<input id="i_sc" type="password" value="${esc(D.icSecret||"")}"></label><label>Access token<input id="i_tk" type="password" value="${esc(D.icToken||"")}"></label><label class="chk"><input type="checkbox" id="i_lv" ${D.icLive===false?"":"checked"}>Live account (untick for demo)</label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.icId=g("i_id").value.trim();S.data.icSecret=g("i_sc").value.trim();S.data.icToken=g("i_tk").value.trim();S.data.icLive=g("i_lv").checked;icReset();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;icReset();BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c")}catch(e){}closeM();render();drawChart()}
-function sync(){document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
+let UIM="pc",rz=0;
+function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.getElementById("uim").value=m}
+function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
+addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if((S.ui||"auto")==="auto"){const o=UIM;applyUI();if(UIM!==o){render();drawChart()}}},200)});
+function sync(){document.getElementById("rows").value=S.rows||10;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
 function pick(n){if(!n){S.cur="";save();render();return}
 const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart);sync();save();render();drawChart()}
 const snap=()=>clone({acct:S.acct,mult:S.mult,dvOn:S.dvOn,hideNV:S.hideNV,mkt:S.mkt,sort:S.sort,cols:S.cols,chart:S.chart});
@@ -401,5 +433,5 @@ document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();rend
 document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();render()};
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
-sync();render();drawChart();
+applyUI();sync();render();drawChart();
 </script></body></html>

@@ -244,6 +244,7 @@ const LIVE={};
 function isLive(){return true;}
 function kick(){}
 function need(){}
+function safe(fn){try{return fn()}catch(e){return null}}
 
 function cc(s,c){const a=candles(s,c.tf),n=Math.min(c.n,149),last=a[a.length-1].c;
 if(c.mode==="abs"){const ref=a[a.length-1-n].c;return Math.abs(last-ref)/ref*100}
@@ -360,6 +361,6 @@ else if(C.type==="area")ch.addAreaSeries({lineColor:C.up,topColor:C.up+"66",bott
 else if(C.type==="bars")ch.addBarSeries({upColor:C.up,downColor:C.dn,priceFormat:pF}).setData(D);
 else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)":C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn,priceFormat:pF}).setData(D);}
 }
-render();applyTheme();
+render();applyTheme();drawChart();
 </script>
 </body></html>

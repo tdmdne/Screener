@@ -376,7 +376,8 @@ if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loa
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
 const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
-const D=a.map((x,i)=>{const q=x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
+const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf); // forex trades 24h: open = previous close
+const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
 const prec = s[2]<10?4:s[2]<1000?2:2;
 const pF = {type:'price', precision:prec, minMove:s[2]<10?0.0001:0.01};
 if(C.type==="line")ch.addLineSeries({color:C.up,lineWidth:2,priceFormat:pF}).setData(D.map(x=>({time:x.time,value:x.close})));

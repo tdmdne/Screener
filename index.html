@@ -221,6 +221,7 @@ const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",s
 S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
 function saveP(){try{localStorage.setItem("scr2p",JSON.stringify(P))}catch(e){}}
+const deb=(f,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms)}};
 
 function getEffTheme(){
   if(S.theme==="dark"||S.theme==="light")return S.theme;
@@ -248,6 +249,7 @@ function seed(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.im
 function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const gs=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());
 const cache={};
+let PRI=new Set(); // symbols currently on screen: these get fetched first
 function candles(s,tf){if(isLive())return LIVE[s[0]+"|"+tf]||null;const k=s[0]+tf;if(cache[k])return cache[k];
 const r=rng(seed(k)),v=s[5]*TS[tf];let p=100,reg=0;const a=[];
 for(let i=0;i<250;i++){if(i%25===0)reg=(r()-.5)*v*1.2;const o=p,c=o*(1+reg+gs(r)*v);
@@ -257,8 +259,14 @@ function cc(s,c){const a=candles(s,c.tf),n=Math.min(c.n,149),last=a[a.length-1].
 if(c.mode==="abs"){const ref=a[a.length-1-n].c;return Math.abs(last-ref)/ref*100}
 const w=a.slice(-n);if(c.dir==="bull"){const lo=Math.min(...w.map(x=>x.l));return(last-lo)/lo*100}
 const hi=Math.max(...w.map(x=>x.h));return(hi-last)/hi*100}
-function ma(s,tf,ty,len){const a=candles(s,tf).map(x=>x.c);if(ty==="SMA"){const w=a.slice(-len);return w.reduce((x,y)=>x+y,0)/w.length}
-const k=2/(len+1);let e=a[0];for(let i=1;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+// moving averages are the heaviest calculation, so results are cached until the candles change
+const MAC=new Map();
+function ma(s,tf,ty,len){const a0=candles(s,tf),k=s[0]+"|"+tf+"|"+ty+len+"|"+a0.length+"|"+(LT[s[0]+"|"+tf]||0),h=MAC.get(k);
+if(h!==undefined)return h;
+const a=a0.map(x=>x.c);let r;
+if(ty==="SMA"){const w=a.slice(-len);r=w.reduce((x,y)=>x+y,0)/w.length}
+else{const q=2/(len+1);let e=a[0];for(let i=1;i<a.length;i++)e=a[i]*q+e*(1-q);r=e}
+if(MAC.size>30000)MAC.clear();MAC.set(k,r);return r}
 const dvOf=s=>s[3]?s[2]*s[3]*s[4]:null;
 function calc(s,c){const t=c.type;
 if(t==="price")return s[2];
@@ -307,7 +315,8 @@ let h=`<tr><th><span class="h" onclick="srt('sym')">Symbol${ar("sym")}</span></t
 vis.forEach(c=>{h+=`<th><span class="h" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">⚙</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
 const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||10)));if(S.page>=pages)S.page=0;let b="";
-R.slice(S.page*(S.rows||10),(S.page+1)*(S.rows||10)).forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
+const PG=R.slice(S.page*(S.rows||10),(S.page+1)*(S.rows||10));PRI=new Set(PG.map(r=>r.s[0]));
+PG.forEach(r=>{b+=`<tr><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
 document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";kick()}
@@ -409,56 +418,73 @@ const TDN=new Set();
 const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","FX:EURSEK"],["EUR/NOK","FX","FX:EURNOK"],["EUR/PLN","FX","FX:EURPLN"],["EUR/TRY","FX","FX:EURTRY"],["EUR/HUF","FX","FX:EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
-const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0},BN={list:[],loaded:false,busy:false,err:"",host:""};
+const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0,rr:0,cool:[0,0,0]},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0};
 const BNH=["https://data-api.binance.vision","https://api.binance.com"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
 const PX=[u=>"https://corsproxy.io/?url="+encodeURIComponent(u),u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),u=>"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u)];
-const YI={"1m":["1m","5d"],"5m":["5m","1mo"],"15m":["15m","1mo"],"30m":["30m","1mo"],"1H":["60m","3mo"],"4H":["60m","6mo"],"1D":["1d","2y"],"1W":["1wk","10y"],"1M":["1mo","max"]};
+// smaller ranges = smaller downloads; each series is still trimmed to the latest 250 candles
+const YI={"1m":["1m","5d"],"5m":["5m","1mo"],"15m":["15m","1mo"],"30m":["30m","1mo"],"1H":["60m","3mo"],"4H":["60m","6mo"],"1D":["1d","1y"],"1W":["1wk","5y"],"1M":["1mo","max"]};
 const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:n+"=F",tv:n+"1!"})),
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
 ...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
 const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
-let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},500)};
+// redraw the table less often while a big queue is still loading, so the page thread stays free for fetching
+let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},QT.length+QB.length+QY.length>40?1200:300)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};
 function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
 SYMS=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.map(w=>mk2(w,"yf",w.td)):[])]}
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
-d.textContent=(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
+d.textContent=(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
 function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn")return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
-async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""))}catch(e){err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
+async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
+err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
+if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
 async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/ticker/24hr");
 BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn")}catch(e){BN.err=e.message}
 BN.busy=false;render();drawChart()}
 async function pumpBN(){if(bz.bn)return;bz.bn=1;
-const w=async()=>{while(QB.length){const[s,tf,k]=QB.shift();status();
+const w=async()=>{while(QB.length){
+// if Binance said "slow down" (429) or banned us briefly (418), every worker waits it out
+while(Date.now()<BN.pause)await sleep(500);
+const[s,tf,k]=QB.shift();status();
 try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=250`);
 LIVE[k]=j.map(x=>({t:Math.floor(x[0]/1000),o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k)}
-catch(e){ERR[k]=s[0]+": "+(e.message||"error")}
+catch(e){if(e.status===429||e.status===418){QB.unshift([s,tf,k]);BN.pause=Date.now()+Math.max((e.ra||0)*1000,e.status===418?120000:30000);status();continue}
+ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
 await Promise.all([w(),w(),w(),w(),w()]);bz.bn=0;if(QB.length)pumpBN()}
-async function yGet(sym,tf){const[iv,rg]=YI[tf];let err;const order=YF.px>=0?[YF.px,...[0,1,2].filter(i=>i!==YF.px)]:[0,1,2];
+// Yahoo goes through three public proxies. Spread requests across all three and rest any proxy that errors,
+// instead of sending everything through one proxy until it rate-limits us.
+async function yGet(sym,tf){const[iv,rg]=YI[tf];let err;const now=Date.now(),st=YF.rr++%3;
+const order=[0,1,2].map(i=>(i+st)%3).sort((a,b)=>(YF.cool[a]>now)-(YF.cool[b]>now));
 for(const i of order){try{const r=await fetch(PX[i](`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${iv}&range=${rg}`));
-if(!r.ok){err=E("HTTP "+r.status,true);continue}
+if(!r.ok){YF.cool[i]=Date.now()+(r.status===429?30000:10000);err=E("HTTP "+r.status,true);continue}
 const j=await r.json(),c=j.chart&&j.chart.result&&j.chart.result[0];
 if(j.chart&&j.chart.error)throw E(j.chart.error.description||"no data",false);
 if(!c||!c.timestamp){err=E("no data",true);continue}
-YF.px=i;return c}catch(e){if(e.soft===false)throw e;err=E("proxy/network error",true)}}throw err}
+return c}catch(e){if(e.soft===false)throw e;YF.cool[i]=Date.now()+10000;err=E("proxy/network error",true)}}throw err}
 function yParse(c,tf){const q=c.indicators.quote[0],t=c.timestamp;let a=[];
 for(let i=0;i<t.length;i++)if(q.close[i]!=null&&q.open[i]!=null)a.push({t:t[i],o:q.open[i],h:q.high[i],l:q.low[i],c:q.close[i],v:q.volume[i]||0});
 if(tf==="4H"){const m=new Map();a.forEach(x=>{const b=Math.floor(x.t/14400)*14400,y=m.get(b);if(!y)m.set(b,{t:b,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v});else{y.h=Math.max(y.h,x.h);y.l=Math.min(y.l,x.l);y.c=x.c;y.v+=x.v}});a=[...m.values()]}
 return a.slice(-250)}
+// clear failed items so they get queued again (all of them, or only those whose message matches re)
+function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];render()}
+// if Yahoo looks down, stop hammering it for 90 seconds, then retry what failed
+function markDead(){if(YF.dead)return;YF.dead=1;setTimeout(()=>{YF.dead=0;YF.fails=0;retryErr(/Yahoo busy|proxy\/network|HTTP [45]\d\d/)},90000)}
 async function pumpYF(){if(bz.yf)return;bz.yf=1;
 const toTD=(s,tf,k)=>{const s2=s.slice();s2[6]=s[9];QT.push([s2,tf,k]);pumpTD()};
 const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
-if(YF.dead){if(s[9])toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo unavailable";delete PEND[k];fin(s,tf)}continue}
+// the free Twelve Data plan allows ~8 requests a minute, so it is only used as a backup for what is on screen
+const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
+if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
-catch(e){if(e.soft){if(++YF.fails>=8)YF.dead=1;if(s[9]){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
-fin(s,tf);await sleep(250)}};
-await Promise.all([w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
+catch(e){if(e.soft){if(++YF.fails>=8)markDead();if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
+fin(s,tf);await sleep(100)}};
+await Promise.all([w(),w(),w(),w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
 async function pumpTD(){if(bz.td)return;bz.td=1;
 while(QT.length){const[s,tf,k]=QT.shift();status();
 if(!S.data.key){ERR[k]=s[0]+": no Twelve Data key";delete PEND[k];continue}
@@ -490,17 +516,25 @@ const want=new Set(["1D",S.chart.tf]);S.cols.filter(c=>!c.hide).forEach(c=>{if(c
 await Promise.all([...want].filter(t=>m.tfs.includes(t)).map(snapTf))}catch(e){}}
 function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{const r=await fetch(`data/c_${tf}.json?v=${SNAP.t}`);if(!r.ok)return;const j=await r.json();
 for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1}}}catch(e){}})())}
-async function autoRefresh(){if(!isLive()||!READY)return;await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;render()}
+async function autoRefresh(){if(!isLive()||!READY)return;await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/Yahoo busy|proxy\/network|network error|HTTP [45]\d\d/)}
 function pgGo(d){S.page+=d;save();render()}
+// Two-stage loading:
+//  1) daily candles for everything (gives price, volume and dollar volume)
+//  2) the other timeframes, only for stocks/ETFs/futures that pass the dollar-volume cutoff
+// Symbols on screen jump the queue.
 function kick(){if(!isLive()||!READY)return;
 if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
 const cut=S.acct*S.mult,cs=SYMS.find(x=>x[0]===S.chart.sym);if(cs)need(cs,S.chart.tf,true);
-SYMS.forEach(s=>{const bn=s[8]==="bn";if(bn){const d=dvOf(s);if(S.dvOn&&d!=null&&d<cut)return}
-const ts=bn?base:new Set([...base,"1D"]);ts.forEach(t=>need(s,t))});status()}
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
+const eq=m=>m==="STK"||m==="ETF"||m==="FUT";
+const tfl=["1D",...[...base].filter(t=>t!=="1D")];
+tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
+if(bn){if(!base.has(t))return;if(S.dvOn&&d!=null&&d<cut)return}
+else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return;if(S.dvOn&&d!=null&&d<cut)return}
+need(s,t,PRI.has(s[0]))}));status()}
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
-function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
@@ -519,11 +553,12 @@ function xfer(){modal(`<h3>Export / import presets</h3><p class="mut">Presets li
 function imp(){const m=document.getElementById("xm");try{const o=JSON.parse(document.getElementById("xt").value);let n=0;
 for(const k in o)if(o[k]&&Array.isArray(o[k].cols)&&!BI[k]){P[k]=o[k];n++}
 saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textContent="Couldn’t read that text."}}
-document.getElementById("acct").oninput=e=>{S.acct=parseFloat(e.target.value)||0;save();render()};
+const rDeb=deb(render,200);
+document.getElementById("acct").oninput=e=>{S.acct=parseFloat(e.target.value)||0;save();rDeb()};
 document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);save();render()};
 document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();render()};
 document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
-document.getElementById("q").oninput=e=>{S.q=e.target.value;save();render()};
+document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
 applyTheme();applyUI();sync();render();drawChart();
 loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});

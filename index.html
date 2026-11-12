@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>My Screener (prototype)</title>
+<title>TDM Screener</title>
 <style>
 :root{
   --bg:#ffffff;
@@ -157,7 +157,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .sqs i.n{background:var(--line)}
 </style></head><body>
 <div class="wrap">
-<header><h1>My Screener</h1><span class="tag" id="tag">Prototype · sample data</span><span class="mut" id="dst"></span><button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
+<header><h1>TDM Screener</h1><span class="tag" id="tag">Prototype · sample data</span><span class="mut" id="dst"></span><button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -177,10 +177,10 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 <script>
 const TFS=["1m","5m","15m","30m","1H","4H","1D","1W","1M"];
 const TS={"1m":.05,"5m":.1,"15m":.17,"30m":.24,"1H":.35,"4H":.7,"1D":1,"1W":2.2,"1M":4.5};
-const SAMPLE=[["EURUSD","FX",1.085,0,1,.005],["GBPUSD","FX",1.271,0,1,.006],["USDJPY","FX",151.2,0,1,.006],["AUDUSD","FX",.654,0,1,.006],["USDCAD","FX",1.365,0,1,.005],["NZDUSD","FX",.592,0,1,.006],
-["ES","FUT",5800,1200000,50,.01],["NQ","FUT",20400,600000,20,.013],["CL","FUT",71.5,350000,1000,.02],["GC","FUT",2680,200000,100,.011],["ZN","FUT",110.5,1500000,1000,.004],["6E","FUT",1.085,200000,125000,.005],
-["AAPL","STK",225,50000000,1,.016],["NVDA","STK",140,220000000,1,.03],["TSLA","STK",320,80000000,1,.035],["AMD","STK",150,45000000,1,.028],["PLTR","STK",60,60000000,1,.04],["SMCI","STK",30,40000000,1,.05],["MARA","STK",20,30000000,1,.05],["SOFI","STK",14,40000000,1,.035],["THIN","STK",8.4,220000,1,.045],["TINY","STK",2.5,150000,1,.06],
-["US30","CFD",43500,0,1,.008],["DE40","CFD",19300,0,1,.009],["UK100","CFD",8100,0,1,.007],["BTCUSD","CFD",76000,0,1,.03],["USOIL","CFD",71.5,0,1,.02]];
+const SAMPLE=[["EURUSD","FX",1.0850,0,1,.005],["GBPUSD","FX",1.2710,0,1,.006],["USDJPY","FX",151.20,0,1,.006],["AUDUSD","FX",.6540,0,1,.006],["USDCAD","FX",1.3650,0,1,.005],["NZDUSD","FX",.5920,0,1,.006],
+["ES","FUT",5800,1200000,50,.01],["NQ","FUT",20400,600000,20,.013],["CL","FUT",71.50,350000,1000,.02],["GC","FUT",2680,200000,100,.011],["ZN","FUT",110.50,1500000,1000,.004],["6E","FUT",1.0850,200000,125000,.005],
+["AAPL","STK",225,50000000,1,.016],["NVDA","STK",140,220000000,1,.03],["TSLA","STK",320,80000000,1,.035],["AMD","STK",150,45000000,1,.028],["PLTR","STK",60,60000000,1,.04],["SMCI","STK",30,40000000,1,.05],["MARA","STK",20,30000000,1,.05],["SOFI","STK",14,40000000,1,.035],["THIN","STK",8.40,220000,1,.045],["TINY","STK",2.50,150000,1,.06],
+["US30","CFD",43500,0,1,.008],["DE40","CFD",19300,0,1,.009],["UK100","CFD",8100,0,1,.007],["BTCUSD","CFD",76000,0,1,.03],["USOIL","CFD",71.50,0,1,.02]];
 let SYMS=SAMPLE;
 const MK={ALL:"All",FX:"Forex",FUT:"Futures",STK:"Stocks",CFD:"CFDs",CRY:"Crypto",ETF:"ETFs",IDX:"Indices"};
 const TY={price:"Price",vol:"Volume",dv:"Dollar volume",pct:"Percent change",cc:"Candle change",adr:"Average daily range %",mac:"Moving average close",mat:"Moving average trend"};
@@ -249,7 +249,13 @@ if(t==="adr"){const a=candles(s,"1D").slice(-c.n);return a.reduce((x,y)=>x+(y.h-
 if(t==="mac"){const m=ma(s,c.tf,c.ma,c.len),a=candles(s,c.tf);return(a[a.length-1].c-m)/m*100}
 return null}
 const fm=x=>x==null?"n/a":x>=1e9?(x/1e9).toFixed(1)+"B":x>=1e6?(x/1e6).toFixed(1)+"M":(x/1e3).toFixed(0)+"K";
-const fp=p=>p.toFixed(p<5?4:p<1000?2:1);
+const fp=p=>{
+  if(p==null)return "n/a";
+  if(p<2)return p.toFixed(4);
+  if(p<100)return p.toFixed(3);
+  if(p<1000)return p.toFixed(2);
+  return p.toFixed(2);
+};
 function label(c){const t=c.type;
 if(t==="vol"||t==="dv")return(t==="vol"?"Volume":"Dollar vol")+(isLive()?"":" · "+c.per.toUpperCase());
 if(t==="pct")return"% change · "+c.tf;
@@ -342,7 +348,7 @@ let s=SYMS.find(x=>x[0]===C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 cp.innerHTML=`<div class="cpb"><div class="row wrap"><b class="sp">${s[0]} <span class="mut">${MK[s[1]]}</span></b><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="tfs">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
-const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
+const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr,priceFormat:{type:'price',precision:s[0].includes('JPY')||s[0].includes('ES')||s[0].includes('NQ')?2:4,minMove:s[0].includes('JPY')||s[0].includes('ES')||s[0].includes('NQ')?0.01:0.0001}}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
@@ -375,7 +381,7 @@ function srch(){const q=document.getElementById("sq").value.trim().toUpperCase()
 b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown="openChart('${s[0]}');hideSr()">${s[0]} <span class="mut">${MK[s[1]]}</span></div>`).join("")+`<a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(q)}" target="_blank" rel="noopener">Look up “${esc(q)}” on TradingView ↗</a>`;b.style.display="block"}
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
-function hideSr(){hideSrBox();document.getElementById("sq").value=""}
+function hideSr(){hideSrBox();document.getElementById("sq.value"}
 const LIVE={},LT={},ERR={},PEND={},Q=[];let busy=false;
 const TDI={"1m":"1min","5m":"5min","15m":"15min","30m":"30min","1H":"1h","4H":"4h","1D":"1day","1W":"1week","1M":"1month"};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));

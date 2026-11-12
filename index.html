@@ -80,6 +80,10 @@ button.pri:hover:not(:disabled){background:var(--acc-hover);border-color:var(--a
 .chip.on{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:600}
 .theme-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px;font-weight:600;border-color:var(--line);background:var(--card)}
 .theme-btn:hover{border-color:var(--acc);color:var(--acc)}
+.mode-icons{display:inline-flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
+.mode-btn{background:transparent;border:0;border-radius:6px;padding:4px 7px;display:inline-flex;align-items:center;justify-content:center;color:var(--mut);min-height:0!important}
+.mode-btn:hover{color:var(--fg)}
+.mode-btn.on{background:var(--bg);color:var(--acc);box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 table{border-collapse:collapse;width:100%;min-width:640px}
 th,td{padding:9px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
@@ -120,7 +124,6 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .ws{display:grid;gap:12px}
 .phone-only{display:none}
 :root[data-ui="phone"] .phone-only{display:flex}
-#uim{padding:4px 6px;font-size:12px;background:var(--card)}
 :root[data-ui="pc"] .wrap{max-width:1700px}
 :root[data-ui="pc"] .ws{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}
 :root[data-ui="pc"] .cpb{position:sticky;top:8px}
@@ -157,7 +160,24 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .sqs i.n{background:var(--line)}
 </style></head><body>
 <div class="wrap">
-<header><h1>TDM Screener</h1><span class="tag" id="tag">Prototype · sample data</span><span class="mut" id="dst"></span><button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button><select id="uim" onchange="setUI(this.value)" title="Layout"><option value="auto">Auto</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="pc">PC</option></select><div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div></header>
+<header>
+  <h1>TDM Screener</h1>
+  <span class="tag" id="tag">Prototype · sample data</span>
+  <span class="mut" id="dst"></span>
+  <button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button>
+  <div class="mode-icons" id="uim" title="Layout mode">
+    <button class="mode-btn" onclick="setUI('phone')" data-m="phone" title="Phone layout" aria-label="Phone layout">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+    </button>
+    <button class="mode-btn" onclick="setUI('tablet')" data-m="tablet" title="Tablet layout" aria-label="Tablet layout">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+    <button class="mode-btn" onclick="setUI('pc')" data-m="pc" title="PC layout" aria-label="PC layout">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </button>
+  </div>
+  <div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div>
+</header>
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -270,7 +290,7 @@ if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
 if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?"":b===false?"b":"n"}"></i>`).join("")}</span>`;
 if(v==null)return`<span class="na">…</span>`;
-const bear=(t==="cc"&&c.mode==="exp"&&c.dir=="bear")||((t==="pct"||t==="mac")&&v<0);
+const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
@@ -482,7 +502,7 @@ function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything lo
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;BN.loaded=false;BN.list=[];BN.err="";BN.host="";YF.dead=0;YF.fails=0;try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
-function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.getElementById("uim").value=m}
+function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
 addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if((S.ui||"auto")==="auto"){const o=UIM;applyUI();if(UIM!==o){render();drawChart()}}},200)});
 function sync(){document.getElementById("rows").value=S.rows||10;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}

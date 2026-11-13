@@ -106,7 +106,7 @@ tbody tr.sel td{background:color-mix(in srgb,var(--acc) 14%,var(--bg))}
 .na{color:var(--mut)}
 .note{color:var(--mut);font-size:12px;margin:10px 2px}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
-.box{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:440px;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.box{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:460px;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
 .box h3{margin:0;font-size:15px}
 .box p{margin:0}
 .box input:not([type=checkbox]),.box select,textarea{width:100%}
@@ -210,8 +210,8 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .ib.x{opacity:.35;border:0;background:none;padding:0!important;font-size:12px!important}
 .wr:hover .ib.x{opacity:1}
 .star{color:var(--acc);font-size:16px!important;line-height:1;padding:4px 9px!important}
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px}
-.tab{padding:6px 12px;background:none;border:0;border-bottom:2px solid transparent;font-weight:600;color:var(--mut);cursor:pointer}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px;overflow-x:auto}
+.tab{padding:6px 12px;background:none;border:0;border-bottom:2px solid transparent;font-weight:600;color:var(--mut);cursor:pointer;white-space:nowrap}
 .tab.active{color:var(--acc);border-bottom-color:var(--acc)}
 .tab-pane{display:none;flex-direction:column;gap:10px}
 .tab-pane.active{display:flex}
@@ -367,7 +367,7 @@ if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
 if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?"":b===false?"b":"n"}"></i>`).join("")}</span>`;
 if(v==null)return`<span class="na">…</span>`;
-const bear=(t==="cc"&&c.mode==="exp"&&c.dir=="bear")||((t==="pct"||t==="mac")&&v<0);
+const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
@@ -465,7 +465,7 @@ function togCol(id){const c=S.cols.find(x=>x.id===id);c.hide=!c.hide;save();rend
 function addCol(){const t=document.getElementById("addT").value,c=mk("c"+Date.now(),t);S.cols.push(c);save();render();openEd(c.id)}
 const STEP={"1m":60,"5m":300,"15m":900,"30m":1800,"1H":3600,"4H":14400,"1D":86400,"1W":604800,"1M":2592000};
 const INT={"1m":"1","5m":"5","15m":"15","30m":"30","1H":"60","4H":"240","1D":"D","1W":"W","1M":"M"};
-const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
+const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
 const emaArr=(a,len)=>{const k=2/(len+1);let e=a[0];return a.map((x,i)=>i?(e=x*k+e*(1-k)):e)};
 const IND={ema:"EMA",sma:"SMA",bb:"Bollinger Bands",vol:"Volume",rsi:"RSI"};
 const IL=d=>IND[d.t]+(d.t==="vol"?"":" "+d.len);
@@ -512,7 +512,7 @@ else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
-else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)))
+else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)));
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
 [1,-1].forEach(g=>ls(d.col,1).setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i]))))}
 else if(d.t==="vol"){const h=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});h.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});

@@ -271,8 +271,9 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 <div id="modal"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-const TFS=["1m","5m","15m","30m","1H","4H","1D","1W","1M"];
-const TS={"1m":.05,"5m":.1,"15m":.17,"30m":.24,"1H":.35,"4H":.7,"1D":1,"1W":2.2,"1M":4.5};
+const TFS=["1s","5s","10s","15s","30s","45s","1m","3m","5m","15m","30m","45m","1H","2H","3H","4H","12H","1D","1W","1M","3M","6M","12M"];
+const TF_CAT={SECONDS:["1s","5s","10s","15s","30s","45s"],MINUTES:["1m","3m","5m","15m","30m","45m"],HOURS:["1H","2H","3H","4H","12H"],DAYS:["1D","1W","1M","3M","6M","12M"]};
+const TS={"1s":.01,"5s":.02,"10s":.03,"15s":.04,"30s":.05,"45s":.07,"1m":.05,"3m":.08,"5m":.1,"15m":.17,"30m":.24,"45m":.3,"1H":.35,"2H":.5,"3H":.6,"4H":.7,"12H":1.2,"1D":1,"1W":2.2,"1M":4.5,"3M":6,"6M":8,"12M":10};
 const SAMPLE=[["EURUSD","FX",1.085,0,1,.005],["GBPUSD","FX",1.271,0,1,.006],["USDJPY","FX",151.2,0,1,.006],["AUDUSD","FX",.654,0,1,.006],["USDCAD","FX",1.365,0,1,.005],["NZDUSD","FX",.592,0,1,.006],
 ["ES","FUT",5800,1200000,50,.01],["NQ","FUT",20400,600000,20,.013],["CL","FUT",71.5,350000,1000,.02],["GC","FUT",2680,200000,100,.011],["ZN","FUT",110.5,1500000,1000,.004],["6E","FUT",1.085,200000,125000,.005],
 ["AAPL","STK",225,50000000,1,.016],["NVDA","STK",140,220000000,1,.03],["TSLA","STK",320,80000000,1,.035],["AMD","STK",150,45000000,1,.028],["PLTR","STK",60,60000000,1,.04],["SMCI","STK",30,40000000,1,.05],["MARA","STK",20,30000000,1,.05],["SOFI","STK",14,40000000,1,.035],["THIN","STK",8.4,220000,1,.045],["TINY","STK",2.5,150000,1,.06],
@@ -303,7 +304,7 @@ scMode:0,scAuto:true,scInv:false,scBorder:true,scBorderCol:"",scTop:.1,scBot:.1,
 wm:false,wmCol:"",
 ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
 function chMig(c){if(c&&c.up&&c.upBody===undefined){c.upBody=c.upBorder=c.upWick=c.lineCol=c.up;c.dnBody=c.dnBorder=c.dnWick=c.dn;if(c.grid===false)c.showGridV=c.showGridH=false}}
-S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
+S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;S.tfFav=S.tfFav||["1m","5m","15m","30m","1H","4H","1D","1W","1M"];if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
 const WLD=()=>({open:true,groups:[{id:"g1",name:"Traded",open:true,syms:[]},{id:"g2",name:"Section",open:true,syms:[]}]});
 S.wlx=S.wlx&&Array.isArray(S.wlx.groups)&&S.wlx.groups.length?S.wlx:WLD();
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
@@ -482,8 +483,8 @@ function delCol(){S.cols=S.cols.filter(x=>x.id!==ed);save();closeM();render()}
 function openCols(){modal(`<h3>Columns</h3><div class="list">${S.cols.map(c=>`<div class="li"><label class="chk"><input type="checkbox" ${c.hide?"":"checked"} onchange="togCol('${c.id}')">${label(c)}</label><button onclick="openEd('${c.id}')">⚙</button></div>`).join("")}</div><div class="row"><select id="addT">${Object.keys(TY).map(k=>`<option value="${k}">${TY[k]}</option>`).join("")}</select><button onclick="addCol()">Add</button></div><div class="row"><span class="sp"></span><button class="pri" onclick="closeM()">Done</button></div>`)}
 function togCol(id){const c=S.cols.find(x=>x.id===id);c.hide=!c.hide;save();render()}
 function addCol(){const t=document.getElementById("addT").value,c=mk("c"+Date.now(),t);S.cols.push(c);save();render();openEd(c.id)}
-const STEP={"1m":60,"5m":300,"15m":900,"30m":1800,"1H":3600,"4H":14400,"1D":86400,"1W":604800,"1M":2592000};
-const INT={"1m":"1","5m":"5","15m":"15","30m":"30","1H":"60","4H":"240","1D":"D","1W":"W","1M":"M"};
+const STEP={"1s":1,"5s":5,"10s":10,"15s":15,"30s":30,"45s":45,"1m":60,"3m":180,"5m":300,"15m":900,"30m":1800,"45m":2700,"1H":3600,"2H":7200,"3H":10800,"4H":14400,"12H":43200,"1D":86400,"1W":604800,"1M":2592000,"3M":7776000,"6M":15552000,"12M":31536000};
+const INT={"1s":"1S","5s":"5S","10s":"10S","15s":"15S","30s":"30S","45s":"45S","1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","45m":"45","1H":"60","2H":"120","3H":"180","4H":"240","12H":"720","1D":"D","1W":"W","1M":"M","3M":"3M","6M":"6M","12M":"12M"};
 const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
 const emaArr=(a,len)=>{const k=2/(len+1);let e=a[0];return a.map((x,i)=>i?(e=x*k+e*(1-k)):e)};
 const IND={ema:"EMA",sma:"SMA",bb:"Bollinger Bands",vol:"Volume",rsi:"RSI"};
@@ -505,7 +506,7 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const op=m=>({autoSize:true,
@@ -551,7 +552,18 @@ const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
 function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" title="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
 return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
-function setTool(k){TOOL=k;DRAFT=null;SELD=null;tbRef()}
+function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}
+function tfPick(t){S.chart.tf=t;save();drawChart();const m=document.getElementById("tfm");if(m)m.style.display="none"}
+function tfMenu(){const m=document.getElementById("tfm");if(!m)return;m.style.display=m.style.display==="block"?"none":"block"}
+function tfHTML(){const fav=S.tfFav||[],C=S.chart;
+let h=`<div class="tfs tfb">${fav.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="tfPick('${t}')">${t}</button>`).join("")}<button class="chip" onclick="tfMenu()" title="All timeframes">▾</button></div>`;
+h+=`<div id="tfm" style="display:none;position:absolute;top:100%;left:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;z-index:20;max-height:360px;overflow:auto;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.2);padding:4px 0">`;
+for(const[cat,arr]of Object.entries(TF_CAT)){
+  h+=`<div style="padding:6px 12px 2px;font-size:11px;color:var(--mut);font-weight:600">${cat}</div>`;
+  arr.forEach(t=>{const on=fav.includes(t);h+=`<div style="display:flex;align-items:center;padding:5px 12px;cursor:pointer" onclick="tfPick('${t}')"><span style="flex:1">${t}</span><span onclick="event.stopPropagation();tfStar('${t}')" style="cursor:pointer;font-size:14px">${on?"★":"☆"}</span></div>`});
+}
+h+=`</div>`;
+return h}
 function togT(k){if(k==="MAG")MAG=!MAG;else if(k==="LOCKD"){LOCKD=!LOCKD;SELD=null}else HIDD=!HIDD;tbRef()}
 function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?")){S.dr[S.chart.sym]=[];SELD=null;save();tbRef()}}
 let UNDO=[],REDO=[];
@@ -787,7 +799,7 @@ host.addEventListener("pointerup",e=>{if(!host._d||TOOL!=="cross"||LOCKD||HIDD||
 const r=host.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=[...DL()].reverse().find(d=>hit(d,x,y));if(d&&d!==SELD){SELD=d;dpe();dsel()}});
 dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"))return;paint();requestAnimationFrame(f)})()}
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
-document.addEventListener("keydown",kmod);document.addEventListener("keyup",kmod);addEventListener("blur",()=>{MOD=[false,false]});
+document.addEventListener("click",e=>{if(!e.target.closest("#tfm")&&!e.target.closest(".tfb")){const m=document.getElementById("tfm");if(m)m.style.display="none"}});
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
 // Undo / Redo

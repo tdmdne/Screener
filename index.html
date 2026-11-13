@@ -542,11 +542,11 @@ const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.
 ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st)}
 // ---------- drawing tools (left toolbar like TradingView; drawings are saved per symbol) ----------
 let MS=null,TOOL="cross",MAG=false,LOCKD=false,HIDD=false,SELD=null,DRAFT=null,DRG=null,G=null,MX=null,MOD=[false,false]; // MOD = [shift held, ctrl/cmd held]
-const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short)$/;
-const DT={cross:"Cursor",trend:"Trend line",ray:"Ray",ext:"Extended line",hline:"Horizontal line",hray:"Horizontal ray",vline:"Vertical line",rect:"Rectangle",fib:"Fib retracement",long:"Long position",short:"Short position",text:"Text"};
+const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short|arrow|curve|prange|drange)$/;
+const DT={cross:"Cursor",trend:"Trend line",ray:"Ray",ext:"Extended line",hline:"Horizontal line",hray:"Horizontal ray",vline:"Vertical line",rect:"Rectangle",fib:"Fib retracement",long:"Long position",short:"Short position",text:"Text",note:"Note",arrow:"Arrow",path:"Path",curve:"Curve",prange:"Price Range",drange:"Date Range"};
 const LSTYLES=[{n:"Solid",d:[]},{n:"Dashed",d:[6,4]},{n:"Dotted",d:[2,3]},{n:"Dash-dot",d:[8,4,2,4]},{n:"Sparse dotted",d:[1,4]}];
-const IC={cross:'<path d="M12 4v16M4 12h16"/>',trend:'<path d="M5 19L19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>',ray:'<path d="M5 19L21 3"/><circle cx="5" cy="19" r="2"/>',ext:'<path d="M3 21L21 3"/><circle cx="9" cy="15" r="2"/><circle cx="15" cy="9" r="2"/>',hline:'<path d="M3 12h18"/><circle cx="12" cy="12" r="2"/>',hray:'<path d="M5 12h16"/><circle cx="5" cy="12" r="2"/>',vline:'<path d="M12 3v18"/><circle cx="12" cy="12" r="2"/>',rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',fib:'<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',long:'<rect x="5" y="4" width="14" height="8" fill="currentColor" fill-opacity=".3"/><rect x="5" y="12" width="14" height="8"/>',short:'<rect x="5" y="4" width="14" height="8"/><rect x="5" y="12" width="14" height="8" fill="currentColor" fill-opacity=".3"/>',text:'<path d="M6 6h12M12 6v13"/>',magnet:'<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z"/>',lock:'<rect x="6" y="11" width="12" height="9" rx="1"/><path d="M9 11V8a3 3 0 016 0v3"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>'};
-const TG=[["cross","trend","ray","ext","hline","hray","vline"],["rect","fib"],["long","short","text"]];
+const IC={cross:'<path d="M12 4v16M4 12h16"/>',trend:'<path d="M5 19L19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>',ray:'<path d="M5 19L21 3"/><circle cx="5" cy="19" r="2"/>',ext:'<path d="M3 21L21 3"/><circle cx="9" cy="15" r="2"/><circle cx="15" cy="9" r="2"/>',hline:'<path d="M3 12h18"/><circle cx="12" cy="12" r="2"/>',hray:'<path d="M5 12h16"/><circle cx="5" cy="12" r="2"/>',vline:'<path d="M12 3v18"/><circle cx="12" cy="12" r="2"/>',rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',fib:'<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',long:'<rect x="5" y="4" width="14" height="8" fill="currentColor" fill-opacity=".3"/><rect x="5" y="12" width="14" height="8"/>',short:'<rect x="5" y="4" width="14" height="8"/><rect x="5" y="12" width="14" height="8" fill="currentColor" fill-opacity=".3"/>',text:'<path d="M6 6h12M12 6v13"/>',note:'<path d="M4 6h16v10H8l-4 4V6z"/>',arrow:'<path d="M5 19L19 5M19 5h-6M19 5v6"/>',path:'<path d="M4 18l5-6 4 3 7-9"/>',curve:'<path d="M4 16c4-8 12-8 16 0"/>',prange:'<path d="M4 8h16M4 16h16M12 8v8"/>',drange:'<path d="M8 4v16M16 4v16M8 12h8"/>',magnet:'<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z"/>',lock:'<rect x="6" y="11" width="12" height="9" rx="1"/><path d="M9 11V8a3 3 0 016 0v3"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>'};
+const TG=[["cross","trend","ray","ext","hline","hray","vline","arrow"],["rect","fib","path","curve"],["long","short","text","note","prange","drange"]];
 const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
 function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" title="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
 return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
@@ -594,6 +594,40 @@ g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
 else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
+else if(t==="arrow"){
+  const[e,f]=q;ln(e.x,e.y,f.x,f.y);
+  const ang=Math.atan2(f.y-e.y,f.x-e.x),ah=12;
+  g.beginPath();g.moveTo(f.x,f.y);g.lineTo(f.x-ah*Math.cos(ang-0.4),f.y-ah*Math.sin(ang-0.4));g.lineTo(f.x-ah*Math.cos(ang+0.4),f.y-ah*Math.sin(ang+0.4));g.closePath();g.fill();
+}
+else if(t==="note"){
+  const bx=a.x+20,by=a.y-30,bw=140,bh=50;
+  g.globalAlpha=.9;g.fillStyle=c+"22";g.strokeStyle=c;g.lineWidth=1;
+  g.beginPath();g.roundRect(bx,by,bw,bh,4);g.fill();g.stroke();
+  g.beginPath();g.moveTo(a.x,a.y);g.lineTo(bx+10,by+bh);g.stroke();
+  g.globalAlpha=1;g.fillStyle=c;g.font="13px system-ui,sans-serif";g.fillText(d.txt||"Note",bx+8,by+28);
+}
+else if(t==="path"){
+  if(q.length>1){g.beginPath();g.moveTo(q[0].x,q[0].y);for(let i=1;i<q.length;i++)g.lineTo(q[i].x,q[i].y);g.stroke()}
+  q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,3,0,7);g.fill()});
+}
+else if(t==="curve"){
+  if(q.length>=3){g.beginPath();g.moveTo(q[0].x,q[0].y);g.quadraticCurveTo(q[1].x,q[1].y,q[2].x,q[2].y);g.stroke()}
+  else if(q.length===2){ln(q[0].x,q[0].y,q[1].x,q[1].y)}
+}
+else if(t==="prange"){
+  const y1=Math.min(a.y,b.y),y2=Math.max(a.y,b.y),x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x);
+  g.globalAlpha=.15;g.fillStyle=c;g.fillRect(x1,y1,x2-x1,y2-y1);g.globalAlpha=1;
+  g.strokeStyle=c;ln(x1,y1,x2,y1);ln(x1,y2,x2,y2);ln((x1+x2)/2,y1,(x1+x2)/2,y2);
+  const p1=d.p[0].y,p2=d.p[1].y,diff=p2-p1,pct=p1?((p2/p1-1)*100):0;
+  g.fillStyle=c;g.font="12px system-ui,sans-serif";g.fillText(fp(diff)+" ("+(pct>0?"+":"")+pct.toFixed(2)+"%)",(x1+x2)/2+6,(y1+y2)/2);
+}
+else if(t==="drange"){
+  const x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x),y1=Math.min(a.y,b.y),y2=Math.max(a.y,b.y);
+  g.globalAlpha=.12;g.fillStyle=c;g.fillRect(x1,y1,x2-x1,y2-y1);g.globalAlpha=1;
+  g.strokeStyle=c;ln(x1,0,x1,H);ln(x2,0,x2,H);
+  const bars=Math.abs(Math.round((d.p[1].t-d.p[0].t)/G.st));
+  g.fillStyle=c;g.font="12px system-ui,sans-serif";g.fillText(bars+" bars",(x1+x2)/2-20,(y1+y2)/2);
+}
 // optional text label — middle breaks the line; other alignments sit near a continuous line
 if(d.txt&&t!=="text"){
   const fs=d.txtSize||12,bold=d.txtBold?"bold ":"",italic=d.txtItalic?"italic ":"";
@@ -673,10 +707,18 @@ function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-
 function dFin(){const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;DL().push(d);SELD=d;TOOL="cross";save();tbRef()}
 function dDown(e){const[x,y]=xy(e);MX=[x,y];MOD=[e.shiftKey,e.ctrlKey||e.metaKey];try{e.target.setPointerCapture(e.pointerId)}catch(_){}
 if(TOOL!=="cross"){const p=snapP(x,y);
-if(DRAFT){DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return}
+if(DRAFT){
+  if(TOOL==="path"){
+    // path: click adds a point; double-click finishes
+    if(e.detail===2){dFin();return}
+    DRAFT.p.push(p);return
+  }
+  DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return
+}
 const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2,s:0};
-if(N2.test(TOOL)){d.p.push({...p});if(TOOL==="long"||TOOL==="short")d.p.push({...p});d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)}
-else{if(TOOL==="text"){d.txt=prompt("Text","")||"";if(!d.txt)return}DRAFT=d;dFin()}return}
+if(TOOL==="path"){DRAFT=d;return}
+if(N2.test(TOOL)){d.p.push({...p});if(TOOL==="long"||TOOL==="short"||TOOL==="curve")d.p.push({...p});d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)}
+else{if(TOOL==="text"||TOOL==="note"){d.txt=prompt(TOOL==="note"?"Note text":"Text","")||"";if(!d.txt)return}DRAFT=d;dFin()}return}
 if(SELD){const q=SELD.p.map(px),i=q.findIndex(o=>o.x!=null&&Math.hypot(o.x-x,o.y-y)<14);
 if(i>=0){DRG={d:SELD,i};return}
 if(hit(SELD,x,y)){DRG={d:SELD,i:-1,o:un(x,y),c:clone(SELD.p)};return}}
@@ -698,7 +740,7 @@ dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
 document.addEventListener("keydown",kmod);document.addEventListener("keyup",kmod);addEventListener("blur",()=>{MOD=[false,false]});
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
-if(e.key==="Escape"){DRAFT=null;setTool("cross")}else if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel()}});
+if(e.key==="Escape"){if(DRAFT&&DRAFT.t==="path"&&DRAFT.p.length>1)dFin();else{DRAFT=null;setTool("cross")}}else if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel()}});
 function drawSetM(tab){
   if(!SELD)return;
   const d=SELD,t=d.t||"trend";

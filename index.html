@@ -1073,7 +1073,7 @@ if(DRAFT){
   DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return
 }
 const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2,s:0};
-if(TOOL==="note"){d.p.push({t:p.t,y:p.y});inputDialog("Note text","",`function(t){d.txt=t||"Note";DRAFT=d;dFin()}`);return}
+if(TOOL==="note"){const dd=d;inputDialog("Note text","",v=>{if(!v)return;dd.txt=v;dd.txtCol=contrastText(pal().bg||"#fff");DRAFT=dd;dFin()});return}
 if(TOOL==="brush"){d.p=[p];DRAFT=d;return}
 if(N2.test(TOOL)){
   d.p.push({...p});

@@ -904,7 +904,7 @@ if(DRAFT&&DRAFT.p.length>1){DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT
 if(DRG){const d=DRG.d,p=DRG.i>=0&&d.p.length===2?ptAt(x,y,d.p[1-DRG.i],d.t):snapP(x,y);
 if(DRG.i>=0){d.p[DRG.i]=p;if(d.t==="long"||d.t==="short"){if(DRG.i===1)d.p[2]={t:p.t,y:d.p[2].y};if(DRG.i===2)d.p[2]={t:d.p[1].t,y:p.y}}}
 else{const u=un(x,y),dt=u.t-DRG.o.t,dy=u.y-DRG.o.y;d.p=DRG.c.map(q=>({t:q.t+dt,y:q.y+dy}))}}}
-function dUp(){if(DRAFT&&DRAFT.mv)dFin();if(DRG){DRG=null;save()}}
+function dUp(){if(DRAFT&&(DRAFT.mv||DRAFT.t==="brush"))dFin();if(DRG){DRG=null;save()}}
 function initDraw(a,T,st){G={a,st,tt:a.map((_,i)=>T(i))};if(SELD&&!DL().includes(SELD))SELD=null;DRAFT=null;DRG=null;
 const host=document.getElementById("cv"),cv=document.createElement("canvas");cv.id="dc";cv.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;z-index:6;touch-action:none";host.appendChild(cv);
 cv.onpointerdown=dDown;cv.onpointermove=dMove;cv.onpointerup=dUp;

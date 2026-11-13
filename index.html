@@ -615,9 +615,9 @@ ch.priceScale("right").applyOptions({autoScale:true});
 initDraw(a,T,st);
 // indicator values dropdown
 if(C.indTitles!==false&&C.ind.length){
-  const idv=document.createElement("div");idv.style.cssText="padding:4px 8px;font-size:12px;border-bottom:1px solid var(--line)";
-  idv.innerHTML=`<details><summary style="cursor:pointer;color:var(--mut)">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="padding:4px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:8px;padding:2px 0"><span style="color:${d.hidden?"#555":d.col}">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:auto;display:flex;gap:4px"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:12px">${d.hidden?"👁":"👁‍🗨"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
-  document.querySelector(".cm").insertBefore(idv,document.getElementById("cv"));
+  const idv=document.createElement("div");idv.style.cssText="position:absolute;top:8px;left:50px;font-size:11px;z-index:4";
+  idv.innerHTML=`<details style="background:transparent"><summary style="cursor:pointer;color:var(--mut);list-style:none">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="background:transparent;padding:2px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:4px;padding:1px 0"><span style="color:${d.hidden?"#555":d.col};font-size:8px">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:8px;opacity:.6"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px">${d.hidden?"○":"●"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
+  document.getElementById("cv").parentElement.appendChild(idv);
 }
 // current time in the timebar below the chart
 const tb=document.getElementById("timebar");

@@ -691,7 +691,7 @@ function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=
 function snapCanvas(){return new Promise(r=>{html2canvas(document.querySelector(".cm"),{backgroundColor:null,scale:2}).then(c=>r(c))})}
 async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
 async function snapCopy(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>navigator.clipboard.write([new ClipboardItem({"image/png":b})]))}
-async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();window.open(c.toDataURL())}
+async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>{const u=URL.createObjectURL(b);window.open(u)})}
 function resetLive(){
   if(!ch)return;
   const a=candles(symOf(S.chart.sym),S.chart.tf);

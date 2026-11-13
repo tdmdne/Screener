@@ -500,7 +500,10 @@ const dk=h=>{const n=parseInt(String(h).slice(1),16);return((n>>16&255)*.299+(n>
 const D={bg:"#121316",tx:"#a1a1aa",gr:"#27272a"},Lt={bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"};
 return b==="dark"?D:b==="light"?Lt:b==="custom"?Object.assign({},dk(C.bgCol)?D:Lt,{bg:C.bgCol}):{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
-function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
+function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();
+const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
+if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
+if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}

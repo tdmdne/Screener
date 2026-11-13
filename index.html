@@ -871,10 +871,9 @@ function syCancel(){SYBUF="";const h=document.getElementById("sypop");if(h)h.sty
 function syConfirm(){
   const q=SYBUF.trim().toUpperCase();syCancel();
   if(!q)return;
-  // find matching symbol in the screener data
-  const hit=DATA.find(s=>s[0].toUpperCase()===q||s[0].toUpperCase().startsWith(q));
-  if(hit){S.chart.sym=hit[0];save();drawChart()}
-  else{S.chart.sym=q;save();drawChart()}
+  const hit=SYMS.find(s=>s[0].toUpperCase()===q)||SYMS.find(s=>s[0].toUpperCase().startsWith(q));
+  if(hit)openChart(hit[0]);
+  else openChart(q);
 }
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;

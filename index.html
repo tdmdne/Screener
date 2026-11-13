@@ -421,7 +421,12 @@ r=r.map(s=>{const o={s,v:{},sq:{}};vis.forEach(c=>{if(c.type==="mat"){o.sq[c.id]
 r=r.filter(o=>{const d=dvOf(o.s);if(d==null&&S.hideNV)return false;if(S.dvOn&&d!=null&&d<cut)return false;
 for(const c of vis)if(c.type==="cc"&&c.min>0&&o.v[c.id]<c.min)return false;return true});
 const id=S.sort.id,d=S.sort.dir,g=o=>id==="sym"?o.s[0]:o.v[id];
-r.sort((a,b)=>{const x=g(a),y=g(b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(x>y?1:x<y?-1:0)*d});return applySFilter(r)}
+r.sort((a,b)=>{const x=g(a),y=g(b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(x>y?1:x<y?-1:0)*d});
+if(S.preset&&PRESETS[S.preset]){
+  const min=PRESETS[S.preset].minScore;
+  r=r.filter(o=>scoreMarket(o.s)>=min).sort((a,b)=>scoreMarket(b.s)-scoreMarket(a.s));
+}
+return applySFilter(r)}
 function cell(o,c){const v=o.v[c.id],t=c.type;
 if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
@@ -430,22 +435,35 @@ if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 const PRESETS={
-  P1:{name:"P1 Best",sort:"chg",dir:-1,desc:"Highest % change"},
-  P2:{name:"P2 Volume",sort:"vol",dir:-1,desc:"Highest volume"},
-  P3:{name:"P3 Momentum",sort:"mom",dir:-1,desc:"Strongest momentum"},
-  P4:{name:"P4 Volatility",sort:"atr",dir:-1,desc:"Highest ATR"},
-  P5:{name:"P5 Range",sort:"range",dir:-1,desc:"Widest range"}
+  P1:{name:"P1 Best",minScore:80,desc:"Strong EMA alignment + high volume + momentum"},
+  P2:{name:"P2 Strong",minScore:65,desc:"EMA alignment + volume"},
+  P3:{name:"P3 Good",minScore:50,desc:"Partial EMA alignment"},
+  P4:{name:"P4 Moderate",minScore:35,desc:"Basic momentum"},
+  P5:{name:"P5 All",minScore:0,desc:"All markets"}
 };
+function scoreMarket(s){
+  try{
+    const a=candles(s,"1D");if(!a||a.length<200)return 0;
+    const cl=a.map(d=>d.c);
+    const ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20),sma200=smaArr(cl,200);
+    const last=a.length-1,c=cl[last];
+    let score=0;
+    if(c>ema5[last])score+=15;
+    if(c>ema10[last])score+=15;
+    if(c>ema20[last])score+=20;
+    if(c>sma50[last])score+=20;
+    if(ema5[last]>ema10[last]&&ema10[last]>ema20[last])score+=15;
+    const chg=((c/cl[Math.max(0,last-20)])-1)*100;
+    if(chg>5)score+=15;else if(chg>0)score+=5;
+    return Math.min(100,score);
+  }catch(e){return 0}
+}
 function renderPresets(){
   const el=document.getElementById("presets");if(!el)return;
   el.innerHTML=Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("");
 }
 function applyPreset(k){
   S.preset=k;
-  const p=PRESETS[k];
-  if(p.sort==="chg")S.sort={id:"c1",dir:-1};
-  else if(p.sort==="vol")S.sort={id:"c2",dir:-1};
-  else S.sort={id:"sym",dir:1};
   S.page=0;save();render();
 }
 function render(){

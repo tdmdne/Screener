@@ -603,8 +603,15 @@ if(d.txt&&t!=="text"){
   const isLine=t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray"||t==="vline";
   let tx,ty,gap=null;
   if(isLine){
-    const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
-    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    // use the actual drawn extent of the line, not just the stored points
+    let minX,maxX,minY,maxY;
+    if(t==="hline"){minX=0;maxX=W;minY=maxY=a.y}
+    else if(t==="hray"){minX=a.x;maxX=W;minY=maxY=a.y}
+    else if(t==="vline"){minY=0;maxY=H;minX=maxX=a.x}
+    else{
+      const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
+      minX=Math.min(...xs);maxX=Math.max(...xs);minY=Math.min(...ys);maxY=Math.max(...ys);
+    }
     const midX=(minX+maxX)/2,midY=(minY+maxY)/2;
     if(ha==="left")tx=minX;
     else if(ha==="right")tx=maxX-tw;

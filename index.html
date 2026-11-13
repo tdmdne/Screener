@@ -269,6 +269,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 </div><div id="cp"></div></div>
 </div>
 <div id="modal"></div>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 const TFS=["1s","5s","10s","15s","30s","45s","1m","3m","5m","15m","30m","45m","1H","2H","3H","4H","12H","1D","1W","1M","3M","6M","12M"];
@@ -534,7 +535,7 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><button onclick="resetLive()" title="Reset to live">↺</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot">📷</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset to live">↺</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const TZ_OFF={"ny":-5,"utc":0,"lon":0,"par":1,"ber":1,"tok":9,"sha":8,"sgp":8,"hkg":8,"syd":10,"dub":4,"mos":3,"sao":-3,"chi":-6,"den":-7,"la":-8};
@@ -686,6 +687,11 @@ const all=TG.flat();const fi=all.indexOf(dragTool),ti=all.indexOf(target);
 if(fi<0||ti<0)return;all.splice(fi,1);all.splice(ti,0,dragTool);
 TG.length=0;let g=[];all.forEach((k,i)=>{g.push(k);if(g.length>=8||i===all.length-1){TG.push(g);g=[]}});
 S.toolOrder=TG.flat();save();tbRef()}
+function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=d.style.display==="none"?"block":"none"}
+function snapCanvas(){return new Promise(r=>{html2canvas(document.querySelector(".cm"),{backgroundColor:null,scale:2}).then(c=>r(c))})}
+async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
+async function snapCopy(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>navigator.clipboard.write([new ClipboardItem({"image/png":b})]))}
+async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();window.open(c.toDataURL())}
 function resetLive(){
   if(!ch)return;
   const a=candles(symOf(S.chart.sym),S.chart.tf);

@@ -558,7 +558,7 @@ localization:{timeFormatter:t=>{
   return date+" "+String(hh).padStart(2,"0")+":"+mi;
 }},
 timeScale:{timeVisible:C.tf!=="1D",secondsVisible:false,borderVisible:true,borderColor:C.scBorderCol||p.gr},
-rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:(+C.scTop||10)/100,bottom:(+C.scBot||8)/100}}:{}),
+rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:0.3,bottom:0.1}}:{}),
 leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
 watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
@@ -614,7 +614,7 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.i
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-nb+10,to:a.length+10});
+ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
 ch.priceScale("right").applyOptions({autoScale:true});
 initDraw(a,T,st);
 // indicator values dropdown

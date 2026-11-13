@@ -615,7 +615,7 @@ const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC 
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
 ...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
-const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
+const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAXDOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
 // redraw the table less often while a big queue is still loading, so the page thread stays free for fetching
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},QT.length+QB.length+QY.length>40?1200:300)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
@@ -634,7 +634,6 @@ BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteV
 BN.busy=false;render();drawChart()}
 async function pumpBN(){if(bz.bn)return;bz.bn=1;
 const w=async()=>{while(QB.length){
-// if Binance said "slow down" (429) or banned us briefly (418), every worker waits it out
 while(Date.now()<BN.pause)await sleep(500);
 const[s,tf,k]=QB.shift();status();
 try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=250`);
@@ -643,8 +642,6 @@ catch(e){if(e.status===429||e.status===418){QB.unshift([s,tf,k]);BN.pause=Date.n
 ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
 await Promise.all([w(),w(),w(),w(),w()]);bz.bn=0;if(QB.length)pumpBN()}
-// Yahoo goes through three public proxies. Spread requests across all three and rest any proxy that errors,
-// instead of sending everything through one proxy until it rate-limits us.
 async function yGet(sym,tf){const[iv,rg]=YI[tf];let err;const now=Date.now(),st=YF.rr++%3;
 const order=[0,1,2].map(i=>(i+st)%3).sort((a,b)=>(YF.cool[a]>now)-(YF.cool[b]>now));
 for(const i of order){try{const r=await fetch(PX[i](`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${iv}&range=${rg}`));
@@ -657,14 +654,11 @@ function yParse(c,tf){const q=c.indicators.quote[0],t=c.timestamp;let a=[];
 for(let i=0;i<t.length;i++)if(q.close[i]!=null&&q.open[i]!=null)a.push({t:t[i],o:q.open[i],h:q.high[i],l:q.low[i],c:q.close[i],v:q.volume[i]||0});
 if(tf==="4H"){const m=new Map();a.forEach(x=>{const b=Math.floor(x.t/14400)*14400,y=m.get(b);if(!y)m.set(b,{t:b,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v});else{y.h=Math.max(y.h,x.h);y.l=Math.min(y.l,x.l);y.c=x.c;y.v+=x.v}});a=[...m.values()]}
 return a.slice(-250)}
-// clear failed items so they get queued again (all of them, or only those whose message matches re)
 function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];render()}
-// if Yahoo looks down, stop hammering it for 90 seconds, then retry what failed
 function markDead(){if(YF.dead)return;YF.dead=1;setTimeout(()=>{YF.dead=0;YF.fails=0;retryErr(/Yahoo busy|proxy\/network|HTTP [45]\d\d/)},90000)}
 async function pumpYF(){if(bz.yf)return;bz.yf=1;
 const toTD=(s,tf,k)=>{const s2=s.slice();s2[6]=s[9];QT.push([s2,tf,k]);pumpTD()};
 const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
-// the free Twelve Data plan allows ~8 requests a minute, so it is only used as a backup for what is on screen
 const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
 if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
@@ -704,15 +698,11 @@ function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{cons
 for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1}}}catch(e){}})())}
 async function autoRefresh(){if(!isLive()||!READY)return;await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/Yahoo busy|proxy\/network|network error|HTTP [45]\d\d/)}
 function pgGo(d){S.page+=d;save();render()}
-// Two-stage loading:
-//  1) daily candles for everything (gives price, volume and dollar volume)
-//  2) the other timeframes, only for stocks/ETFs/futures that pass the dollar-volume cutoff
-// Symbols on screen jump the queue.
 function kick(){if(!isLive()||!READY)return;
 if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
 const cut=S.acct*S.mult,cs=symOf(S.chart.sym);if(cs)need(cs,S.chart.tf,true);
-wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)}); // watchlist symbols load first
+wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)});
 const eq=m=>m==="STK"||m==="ETF"||m==="FUT";
 const tfl=["1D",...[...base].filter(t=>t!=="1D")];
 tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
@@ -746,13 +736,11 @@ document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);sav
 document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();render()};
 document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
-// up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
 document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
 const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
 applyTheme();applyUI();sync();render();drawChart();
 loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
-// every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
 setInterval(autoRefresh,15*60*1000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}});
 </script></body></html>

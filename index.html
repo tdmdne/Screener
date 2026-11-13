@@ -598,7 +598,7 @@ if(C.plusBtn){
 // buy/sell buttons
 if(C.showBuySell){
   const leftPad=C.scalePlace==="left"?90:8;
-  const bs=document.createElement("div");bs.style.cssText=`position:absolute;top:40px;left:${leftPad}px;display:flex;gap:4px;z-index:5`;
+  const bs=document.createElement("div");bs.style.cssText=`position:absolute;top:8px;left:${leftPad}px;display:flex;gap:4px;z-index:5`;
   bs.innerHTML=`<button style="background:#f23645;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">SELL</button><button style="background:#089981;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">BUY</button>`;
   document.getElementById("cv").parentElement.appendChild(bs);
 }
@@ -621,7 +621,9 @@ initDraw(a,T,st);
 if(C.indTitles!==false&&C.ind.length){
   const bg=C.bg==="custom"&&C.bgCol?C.bgCol:(pal().bg||"#fff");
   const txtCol=contrastText(bg);
-  const idv=document.createElement("div");idv.style.cssText=`position:absolute;top:8px;left:50px;font-size:11px;z-index:4;color:${txtCol}`;
+  const topPos=C.showBuySell?"36px":"8px";
+  const leftPad=C.scalePlace==="left"?90:50;
+  const idv=document.createElement("div");idv.style.cssText=`position:absolute;top:${topPos};left:${leftPad}px;font-size:11px;z-index:4;color:${txtCol}`;
   idv.innerHTML=`<details style="background:transparent"><summary style="cursor:pointer;color:${txtCol};list-style:none">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="background:transparent;padding:2px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:4px;padding:1px 0"><span style="color:${d.hidden?"#555":d.col};font-size:8px">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:8px;opacity:.8"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">${d.hidden?"○":"●"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
   document.getElementById("cv").parentElement.appendChild(idv);
 }
@@ -1107,13 +1109,11 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +sl("tz","Timezone",[["ny","(UTC-5) New York"],["utc","UTC"],["lon","(UTC+0) London"],["par","(UTC+1) Paris"],["ber","(UTC+1) Berlin"],["tok","(UTC+9) Tokyo"],["sha","(UTC+8) Shanghai"],["sgp","(UTC+8) Singapore"],["hkg","(UTC+8) Hong Kong"],["syd","(UTC+10) Sydney"],["dub","(UTC+4) Dubai"],["mos","(UTC+3) Moscow"],["sao","(UTC-3) São Paulo"],["chi","(UTC-6) Chicago"],["den","(UTC-7) Denver"],["la","(UTC-8) Los Angeles"]])
 +cr(0,"Time colour",co("timeCol","#131722")))
 +tp("status",sec("INSTRUMENT")
-+cr("showTitle","Title",`<select data-c="titleMode">${o([["name","Name"],["ticker","Ticker"]],C.titleMode||"name")}</select>`)
 +ck("showMktStatus","Open market status")
 +ck("showVol","Volume")
 +ck("showBuySell","Buy/sell buttons")
 +sec("INDICATORS")
-+ck("indTitles","Titles")
-+ck("indValues","Values"))
++ck("indTitles","Indicator titles"))
 +tp("scales",sl("scalePlace","Scales placement",[["auto","Auto"],["left","Left"],["right","Right"]])
 +ck("plusBtn","Plus button")
 +sec("TIME SCALE")

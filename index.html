@@ -542,7 +542,7 @@ const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.
 ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st)}
 // ---------- drawing tools (left toolbar like TradingView; drawings are saved per symbol) ----------
 let MS=null,TOOL="cross",MAG=false,LOCKD=false,HIDD=false,SELD=null,DRAFT=null,DRG=null,G=null,MX=null,MOD=[false,false]; // MOD = [shift held, ctrl/cmd held]
-const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short|arrow|curve|prange|drange)$/;
+const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short|arrow|prange|drange)$/;
 const DT={cross:"Cursor",trend:"Trend line",ray:"Ray",ext:"Extended line",hline:"Horizontal line",hray:"Horizontal ray",vline:"Vertical line",rect:"Rectangle",fib:"Fib retracement",long:"Long position",short:"Short position",text:"Text",note:"Note",arrow:"Arrow",path:"Path",curve:"Curve",prange:"Price Range",drange:"Date Range"};
 const LSTYLES=[{n:"Solid",d:[]},{n:"Dashed",d:[6,4]},{n:"Dotted",d:[2,3]},{n:"Dash-dot",d:[8,4,2,4]},{n:"Sparse dotted",d:[1,4]}];
 const IC={cross:'<path d="M12 4v16M4 12h16"/>',trend:'<path d="M5 19L19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>',ray:'<path d="M5 19L21 3"/><circle cx="5" cy="19" r="2"/>',ext:'<path d="M3 21L21 3"/><circle cx="9" cy="15" r="2"/><circle cx="15" cy="9" r="2"/>',hline:'<path d="M3 12h18"/><circle cx="12" cy="12" r="2"/>',hray:'<path d="M5 12h16"/><circle cx="5" cy="12" r="2"/>',vline:'<path d="M12 3v18"/><circle cx="12" cy="12" r="2"/>',rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',fib:'<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',long:'<rect x="5" y="4" width="14" height="8" fill="currentColor" fill-opacity=".3"/><rect x="5" y="12" width="14" height="8"/>',short:'<rect x="5" y="4" width="14" height="8"/><rect x="5" y="12" width="14" height="8" fill="currentColor" fill-opacity=".3"/>',text:'<path d="M6 6h12M12 6v13"/>',note:'<path d="M4 6h16v10H8l-4 4V6z"/>',arrow:'<path d="M5 19L19 5M19 5h-6M19 5v6"/>',path:'<path d="M4 18l5-6 4 3 7-9"/>',curve:'<path d="M4 16c4-8 12-8 16 0"/>',prange:'<path d="M4 8h16M4 16h16M12 8v8"/>',drange:'<path d="M8 4v16M16 4v16M8 12h8"/>',magnet:'<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z"/>',lock:'<rect x="6" y="11" width="12" height="9" rx="1"/><path d="M9 11V8a3 3 0 016 0v3"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>'};
@@ -761,11 +761,14 @@ g.restore()}
 const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
 function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-(d.p[1].y-d.p[0].y)/2}}
 function dFin(){
-  const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;
-  // for curves, offset the control point so it's visibly curved
+  const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;delete d._lt;
+  // curve: auto-offset the middle control point so it's curved immediately
   if(d.t==="curve"&&d.p.length>=3){
-    const a=d.p[0],b=d.p[2];
-    d.p[1]={t:(a.t+b.t)/2,y:(a.y+b.y)/2+Math.abs(b.y-a.y)*0.3+0.001};
+    const a=d.p[0],c=d.p[2];
+    const mx=(a.t+c.t)/2,my=(a.y+c.y)/2;
+    const dx=c.t-a.t,dy=c.y-a.y,len=Math.hypot(dx,dy)||1;
+    // offset perpendicular to the line
+    d.p[1]={t:mx-dy/len*Math.abs(dy)*0.4,y:my+dx/len*Math.abs(dx)*0.4};
   }
   DL().push(d);SELD=d;TOOL="cross";save();tbRef()
 }
@@ -773,16 +776,23 @@ function dDown(e){const[x,y]=xy(e);MX=[x,y];MOD=[e.shiftKey,e.ctrlKey||e.metaKey
 if(TOOL!=="cross"){const p=snapP(x,y);
 if(DRAFT){
   if(TOOL==="path"){
+    // click adds a point; Escape or double-click finishes
     const now=Date.now();
-    // double-click (or click within 300ms of last) finishes the path
-    if(DRAFT._lt&&now-DRAFT._lt<300&&DRAFT.p.length>1){dFin();return}
+    if(DRAFT._lt&&now-DRAFT._lt<280&&DRAFT.p.length>1){dFin();return}
     DRAFT._lt=now;
-    DRAFT.p.push(p);return
+    DRAFT.p.push(p);
+    return
+  }
+  if(TOOL==="curve"&&DRAFT.p.length===2){
+    // third click sets the end; middle becomes the control
+    DRAFT.p.push(p);
+    dFin();return
   }
   DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return
 }
 const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2,s:0};
 if(TOOL==="path"){DRAFT=d;return}
+if(TOOL==="curve"){d.p.push({...p});DRAFT=d;return}
 if(TOOL==="note"){d.p.push({t:p.t,y:p.y});d.txt=prompt("Note text","")||"Note";DRAFT=d;dFin();return}
 if(N2.test(TOOL)){
   d.p.push({...p});

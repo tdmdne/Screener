@@ -1104,15 +1104,15 @@ function drawSetM(tab){
   const d=SELD,t=d.t||"trend";
   const o=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${n}</option>`).join("");
   const tabs=[["style","Style"],["text","Text"],["coords","Coordinates"],["vis","Visibility"]];
-  const styleTab=`<div class="tp" data-t="style"><label>Line colour<input type="color" id="ds_c" value="${d.c||"#2962ff"}"></label>
-<label>Line type<select id="ds_s">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(d.s||0)?"selected":""}>${st.n}</option>`).join("")}</select></label>
-<label>Line width<select id="ds_w">${[1,2,3,4].map(w=>`<option value="${w}" ${w==(d.w||2)?"selected":""}>${w}</option>`).join("")}</select></label></div>`;
-  const textTab=`<div class="tp" data-t="text"><div class="row"><input type="color" id="ds_tc" value="${d.txtCol||d.c||"#2962ff"}" style="width:38px"><select id="ds_ts">${[10,12,14,16,18,20,24].map(s=>`<option ${s==(d.txtSize||12)?"selected":""}>${s}</option>`).join("")}</select><button type="button" id="ds_tb" class="${d.txtBold?"on":""}" onclick="this.classList.toggle('on')">B</button><button type="button" id="ds_ti" class="${d.txtItalic?"on":""}" onclick="this.classList.toggle('on')">I</button></div>
-<textarea id="ds_txt" rows="4" placeholder="Add text">${d.txt||""}</textarea>
-<div class="row"><span>Text alignment</span><select id="ds_va">${o([["top","Top"],["middle","Middle"],["bottom","Bottom"]],d.txtVA||"top")}</select><select id="ds_ha">${o([["left","Left"],["center","Center"],["right","Right"]],d.txtHA||"right")}</select></div></div>`;
+  const styleTab=`<div class="tp" data-t="style"><label>Line colour<input type="color" id="ds_c" value="${d.c||"#2962ff"}" oninput="SELD.c=this.value"></label>
+<label>Line type<select id="ds_s" onchange="SELD.s=+this.value">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(d.s||0)?"selected":""}>${st.n}</option>`).join("")}</select></label>
+<label>Line width<select id="ds_w" onchange="SELD.w=+this.value">${[1,2,3,4].map(w=>`<option value="${w}" ${w==(d.w||2)?"selected":""}>${w}</option>`).join("")}</select></label></div>`;
+  const textTab=`<div class="tp" data-t="text"><div class="row"><input type="color" id="ds_tc" value="${d.txtCol||d.c||"#2962ff"}" style="width:38px" oninput="SELD.txtCol=this.value"><select id="ds_ts" onchange="SELD.txtSize=+this.value">${[10,12,14,16,18,20,24].map(s=>`<option ${s==(d.txtSize||12)?"selected":""}>${s}</option>`).join("")}</select><button type="button" id="ds_tb" class="${d.txtBold?"on":""}" onclick="this.classList.toggle('on');SELD.txtBold=this.classList.contains('on')">B</button><button type="button" id="ds_ti" class="${d.txtItalic?"on":""}" onclick="this.classList.toggle('on');SELD.txtItalic=this.classList.contains('on')">I</button></div>
+<textarea id="ds_txt" rows="4" placeholder="Add text" oninput="SELD.txt=this.value">${d.txt||""}</textarea>
+<div class="row"><span>Text alignment</span><select id="ds_va" onchange="SELD.txtVA=this.value">${o([["top","Top"],["middle","Middle"],["bottom","Bottom"]],d.txtVA||"top")}</select><select id="ds_ha" onchange="SELD.txtHA=this.value">${o([["left","Left"],["center","Center"],["right","Right"]],d.txtHA||"right")}</select></div></div>`;
   const coordsTab=`<div class="tp" data-t="coords"><p class="mut">Points (price)</p>${(d.p||[]).map((p,i)=>`<label>Point ${i+1}<input type="number" step="any" value="${p.y}" readonly></label>`).join("")}</div>`;
   const visTab=`<div class="tp" data-t="vis"><label class="chk"><input type="checkbox" id="ds_vis" ${d.hide?"":"checked"}>Visible on chart</label></div>`;
-  modal(`<h3>${DT[t]||"Drawing"}</h3><div class="tabs">${tabs.map(([k,n])=>`<button data-t="${k}" onclick="swTab('${k}')">${n}</button>`).join("")}</div>${styleTab}${textTab}${coordsTab}${visTab}<div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="drawSetSave()">Ok</button></div>`);
+  modal(`<h3>${DT[t]||"Drawing"}</h3><div class="tabs">${tabs.map(([k,n])=>`<button data-t="${k}" onclick="swTab('${k}')">${n}</button>`).join("")}</div>${styleTab}${textTab}${coordsTab}${visTab}<div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="save();closeM()">Ok</button></div>`);
   swTab(typeof tab==="string"?tab:"text");
 }
 function drawSetSave(){

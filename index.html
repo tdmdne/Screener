@@ -317,9 +317,9 @@ function seed(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.im
 function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const gs=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());
 const cache={};
-let PRI=new Set(); // symbols currently on screen: these get fetched first
-let PGL=[]; // symbols in the visible list, in order (used for the arrow-key shortcut)
-function candles(s,tf){if(isLive())return LIVE[s[0]+"|"+tf]||null;const k=s[0]+tf;if(cache[k])return cache[k];
+let PRI=new Set();
+let PGL=[];
+function candles(s,tf){if(isLive()&&LIVE[s[0]+"|"+tf])return LIVE[s[0]+"|"+tf];const k=s[0]+tf;if(cache[k])return cache[k];
 const r=rng(seed(k)),v=s[5]*TS[tf];let p=100,reg=0;const a=[];
 for(let i=0;i<250;i++){if(i%25===0)reg=(r()-.5)*v*1.2;const o=p,c=o*(1+reg+gs(r)*v);
 a.push({h:Math.max(o,c)*(1+Math.abs(gs(r))*v*.4),l:Math.min(o,c)*(1-Math.abs(gs(r))*v*.4),c});p=c}
@@ -328,7 +328,6 @@ function cc(s,c){const a=candles(s,c.tf),n=Math.min(c.n,149),last=a[a.length-1].
 if(c.mode==="abs"){const ref=a[a.length-1-n].c;return Math.abs(last-ref)/ref*100}
 const w=a.slice(-n);if(c.dir==="bull"){const lo=Math.min(...w.map(x=>x.l));return(last-lo)/lo*100}
 const hi=Math.max(...w.map(x=>x.h));return(hi-last)/hi*100}
-// moving averages are the heaviest calculation, so results are cached until the candles change
 const MAC=new Map();
 function ma(s,tf,ty,len){const a0=candles(s,tf),k=s[0]+"|"+tf+"|"+ty+len+"|"+a0.length+"|"+(LT[s[0]+"|"+tf]||0),h=MAC.get(k);
 if(h!==undefined)return h;
@@ -390,11 +389,10 @@ PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]=
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
 document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";renderWL();kick()}
-// ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
+
 const CUS={};
 const guessM=n=>/=X$/.test(n)?"FX":/=F$/.test(n)?"FUT":/^\^/.test(n)?"IDX":/-USD$/.test(n)?"CRY":"STK";
 const wlAll=()=>S.wlx.groups.flatMap(g=>g.syms);
-// find a symbol by name: the screener universe first, otherwise a custom ticker (loaded from Yahoo by that name)
 function symOf(n){const s=SYMS.find(x=>x[0]===n);if(s)return s;if(!wlAll().includes(n))return null;
 const k=(isLive()?"L":"S")+n;let c=CUS[k];
 if(!c)c=CUS[k]=isLive()?[n,guessM(n),null,0,1,.01,n,"","yf",n,1]:[n,guessM(n),20+seed(n)%380,5e6,1,.03];
@@ -430,10 +428,9 @@ setTimeout(()=>{const i=document.getElementById("wl_n");if(i)i.focus()},30)}
 function wlSecSave(id){const n=document.getElementById("wl_n").value.trim();if(!n)return;
 if(id){const g=S.wlx.groups.find(x=>x.id===id);if(g)g.name=n}else S.wlx.groups.push({id:"g"+Date.now(),name:n,open:true,syms:[]});
 save();closeM();renderWL()}
-// star button in the chart header: add/remove the charted symbol (goes in the first section)
 function wlStar(){const n=S.chart.sym;if(wlAll().includes(n))S.wlx.groups.forEach(g=>{g.syms=g.syms.filter(x=>x!==n)});else S.wlx.groups[0].syms.push(n);save();renderWL();wlStarSync()}
 function wlStarSync(){const b=document.getElementById("wst");if(b)b.textContent=wlAll().includes(S.chart.sym)?"★":"☆"}
-function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id==="sym"?1:-1};save();render()}
+function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id===sym?1:-1};save();render()}
 const MD=document.getElementById("modal");
 let ch=null,ch2=null;
 function modal(h){MD.innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="box">${h}</div></div>`}
@@ -501,7 +498,7 @@ if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loa
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
 const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
-const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf); // forex trades 24h: open = previous close
+const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf);
 const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
 const prec = s[2]<10?4:s[2]<1000?2:2;
 const pF = {type:'price', precision:prec, minMove:s[2]<10?0.0001:0.01};
@@ -522,6 +519,7 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op());const r=C.ind.fi
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
 ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4})}
+
 function setM(){
   const C=S.chart;
   modal(`
@@ -593,13 +591,14 @@ b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
+
 const LIVE={},LT={},ERR={},PEND={},Q[];let busy=false;
 const TDI={"1m":"1min","5m":"5min","15m":"15min","30m":"30min","1H":"1h","4H":"4h","1D":"1day","1W":"1week","1M":"1month"};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ttl=k=>/\|(1D|1W|1M)$/.test(k)?216e5:9e5;
 const safe=f=>{try{const x=f();return x===true||x===false?x:Number.isFinite(x)?x:null}catch(e){return null}};
-
 function saveC(){}
+
 const TDN=new Set();
 const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","EURSEK"],["EUR/NOK","FX","EURNOK"],["EUR/PLN","FX","EURPLN"],["EUR/TRY","FX","EURTRY"],["EUR/HUF","FX","EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
@@ -609,31 +608,39 @@ const BNH=["https://data-api.binance.vision","https://api.binance.com"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
 const PX=[u=>"https://corsproxy.io/?url="+encodeURIComponent(u),u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),u=>"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u)];
-// smaller ranges = smaller downloads; each series is still trimmed to the latest 250 candles
 const YI={"1m":["1m","5d"],"5m":["5m","1mo"],"15m":["15m","1mo"],"30m":["30m","1mo"],"1H":["60m","3mo"],"4H":["60m","6mo"],"1D":["1d","1y"],"1W":["1wk","5y"],"1M":["1mo","max"]};
 const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:n+"=F",tv:n+"1!"})),
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
 ...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
-const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAXDOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
-// redraw the table less often while a big queue is still loading, so the page thread stays free for fetching
+const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
+
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},QT.length+QB.length+QY.length>40?1200:300)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};
-function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
-SYMS=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.map(w=>mk2(w,"yf",w.td)):[])]}
+
+function setLive(){
+  if(snapOn()){
+    SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});
+    return;
+  }
+  const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:(SAMPLE.find(x=>x[0]===w.n)?.[2]||100),v,1,.01,ps,w.tv,p,fb]};
+  const liveList=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.map(w=>mk2(w,"yf",w.td)):[])];
+  SYMS=liveList.length?liveList:SAMPLE;
+}
+
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
 d.textContent=(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
 function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10])return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
 err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
-if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
+if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error")}}catch(e){}}throw err}
 async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/ticker/24hr");
 BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn")}catch(e){BN.err=e.message}
 BN.busy=false;render();drawChart()}
 async function pumpBN(){if(bz.bn)return;bz.bn=1;
-const w=async()=>{while(QB.length){
+const w=async(){while(QB.length){
 while(Date.now()<BN.pause)await sleep(500);
 const[s,tf,k]=QB.shift();status();
 try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=250`);
@@ -658,7 +665,7 @@ function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];r
 function markDead(){if(YF.dead)return;YF.dead=1;setTimeout(()=>{YF.dead=0;YF.fails=0;retryErr(/Yahoo busy|proxy\/network|HTTP [45]\d\d/)},90000)}
 async function pumpYF(){if(bz.yf)return;bz.yf=1;
 const toTD=(s,tf,k)=>{const s2=s.slice();s2[6]=s[9];QT.push([s2,tf,k]);pumpTD()};
-const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
+const w=async(){while(QY.length){const[s,tf,k]=QY.shift();status();
 const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
 if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
@@ -677,6 +684,7 @@ else{LIVE[k]=j.values.reverse().map(v=>({t:Math.floor(Date.parse(v.datetime.leng
 }catch(e){ERR[k]=s[0]+": network error"}
 if(!again)delete PEND[k];fin(s,tf);await sleep(wait)}
 bz.td=0}
+
 let IDB=null,READY=false,fl=0;const DIRTY=new Set();
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago"};
 function idb(){return new Promise(res=>{try{const r=indexedDB.open("scr",1);r.onupgradeneeded=()=>r.result.createObjectStore("c");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
@@ -687,6 +695,7 @@ try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}ca
 function dirty(k){DIRTY.add(k);clearTimeout(fl);fl=setTimeout(flush,2000)}
 function flush(){if(!IDB||!DIRTY.size)return;try{const st=IDB.transaction("c","readwrite").objectStore("c");
 for(const k of DIRTY){if(k==="@bn")st.put({t:Date.now(),list:BN.list},k);else if(LIVE[k])st.put({t:LT[k],d:LIVE[k]},k)}DIRTY.clear()}catch(e){}}
+
 const SNAP={ok:false,t:0,uni:[],tfs:[],loaded:{}},SN={};
 const snapOn=()=>SNAP.ok&&Date.now()-SNAP.t<216e5;
 async function snapInit(){try{const r=await fetch("data/manifest.json",{cache:"no-cache"});if(!r.ok)return;const m=await r.json();if(!m.universe||!m.universe.length)return;
@@ -712,6 +721,7 @@ need(s,t,PRI.has(s[0]))}));status()}
 function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
@@ -730,6 +740,7 @@ function xfer(){modal(`<h3>Export / import presets</h3><p class="mut">Presets li
 function imp(){const m=document.getElementById("xm");try{const o=JSON.parse(document.getElementById("xt").value);let n=0;
 for(const k in o)if(o[k]&&Array.isArray(o[k].cols)&&!BI[k]){P[k]=o[k];n++}
 saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textContent="Couldn’t read that text."}}
+
 const rDeb=deb(render,200);
 document.getElementById("acct").oninput=e=>{S.acct=parseFloat(e.target.value)||0;save();rDeb()};
 document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);save();render()};
@@ -739,6 +750,7 @@ document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
 document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
 const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
+
 applyTheme();applyUI();sync();render();drawChart();
 loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
 setInterval(autoRefresh,15*60*1000);

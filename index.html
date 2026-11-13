@@ -471,13 +471,12 @@ function scoreMarket(s){
 function renderPresets(){
   const el=document.getElementById("presets");if(!el)return;
   const tf=S.evcTf||"H";
-  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}</span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("");
+  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}<button onclick="evcInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:2px" title="What is H/M/L?">ⓘ</button></span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("")+`<button onclick="presetInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:4px" title="What are P1-P5?">ⓘ</button>`;
 }
 function setEvcTf(t){S.evcTf=t;S.page=0;save();render()}
-function applyPreset(k){
-  S.preset=k;
-  S.page=0;save();render();
-}
+function presetInfo(){modal(`<h3>Preset Levels</h3><div style="line-height:1.6"><p><b>P1</b> - Best markets: strong expansion + full EMA alignment (coming out of accumulation/manipulation)</p><p><b>P2</b> - Good markets: solid expansion with EMA alignment</p><p><b>P3</b> - Decent markets: moderate expansion</p><p><b>P4</b> - Early stage: some momentum building</p><p><b>P5</b> - Watchlist: weaker signals, earlier in cycle</p><p class="mut" style="margin-top:12px">Higher presets = stronger market cycles. P1 is the best quality.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
+function evcInfo(){modal(`<h3>Timeframe Levels</h3><div style="line-height:1.6"><p><b>H</b> - Higher Timeframe: Weekly to Daily to Hourly</p><p><b>M</b> - Medium Timeframe: Daily to Hourly to 10m</p><p><b>L</b> - Lower Timeframe: Hourly to 10m to 1m</p><p class="mut" style="margin-top:12px">Each level uses Entry and Validation timeframes to score markets.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
+  function applyPreset(k){S.preset=k;S.page=0;save();render()}
 function render(){
 if(isLive()){bnwsStart();setLive()}else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);

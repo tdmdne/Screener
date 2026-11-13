@@ -257,14 +257,11 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 <div class="wl" id="wl"></div>
 
 <section class="ctl">
-<label>Account size<input id="acct" type="number" inputmode="numeric"></label>
-<label>Multiplier<select id="mult"><option>10</option><option>50</option><option>100</option></select></label>
-<span class="mut" id="cut"></span>
-<label class="chk"><input type="checkbox" id="dvOn">Dollar volume filter</label>
+
 <label class="chk"><input type="checkbox" id="hideNV">Hide FX/CFD</label>
 </section>
 <section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
-<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></section>
+<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
@@ -479,7 +476,7 @@ function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
-document.getElementById("cut").textContent="Cutoff: $"+fm(S.acct*S.mult);
+
 const ss=document.getElementById("srtsel");if(ss){ss.innerHTML=`<option value="sym">Sort: Symbol</option>`+vis.map(c=>`<option value="${c.id}">Sort: ${esc(label(c))}</option>`).join("");ss.value=S.sort.id}
 const mks=document.getElementById("mkts"),mkl=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)||S.mkt===k);
 mks.innerHTML=mkl.map(k=>`<option value="${k}">${MK[k]}</option>`).join("");mks.value=S.mkt;
@@ -1462,7 +1459,7 @@ let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
 addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM+"|"+document.documentElement.dataset.split;applyUI();if(UIM+"|"+document.documentElement.dataset.split!==o){render();drawChart()}},200)});
-function sync(){document.getElementById("rows").value=S.rows||20;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
+function sync(){document.getElementById("q").value=S.q}
 function pick(n){if(!n){S.cur="";save();render();return}
 const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart);sync();save();render();drawChart()}
 const snap=()=>clone({acct:S.acct,mult:S.mult,dvOn:S.dvOn,hideNV:S.hideNV,mkt:S.mkt,sort:S.sort,cols:S.cols,chart:S.chart});
@@ -1477,9 +1474,8 @@ function imp(){const m=document.getElementById("xm");try{const o=JSON.parse(docu
 for(const k in o)if(o[k]&&Array.isArray(o[k].cols)&&!BI[k]){P[k]=o[k];n++}
 saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textContent="Couldn’t read that text."}}
 const rDeb=deb(render,200);
-document.getElementById("acct").oninput=e=>{S.acct=parseFloat(e.target.value)||0;save();rDeb()};
-document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);save();render()};
-document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();render()};
+
+
 document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
 // up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)

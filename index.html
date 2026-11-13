@@ -476,7 +476,14 @@ const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
 cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
-const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
+const p=pal(),L=window.LightweightCharts,op=()=>({
+  autoSize:true,
+  layout:{background:{type:"solid",color:p.bg},textColor:p.tx},
+  grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},
+  crosshair:{mode:0},
+  timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},
+  rightPriceScale:{borderColor:p.gr}
+});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
@@ -489,15 +496,15 @@ if(C.type==="line")ch.addLineSeries({color:C.up,lineWidth:2,priceFormat:pF}).set
 else if(C.type==="area")ch.addAreaSeries({lineColor:C.up,topColor:C.up+"66",bottomColor:C.up+"05",priceFormat:pF}).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="bars")ch.addBarSeries({upColor:C.up,downColor:C.dn,priceFormat:pF}).setData(D);
 else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)":C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn,priceFormat:pF}).setData(D)}
-const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false});
+const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
-else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)));
+else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)))
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
 [1,-1].forEach(g=>ls(d.col,1).setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i]))))}
 else if(d.t==="vol"){const h=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});h.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});
 h.setData(vols(s,C.tf).map((x,i)=>({time:T(i),value:x,color:(D[i].close>=D[i].open?C.up:C.dn)+"66"})))}});
-if(hasR){ch2=L.createChart(document.getElementById("cv2"),op());const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false});rs.setData(pts(rsiArr(cl,r.len)));
+if(hasR){ch2=L.createChart(document.getElementById("cv2"),op());const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});rs.setData(pts(rsiArr(cl,r.len)));
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
@@ -514,7 +521,7 @@ b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
-const LIVE={},LT={},ERR={},PEND={},Q=[];let busy=false;
+const LIVE={},LT={},ERR={},PEND={},Q[];let busy=false;
 const TDI={"1m":"1min","5m":"5min","15m":"15min","30m":"30min","1H":"1h","4H":"4h","1D":"1day","1W":"1week","1M":"1month"};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ttl=k=>/\|(1D|1W|1M)$/.test(k)?216e5:9e5;
@@ -522,10 +529,10 @@ const safe=f=>{try{const x=f();return x===true||x===false?x:Number.isFinite(x)?x
 
 function saveC(){}
 const TDN=new Set();
-const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","FX:EURSEK"],["EUR/NOK","FX","FX:EURNOK"],["EUR/PLN","FX","FX:EURPLN"],["EUR/TRY","FX","FX:EURTRY"],["EUR/HUF","FX","FX:EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
+const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","EURSEK"],["EUR/NOK","FX","EURNOK"],["EUR/PLN","FX","EURPLN"],["EUR/TRY","FX","EURTRY"],["EUR/HUF","FX","EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
-const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0,rr:0,cool:[0,0,0]},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0};
+const QT=[],QB=[],QY[],bz={},YF={px:-1,fails:0,dead:0,rr:0,cool:[0,0,0]},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0};
 const BNH=["https://data-api.binance.vision","https://api.binance.com"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
@@ -642,7 +649,7 @@ else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return;if(S.dvOn&&d!=null&&d<cu
 need(s,t,PRI.has(s[0]))}));status()}
 function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
-function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+function dataReset(){for(const o in [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}

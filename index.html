@@ -600,11 +600,20 @@ else if(t==="arrow"){
   g.beginPath();g.moveTo(f.x,f.y);g.lineTo(f.x-ah*Math.cos(ang-0.4),f.y-ah*Math.sin(ang-0.4));g.lineTo(f.x-ah*Math.cos(ang+0.4),f.y-ah*Math.sin(ang+0.4));g.closePath();g.fill();
 }
 else if(t==="note"){
-  const bx=a.x+20,by=a.y-30,bw=140,bh=50;
-  g.globalAlpha=.9;g.fillStyle=c+"22";g.strokeStyle=c;g.lineWidth=1;
+  const txt=d.txt||"Note";
+  g.font="12px system-ui,sans-serif";
+  const tw=g.measureText(txt).width,bw=tw+16,bh=22;
+  const bx=a.x+18,by=a.y-36;
+  // small white box with subtle border
+  g.fillStyle="#ffffff";g.strokeStyle="#d1d4dc";g.lineWidth=1;
   g.beginPath();g.roundRect(bx,by,bw,bh,4);g.fill();g.stroke();
-  g.beginPath();g.moveTo(a.x,a.y);g.lineTo(bx+10,by+bh);g.stroke();
-  g.globalAlpha=1;g.fillStyle=c;g.font="13px system-ui,sans-serif";g.fillText(d.txt||"Note",bx+8,by+28);
+  // thin pointer line to the anchor
+  g.strokeStyle="#787b86";g.lineWidth=1;
+  g.beginPath();g.moveTo(a.x,a.y);g.lineTo(bx+8,by+bh);g.stroke();
+  // small dot at the anchor
+  g.fillStyle="#131722";g.beginPath();g.arc(a.x,a.y,2.5,0,7);g.fill();
+  // text inside the box
+  g.fillStyle="#131722";g.fillText(txt,bx+8,by+15);
 }
 else if(t==="path"){
   if(q.length>1){g.beginPath();g.moveTo(q[0].x,q[0].y);for(let i=1;i<q.length;i++)g.lineTo(q[i].x,q[i].y);g.stroke()}

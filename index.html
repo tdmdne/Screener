@@ -480,7 +480,7 @@ function applyPreset(k){
   S.page=0;save();render();
 }
 function render(){
-if(isLive())setLive();else SYMS=SAMPLE;
+if(isLive()){bnwsStart();setLive()}else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
 
@@ -1377,6 +1377,47 @@ const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},QT.length+QB.length+QY.length>40?1200:300)};
 const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};
+// Finnhub backup for stocks (60 req/min free)
+const FH={key:"",busy:0};
+async function fetchFH(s,tf){
+  if(!FH.key||FH.busy)return null;
+  const res={"1m":"1","5m":"5","15m":"15","1H":"60","1D":"D","1W":"W"}[tf];
+  if(!res)return null;
+  FH.busy=1;
+  try{
+    const r=await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${s[0]}&resolution=${res}&from=${Math.floor(Date.now()/1000)-86400*365}&to=${Math.floor(Date.now()/1000)}&token=${FH.key}`);
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d.c||!d.c.length)return null;
+    return d.t.map((t,i)=>({t:t*1000,o:d.o[i],h:d.h[i],l:d.l[i],c:d.c[i],v:d.v[i]}));
+  }catch(e){return null}finally{FH.busy=0}
+}
+const BNWS={ws:null,subs:new Set()};
+function bnwsConnect(){
+  if(BNWS.ws)return;
+  BNWS.ws=new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr");
+  BNWS.ws.onmessage=e=>{
+    try{
+      const data=JSON.parse(e.data);
+      if(!Array.isArray(data))return;
+      data.forEach(t=>{
+        const sym=t.s;
+        const k=sym+"|1m";
+        if(LIVE[k]){
+          const last=LIVE[k][LIVE[k].length-1];
+          if(last){last.c=+t.c;last.h=Math.max(last.h,+t.h);last.l=Math.min(last.l,+t.l)}
+        }
+        // Update symbol price
+        const s=SYMS.find(x=>x[0]===sym);
+        if(s)s[2]=+t.c;
+      });
+      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym))drawChart();
+    }catch(err){}
+  };
+  BNWS.ws.onclose=()=>setTimeout(bnwsConnect,5000);
+  BNWS.ws.onerror=()=>{if(BNWS.ws)BNWS.ws.close()};
+}
+function bnwsStart(){if(!BNWS.ws)bnwsConnect()}
 function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
 SYMS=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.map(w=>mk2(w,"yf",w.td)):[])]}
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
@@ -1425,7 +1466,7 @@ const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
 const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
 if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
-catch(e){if(e.soft){if(++YF.fails>=8)markDead();if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
+catch(e){if(e.soft){if(++YF.fails>=8)markDead();if(FH.key){const fh=await fetchFH(s,tf);if(fh){LIVE[k]=fh;LT[k]=Date.now();delete PEND[k];fin(s,tf);continue}}if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
 fin(s,tf);await sleep(100)}};
 await Promise.all([w(),w(),w(),w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
 async function pumpTD(){if(bz.td)return;bz.td=1;

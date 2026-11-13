@@ -809,7 +809,7 @@ function inputDialog(title,placeholder,cb){
 }
 function addCustomColor(id){inputDialog("Custom color","#ff0000",`function(c){if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor('${id}',c)}}`)}
 function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=d.style.display==="none"?"block":"none"}
-function snapCanvas(){return new Promise(r=>{html2canvas(document.querySelector(".cm"),{backgroundColor:null,scale:2}).then(c=>r(c))})}
+function snapCanvas(){return new Promise(r=>{const cm=document.querySelector(".cm"),bs=document.getElementById("bs"),ind=document.getElementById("indbar");if(bs)bs.style.visibility="hidden";if(!S.chart.snapInd&&ind)ind.style.visibility="hidden";html2canvas(cm,{backgroundColor:null,scale:2}).then(c=>{if(bs)bs.style.visibility="";if(ind)ind.style.visibility="";r(c)})})}
 async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
 async function snapCopy(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>navigator.clipboard.write([new ClipboardItem({"image/png":b})]))}
 async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>{const u=URL.createObjectURL(b);window.open(u)})}
@@ -1247,7 +1247,7 @@ const nu=(k,l,mn,mx,st)=>`<label>${l}<input type="number" data-c="${k}" min="${m
 const cr=(c,l,a,b)=>`<div class="csr">${c?ck(c,l):`<span>${l}</span>`}<span class="sp"></span>${a}${b||""}</div>`;
 const tp=(t,h)=>`<div class="tp" data-t="${t}" style="display:none">${h}</div>`;
 const sec=s=>`<div class="mut" style="margin:12px 0 6px;font-size:11px;font-weight:600;letter-spacing:.04em">${s}</div>`;
-modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status line"],["scales","Scales and lines"],["can","Canvas"],["ui","Interface"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
+modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status line"],["scales","Scales and lines"],["can","Canvas"],["feat","Features"],["ui","Interface"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
 +tp("sym",sec("CANDLES")
 +ck("colorPrev","Color bars based on previous close")
 +cr("showBody","Body",co("upBody"),co("dnBody"))
@@ -1283,6 +1283,7 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +sec("BUTTONS")
 +sl("navBtn","Navigation",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
 +sl("paneBtn","Pane",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]]))
++tp("feat",sec("SNAPSHOT")+ck("snapInd","Show indicators in snapshot"))
 +tp("ui",`<div class="mut" style="margin-bottom:8px">Keyboard shortcuts</div>
 <table style="width:100%;font-size:13px;border-collapse:collapse">
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>

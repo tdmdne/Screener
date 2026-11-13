@@ -530,16 +530,17 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button><div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const op=m=>({autoSize:true,
-crosshair:{mode:C.xhMode==="magnet"?L.CrosshairMode.Magnet:L.CrosshairMode.Normal,vertLine:{color:C.xhCol||p.tx,style:C.xhStyle,labelVisible:C.xhLabels},horzLine:{color:C.xhCol||p.tx,style:C.xhStyle,labelVisible:C.xhLabels}},
-layout:{background:{type:"solid",color:p.bg},textColor:C.txtCol||p.tx,fontSize:C.fs},
-grid:{vertLines:{visible:C.showGridV,color:C.gridV||p.gr},horzLines:{visible:C.showGridH,color:C.gridH||p.gr}},
-timeScale:{timeVisible:C.tf!=="1D",borderVisible:C.scBorder,borderColor:C.scBorderCol||p.gr},
-rightPriceScale:Object.assign({borderVisible:C.scBorder,borderColor:C.scBorderCol||p.gr},m?{mode:+C.scMode,autoScale:C.scAuto,invertScale:C.scInv,scaleMargins:{top:C.scTop,bottom:C.scBot}}:{}),
-watermark:{visible:!!(m&&C.wm),text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
+crosshair:{mode:C.xhMode==="magnet"?L.CrosshairMode.Magnet:L.CrosshairMode.Normal,vertLine:{color:C.xhCol||p.tx,style:+C.xhStyle||0,labelVisible:C.xhLabels!==false},horzLine:{color:C.xhCol||p.tx,style:+C.xhStyle||0,labelVisible:C.xhLabels!==false}},
+layout:{background:{type:"solid",color:C.bg==="custom"&&C.bgCol?C.bgCol:p.bg},textColor:C.txtCol||p.tx,fontSize:+C.fs||12},
+grid:{vertLines:{visible:C.showGridV!==false,color:C.gridV||p.gr},horzLines:{visible:C.showGridH!==false,color:C.gridH||p.gr}},
+timeScale:{timeVisible:C.tf!=="1D",secondsVisible:false,borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,rightOffset:+C.rightBars||4},
+rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:(+C.scTop||10)/100,bottom:(+C.scBot||8)/100}}:{}),
+leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
+watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op(true));
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
@@ -552,6 +553,17 @@ if(C.type==="line")ms(ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:
 else if(C.type==="area")ms(ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so))).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="bars")ms(ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so))).setData(D);
 else{const h=C.type==="hollow";ms(ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so))).setData(D)}
+// previous day close line
+if(C.prevClose==="line"||C.prevClose==="val"){
+  const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
+  if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}])}
+}
+// countdown to bar close
+if(C.countdown){
+  const cd=document.createElement("div");cd.id="barcd";cd.style.cssText="position:absolute;right:70px;top:8px;font-size:11px;color:var(--mut);background:var(--bg);padding:2px 6px;border-radius:4px;z-index:5";
+  document.getElementById("cv").parentElement.appendChild(cd);
+  const tick=()=>{const st=STEP[C.tf]||60,now=Date.now()/1000,left=st-(now%st);cd.textContent=Math.floor(left/60)+":"+String(Math.floor(left%60)).padStart(2,"0");if(document.getElementById("barcd"))requestAnimationFrame(tick)};tick();
+}
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
@@ -979,22 +991,15 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +cr("showBorder","Borders",co("upBorder"),co("dnBorder"))
 +cr("showWick","Wick",co("upWick"),co("dnWick"))
 +sec("DATA MODIFICATION")
-+sl("precision","Precision",[["def","Default"],["0","0"],["1","1"],["2","2"],["3","3"],["4","4"]])
 +sl("tz","Timezone",[["ny","(UTC-5) New York"],["utc","UTC"],["lon","London"],["tok","Tokyo"]]))
 +tp("status",sec("INSTRUMENT")
-+ck("showLogo","Logo")
-+cr("showTitle","Title",`<select data-c="titleMode">${o([["name","Name"],["ticker","Ticker"],["desc","Description"]],C.titleMode||"name")}</select>`)
++cr("showTitle","Title",`<select data-c="titleMode">${o([["name","Name"],["ticker","Ticker"]],C.titleMode||"name")}</select>`)
 +ck("showMktStatus","Open market status")
-+ck("showChartVals","Chart values")
-+ck("showBarChg","Bar change values")
 +ck("showVol","Volume")
-+ck("showLastChg","Last day change values")
 +ck("showBuySell","Buy/sell buttons")
 +sec("INDICATORS")
 +ck("indTitles","Titles")
-+ck("indInputs","Inputs")
-+ck("indValues","Values")
-+ck("indBg","Background"))
++ck("indValues","Values"))
 +tp("scales",sl("curUnit","Currency and Unit",[["always","Always visible"],["hover","Visible on mouse over"],["hide","Hidden"]])
 +sl("scaleModeBtn","Scale modes (A and L)",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
 +cr("lockRatio","Lock price to bar ratio",`<input type="number" data-c="barRatio" step="0.0001" value="${C.barRatio||0.0001}" style="width:100px">`)
@@ -1027,11 +1032,7 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +nu("fs","Text size",8,20,1)
 +sec("BUTTONS")
 +sl("navBtn","Navigation",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
-+sl("paneBtn","Pane",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
-+sec("MARGINS")
-+nu("scTop","Top",0,50,1)
-+nu("scBot","Bottom",0,50,1)
-+nu("rightBars","Right",0,50,1))
++sl("paneBtn","Pane",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]]))
 +tp("ui",`<div class="mut" style="margin-bottom:8px">Keyboard shortcuts</div>
 <table style="width:100%;font-size:13px;border-collapse:collapse">
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>

@@ -609,7 +609,7 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.i
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb/2),to:a.length+Math.round(nb/2)});
+ch.timeScale().setVisibleLogicalRange({from:a.length-nb+15,to:a.length+15});
 initDraw(a,T,st);
 // indicator values dropdown
 if(C.indTitles!==false&&C.ind.length){
@@ -640,7 +640,7 @@ const TG=[["cross","trend","ray","ext","hline","hray","vline","arrow","brush"],[
 const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
 function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" title="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
 return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
-function resetLive(){if(!ch)return;const a=candles(symOf(S.chart.sym),S.chart.tf);if(!a||!a.length)return;const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110,half=Math.round(nb/2);ch.timeScale().setVisibleLogicalRange({from:a.length-half,to:a.length+half});if(MS){MS.applyOptions({autoScale:true});const last=a[a.length-1].c,rng=MS.priceRange?.()||{minValue:last*0.99,maxValue:last*1.01};const mid=(rng.minValue+rng.maxValue)/2,span=Math.abs(rng.maxValue-rng.minValue)||last*0.02;MS.setVisibleRange?.({from:mid-span,to:mid+span})}}
+function resetLive(){if(!ch)return;const a=candles(symOf(S.chart.sym),S.chart.tf);if(!a||!a.length)return;const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;ch.timeScale().setVisibleLogicalRange({from:a.length-nb+15,to:a.length+15});if(MS)MS.applyOptions({autoScale:true})}
 function setTool(t){TOOL=t;DRAFT=null;tbRef()}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
 function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}

@@ -1163,8 +1163,8 @@ let list="";
 if(tab==="fav"){
   list=fav.length?fav.map(k=>`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>${IND[k]||k}</span><span><button onclick="document.getElementById('in_t').value='${k}';addInd()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button><button onclick="togFav('${k}')" style="background:none;border:none;cursor:pointer;margin-left:4px">★</button></span></div>`).join(""):`<p class="mut">No favourites yet. Click ★ next to an indicator.</p>`;
 }else if(tab==="scripts"){
-  list=`<div style="margin-bottom:12px"><button onclick="addTdmIndi();closeM()" style="background:#2962ff;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;width:100%">+ TDM Indicator</button><div class="mut" style="margin-top:4px">EMA 5/10/20, SMA 200, ATR</div></div>`;
-  list+=scripts.length?scripts.map(s=>`<div class="li" style="padding:8px 0;border-bottom:1px solid var(--line)">${s.name}</div>`).join(""):`<p class="mut">No custom scripts yet.</p>`;
+  list=`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>TDM Indicator</span><button onclick="addTdmIndi();closeM()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button></div>`;
+  list+=scripts.length?scripts.map(s=>`<div class="li" style="padding:8px 0;border-bottom:1px solid var(--line)">${s.name}</div>`).join(""):"";
 }else{
   list=Object.keys(IND).map(k=>`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>${IND[k]}</span><span><button onclick="document.getElementById('in_t').value='${k}';addInd()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button><button onclick="togFav('${k}')" style="background:none;border:none;cursor:pointer;margin-left:4px">${fav.includes(k)?"★":"☆"}</button></span></div>`).join("");
 }

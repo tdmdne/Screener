@@ -451,7 +451,28 @@ function wlSecSave(id){const n=document.getElementById("wl_n").value.trim();if(!
 if(id){const g=S.wlx.groups.find(x=>x.id===id);if(g)g.name=n}else S.wlx.groups.push({id:"g"+Date.now(),name:n,open:true,syms:[]});
 save();closeM();renderWL()}
 // star button in the chart header: add/remove the charted symbol (goes in the first section)
-function wlStar(){const n=S.chart.sym;if(wlAll().includes(n))S.wlx.groups.forEach(g=>{g.syms=g.syms.filter(x=>x!==n)});else S.wlx.groups[0].syms.push(n);save();renderWL();wlStarSync()}
+function mktStatus(){
+  const now=new Date();
+  const ny=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
+  const day=ny.getDay(),h=ny.getHours(),m=ny.getMinutes();
+  const isWeekend=day===0||day===6;
+  const openH=9,openM=30,closeH=16,closeM=0;
+  const mins=h*60+m,openMins=openH*60+openM,closeMins=closeH*60+closeM;
+  const isOpen=!isWeekend&&mins>=openMins&&mins<closeMins;
+  const dayNames=["SUN","MON","TUE","WED","THU","FRI","SAT"];
+  let closeIn="";
+  if(isOpen){const left=closeMins-mins;closeIn=`It'll close in ${Math.floor(left/60)} hours and ${left%60} minutes.`}
+  else closeIn="Market is closed.";
+  const pct=isOpen?Math.min(100,Math.round((mins-openMins)/(closeMins-openMins)*100)):0;
+  modal(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:10px;height:10px;border-radius:50%;background:${isOpen?"#089981":"#787b86"}"></span><b style="color:${isOpen?"#089981":"#787b86"}">${isOpen?"Market open":"Market closed"}</b></div>
+<p style="margin:0 0 12px">${isOpen?"All's well — market is open. "+closeIn:closeIn}</p>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:12px;color:var(--mut)">${dayNames[day]}</span><div style="flex:1;height:6px;background:var(--line);border-radius:3px;position:relative"><div style="width:${pct}%;height:100%;background:#089981;border-radius:3px"></div><div style="position:absolute;left:${pct}%;top:-2px;width:2px;height:10px;background:#131722"></div></div><span style="font-size:12px;color:var(--mut)">17:00</span></div>
+<p class="mut" style="font-size:12px;text-align:center;margin:8px 0 16px">Exchange timezone: New York (UTC-5)</p>
+<hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="color:#e91e63">≈</span><b style="color:#e91e63">Data updates once per second</b></div>
+<p style="margin:0 0 12px">This is the limit on the current data sources. Prices may change more often on the exchange.</p>
+<button onclick="closeM()" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 16px">Close</button>`);
+}
 function wlStarSync(){const b=document.getElementById("wst");if(b)b.textContent=wlAll().includes(S.chart.sym)?"★":"☆"}
 function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id==="sym"?1:-1};save();render()}
 const MD=document.getElementById("modal");
@@ -509,7 +530,7 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button><div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const op=m=>({autoSize:true,

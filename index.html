@@ -804,7 +804,7 @@ function showColorPop(id){
   setTimeout(()=>document.addEventListener("click",closeColorPop,{once:true}),10);
 }
 function closeColorPop(e){const p=document.getElementById("cpop");if(p&&!p.contains(e.target))p.remove()}
-function selectColor(id,c){const inp=document.getElementById(id);if(inp)inp.value=c;const sw=document.getElementById(id+"_sw");if(sw)sw.style.background=c;const pop=document.getElementById("cpop");if(pop)pop.remove();if(SELD){if(id==="ds_c"||id==="tb_c")SELD.c=c;if(id==="ds_tc")SELD.txtCol=c}if(id==="ed_col"){const ind=S.chart.ind.find(x=>x.id===document.getElementById("ed_id")?.value);if(ind){ind.col=c;save();drawChart()}}}
+function selectColor(id,c){const inp=document.getElementById(id);if(inp)inp.value=c;const sw=document.getElementById(id+"_sw");if(sw)sw.style.background=c;const pop=document.getElementById("cpop");if(pop)pop.remove();if(SELD){if(id==="ds_c"||id==="tb_c")SELD.c=c;if(id==="ds_tc")SELD.targetCol=c;if(id==="ds_sc")SELD.stopCol=c;if(id==="ds_txc")SELD.txtCol=c}if(id==="ed_col"){const ind=S.chart.ind.find(x=>x.id===document.getElementById("ed_id")?.value);if(ind){ind.col=c;save();drawChart()}}}
 function inputDialog(title,placeholder,cb){
   modal(`<h3>${title}</h3><input id="inp_val" placeholder="${placeholder||""}" style="width:100%;padding:8px;font-size:14px" autofocus><div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" id="inp_ok">OK</button></div>`);
   setTimeout(()=>{document.getElementById("inp_val").focus();document.getElementById("inp_ok").onclick=()=>{const v=document.getElementById("inp_val").value;closeM();if(cb)cb(v)}},50);
@@ -913,7 +913,7 @@ else if(t==="long"||t==="short"){
   const e=d.p[0].y,tp=d.p[1].y,sl=d.p[2].y;
   const x1=Math.min(a.x,b.x),w=Math.max(80,Math.abs(b.x-a.x));
   const yT=b.y,yS=q[2]?q[2].y:a.y+(t==="long"?30:-30);
-  const gr="#089981",rd="#f23645";
+  const gr=d.targetCol||"#089981",rd=d.stopCol||"#f23645",txc=d.txtCol||"#787b86";
   const isLong=t==="long";
   // Profit zone (green)
   g.globalAlpha=.15;g.fillStyle=gr;g.fillRect(x1,Math.min(a.y,yT),w,Math.abs(yT-a.y));
@@ -930,7 +930,7 @@ else if(t==="long"||t==="short"){
   // Stop label
   g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+slPct+"%)",x1+4,yS<(a.y)?yS+14:yS-4);
   // R/R in middle
-  g.fillStyle="#787b86";g.fillText("R/R "+rr,x1+w/2-16,a.y-4);
+  g.fillStyle=txc;g.fillText("R/R "+rr,x1+w/2-16,a.y-4);
 }
 else if(t==="text"){if(!d.txt)return;g.font="14px system-ui,sans-serif";g.fillStyle=d.txtCol||d.c||contrastText(pal().bg||"#fff");g.fillText(d.txt,a.x,a.y+4)}
 else if(t==="arrow"){
@@ -1209,7 +1209,11 @@ function drawSetM(tab){
   const d=SELD,t=d.t||"trend";
   const o=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${n}</option>`).join("");
   const tabs=[["style","Style"],["text","Text"],["coords","Coordinates"],["vis","Visibility"]];
-  const styleTab=`<div class="tp" data-t="style"><label>Line colour${colorPicker("ds_c",d.c||"#2962ff")}</label>
+  const isPos=t==="long"||t==="short";
+  const styleTab=`<div class="tp" data-t="style">
+${isPos?`<label>Target colour${colorPicker("ds_tc",d.targetCol||"#089981")}</label>
+<label>Stop colour${colorPicker("ds_sc",d.stopCol||"#f23645")}</label>
+<label>Text colour${colorPicker("ds_txc",d.txtCol||"#787b86")}</label>`:`<label>Line colour${colorPicker("ds_c",d.c||"#2962ff")}</label>`}
 <label>Line type<select id="ds_s" onchange="SELD.s=+this.value">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(d.s||0)?"selected":""}>${st.n}</option>`).join("")}</select></label>
 <label>Line width<select id="ds_w" onchange="SELD.w=+this.value">${[1,2,3,4].map(w=>`<option value="${w}" ${w==(d.w||2)?"selected":""}>${w}</option>`).join("")}</select></label></div>`;
   const textTab=`<div class="tp" data-t="text"><div class="row">${colorPicker("ds_tc",d.txtCol||d.c||"#2962ff")}<select id="ds_ts" onchange="SELD.txtSize=+this.value">${[10,12,14,16,18,20,24].map(s=>`<option ${s==(d.txtSize||12)?"selected":""}>${s}</option>`).join("")}</select><button type="button" id="ds_tb" class="${d.txtBold?"on":""}" onclick="this.classList.toggle('on');SELD.txtBold=this.classList.contains('on')">B</button><button type="button" id="ds_ti" class="${d.txtItalic?"on":""}" onclick="this.classList.toggle('on');SELD.txtItalic=this.classList.contains('on')">I</button></div>

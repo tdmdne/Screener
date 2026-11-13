@@ -106,7 +106,7 @@ tbody tr.sel td{background:color-mix(in srgb,var(--acc) 14%,var(--bg))}
 .na{color:var(--mut)}
 .note{color:var(--mut);font-size:12px;margin:10px 2px}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
-.box{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.box{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:440px;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
 .box h3{margin:0;font-size:15px}
 .box p{margin:0}
 .box input:not([type=checkbox]),.box select,textarea{width:100%}
@@ -210,6 +210,16 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .ib.x{opacity:.35;border:0;background:none;padding:0!important;font-size:12px!important}
 .wr:hover .ib.x{opacity:1}
 .star{color:var(--acc);font-size:16px!important;line-height:1;padding:4px 9px!important}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.tab{padding:6px 12px;background:none;border:0;border-bottom:2px solid transparent;font-weight:600;color:var(--mut);cursor:pointer}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab-pane{display:none;flex-direction:column;gap:10px}
+.tab-pane.active{display:flex}
+.color-row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.color-row label{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:13px}
+input[type="color"]{-webkit-appearance:none;border:1px solid var(--line);width:36px;height:28px;border-radius:6px;cursor:pointer;background:none;padding:0}
+input[type="color"]::-webkit-color-swatch-wrapper{padding:0}
+input[type="color"]::-webkit-color-swatch{border:0;border-radius:5px}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -273,7 +283,7 @@ let P={},S=Object.assign({q:"",cur:""},clone(BI["Cheat sheet (candle change)"]))
 try{P=JSON.parse(localStorage.getItem("scr2p")||"{}")}catch(e){}
 try{const x=JSON.parse(localStorage.getItem("scr2")||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}
 const WL0=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["AAPL","STK","NASDAQ:AAPL"],["NVDA","STK","NASDAQ:NVDA"],["TSLA","STK","NASDAQ:TSLA"],["AMD","STK","NASDAQ:AMD"],["BTC/USD","CRY","BITSTAMP:BTCUSD"],["ETH/USD","CRY","BITSTAMP:ETHUSD"],["SPY","ETF","AMEX:SPY"],["QQQ","ETF","NASDAQ:QQQ"],["GLD","ETF","AMEX:GLD"],["USO","ETF","AMEX:USO"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
-const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",sym:"EURUSD",ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
+const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",wickUp:"#0f9d58",wickDn:"#d93025",borderUp:"#0f9d58",borderDown:"#d93025",bg:"auto",customBg:"#121316",grid:true,vertGrid:true,horzGrid:true,gridColor:"",tz:"UTC",scalePos:"right",watermark:false,crosshairCol:"#71717a",crosshairStyle:0,tf:"1H",sym:"EURUSD",ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
 S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
 const WLD=()=>({open:true,groups:[{id:"g1",name:"Traded",open:true,syms:[]},{id:"g2",name:"Section",open:true,syms:[]}]});
 S.wlx=S.wlx&&Array.isArray(S.wlx.groups)&&S.wlx.groups.length?S.wlx:WLD();
@@ -357,7 +367,7 @@ if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
 if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?"":b===false?"b":"n"}"></i>`).join("")}</span>`;
 if(v==null)return`<span class="na">…</span>`;
-const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
+const bear=(t==="cc"&&c.mode==="exp"&&c.dir=="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
@@ -455,7 +465,7 @@ function togCol(id){const c=S.cols.find(x=>x.id===id);c.hide=!c.hide;save();rend
 function addCol(){const t=document.getElementById("addT").value,c=mk("c"+Date.now(),t);S.cols.push(c);save();render();openEd(c.id)}
 const STEP={"1m":60,"5m":300,"15m":900,"30m":1800,"1H":3600,"4H":14400,"1D":86400,"1W":604800,"1M":2592000};
 const INT={"1m":"1","5m":"5","15m":"15","30m":"30","1H":"60","4H":"240","1D":"D","1W":"W","1M":"M"};
-const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
+const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
 const emaArr=(a,len)=>{const k=2/(len+1);let e=a[0];return a.map((x,i)=>i?(e=x*k+e*(1-k)):e)};
 const IND={ema:"EMA",sma:"SMA",bb:"Bollinger Bands",vol:"Volume",rsi:"RSI"};
 const IL=d=>IND[d.t]+(d.t==="vol"?"":" "+d.len);
@@ -466,7 +476,7 @@ if(i>=n)o[i]=l===0?100:100-100/(1+g/l)}return o}
 function vols(s,tf){if(isLive())return candles(s,tf).map(x=>x.v||0);const a=candles(s,tf),r=rng(seed(s[0]+tf+"V"));return a.map((x,i)=>{const p=i?a[i-1].c:x.c;return(.5+r())*(1+Math.abs(x.c/p-1)/(s[5]*TS[tf]))*1000})}
 function killCharts(){[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
 function pal(){const cs=getComputedStyle(document.documentElement),v=k=>cs.getPropertyValue(k).trim(),b=S.chart.bg;
-return b==="dark"?{bg:"#121316",tx:"#a1a1aa",gr:"#27272a"}:b==="light"?{bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
+return b==="dark"?{bg:"#121316",tx:"#a1a1aa",gr:"#27272a"}:b==="light"?{bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"}:b==="custom"?{bg:S.chart.customBg||"#121316",tx:"#a1a1aa",gr:"#27272a"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
 function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
@@ -474,9 +484,19 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv" style="position:relative">${C.watermark?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:var(--mut);opacity:0.07;pointer-events:none;letter-spacing:0.05em;z-index:2">${s[0]}</div>`:""}</div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
-const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,crosshair:{mode:L.CrosshairMode.Normal},layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
+const p=pal(),L=window.LightweightCharts;
+const tzOffs={"UTC":0,"Exchange":0,"New York":-5,"London":0,"Tokyo":9,"Sydney":10};
+const tsOpts={timeVisible:C.tf!=="1D",borderColor:p.gr};
+if(C.tz&&C.tz!=="UTC"&&tzOffs[C.tz]!=null){
+  const off=tzOffs[C.tz]*3600;
+  tsOpts.tickMarkFormatter=(time, tickMarkType, locale) => {
+    const d=new Date((time+off)*1000);
+    return C.tf==="1D"?d.toLocaleDateString(locale,{month:"short",day:"numeric"}) : d.toLocaleTimeString(locale,{hour:"2-digit",minute:"2-digit",hour12:false});
+  };
+}
+const op=()=>({autoSize:true,crosshair:{mode:L.CrosshairMode.Normal,vertLine:{color:C.crosshairCol||p.tx,style:C.crosshairStyle!=null?C.crosshairStyle:0},horzLine:{color:C.crosshairCol||p.tx,style:C.crosshairStyle!=null?C.crosshairStyle:0}},layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid!==false&&C.vertGrid!==false,color:p.gr},horzLines:{visible:C.grid!==false&&C.horzGrid!==false,color:p.gr}},timeScale:tsOpts,rightPriceScale:{visible:C.scalePos!=="none",borderColor:p.gr},leftPriceScale:{visible:C.scalePos==="left",borderColor:p.gr}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
@@ -488,11 +508,11 @@ const pF = {type:'price', precision:prec, minMove:s[2]<10?0.0001:0.01};
 if(C.type==="line")ch.addLineSeries({color:C.up,lineWidth:2,priceFormat:pF}).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="area")ch.addAreaSeries({lineColor:C.up,topColor:C.up+"66",bottomColor:C.up+"05",priceFormat:pF}).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="bars")ch.addBarSeries({upColor:C.up,downColor:C.dn,priceFormat:pF}).setData(D);
-else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)":C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn,priceFormat:pF}).setData(D)}
+else{const h=C.type==="hollow";ch.addCandlestickSeries({upColor:h?"rgba(0,0,0,0)":C.up,downColor:C.dn,borderUpColor:C.borderUp||C.up,borderDownColor:C.borderDown||C.dn,wickUpColor:C.wickUp||C.up,wickDownColor:C.wickDn||C.dn,priceFormat:pF}).setData(D)}
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
-else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)));
+else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)))
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
 [1,-1].forEach(g=>ls(d.col,1).setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i]))))}
 else if(d.t==="vol"){const h=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});h.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});
@@ -502,9 +522,68 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op());const r=C.ind.fi
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
 ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4})}
-function setM(){const C=S.chart,op=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${v===k?"selected":""}>${n}</option>`).join("");
-modal(`<h3>Chart settings</h3><label>Chart type<select id="cs_t">${op([["candle","Candles"],["hollow","Hollow candles"],["bars","Bars"],["line","Line"],["area","Area"]],C.type)}</select></label><label>Canvas background<select id="cs_b">${op([["auto","Match app theme"],["dark","Dark"],["light","Light"]],C.bg)}</select></label><div class="row"><label>Up color<input id="cs_u" type="color" value="${C.up}"></label><label>Down color<input id="cs_d" type="color" value="${C.dn}"></label></div><label class="chk"><input id="cs_g" type="checkbox" ${C.grid?"checked":""}>Grid lines</label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Apply</button></div>`)}
-function setSave(){const g=i=>document.getElementById(i),C=S.chart;C.type=g("cs_t").value;C.bg=g("cs_b").value;C.up=g("cs_u").value;C.dn=g("cs_d").value;C.grid=g("cs_g").checked;save();closeM();drawChart()}
+function setM(){
+  const C=S.chart;
+  modal(`
+    <h3>Chart settings</h3>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(event, 'tab-sym')">Symbol / Candles</button>
+      <button class="tab" onclick="switchTab(event, 'tab-canvas')">Canvas & Grid</button>
+      <button class="tab" onclick="switchTab(event, 'tab-scales')">Scales & Lines</button>
+      <button class="tab" onclick="switchTab(event, 'tab-cross')">Crosshair</button>
+    </div>
+    <div id="tab-sym" class="tab-pane active">
+      <label>Chart type<select id="cs_t"><option value="candle" ${C.type==="candle"?"selected":""}>Candles</option><option value="hollow" ${C.type==="hollow"?"selected":""}>Hollow candles</option><option value="bars" ${C.type==="bars"?"selected":""}>Bars</option><option value="line" ${C.type==="line"?"selected":""}>Line</option><option value="area" ${C.type==="area"?"selected":""}>Area</option></select></label>
+      <div class="color-row"><label><input id="cs_u" type="color" value="${C.up||"#0f9d58"}"> Body (Up)</label><label><input id="cs_d" type="color" value="${C.dn||"#d93025"}"> Body (Down)</label></div>
+      <div class="color-row"><label><input id="cs_wu" type="color" value="${C.wickUp||C.up||"#0f9d58"}"> Wick (Up)</label><label><input id="cs_wd" type="color" value="${C.wickDn||C.dn||"#d93025"}"> Wick (Down)</label></div>
+      <div class="color-row"><label><input id="cs_bu" type="color" value="${C.borderUp||C.up||"#0f9d58"}"> Border (Up)</label><label><input id="cs_bd" type="color" value="${C.borderDown||C.dn||"#d93025"}"> Border (Down)</label></div>
+    </div>
+    <div id="tab-canvas" class="tab-pane">
+      <label>Background Theme<select id="cs_b"><option value="auto" ${C.bg==="auto"?"selected":""}>Match app theme</option><option value="dark" ${C.bg==="dark"?"selected":""}>Dark</option><option value="light" ${C.bg==="light"?"selected":""}>Light</option><option value="custom" ${C.bg==="custom"?"selected":""}>Custom color</option></select></label>
+      <div class="color-row"><label><input id="cs_cb" type="color" value="${C.customBg||"#121316"}"> Custom Background Color</label></div>
+      <label class="chk"><input id="cs_g" type="checkbox" ${C.grid!==false?"checked":""}> Enable Grid Lines</label>
+      <label class="chk"><input id="cs_vg" type="checkbox" ${C.vertGrid!==false?"checked":""}> Vertical Grid Lines</label>
+      <label class="chk"><input id="cs_hg" type="checkbox" ${C.horzGrid!==false?"checked":""}> Horizontal Grid Lines</label>
+      <label class="chk"><input id="cs_wm" type="checkbox" ${C.watermark?"checked":""}> Watermark</label>
+    </div>
+    <div id="tab-scales" class="tab-pane">
+      <label>Timezone<select id="cs_tz"><option value="UTC" ${C.tz==="UTC"?"selected":""}>UTC</option><option value="Exchange" ${C.tz==="Exchange"?"selected":""}>Exchange (UTC)</option><option value="New York" ${C.tz==="New York"?"selected":""}>New York (UTC-5)</option><option value="London" ${C.tz==="London"?"selected":""}>London (UTC+0)</option><option value="Tokyo" ${C.tz==="Tokyo"?"selected":""}>Tokyo (UTC+9)</option><option value="Sydney" ${C.tz==="Sydney"?"selected":""}>Sydney (UTC+10)</option></select></label>
+      <label>Scale Position<select id="cs_scale"><option value="right" ${C.scalePos!=="left"&&C.scalePos!=="none"?"selected":""}>Right</option><option value="left" ${C.scalePos==="left"?"selected":""}>Left</option><option value="none" ${C.scalePos==="none"?"selected":""}>None</option></select></label>
+    </div>
+    <div id="tab-cross" class="tab-pane">
+      <div class="color-row"><label><input id="cs_ccol" type="color" value="${C.crosshairCol||"#71717a"}"> Crosshair Color</label></div>
+      <label>Crosshair Style<select id="cs_cstyle"><option value="0" ${C.crosshairStyle===0?"selected":""}>Solid</option><option value="1" ${C.crosshairStyle===1?"selected":""}>Dotted</option><option value="2" ${C.crosshairStyle===2?"selected":""}>Dashed</option><option value="3" ${C.crosshairStyle===3?"selected":""}>Large dashed</option></select></label>
+    </div>
+    <div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Apply</button></div>
+  `);
+}
+function switchTab(e, tabId){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+function setSave(){
+  const g=i=>document.getElementById(i),C=S.chart;
+  C.type=g("cs_t").value;
+  C.up=g("cs_u").value;
+  C.dn=g("cs_d").value;
+  C.wickUp=g("cs_wu").value;
+  C.wickDn=g("cs_wd").value;
+  C.borderUp=g("cs_bu").value;
+  C.borderDown=g("cs_bd").value;
+  C.bg=g("cs_b").value;
+  C.customBg=g("cs_cb").value;
+  C.grid=g("cs_g").checked;
+  C.vertGrid=g("cs_vg").checked;
+  C.horzGrid=g("cs_hg").checked;
+  C.watermark=g("cs_wm").checked;
+  C.tz=g("cs_tz").value;
+  C.scalePos=g("cs_scale").value;
+  C.crosshairCol=g("cs_ccol").value;
+  C.crosshairStyle=parseInt(g("cs_cstyle").value)||0;
+  save();closeM();drawChart();
+}
 function indM(){const C=S.chart;
 modal(`<h3>Indicators</h3><div class="list">${C.ind.length?C.ind.map(d=>`<div class="li"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.col}"></i> ${IL(d)}</span><button onclick="rmInd('${d.id}')">Remove</button></div>`).join(""):`<p class="mut">None added.</p>`}</div><div class="row"><select id="in_t">${Object.keys(IND).map(k=>`<option value="${k}">${IND[k]}</option>`).join("")}</select><input id="in_l" type="number" min="2" max="200" value="20" style="width:80px"><input id="in_c" type="color" value="#f97316" style="width:52px;padding:2px"></div><div class="row"><span class="sp"></span><button onclick="addInd()">Add</button><button class="pri" onclick="closeM()">Done</button></div>`)}
 function addInd(){const g=i=>document.getElementById(i).value;S.chart.ind.push({id:"i"+Date.now(),t:g("in_t"),len:Math.max(2,Math.min(200,parseInt(g("in_l"))||20)),col:g("in_c")});save();drawChart();indM()}
@@ -514,7 +593,7 @@ b.innerHTML=SYMS.filter(s=>s[0].includes(q)).slice(0,8).map(s=>`<div onmousedown
 function srchGo(){const q=document.getElementById("sq").value.trim().toUpperCase(),m=SYMS.find(s=>s[0].includes(q));if(q&&m){openChart(m[0]);hideSr()}}
 function hideSrBox(){document.getElementById("sr").style.display="none"}
 function hideSr(){hideSrBox();document.getElementById("sq").value=""}
-const LIVE={},LT={},ERR={},PEND={},Q=[];let busy=false;
+const LIVE={},LT={},ERR={},PEND={},Q[];let busy=false;
 const TDI={"1m":"1min","5m":"5min","15m":"15min","30m":"30min","1H":"1h","4H":"4h","1D":"1day","1W":"1week","1M":"1month"};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ttl=k=>/\|(1D|1W|1M)$/.test(k)?216e5:9e5;
@@ -522,7 +601,7 @@ const safe=f=>{try{const x=f();return x===true||x===false?x:Number.isFinite(x)?x
 
 function saveC(){}
 const TDN=new Set();
-const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","FX:EURSEK"],["EUR/NOK","FX","FX:EURNOK"],["EUR/PLN","FX","FX:EURPLN"],["EUR/TRY","FX","FX:EURTRY"],["EUR/HUF","FX","FX:EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
+const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","EURSEK"],["EUR/NOK","FX","EURNOK"],["EUR/PLN","FX","EURPLN"],["EUR/TRY","FX","EURTRY"],["EUR/HUF","FX","EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
 const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0,rr:0,cool:[0,0,0]},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0};

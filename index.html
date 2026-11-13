@@ -611,7 +611,7 @@ let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
 ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st);
 // current time via Web Worker
-const ct=document.createElement("div");ct.style.cssText=`position:absolute;bottom:2px;right:4px;font-size:11px;color:${C.timeCol||"#787b86"};z-index:5;cursor:pointer`;
+const ct=document.createElement("div");ct.style.cssText=`position:absolute;bottom:2px;right:4px;font-size:13px;font-weight:600;color:${C.timeCol||"#131722"};z-index:5;cursor:pointer`;
 const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
 const workerCode=`self.onmessage=e=>{const{tz,fmt}=e.data;setInterval(()=>{const now=new Date();const t=now.toLocaleTimeString("en-GB",{hour12:fmt==="12",timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit"});self.postMessage(t)},1000)}`;
 const blob=new Blob([workerCode],{type:"application/javascript"});

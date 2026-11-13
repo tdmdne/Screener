@@ -858,10 +858,30 @@ function tfGo(label){
   STEP[label]=n*(mult[u]||60);INT[label]=label;TS[label]=TS[label]||0.5;
   save();tfPick(label);
 }
+let SYBUF="";
+function syShow(){
+  let h=document.getElementById("sypop");
+  if(!h){h=document.createElement("div");h.id="sypop";h.style.cssText="position:absolute;bottom:40px;left:50%;transform:translateX(-50%);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 16px;z-index:30;box-shadow:0 4px 16px rgba(0,0,0,.25);text-align:center;min-width:180px";
+  const cv=document.getElementById("cv");if(cv&&cv.parentElement)cv.parentElement.appendChild(h);else document.body.appendChild(h)}
+  h.innerHTML=`<div style="font-weight:600;margin-bottom:6px">Search symbol</div><input id="sy_in" value="${SYBUF}" style="font-size:16px;text-align:center;padding:8px;width:140px;border:2px solid var(--acc);border-radius:6px;text-transform:uppercase" oninput="SYBUF=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')syConfirm();if(event.key==='Escape')syCancel()">`;
+  h.style.display="block";
+  setTimeout(()=>{const i=document.getElementById("sy_in");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},30);
+}
+function syCancel(){SYBUF="";const h=document.getElementById("sypop");if(h)h.style.display="none"}
+function syConfirm(){
+  const q=SYBUF.trim().toUpperCase();syCancel();
+  if(!q)return;
+  // find matching symbol in the screener data
+  const hit=DATA.find(s=>s[0].toUpperCase()===q||s[0].toUpperCase().startsWith(q));
+  if(hit){S.chart.sym=hit[0];save();drawChart()}
+  else{S.chart.sym=q;save();drawChart()}
+}
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
 // start interval popup on first digit
 if(!ctrl&&!alt&&/^[0-9]$/.test(e.key)){TFBUF=e.key;tfShow();return}
+// start symbol search on first letter
+if(!ctrl&&!alt&&/^[a-zA-Z]$/.test(e.key)){SYBUF=e.key.toUpperCase();syShow();return}
 // Undo / Redo
 if(ctrl&&e.key==="z"&&!sh){e.preventDefault();doUndo();return}
 if(ctrl&&(e.key==="y"||(e.key==="z"&&sh))){e.preventDefault();doRedo();return}

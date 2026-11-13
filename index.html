@@ -613,12 +613,22 @@ if(d.txt&&t!=="text"){
       minX=Math.min(...xs);maxX=Math.max(...xs);minY=Math.min(...ys);maxY=Math.max(...ys);
     }
     const midX=(minX+maxX)/2,midY=(minY+maxY)/2;
-    if(ha==="left")tx=minX;
-    else if(ha==="right")tx=maxX-tw;
-    else tx=midX-tw/2;
-    if(va==="top")ty=midY-th-pad;
-    else if(va==="bottom")ty=midY+th+pad;
-    else ty=midY+th/3; // middle
+    if(t==="vline"){
+      // vertical line: VA moves along the line, HA offsets sideways
+      if(va==="top")ty=minY+pad;
+      else if(va==="bottom")ty=maxY-th-pad;
+      else ty=midY+th/3;
+      if(ha==="left")tx=a.x-tw-pad;
+      else if(ha==="right")tx=a.x+pad;
+      else tx=a.x-tw/2;
+    }else{
+      if(ha==="left")tx=minX;
+      else if(ha==="right")tx=maxX-tw;
+      else tx=midX-tw/2;
+      if(va==="top")ty=midY-th-pad;
+      else if(va==="bottom")ty=midY+th+pad;
+      else ty=midY+th/3; // middle
+    }
     // only middle creates a gap in the line
     if(va==="middle"){
       gap={x:tx-pad,w:tw+pad*2,y:ty-th/2};

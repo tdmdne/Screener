@@ -96,6 +96,8 @@ th .gear:hover{color:var(--acc)}
 td:first-child,th:first-child{position:sticky;left:0;background:var(--bg);font-weight:600;z-index:1}
 th:first-child{background:var(--card);z-index:2}
 tbody tr:hover td:first-child{background:var(--card)}
+tbody tr.sel td{background:color-mix(in srgb,var(--acc) 14%,var(--bg))}
+:root[data-ui="phone"] tbody tr.sel{border-color:var(--acc)}
 .pill{display:inline-block;min-width:62px;text-align:center;padding:2px 8px;border-radius:6px;font-weight:600;background:var(--gb);color:var(--g)}
 .pill.b{background:var(--rb);color:var(--r)}
 .sqs{display:inline-flex;gap:3px}
@@ -124,14 +126,37 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .ws{display:grid;gap:12px}
 .phone-only{display:none}
 :root[data-ui="phone"] .phone-only{display:flex}
-:root[data-ui="pc"] .wrap{max-width:1700px}
-:root[data-ui="pc"] .ws{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}
-:root[data-ui="pc"] .cpb{position:sticky;top:8px}
-:root[data-ui="pc"] #cv{height:min(64vh,640px)}
+:root[data-ui="pc"] .wrap{max-width:none}
 :root[data-ui="tablet"] .wrap{max-width:100%;padding:10px}
 :root[data-ui="tablet"] button,:root[data-ui="tablet"] select,:root[data-ui="tablet"] input{min-height:38px}
 :root[data-ui="tablet"] #cv{height:380px}
-@media (min-width:900px){:root[data-ui="tablet"] .ws{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}:root[data-ui="tablet"] .cpb{position:sticky;top:8px}}
+.scrh{margin:6px 0 2px}
+.scrt{font-size:12px;letter-spacing:.06em;color:var(--mut)}
+.mkts{font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:12px!important;border-color:var(--acc);color:var(--acc);padding-right:6px}
+.top{flex-wrap:wrap}
+.top .tfs{gap:4px}
+.tfb .chip{padding:4px 9px;margin:0}
+/* split layout (PC, and tablets in landscape): screener list on the left, big chart filling the rest */
+:root[data-split="1"] body{height:100vh;height:100dvh;overflow:hidden}
+:root[data-split="1"] .wrap{height:100%;max-width:none;margin:0;padding:8px 10px;display:flex;flex-direction:column}
+:root[data-split="1"] header{flex:none;margin-bottom:4px}
+:root[data-split="1"] .ws{flex:1;min-height:0;grid-template-columns:clamp(380px,29vw,540px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:stretch}
+:root[data-split="1"] .side,:root[data-split="1"] #cp{min-height:0;min-width:0}
+:root[data-split="1"] .side{display:flex;flex-direction:column}
+:root[data-split="1"] .side>*{flex:none}
+:root[data-split="1"] .side>.tw{flex:1 1 0;min-height:0;overflow:auto}
+:root[data-split="1"] .side .ctl{margin:3px 0;gap:6px 8px}
+:root[data-split="1"] .side input,:root[data-split="1"] .side select,:root[data-split="1"] .side button{padding:5px 8px;font-size:13px}
+:root[data-split="1"] .side input[type=number]{width:90px}
+:root[data-split="1"] .side #q{flex:1;min-width:110px}
+:root[data-split="1"] table{min-width:0}
+:root[data-split="1"] th,:root[data-split="1"] td{padding:6px 8px}
+:root[data-split="1"] th{position:sticky;top:0;z-index:3}
+:root[data-split="1"] th:first-child{z-index:4}
+:root[data-split="1"] .cpb{height:100%;min-height:0}
+:root[data-split="1"] #cv{flex:1 1 0;height:auto;min-height:0;overflow:hidden}
+:root[data-split="1"] #cv2{flex:none}
+:root[data-split="1"] .foot{display:none}
 :root[data-ui="phone"] body{font-size:13px}
 :root[data-ui="phone"] .wrap{padding:8px}
 :root[data-ui="phone"] button,:root[data-ui="phone"] select,:root[data-ui="phone"] input{min-height:40px}
@@ -158,34 +183,6 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 #sr div,#sr a{display:block;padding:9px 10px;color:inherit;text-decoration:none;cursor:pointer;font-size:14px}
 #sr div:hover,#sr a:hover{background:var(--card);color:var(--acc)}
 .sqs i.n{background:var(--line)}
-/* ---- workstation layout: list on the left, big chart on the right ---- */
-details#fdet{margin:6px 0}
-details#fdet>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--mut);padding:4px 0}
-details#fdet>summary:hover{color:var(--acc)}
-#chips{display:flex;gap:4px;overflow-x:auto;padding-bottom:2px}
-.chip{white-space:nowrap}
-.tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.tb .sym{font-size:18px}
-.tb .pl{font-size:14px}
-.tb .tfs{gap:4px;flex-wrap:wrap}
-.tb .tfs .chip{margin:0;padding:4px 8px;font-size:12px}
-tbody tr.sel td{background:var(--acc-soft)}
-tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--acc);background:var(--acc-soft)}
-:root[data-ws="1"] body{height:100vh;overflow:hidden}
-:root[data-ws="1"] .wrap{max-width:none;height:100vh;display:flex;flex-direction:column;padding:8px 10px}
-:root[data-ws="1"] header{flex:none;margin-bottom:6px}
-:root[data-ws="1"] .ws{flex:1;min-height:0;display:grid;grid-template-columns:minmax(340px,34%) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:stretch;gap:10px}
-:root[data-ws="1"] #side{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-:root[data-ws="1"] #side .tw{flex:1;min-height:0;overflow:auto}
-:root[data-ws="1"] #side table{min-width:0}
-:root[data-ws="1"] #side th,:root[data-ws="1"] #side td{padding:6px 8px;font-size:12px}
-:root[data-ws="1"] #side thead th{position:sticky;top:0;z-index:3}
-:root[data-ws="1"] #side th:first-child{z-index:5}
-:root[data-ws="1"] #cp{min-height:0}
-:root[data-ws="1"] .cpb{height:100%;position:static}
-:root[data-ws="1"] #cv{height:auto;flex:1;min-height:240px}
-:root[data-ws="1"] .cpb .foot{display:none}
-:root[data-ws="1"] .wrap>.note{display:none}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -206,10 +203,7 @@ tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--acc);background:var(-
   </div>
   <div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div>
 </header>
-<div class="ws"><aside id="side">
-<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="9999">All</option></select></section>
-<section class="ctl"><div id="chips"></div></section>
-<details id="fdet"><summary>Presets &amp; filters</summary>
+<div class="ws"><div class="side">
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -218,11 +212,13 @@ tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--acc);background:var(-
 <label class="chk"><input type="checkbox" id="dvOn">Dollar volume filter</label>
 <label class="chk"><input type="checkbox" id="hideNV">Hide FX/CFD</label>
 </section>
-</details>
+<section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
+<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><table id="t"></table></div>
-<div class="ctl" id="pg"></div><p class="note" id="cnt"></p></aside><div id="cp"></div></div>
-<p class="note">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
+<div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
+<p class="note foot">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
+</div><div id="cp"></div></div>
 </div>
 <div id="modal"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -282,7 +278,7 @@ function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15
 const gs=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());
 const cache={};
 let PRI=new Set(); // symbols currently on screen: these get fetched first
-let LASTR=[]; // symbol order of the current results, used for the up/down arrow keys
+let PGL=[]; // symbols in the visible list, in order (used for the arrow-key shortcut)
 function candles(s,tf){if(isLive())return LIVE[s[0]+"|"+tf]||null;const k=s[0]+tf;if(cache[k])return cache[k];
 const r=rng(seed(k)),v=s[5]*TS[tf];let p=100,reg=0;const a=[];
 for(let i=0;i<250;i++){if(i%25===0)reg=(r()-.5)*v*1.2;const o=p,c=o*(1+reg+gs(r)*v);
@@ -333,14 +329,14 @@ if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?
 if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
-function markSel(){document.querySelectorAll("#t td.sy").forEach(td=>td.parentElement.classList.toggle("sel",td.dataset.s===S.chart.sym))}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
 document.getElementById("cut").textContent="Cutoff: $"+fm(S.acct*S.mult);
 const ss=document.getElementById("srtsel");if(ss){ss.innerHTML=`<option value="sym">Sort: Symbol</option>`+vis.map(c=>`<option value="${c.id}">Sort: ${esc(label(c))}</option>`).join("");ss.value=S.sort.id}
-document.getElementById("chips").innerHTML=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)).map(k=>`<button class="chip ${S.mkt===k?"on":""}" onclick="S.mkt='${k}';save();render()">${MK[k]}</button>`).join("");
+const mks=document.getElementById("mkts"),mkl=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)||S.mkt===k);
+mks.innerHTML=mkl.map(k=>`<option value="${k}">${MK[k]}</option>`).join("");mks.value=S.mkt;
 const o=k=>`<option value="${esc(k)}" ${S.cur===k?"selected":""}>${esc(k)}</option>`;
 document.getElementById("ps").innerHTML=`<option value="">Working copy</option><optgroup label="Built-in">${Object.keys(BI).map(o).join("")}</optgroup><optgroup label="My presets">${Object.keys(P).map(o).join("")}</optgroup>`;
 const del=document.getElementById("del");del.textContent=arm?"Confirm?":"Delete";del.disabled=!(S.cur&&P[S.cur]);
@@ -348,11 +344,10 @@ const ar=id=>S.sort.id===id?(S.sort.dir<0?" ▼":" ▲"):"";
 let h=`<tr><th><span class="h" onclick="srt('sym')">Symbol${ar("sym")}</span></th>`;
 vis.forEach(c=>{h+=`<th><span class="h" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">⚙</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
-const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||10)));if(S.page>=pages)S.page=0;let b="";
-LASTR=R.map(r=>r.s[0]);
-const PG=R.slice(S.page*(S.rows||10),(S.page+1)*(S.rows||10));PRI=new Set(PG.map(r=>r.s[0]));
-PG.forEach(r=>{b+=`<tr><td class="sy" data-s="${r.s[0]}" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
-document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";markSel();
+const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||20)));if(S.page>=pages)S.page=0;let b="";
+const PG=R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r.s[0]));
+PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
+document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
 document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";kick()}
 function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id==="sym"?1:-1};save();render()}
@@ -399,18 +394,19 @@ function vols(s,tf){if(isLive())return candles(s,tf).map(x=>x.v||0);const a=cand
 function killCharts(){[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
 function pal(){const cs=getComputedStyle(document.documentElement),v=k=>cs.getPropertyValue(k).trim(),b=S.chart.bg;
 return b==="dark"?{bg:"#121316",tx:"#a1a1aa",gr:"#27272a"}:b==="light"?{bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
-function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();markSel();drawChart();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
+function markSel(){document.querySelectorAll("#t tbody tr").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
+function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=SYMS.find(x=>x[0]===C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
-cp.innerHTML=`<div class="cpb"><div class="tb"><b class="sym">${s[0]}</b><span class="mut">${MK[s[1]]}</span><span id="pl" class="pl"></span><div class="tfs">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut foot">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op());
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
-const pe=document.getElementById("pl");if(pe&&a.length>1){const l=a[a.length-1].c,p0=a[a.length-2].c,dd=(l-p0)/p0*100;pe.innerHTML=`<b>${fp(l)}</b> <span style="color:var(${dd<0?"--r":"--g"})">${dd>0?"+":""}${dd.toFixed(2)}%</span>`}
 const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
 const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf); // forex trades 24h: open = previous close
 const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
@@ -431,7 +427,8 @@ h.setData(vols(s,C.tf).map((x,i)=>({time:T(i),value:x,color:(D[i].close>=D[i].op
 if(hasR){ch2=L.createChart(document.getElementById("cv2"),op());const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false});rs.setData(pts(rsiArr(cl,r.len)));
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
-ch.timeScale().setVisibleLogicalRange({from:a.length-110,to:a.length+4})}
+const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
+ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4})}
 function setM(){const C=S.chart,op=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${v===k?"selected":""}>${n}</option>`).join("");
 modal(`<h3>Chart settings</h3><label>Chart type<select id="cs_t">${op([["candle","Candles"],["hollow","Hollow candles"],["bars","Bars"],["line","Line"],["area","Area"]],C.type)}</select></label><label>Canvas background<select id="cs_b">${op([["auto","Match app theme"],["dark","Dark"],["light","Light"]],C.bg)}</select></label><div class="row"><label>Up color<input id="cs_u" type="color" value="${C.up}"></label><label>Down color<input id="cs_d" type="color" value="${C.dn}"></label></div><label class="chk"><input id="cs_g" type="checkbox" ${C.grid?"checked":""}>Grid lines</label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Apply</button></div>`)}
 function setSave(){const g=i=>document.getElementById(i),C=S.chart;C.type=g("cs_t").value;C.bg=g("cs_b").value;C.up=g("cs_u").value;C.dn=g("cs_d").value;C.grid=g("cs_g").checked;save();closeM();drawChart()}
@@ -569,17 +566,14 @@ tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
 if(bn){if(!base.has(t))return;if(S.dvOn&&d!=null&&d<cut)return}
 else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return;if(S.dvOn&&d!=null&&d<cut)return}
 need(s,t,PRI.has(s[0]))}));status()}
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
-// layout: "workstation" (list left, big chart right) on PC and on wide tablets; stacked on phones and narrow tablets
-let UIM="pc",rz=0,WSV=false,PU="";
-const WS=()=>UIM==="pc"||(UIM==="tablet"&&innerWidth>=900);
-function setWS(){WSV=WS();document.documentElement.dataset.ws=WSV?"1":""}
-function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;setWS();const fd=document.getElementById("fdet");if(fd&&PU!==UIM){fd.open=!WSV;PU=UIM}document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
+let UIM="pc",rz=0;
+function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
-addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM,w0=WSV;if((S.ui||"auto")==="auto")applyUI();else setWS();if(UIM!==o||WSV!==w0){render();drawChart()}},200)});
-function sync(){document.getElementById("rows").value=S.rows||10;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
+addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM+"|"+document.documentElement.dataset.split;applyUI();if(UIM+"|"+document.documentElement.dataset.split!==o){render();drawChart()}},200)});
+function sync(){document.getElementById("rows").value=S.rows||20;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
 function pick(n){if(!n){S.cur="";save();render();return}
 const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart);sync();save();render();drawChart()}
 const snap=()=>clone({acct:S.acct,mult:S.mult,dvOn:S.dvOn,hideNV:S.hideNV,mkt:S.mkt,sort:S.sort,cols:S.cols,chart:S.chart});
@@ -599,12 +593,10 @@ document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);sav
 document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();render()};
 document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
-// up / down arrow keys step through the results list and open each chart
-document.addEventListener("keydown",e=>{if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;const t=e.target;if(t&&t.matches&&t.matches("input,select,textarea"))return;
-const i=LASTR.indexOf(S.chart.sym),j=Math.max(0,Math.min(LASTR.length-1,i+(e.key==="ArrowDown"?1:-1)));
-if(LASTR[j]&&LASTR[j]!==S.chart.sym){e.preventDefault();openChart(LASTR[j]);const r=document.querySelector("#t tr.sel");if(r&&r.scrollIntoView)r.scrollIntoView({block:"nearest"})}});
+// up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
+document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
+const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
-if(!S.layV){S.layV=1;if(innerWidth>=900)S.rows=9999}
 applyTheme();applyUI();sync();render();drawChart();
 loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
 // every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale

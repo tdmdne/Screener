@@ -260,8 +260,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 
 
 </section>
-<section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
-<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="favM()" title="Add to watchlist">★</button><button onclick="dataM()">Data</button></section>
+<section class="ctl"><input id="q" placeholder="Search this list…"><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select><button onclick="favM()" title="Add to watchlist">★</button><button onclick="dataM()">Data</button></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>

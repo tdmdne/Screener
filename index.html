@@ -441,24 +441,31 @@ const PRESETS={
 function scoreMarket(s){
   try{
     const tf=S.evcTf||"H";
-    const tfs={H:"1D",M:"1H",L:"15m"};
-    const a=candles(s,tfs[tf]||"1D");if(!a||a.length<30)return 0;
-    const cl=a.map(d=>d.c);
-    const ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20);
-    const last=a.length-1,c=cl[last];
+    // EVC: H=1H entry/1D validation, M=15m entry/1H validation, L=1m entry/15m validation
+    const evc={H:{e:"1H",v:"1D"},M:{e:"15m",v:"1H"},L:{e:"1m",v:"15m"}};
+    const cfg=evc[tf]||evc.H;
+    const ae=candles(s,cfg.e),av=candles(s,cfg.v);
+    if(!ae||ae.length<20||!av||av.length<20)return 0;
+    const cle=ae.map(d=>d.c),clv=av.map(d=>d.c);
+    const ema5e=emaArr(cle,5),ema10e=emaArr(cle,10),ema20e=emaArr(cle,20);
+    const ema5v=emaArr(clv,5),ema10v=emaArr(clv,10),ema20v=emaArr(clv,20);
+    const le=ae.length-1,lv=av.length-1;
+    const ce=cle[le],cv=clv[lv];
     let score=0;
-    const chg=((c/cl[Math.max(0,last-20)])-1)*100;
-    // EMA position
-    if(c>ema5[last])score+=10;
-    if(c>ema10[last])score+=10;
-    if(c>ema20[last])score+=15;
-    // Expansion (momentum)
-    if(chg>15)score+=35;
-    else if(chg>8)score+=25;
-    else if(chg>3)score+=15;
-    else if(chg>0)score+=5;
-    // Full alignment bonus (coming out of accumulation)
-    if(c>ema5[last]&&c>ema10[last]&&c>ema20[last])score+=15;
+    // Validation timeframe (higher) - context
+    if(cv>ema5v[lv])score+=8;
+    if(cv>ema10v[lv])score+=8;
+    if(cv>ema20v[lv])score+=10;
+    const chgv=((cv/clv[Math.max(0,lv-20)])-1)*100;
+    if(chgv>10)score+=15;else if(chgv>5)score+=10;else if(chgv>0)score+=5;
+    // Entry timeframe (lower) - momentum
+    if(ce>ema5e[le])score+=8;
+    if(ce>ema10e[le])score+=8;
+    if(ce>ema20e[le])score+=10;
+    const chge=((ce/cle[Math.max(0,le-20)])-1)*100;
+    if(chge>10)score+=15;else if(chge>5)score+=10;else if(chge>0)score+=5;
+    // Alignment bonus
+    if(cv>ema5v[lv]&&cv>ema10v[lv]&&cv>ema20v[lv]&&ce>ema5e[le]&&ce>ema10e[le])score+=8;
     return Math.min(100,score);
   }catch(e){return 0}
 }

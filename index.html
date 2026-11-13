@@ -735,7 +735,10 @@ const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.
 function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-(d.p[1].y-d.p[0].y)/2}}
 function dFin(){
   const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;delete d._lt;
-  DL().push(d);SELD=d;TOOL="cross";save();tbRef()
+  DL().push(d);SELD=d;
+  // if lock is on, stay on the current tool so you can keep drawing
+  if(!LOCKD)TOOL="cross";
+  save();tbRef()
 }
 function dDown(e){const[x,y]=xy(e);MX=[x,y];MOD=[e.shiftKey,e.ctrlKey||e.metaKey];try{e.target.setPointerCapture(e.pointerId)}catch(_){}
 if(TOOL!=="cross"){const p=snapP(x,y);
@@ -774,6 +777,7 @@ function dUp(){if(DRAFT&&DRAFT.mv)dFin();if(DRG){DRG=null;save()}}
 function initDraw(a,T,st){G={a,st,tt:a.map((_,i)=>T(i))};if(SELD&&!DL().includes(SELD))SELD=null;DRAFT=null;DRG=null;
 const host=document.getElementById("cv"),cv=document.createElement("canvas");cv.id="dc";cv.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;z-index:6;touch-action:none";host.appendChild(cv);
 cv.onpointerdown=dDown;cv.onpointermove=dMove;cv.onpointerup=dUp;
+cv.oncontextmenu=e=>{e.preventDefault();if(LOCKD){TOOL="cross";DRAFT=null;tbRef()}};
 host.addEventListener("pointerdown",e=>{host._d=[e.clientX,e.clientY]},true);
 host.addEventListener("pointerup",e=>{if(!host._d||TOOL!=="cross"||LOCKD||HIDD||Math.hypot(e.clientX-host._d[0],e.clientY-host._d[1])>5)return;
 const r=host.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=[...DL()].reverse().find(d=>hit(d,x,y));if(d&&d!==SELD){SELD=d;dpe();dsel()}});

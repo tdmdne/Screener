@@ -609,7 +609,7 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.i
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-nb+30,to:a.length+30});
+ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb/2),to:a.length+Math.round(nb/2)});
 initDraw(a,T,st);
 // indicator values dropdown
 if(C.indTitles!==false&&C.ind.length){
@@ -644,11 +644,11 @@ function resetLive(){
   if(!ch||!MS)return;
   const a=candles(symOf(S.chart.sym),S.chart.tf);
   if(!a||!a.length)return;
-  const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;
-  ch.timeScale().setVisibleLogicalRange({from:a.length-nb+30,to:a.length+30});
-  const vis=a.slice(-nb),hi=Math.max(...vis.map(d=>d.h)),lo=Math.min(...vis.map(d=>d.l));
-  const pad=(hi-lo)*0.15||hi*0.01;
-  MS.setVisiblePriceRange?.({minValue:lo-pad,maxValue:hi+pad})||MS.applyOptions({autoScale:true});
+  const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110,half=Math.round(nb/2);
+  ch.timeScale().setVisibleLogicalRange({from:a.length-half,to:a.length+half});
+  const last=a[a.length-1].c,span=last*0.02;
+  MS.applyOptions({autoScale:false});
+  MS.setVisiblePriceRange?.({minValue:last-span,maxValue:last+span});
 }
 function setTool(t){TOOL=t;DRAFT=null;tbRef()}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}

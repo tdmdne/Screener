@@ -508,9 +508,10 @@ const STEP={"1s":1,"5s":5,"10s":10,"15s":15,"30s":30,"45s":45,"1m":60,"3m":180,"
 const INT={"1s":"1S","5s":"5S","10s":"10S","15s":"15S","30s":"30S","45s":"45S","1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","45m":"45","1H":"60","2H":"120","3H":"180","4H":"240","12H":"720","1D":"D","1W":"W","1M":"M","3M":"3M","6M":"6M","12M":"12M"};
 const TVS={EURUSD:"FX:EURUSD",GBPUSD:"FX:GBPUSD",USDJPY:"FX:USDJPY",AUDUSD:"FX:AUDUSD",USDCAD:"FX:USDCAD",NZDUSD:"FX:NZDUSD",ES:"CME_MINI:ES1!",NQ:"CME_MINI:NQ1!",CL:"NYMEX:CL1!",GC:"COMEX:GC1!",ZN:"CBOT:ZN1!","6E":"CME:6E1!",AAPL:"NASDAQ:AAPL",NVDA:"NASDAQ:NVDA",TSLA:"NASDAQ:TSLA",AMD:"NASDAQ:AMD",PLTR:"NASDAQ:PLTR",SMCI:"NASDAQ:SMCI",MARA:"NASDAQ:MARA",SOFI:"NASDAQ:SOFI",US30:"TVC:DJI",DE40:"TVC:DEU40",UK100:"TVC:UKX",BTCUSD:"BITSTAMP:BTCUSD",USOIL:"TVC:USOIL"};
 const emaArr=(a,len)=>{const k=2/(len+1);let e=a[0];return a.map((x,i)=>i?(e=x*k+e*(1-k)):e)};
-const IND={ema:"EMA",sma:"SMA",bb:"Bollinger Bands",vol:"Volume",rsi:"RSI"};
+const IND={ema:"EMA",sma:"SMA",bb:"Bollinger Bands",vol:"Volume",rsi:"RSI",atr:"ATR"};
 const IL=d=>IND[d.t]+(d.t==="vol"?"":" "+d.len);
 const smaArr=(a,n)=>a.map((_,i)=>i<n-1?null:a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n);
+const atrArr=(a,n)=>{const tr=a.map((d,i)=>i?Math.max(d.h-d.l,Math.abs(d.h-a[i-1].c),Math.abs(d.l-a[i-1].c)):d.h-d.l);return smaArr(tr,n)};
 function rsiArr(a,n){const o=a.map(()=>null);let g=0,l=0;for(let i=1;i<a.length;i++){const d=a[i]-a[i-1],u=Math.max(d,0),w=Math.max(-d,0);
 if(i<=n){g+=u/n;l+=w/n}else{g=(g*(n-1)+u)/n;l=(l*(n-1)+w)/n}
 if(i>=n)o[i]=l===0?100:100-100/(1+g/l)}return o}
@@ -602,7 +603,7 @@ if(C.showBuySell){
   document.getElementById("cv").parentElement.appendChild(bs);
 }
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
-C.ind.filter(d=>!d.hidden).forEach(d=>{
+C.ind.filter(d=>!d.hidden&&d.t!=="atr").forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
 else if(d.t==="sma")ls(d.col,2).setData(pts(smaArr(cl,d.len)));
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
@@ -624,7 +625,24 @@ if(C.indTitles!==false&&C.ind.length){
   idv.innerHTML=`<details style="background:transparent"><summary style="cursor:pointer;color:${txtCol};list-style:none">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="background:transparent;padding:2px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:4px;padding:1px 0"><span style="color:${d.hidden?"#555":d.col};font-size:8px">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:8px;opacity:.6"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px;color:${txtCol}">${d.hidden?"○":"●"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px;color:${txtCol}">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 2px;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
   document.getElementById("cv").parentElement.appendChild(idv);
 }
-// current time in the timebar below the chart
+// ATR display in bottom right
+if(C.ind.some(d=>d.t==="atr")){
+  const atrInd=C.ind.find(d=>d.t==="atr");
+  const atrVal=atrArr(a,atrInd.len||14);
+  const lastAtr=atrVal[atrVal.length-1];
+  if(lastAtr!=null){
+    const atrEl=document.createElement("div");
+    atrEl.style.cssText="position:absolute;bottom:30px;right:70px;background:var(--bg);border:1px solid var(--line);padding:2px 6px;border-radius:4px;font-size:11px;z-index:5";
+    atrEl.innerHTML=`<span style="color:${atrInd.col}">ATR</span> <b>${lastAtr.toFixed(1)}</b>`;
+    document.getElementById("cv").parentElement.appendChild(atrEl);
+  }
+}
+function addTdmIndi(){
+  const cols=["#f97316","#71717a","#2962ff","#089981"];
+  const inds=[{t:"ema",len:5,col:cols[0]},{t:"ema",len:10,col:cols[1]},{t:"ema",len:20,col:cols[2]},{t:"sma",len:200,col:cols[3]},{t:"atr",len:14,col:"#787b86"}];
+  inds.forEach(d=>{if(!S.chart.ind.find(x=>x.t===d.t&&x.len===d.len))S.chart.ind.push({id:"i"+Date.now()+Math.random(),...d})});
+  save();drawChart();
+}
 const tb=document.getElementById("timebar");
 if(tb){
   const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
@@ -1151,6 +1169,7 @@ ${sidebar}
 <button class="on" style="border-radius:20px">All</button>
 <button style="border-radius:20px">Indicators</button>
 </div>
+<div style="margin-bottom:12px"><button onclick="addTdmIndi();closeM()" style="background:#2962ff;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">+ TDM Indicator (EMA 5/10/20, SMA 200, ATR)</button></div>
 <input type="search" placeholder="Search" style="width:100%;margin-bottom:12px" oninput="indSearch(this.value)">
 <div id="indlist" class="list" style="max-height:300px;overflow-y:auto">${list}</div>
 <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">

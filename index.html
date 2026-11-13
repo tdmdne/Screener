@@ -354,7 +354,7 @@ if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
 if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?"":b===false?"b":"n"}"></i>`).join("")}</span>`;
 if(v==null)return`<span class="na">…</span>`;
-const bear=(t==="cc"&&c.mode==="exp"&&c.dir=="bear")||((t==="pct"||t==="mac")&&v<0);
+const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
@@ -618,3 +618,59 @@ if(m.t!==SNAP.t)SNAP.loaded={};
 SNAP.t=m.t;SNAP.tfs=m.tfs;SNAP.uni=m.universe.map(u=>[u[0],u[1],u[3],u[4],1,.01,u[6],u[2],u[5]]);SNAP.ok=true;
 const want=new Set(["1D",S.chart.tf]);S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)want.add(c.tf);if(c.tfs)c.tfs.forEach(t=>want.add(t))});
 await Promise.all([...want].filter(t=>m.tfs.includes(t)).map(snapTf))}catch(e){}}
+function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{const r=await fetch(`data/c_${tf}.json?v=${SNAP.t}`);if(!r.ok)return;const j=await r.json();
+for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1}}}catch(e){}})())}
+async function autoRefresh(){if(!isLive()||!READY)return;await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/Yahoo busy|proxy\/network|network error|HTTP [45]\d\d/)}
+function pgGo(d){S.page+=d;save();render()}
+// Two-stage loading:
+//  1) daily candles for everything (gives price, volume and dollar volume)
+//  2) the other timeframes, only for stocks/ETFs/futures that pass the dollar-volume cutoff
+// Symbols on screen jump the queue.
+function kick(){if(!isLive()||!READY)return;
+if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
+const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
+const cut=S.acct*S.mult,cs=symOf(S.chart.sym);if(cs)need(cs,S.chart.tf,true);
+wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)}); // watchlist symbols load first
+const eq=m=>m==="STK"||m==="ETF"||m==="FUT";
+const tfl=["1D",...[...base].filter(t=>t!=="1D")];
+tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
+if(bn){if(!base.has(t))return;if(S.dvOn&&d!=null&&d<cut)return}
+else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return;if(S.dvOn&&d!=null&&d<cut)return}
+need(s,t,PRI.has(s[0]))}));status()}
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
+function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
+function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+let UIM="pc",rz=0;
+function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
+function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
+addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM+"|"+document.documentElement.dataset.split;applyUI();if(UIM+"|"+document.documentElement.dataset.split!==o){render();drawChart()}},200)});
+function sync(){document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
+function pick(n){if(!n){S.cur="";save();render();return}
+const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart);sync();save();render();drawChart()}
+const snap=()=>clone({acct:S.acct,mult:S.mult,dvOn:S.dvOn,hideNV:S.hideNV,mkt:S.mkt,sort:S.sort,cols:S.cols,chart:S.chart});
+function saveCur(){if(S.cur&&P[S.cur]){P[S.cur]=snap();saveP();toast("Saved “"+S.cur+"”")}else saveAs()}
+function saveAs(){modal(`<h3>Save preset</h3><label>Name<input id="pn" maxlength="40" value="${S.cur&&P[S.cur]?esc(S.cur):""}"></label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="doAs()">Save</button></div>`)}
+function doAs(){const n=document.getElementById("pn").value.trim();if(!n||BI[n]){document.getElementById("pn").placeholder="Pick a different name";document.getElementById("pn").value="";return}
+P[n]=snap();S.cur=n;saveP();save();closeM();render();toast("Saved “"+n+"”")}
+function delP(){if(!S.cur||!P[S.cur])return;if(!arm){arm=true;render();setTimeout(()=>{arm=false;render()},3000);return}
+arm=false;delete P[S.cur];S.cur="";saveP();save();render()}
+function xfer(){modal(`<h3>Export / import presets</h3><p class="mut">Presets live in this browser only. Copy them from one device and paste them on another.</p><textarea id="xt" rows="7" placeholder="Paste presets text here…"></textarea><div class="row"><button onclick="document.getElementById('xt').value=JSON.stringify(P)">Fill with mine</button><button onclick="imp()">Import</button><span class="sp"></span><button class="pri" onclick="closeM()">Close</button></div><div class="mut" id="xm"></div>`)}
+function imp(){const m=document.getElementById("xm");try{const o=JSON.parse(document.getElementById("xt").value);let n=0;
+for(const k in o)if(o[k]&&Array.isArray(o[k].cols)&&!BI[k]){P[k]=o[k];n++}
+saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textContent="Couldn’t read that text."}}
+const rDeb=deb(render,200);
+document.getElementById("acct").oninput=e=>{S.acct=parseFloat(e.target.value)||0;save();rDeb()};
+document.getElementById("mult").onchange=e=>{S.mult=parseInt(e.target.value);save();render()};
+document.getElementById("dvOn").onchange=e=>{S.dvOn=e.target.checked;save();render()};
+document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
+document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
+// up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
+document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
+const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
+if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
+applyTheme();applyUI();sync();render();drawChart();
+loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
+// every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
+setInterval(autoRefresh,15*60*1000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}});
+</script></body></html>

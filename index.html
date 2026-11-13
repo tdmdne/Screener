@@ -615,7 +615,7 @@ if(d.txt&&t!=="text"){
     const midX=(minX+maxX)/2,midY=(minY+maxY)/2;
     if(t==="vline"){
       // vertical line: VA moves along the line, HA offsets sideways
-      if(va==="top")ty=minY+pad;
+      if(va==="top")ty=minY+22; // extra space so text isn't cut off at the top edge
       else if(va==="bottom")ty=maxY-th-pad;
       else ty=midY+th/3;
       if(ha==="left")tx=a.x-tw-pad;

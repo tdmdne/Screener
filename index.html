@@ -632,7 +632,7 @@ if(C.ind.some(d=>d.t==="atr")){
   const lastAtr=atrVal[atrVal.length-1];
   if(lastAtr!=null){
     const atrEl=document.createElement("div");
-    atrEl.style.cssText="position:absolute;bottom:50px;right:60px;background:#000;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;z-index:5;display:flex;gap:8px";
+    atrEl.style.cssText="position:absolute;bottom:80px;right:60px;background:#000;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;z-index:5;display:flex;gap:8px";
     atrEl.innerHTML=`<span>ATR</span><b>${lastAtr.toFixed(1)}</b>`;
     document.getElementById("cv").parentElement.appendChild(atrEl);
   }

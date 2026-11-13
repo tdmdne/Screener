@@ -230,6 +230,9 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 #dsel{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:8;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 6px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
 #dsel input[type=color]{width:32px;height:28px;padding:1px}
 #dsel select{width:auto}
+.preset-btn{padding:4px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);cursor:pointer;font-size:12px}
+.preset-btn.on{background:#2962ff;color:#fff;border-color:#2962ff}
+.preset-btn:hover{background:var(--hover)}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -263,7 +266,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 <section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
 <section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
-<div class="tw"><table id="t"></table></div>
+<div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
 <p class="note foot">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
 </div><div id="cp"></div></div>
@@ -376,13 +379,49 @@ if(t==="adr")return"ADR % · "+c.n+"d";
 if(t==="mac")return"MA close · "+c.ma+" "+c.len+" · "+c.tf;
 if(t==="mat")return"MA trend · "+c.ma+" "+c.len+" · "+c.tfs.join(" ");
 return TY[t]}
-function rows(vis){const cut=S.acct*S.mult;
+// Mentfx-style S01-S04 filters
+S.sFilter=S.sFilter||"all";
+function scoreSymbol(s){
+  try{
+    const a=candles(s,"1D");if(!a||a.length<50)return{score:0,phase:"—",dir:0};
+    const cl=a.map(d=>d.c),ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20),ema50=emaArr(cl,50);
+    const last=a.length-1,c=cl[last];
+    const above5=c>ema5[last],above10=c>ema10[last],above20=c>ema20[last],above50=c>ema50[last];
+    const aligned=above5&&above10&&above20&&above50;
+    const bearAlign=!above5&&!above10&&!above20&&!above50;
+    const chg20=((c/cl[Math.max(0,last-20)])-1)*100;
+    const vol=a.slice(-20).reduce((s,d)=>s+(d.v||0),0)/20;
+    const avgVol=a.slice(-50).reduce((s,d)=>s+(d.v||0),0)/50;
+    const volRatio=avgVol>0?vol/avgVol:1;
+    let score=0,phase="Neutral",dir=0;
+    if(aligned&&chg20>5){score=90+Math.min(chg20,10);phase="Expansion";dir=1}
+    else if(aligned&&chg20>0){score=70+chg20;phase="Accumulation";dir=1}
+    else if(bearAlign&&chg20<-5){score=90+Math.min(-chg20,10);phase="Distribution";dir=-1}
+    else if(bearAlign&&chg20<0){score=70-chg20;phase="Reaccumulation";dir=-1}
+    else if(above50&&chg20>0){score=50+chg20;phase="Retracement";dir=1}
+    else{score=30;phase="Range"}
+    if(volRatio>1.5)score+=10;
+    return{score:Math.min(100,score),phase,dir,chg:chg20};
+  }catch(e){return{score:0,phase:"—",dir:0}}
+}
+function applySFilter(r){
+  if(S.sFilter==="all")return r;
+  return r.map(o=>{const sc=scoreSymbol(o.s);o.score=sc.score;o.phase=sc.phase;o.dir=sc.dir;return o}).filter(o=>{
+    if(S.sFilter==="s01")return o.score>=80;
+    if(S.sFilter==="s02")return o.phase==="Expansion"||o.phase==="Distribution";
+    if(S.sFilter==="s03")return o.phase==="Accumulation"||o.phase==="Reaccumulation";
+    if(S.sFilter==="s04")return o.phase==="Retracement";
+    return true;
+  }).sort((a,b)=>b.score-a.score);
+}
+function rows(vis){
+const cut=S.acct*S.mult;
 let r=SYMS.filter(s=>(S.mkt==="ALL"||s[1]===S.mkt)&&s[0].toLowerCase().includes(S.q.toLowerCase()));
 r=r.map(s=>{const o={s,v:{},sq:{}};vis.forEach(c=>{if(c.type==="mat"){o.sq[c.id]=c.tfs.map(t=>safe(()=>{const a=candles(s,t);return a[a.length-1].c>ma(s,t,c.ma,c.len)}));o.v[c.id]=o.sq[c.id].filter(x=>x===true).length}else o.v[c.id]=safe(()=>calc(s,c))});return o});
 r=r.filter(o=>{const d=dvOf(o.s);if(d==null&&S.hideNV)return false;if(S.dvOn&&d!=null&&d<cut)return false;
 for(const c of vis)if(c.type==="cc"&&c.min>0&&o.v[c.id]<c.min)return false;return true});
 const id=S.sort.id,d=S.sort.dir,g=o=>id==="sym"?o.s[0]:o.v[id];
-r.sort((a,b)=>{const x=g(a),y=g(b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(x>y?1:x<y?-1:0)*d});return r}
+r.sort((a,b)=>{const x=g(a),y=g(b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(x>y?1:x<y?-1:0)*d});return applySFilter(r)}
 function cell(o,c){const v=o.v[c.id],t=c.type;
 if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
@@ -390,6 +429,25 @@ if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?
 if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
+const PRESETS={
+  P1:{name:"P1 Best",sort:"chg",dir:-1,desc:"Highest % change"},
+  P2:{name:"P2 Volume",sort:"vol",dir:-1,desc:"Highest volume"},
+  P3:{name:"P3 Momentum",sort:"mom",dir:-1,desc:"Strongest momentum"},
+  P4:{name:"P4 Volatility",sort:"atr",dir:-1,desc:"Highest ATR"},
+  P5:{name:"P5 Range",sort:"range",dir:-1,desc:"Widest range"}
+};
+function renderPresets(){
+  const el=document.getElementById("presets");if(!el)return;
+  el.innerHTML=Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("");
+}
+function applyPreset(k){
+  S.preset=k;
+  const p=PRESETS[k];
+  if(p.sort==="chg")S.sort={id:"c1",dir:-1};
+  else if(p.sort==="vol")S.sort={id:"c2",dir:-1};
+  else S.sort={id:"sym",dir:1};
+  S.page=0;save();render();
+}
 function render(){
 if(isLive())setLive();else SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
@@ -410,7 +468,7 @@ const PG=R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map
 PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
-document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";renderWL();kick()}
+document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";renderWL();renderPresets();kick()}
 // ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
 const CUS={};
 const guessM=n=>/=X$/.test(n)?"FX":/=F$/.test(n)?"FUT":/^\^/.test(n)?"IDX":/-USD$/.test(n)?"CRY":"STK";

@@ -971,38 +971,82 @@ const sl=(k,l,arr)=>`<label>${l}<select data-c="${k}">${o(arr,C[k])}</select></l
 const nu=(k,l,mn,mx,st)=>`<label>${l}<input type="number" data-c="${k}" min="${mn}" max="${mx}" step="${st}" value="${C[k]}"></label>`;
 const cr=(c,l,a,b)=>`<div class="csr">${c?ck(c,l):`<span>${l}</span>`}<span class="sp"></span>${a}${b||""}</div>`;
 const tp=(t,h)=>`<div class="tp" data-t="${t}" style="display:none">${h}</div>`;
-modal(`<h3>Chart settings</h3><div class="tabs">${[["sym","Symbol"],["can","Canvas"],["sc","Scales"],["ui","Interface"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
-+tp("sym",sl("type","Chart type",[["candle","Candles"],["hollow","Hollow candles"],["bars","Bars"],["line","Line"],["area","Area"]])
-+cr("showBody","Body",co("upBody"),co("dnBody"))+cr("showBorder","Borders",co("upBorder"),co("dnBorder"))+cr("showWick","Wick",co("upWick"),co("dnWick"))
-+cr(0,"Line / area colour",co("lineCol"))+nu("lineW","Line width",1,4,1)
-+ck("pLine","Price line")+ck("pLabel","Last price label")+cr(0,"Price line colour",co("pLineCol",C.upBody)))
-+tp("can",sl("bg","Background",[["auto","Match app theme"],["dark","Dark"],["light","Light"],["custom","Custom"]])+cr(0,"Custom background",co("bgCol"))
-+cr("showGridV","Vert grid",co("gridV",p.gr))+cr("showGridH","Horz grid",co("gridH",p.gr))
-+cr(0,"Text colour",co("txtCol",p.tx))+nu("fs","Text size",8,20,1)
-+sl("xhMode","Crosshair mode",[["normal","Normal"],["magnet","Magnet"]])+sl("xhStyle","Crosshair style",[[0,"Solid"],[1,"Dotted"],[2,"Dashed"],[3,"Large dashed"],[4,"Sparse dotted"]])
-+cr(0,"Crosshair colour",co("xhCol",p.tx))+ck("xhLabels","Crosshair labels")+cr("wm","Watermark",co("wmCol","#787882")))
-+tp("sc",sl("scMode","Price scale",[[0,"Normal"],[1,"Logarithmic"],[2,"Percentage"],[3,"Indexed to 100"]])+ck("scAuto","Auto scale")+ck("scInv","Invert scale")
-+cr("scBorder","Scale border",co("scBorderCol",p.gr))+nu("scTop","Top margin",0,.5,.05)+nu("scBot","Bottom margin",0,.5,.05))
+const sec=s=>`<div class="mut" style="margin:12px 0 6px;font-size:11px;font-weight:600;letter-spacing:.04em">${s}</div>`;
+modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status line"],["scales","Scales and lines"],["can","Canvas"],["ui","Interface"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
++tp("sym",sec("CANDLES")
++ck("colorPrev","Color bars based on previous close")
++cr("showBody","Body",co("upBody"),co("dnBody"))
++cr("showBorder","Borders",co("upBorder"),co("dnBorder"))
++cr("showWick","Wick",co("upWick"),co("dnWick"))
++sec("DATA MODIFICATION")
++sl("precision","Precision",[["def","Default"],["0","0"],["1","1"],["2","2"],["3","3"],["4","4"]])
++sl("tz","Timezone",[["ny","(UTC-5) New York"],["utc","UTC"],["lon","London"],["tok","Tokyo"]]))
++tp("status",sec("INSTRUMENT")
++ck("showLogo","Logo")
++cr("showTitle","Title",`<select data-c="titleMode">${o([["name","Name"],["ticker","Ticker"],["desc","Description"]],C.titleMode||"name")}</select>`)
++ck("showMktStatus","Open market status")
++ck("showChartVals","Chart values")
++ck("showBarChg","Bar change values")
++ck("showVol","Volume")
++ck("showLastChg","Last day change values")
++ck("showBuySell","Buy/sell buttons")
++sec("INDICATORS")
++ck("indTitles","Titles")
++ck("indInputs","Inputs")
++ck("indValues","Values")
++ck("indBg","Background"))
++tp("scales",sl("curUnit","Currency and Unit",[["always","Always visible"],["hover","Visible on mouse over"],["hide","Hidden"]])
++sl("scaleModeBtn","Scale modes (A and L)",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
++cr("lockRatio","Lock price to bar ratio",`<input type="number" data-c="barRatio" step="0.0001" value="${C.barRatio||0.0001}" style="width:100px">`)
++sl("scalePlace","Scales placement",[["auto","Auto"],["left","Left"],["right","Right"]])
++sec("PRICE LABELS & LINES")
++ck("noOverlap","No overlapping labels")
++ck("plusBtn","Plus button")
++ck("countdown","Countdown to bar close")
++sl("symLabel","Symbol",[["val","Value, line"],["valonly","Value only"],["hide","Hidden"]])
++sl("prevClose","Previous day close",[["hide","Hidden"],["val","Value"],["line","Line"]])
++sl("indLabel","Indicators and financials",[["hide","Hidden"],["val","Value"]])
++sl("hlLabel","High and low",[["hide","Hidden"],["val","Value"]])
++sl("baLabel","Bid and ask",[["hide","Hidden"],["val","Value"]])
++sec("TIME SCALE")
++ck("dowLabels","Day of week on labels")
++sl("dateFmt","Date format",[["dmy","Mon 29 Sep '97"],["mdy","Sep 29, 1997"],["iso","1997-09-29"]])
++sl("timeFmt","Time hours format",[["24","24-hours"],["12","12-hours"]])
++ck("saveLeft","Save chart left edge position when changing interval")
++ck("extZoom","Allow extended zoom out"))
++tp("can",sec("CHART BASIC STYLES")
++sl("bg","Background",[["auto","Match app theme"],["dark","Dark"],["light","Light"],["custom","Custom"]])
++cr(0,"Custom background",co("bgCol"))
++cr("showGridV","Vertical grid lines",co("gridV",p.gr))
++cr("showGridH","Horizontal grid lines",co("gridH",p.gr))
++cr(0,"Crosshair",co("xhCol",p.tx))
++sl("xhStyle","Crosshair style",[[0,"Solid"],[1,"Dotted"],[2,"Dashed"],[3,"Large dashed"],[4,"Sparse dotted"]])
++sl("wm","Watermark",[["hide","Hidden"],["show","Visible"]])
++sec("SCALES")
++cr(0,"Text",co("txtCol",p.tx))
++nu("fs","Text size",8,20,1)
++sec("BUTTONS")
++sl("navBtn","Navigation",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
++sl("paneBtn","Pane",[["hover","Visible on mouse over"],["always","Always visible"],["hide","Hidden"]])
++sec("MARGINS")
++nu("scTop","Top",0,50,1)
++nu("scBot","Bottom",0,50,1)
++nu("rightBars","Right",0,50,1))
 +tp("ui",`<div class="mut" style="margin-bottom:8px">Keyboard shortcuts</div>
 <table style="width:100%;font-size:13px;border-collapse:collapse">
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Redo</td><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Redo</td><td><kbd>Ctrl</kbd>+<kbd>Y</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Save</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Hide all drawings</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Trend line</td><td><kbd>Alt</kbd>+<kbd>T</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Horizontal line</td><td><kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Vertical line</td><td><kbd>Alt</kbd>+<kbd>V</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Fib retracement</td><td><kbd>Alt</kbd>+<kbd>F</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Rectangle</td><td><kbd>Alt</kbd>+<kbd>R</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Arrow</td><td><kbd>Alt</kbd>+<kbd>A</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Note</td><td><kbd>Alt</kbd>+<kbd>N</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Cancel / crosshair</td><td><kbd>Esc</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Delete selected</td><td><kbd>Delete</kbd> or <kbd>Backspace</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Delete selected</td><td><kbd>Delete</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan chart</td><td>Arrow keys</td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan further</td><td><kbd>Ctrl</kbd>+Arrow keys</td></tr>
-</table>
-<p class="mut" style="margin-top:8px">On Mac, use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd>.</p>`)
-+`<div class="row"><button onclick="setReset()">Reset</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Apply</button></div>`);
+</table>`)
++`<div class="row"><button onclick="setReset()">Reset</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Ok</button></div>`);
 swTab(typeof tab==="string"?tab:"sym")}
 function swTab(t){MD.querySelectorAll(".tp").forEach(e=>e.style.display=e.dataset.t===t?"flex":"none");MD.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t))}
 function setReset(){const C=S.chart;S.chart=Object.assign(clone(CH0),{sym:C.sym,tf:C.tf,ind:C.ind});save();closeM();drawChart()}

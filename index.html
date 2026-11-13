@@ -574,7 +574,14 @@ function sd(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,M
 function hit(d,x,y){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
 if(t==="hline")return Math.abs(y-a.y)<n;if(t==="hray")return Math.abs(y-a.y)<n&&x>a.x-n;if(t==="vline")return Math.abs(x-a.x)<n;
 if(t==="text")return Math.abs(x-a.x)<60&&Math.abs(y-a.y)<14;
-if(t==="trend"||t==="ray"||t==="ext"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
+if(t==="note"){
+  // whole note is clickable: anchor + box
+  const txt=d.txt||"Note",tw=12*txt.length*0.6+16,bx=a.x+18,by=a.y-36,bw=tw,bh=22;
+  if(Math.hypot(x-a.x,y-a.y)<12)return 1;
+  if(x>=bx&&x<=bx+bw&&y>=by&&y<=by+bh)return 1;
+  return 0;
+}
+if(t==="trend"||t==="ray"||t==="ext"||t==="arrow"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
 const xs=q.map(o=>o.x),ys=q.map(o=>o.y);return x>Math.min(...xs)-n&&x<Math.max(...xs)+n&&y>Math.min(...ys)-n&&y<Math.max(...ys)+n}
 function shape(g,d,W,H,sel){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return;const t=d.t,a=q[0],b=q[1],c=d.c;
 g.lineWidth=d.w;g.strokeStyle=c;g.fillStyle=c;g.font="12px system-ui,sans-serif";g.setLineDash((LSTYLES[d.s||0]||LSTYLES[0]).d);
@@ -638,7 +645,7 @@ else if(t==="drange"){
   g.fillStyle=c;g.font="12px system-ui,sans-serif";g.fillText(bars+" bars",(x1+x2)/2-20,(y1+y2)/2);
 }
 // optional text label — middle breaks the line; other alignments sit near a continuous line
-if(d.txt&&t!=="text"){
+if(d.txt&&t!=="text"&&t!=="note"){
   const fs=d.txtSize||12,bold=d.txtBold?"bold ":"",italic=d.txtItalic?"italic ":"";
   g.font=italic+bold+fs+"px system-ui,sans-serif";
   const m=g.measureText(d.txt),tw=m.width,th=fs,pad=4;

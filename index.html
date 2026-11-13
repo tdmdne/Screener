@@ -552,11 +552,35 @@ const so={priceLineVisible:C.pLine,lastValueVisible:C.pLabel,priceLineColor:C.pL
 if(C.type==="line")ms(ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so))).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="area")ms(ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so))).setData(D.map(x=>({time:x.time,value:x.close})));
 else if(C.type==="bars")ms(ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so))).setData(D);
-else{const h=C.type==="hollow";ms(ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so))).setData(D)}
+// color bars based on previous close
+if(C.colorPrev&&D.length>1){
+  const prevC=d1&&d1.length>1?d1[d1.length-2].c:D[0].close;
+  D.forEach(d=>{if(d.close>=prevC){d.color=C.upBody}else{d.color=C.dnBody}});
+}
+const h=C.type==="hollow";ms(ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so))).setData(D);
 // previous day close line
 if(C.prevClose==="line"||C.prevClose==="val"){
   const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
   if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}])}
+}
+// plus button on price scale
+if(C.plusBtn){
+  const pb=document.createElement("button");pb.textContent="+";pb.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:4px;border:1px solid var(--line);background:var(--bg);cursor:pointer;z-index:5;font-size:14px";
+  pb.onclick=()=>setTool("hline");
+  document.getElementById("cv").parentElement.appendChild(pb);
+}
+// high/low labels
+if(C.hlLabel==="val"&&D.length){
+  const hi=Math.max(...D.map(d=>d.high)),lo=Math.min(...D.map(d=>d.low));
+  const hl=document.createElement("div");hl.style.cssText="position:absolute;right:70px;font-size:11px;color:var(--mut);z-index:5";
+  hl.innerHTML=`<div style="color:#089981">H ${fp(hi)}</div><div style="color:#f23645">L ${fp(lo)}</div>`;
+  document.getElementById("cv").parentElement.appendChild(hl);
+}
+// buy/sell buttons
+if(C.showBuySell){
+  const bs=document.createElement("div");bs.style.cssText="position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:5";
+  bs.innerHTML=`<button style="background:#f23645;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">SELL</button><button style="background:#089981;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">BUY</button>`;
+  document.getElementById("cv").parentElement.appendChild(bs);
 }
 // countdown to bar close
 if(C.countdown){
@@ -991,7 +1015,7 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +cr("showBorder","Borders",co("upBorder"),co("dnBorder"))
 +cr("showWick","Wick",co("upWick"),co("dnWick"))
 +sec("DATA MODIFICATION")
-+sl("tz","Timezone",[["ny","(UTC-5) New York"],["utc","UTC"],["lon","London"],["tok","Tokyo"]]))
++sl("tz","Timezone",[["ny","(UTC-5) New York"],["utc","UTC"],["lon","(UTC+0) London"],["par","(UTC+1) Paris"],["ber","(UTC+1) Berlin"],["tok","(UTC+9) Tokyo"],["sha","(UTC+8) Shanghai"],["sgp","(UTC+8) Singapore"],["hkg","(UTC+8) Hong Kong"],["syd","(UTC+10) Sydney"],["dub","(UTC+4) Dubai"],["mos","(UTC+3) Moscow"],["sao","(UTC-3) São Paulo"],["chi","(UTC-6) Chicago"],["den","(UTC-7) Denver"],["la","(UTC-8) Los Angeles"]]))
 +tp("status",sec("INSTRUMENT")
 +cr("showTitle","Title",`<select data-c="titleMode">${o([["name","Name"],["ticker","Ticker"]],C.titleMode||"name")}</select>`)
 +ck("showMktStatus","Open market status")

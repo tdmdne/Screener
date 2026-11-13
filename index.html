@@ -582,6 +582,14 @@ if(t==="note"){
   return 0;
 }
 if(t==="trend"||t==="ray"||t==="ext"||t==="arrow"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
+if(t==="path"||t==="curve"){
+  for(let i=1;i<q.length;i++)if(sd(x,y,q[i-1],q[i])<n)return 1;
+  return q.some(o=>Math.hypot(x-o.x,y-o.y)<10);
+}
+if(t==="prange"||t==="drange"){
+  const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
+  return x>Math.min(...xs)-8&&x<Math.max(...xs)+8&&y>Math.min(...ys)-8&&y<Math.max(...ys)+8;
+}
 const xs=q.map(o=>o.x),ys=q.map(o=>o.y);return x>Math.min(...xs)-n&&x<Math.max(...xs)+n&&y>Math.min(...ys)-n&&y<Math.max(...ys)+n}
 function shape(g,d,W,H,sel){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return;const t=d.t,a=q[0],b=q[1],c=d.c;
 g.lineWidth=d.w;g.strokeStyle=c;g.fillStyle=c;g.font="12px system-ui,sans-serif";g.setLineDash((LSTYLES[d.s||0]||LSTYLES[0]).d);
@@ -631,18 +639,29 @@ else if(t==="curve"){
   else if(q.length===2){ln(q[0].x,q[0].y,q[1].x,q[1].y)}
 }
 else if(t==="prange"){
+  // Price Range — horizontal levels with shaded area, price diff and %
   const y1=Math.min(a.y,b.y),y2=Math.max(a.y,b.y),x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x);
-  g.globalAlpha=.15;g.fillStyle=c;g.fillRect(x1,y1,x2-x1,y2-y1);g.globalAlpha=1;
-  g.strokeStyle=c;ln(x1,y1,x2,y1);ln(x1,y2,x2,y2);ln((x1+x2)/2,y1,(x1+x2)/2,y2);
-  const p1=d.p[0].y,p2=d.p[1].y,diff=p2-p1,pct=p1?((p2/p1-1)*100):0;
-  g.fillStyle=c;g.font="12px system-ui,sans-serif";g.fillText(fp(diff)+" ("+(pct>0?"+":"")+pct.toFixed(2)+"%)",(x1+x2)/2+6,(y1+y2)/2);
+  const midX=(x1+x2)/2;
+  g.globalAlpha=.12;g.fillStyle="#2962ff";g.fillRect(x1,y1,x2-x1,y2-y1);g.globalAlpha=1;
+  g.strokeStyle="#2962ff";g.lineWidth=1;ln(x1,y1,x2,y1);ln(x1,y2,x2,y2);
+  g.setLineDash([3,3]);ln(midX,y1,midX,y2);g.setLineDash((LSTYLES[d.s||0]||LSTYLES[0]).d);
+  const p1=d.p[0].y,p2=d.p[1].y,diff=Math.abs(p2-p1),pct=p1?Math.abs((p2/p1-1)*100):0;
+  const lbl=fp(diff)+" ("+pct.toFixed(2)+"%)";
+  g.font="12px system-ui,sans-serif";const lw=g.measureText(lbl).width;
+  g.fillStyle="#ffffff";g.fillRect(midX-lw/2-4,(y1+y2)/2-8,lw+8,16);
+  g.fillStyle="#2962ff";g.fillText(lbl,midX-lw/2,(y1+y2)/2+4);
 }
 else if(t==="drange"){
-  const x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x),y1=Math.min(a.y,b.y),y2=Math.max(a.y,b.y);
-  g.globalAlpha=.12;g.fillStyle=c;g.fillRect(x1,y1,x2-x1,y2-y1);g.globalAlpha=1;
-  g.strokeStyle=c;ln(x1,0,x1,H);ln(x2,0,x2,H);
+  // Date Range — two vertical lines with bar count
+  const x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x);
+  g.globalAlpha=.08;g.fillStyle="#2962ff";g.fillRect(x1,0,x2-x1,H);g.globalAlpha=1;
+  g.strokeStyle="#2962ff";g.lineWidth=1;ln(x1,0,x1,H);ln(x2,0,x2,H);
   const bars=Math.abs(Math.round((d.p[1].t-d.p[0].t)/G.st));
-  g.fillStyle=c;g.font="12px system-ui,sans-serif";g.fillText(bars+" bars",(x1+x2)/2-20,(y1+y2)/2);
+  const lbl=bars+" bars";
+  g.font="12px system-ui,sans-serif";const lw=g.measureText(lbl).width;
+  const my=(a.y+b.y)/2;
+  g.fillStyle="#ffffff";g.fillRect((x1+x2)/2-lw/2-4,my-8,lw+8,16);
+  g.fillStyle="#2962ff";g.fillText(lbl,(x1+x2)/2-lw/2,my+4);
 }
 // optional text label — middle breaks the line; other alignments sit near a continuous line
 if(d.txt&&t!=="text"&&t!=="note"){

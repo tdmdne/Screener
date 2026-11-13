@@ -557,7 +557,7 @@ function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?
 function delSel(){if(SELD){const L=DL(),i=L.indexOf(SELD);if(i>=0)L.splice(i,1);SELD=null;save();tbRef()}}
 function dpe(){const c=document.getElementById("dc");if(c){c.style.pointerEvents=(TOOL!=="cross"||SELD||DRAFT)&&!HIDD?"auto":"none";c.style.cursor=TOOL!=="cross"?"crosshair":"default"}}
 function dsel(){const e=document.getElementById("dsel");if(!e)return;if(!SELD){e.style.display="none";return}
-e.style.display="flex";e.innerHTML=`<input type="color" value="${SELD.c}" oninput="SELD.c=this.value;save()"><select title="Line type" onchange="SELD.s=+this.value;save()">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(SELD.s||0)?"selected":""}>${st.n}</option>`).join("")}</select><select onchange="SELD.w=+this.value;save()">${[1,2,3,4].map(w=>`<option ${w==SELD.w?"selected":""}>${w}</option>`).join("")}</select><button onclick="delSel()" title="Delete">🗑</button>`}
+e.style.display="flex";e.innerHTML=`<input type="color" value="${SELD.c}" oninput="SELD.c=this.value;save()"><select title="Line type" onchange="SELD.s=+this.value;save()">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(SELD.s||0)?"selected":""}>${st.n}</option>`).join("")}</select><select onchange="SELD.w=+this.value;save()">${[1,2,3,4].map(w=>`<option ${w==SELD.w?"selected":""}>${w}</option>`).join("")}</select><button onclick="drawSetM()" title="Settings">⚙</button><button onclick="delSel()" title="Delete">🗑</button>`}
 // time <-> x and price <-> y (times are stored, so drawings follow the chart across timeframes)
 function t2l(t){const tt=G.tt,n=tt.length-1,st=G.st;if(t<=tt[0])return(t-tt[0])/st;if(t>=tt[n])return n+(t-tt[n])/st;let lo=0,hi=n;while(hi-lo>1){const m=(lo+hi)>>1;if(tt[m]>t)hi=m;else lo=m}return lo+(t-tt[lo])/(tt[hi]-tt[lo])}
 function l2t(l){const tt=G.tt,n=tt.length-1,st=G.st;if(l<=0)return tt[0]+l*st;if(l>=n)return tt[n]+(l-n)*st;const i=Math.floor(l);return tt[i]+(l-i)*(tt[i+1]-tt[i])}
@@ -594,12 +594,18 @@ g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
 else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
+// draw optional text label on any drawing (TradingView style)
+if(d.txt&&t!=="text"){const fs=d.txtSize||12,bold=d.txtBold?"bold ":"";g.font=bold+fs+"px system-ui,sans-serif";g.fillStyle=d.txtCol||c;const m=g.measureText(d.txt),tw=m.width,th=fs;
+let tx=a.x,ty=a.y;const va=d.txtVA||"top",ha=d.txtHA||"right";
+if(ha==="left")tx-=tw+6;else if(ha==="center")tx-=tw/2;else tx+=6;
+if(va==="top")ty-=6;else if(va==="middle")ty+=th/2;else ty+=th+6;
+g.fillText(d.txt,tx,ty)}
 if(sel){g.setLineDash([]);q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,5,0,7);g.fillStyle="#fff";g.fill();g.lineWidth=2;g.strokeStyle=c;g.stroke()})}}
 function paint(){const cv=document.getElementById("dc");if(!cv||!ch||!G)return;const W=cv.clientWidth,H=cv.clientHeight,r=devicePixelRatio||1;
 if(cv.width!==Math.round(W*r)||cv.height!==Math.round(H*r)){cv.width=Math.round(W*r);cv.height=Math.round(H*r)}
 const g=cv.getContext("2d"),ts=ch.timeScale(),tw=(ts.width&&ts.width())||W-60;g.setTransform(r,0,0,r,0,0);g.clearRect(0,0,W,H);if(HIDD)return;
 g.save();g.beginPath();g.rect(0,0,tw,H-26);g.clip();
-DL().concat(DRAFT?[DRAFT]:[]).forEach(d=>shape(g,d,tw,H,d===SELD));
+DL().concat(DRAFT?[DRAFT]:[]).forEach(d=>{if(!d.hide)shape(g,d,tw,H,d===SELD)});
 if(TOOL!=="cross"&&MX){g.strokeStyle="#787b86";g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(MX[0],0);g.lineTo(MX[0],H);g.moveTo(0,MX[1]);g.lineTo(tw,MX[1]);g.stroke();if(MAG||MOD[1]){const o=px(snapP(MX[0],MX[1]));if(o.x!=null){g.setLineDash([]);g.beginPath();g.arc(o.x,o.y,5,0,7);g.strokeStyle="#f97316";g.lineWidth=2;g.stroke()}}}
 g.restore()}
 const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
@@ -633,6 +639,38 @@ const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!
 document.addEventListener("keydown",kmod);document.addEventListener("keyup",kmod);addEventListener("blur",()=>{MOD=[false,false]});
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 if(e.key==="Escape"){DRAFT=null;setTool("cross")}else if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel()}});
+function drawSetM(tab){
+  if(!SELD)return;
+  const d=SELD,t=d.t||"trend";
+  const o=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${n}</option>`).join("");
+  const tabs=[["style","Style"],["text","Text"],["coords","Coordinates"],["vis","Visibility"]];
+  const styleTab=`<div class="tp" data-t="style"><label>Line colour<input type="color" id="ds_c" value="${d.c||"#2962ff"}"></label>
+<label>Line type<select id="ds_s">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(d.s||0)?"selected":""}>${st.n}</option>`).join("")}</select></label>
+<label>Line width<select id="ds_w">${[1,2,3,4].map(w=>`<option value="${w}" ${w==(d.w||2)?"selected":""}>${w}</option>`).join("")}</select></label></div>`;
+  const textTab=`<div class="tp" data-t="text"><div class="row"><input type="color" id="ds_tc" value="${d.txtCol||d.c||"#2962ff"}" style="width:38px"><select id="ds_ts">${[10,12,14,16,18,20,24].map(s=>`<option ${s==(d.txtSize||12)?"selected":""}>${s}</option>`).join("")}</select><button type="button" id="ds_tb" class="${d.txtBold?"on":""}" onclick="this.classList.toggle('on')">B</button><button type="button" id="ds_ti" class="${d.txtItalic?"on":""}" onclick="this.classList.toggle('on')">I</button></div>
+<textarea id="ds_txt" rows="4" placeholder="Add text">${d.txt||""}</textarea>
+<div class="row"><span>Text alignment</span><select id="ds_va">${o([["top","Top"],["middle","Middle"],["bottom","Bottom"]],d.txtVA||"top")}</select><select id="ds_ha">${o([["left","Left"],["center","Center"],["right","Right"]],d.txtHA||"right")}</select></div></div>`;
+  const coordsTab=`<div class="tp" data-t="coords"><p class="mut">Points (price)</p>${(d.p||[]).map((p,i)=>`<label>Point ${i+1}<input type="number" step="any" value="${p.y}" readonly></label>`).join("")}</div>`;
+  const visTab=`<div class="tp" data-t="vis"><label class="chk"><input type="checkbox" id="ds_vis" ${d.hide?"":"checked"}>Visible on chart</label></div>`;
+  modal(`<h3>${DT[t]||"Drawing"}</h3><div class="tabs">${tabs.map(([k,n])=>`<button data-t="${k}" onclick="swTab('${k}')">${n}</button>`).join("")}</div>${styleTab}${textTab}${coordsTab}${visTab}<div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="drawSetSave()">Ok</button></div>`);
+  swTab(typeof tab==="string"?tab:"text");
+}
+function drawSetSave(){
+  if(!SELD)return;
+  const g=id=>document.getElementById(id);
+  SELD.c=g("ds_c").value;
+  SELD.s=+g("ds_s").value;
+  SELD.w=+g("ds_w").value;
+  SELD.txt=g("ds_txt").value.trim();
+  SELD.txtCol=g("ds_tc").value;
+  SELD.txtSize=+g("ds_ts").value||12;
+  SELD.txtBold=g("ds_tb").classList.contains("on");
+  SELD.txtItalic=g("ds_ti").classList.contains("on");
+  SELD.txtVA=g("ds_va").value;
+  SELD.txtHA=g("ds_ha").value;
+  SELD.hide=!g("ds_vis").checked;
+  save();closeM();dsel();
+}
 function setM(tab){const C=S.chart,p=pal();
 const o=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${n}</option>`).join("");
 const ck=(k,l)=>`<label class="chk"><input type="checkbox" data-c="${k}" ${C[k]?"checked":""}>${l}</label>`;

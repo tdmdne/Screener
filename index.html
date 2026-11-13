@@ -217,6 +217,19 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .tp{display:flex;flex-direction:column;gap:10px}
 .csr{display:flex;align-items:center;gap:8px}
 .box .csr input[type=color]{width:38px;height:30px;padding:2px}
+/* drawing toolbar */
+.cw{display:flex;gap:6px;min-height:0}
+.cm{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:0;position:relative}
+:root[data-split="1"] .cw{flex:1 1 0}
+#cv{position:relative}
+.tbar{display:flex;flex-direction:column;align-items:center;gap:2px;padding-right:6px;border-right:1px solid var(--line);overflow-y:auto;flex:none}
+.tbar button{width:34px;height:34px;padding:0;border:0;background:none;color:var(--mut);display:flex;align-items:center;justify-content:center;border-radius:6px;min-height:0!important}
+.tbar button:hover{background:var(--card);color:var(--fg)}
+.tbar button.on{background:var(--acc-soft);color:var(--acc)}
+.tbar hr{width:24px;border:0;border-top:1px solid var(--line);margin:3px 0}
+#dsel{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:8;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 6px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+#dsel input[type=color]{width:32px;height:28px;padding:1px}
+#dsel select{width:auto}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -492,7 +505,7 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const op=m=>({autoSize:true,
@@ -510,10 +523,10 @@ const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf); // forex trade
 const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
 const prec=s[2]<10?4:2,pF={type:"price",precision:prec,minMove:s[2]<10?0.0001:0.01};
 const so={priceLineVisible:C.pLine,lastValueVisible:C.pLabel,priceLineColor:C.pLineCol||"",priceFormat:pF};
-if(C.type==="line")ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so)).setData(D.map(x=>({time:x.time,value:x.close})));
-else if(C.type==="area")ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so)).setData(D.map(x=>({time:x.time,value:x.close})));
-else if(C.type==="bars")ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so)).setData(D);
-else{const h=C.type==="hollow";ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so)).setData(D)}
+if(C.type==="line")ms(ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so))).setData(D.map(x=>({time:x.time,value:x.close})));
+else if(C.type==="area")ms(ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so))).setData(D.map(x=>({time:x.time,value:x.close})));
+else if(C.type==="bars")ms(ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so))).setData(D);
+else{const h=C.type==="hollow";ms(ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so))).setData(D)}
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.forEach(d=>{
 if(d.t==="ema")ls(d.col,2).setData(pts(emaArr(cl,d.len)));
@@ -526,7 +539,92 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.i
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4})}
+ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st)}
+// ---------- drawing tools (left toolbar like TradingView; drawings are saved per symbol) ----------
+let MS=null,TOOL="cross",MAG=false,LOCKD=false,HIDD=false,SELD=null,DRAFT=null,DRG=null,G=null,MX=null;
+const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short)$/;
+const DT={cross:"Cursor",trend:"Trend line",ray:"Ray",ext:"Extended line",hline:"Horizontal line",hray:"Horizontal ray",vline:"Vertical line",rect:"Rectangle",fib:"Fib retracement",long:"Long position",short:"Short position",text:"Text"};
+const IC={cross:'<path d="M12 4v16M4 12h16"/>',trend:'<path d="M5 19L19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>',ray:'<path d="M5 19L21 3"/><circle cx="5" cy="19" r="2"/>',ext:'<path d="M3 21L21 3"/><circle cx="9" cy="15" r="2"/><circle cx="15" cy="9" r="2"/>',hline:'<path d="M3 12h18"/><circle cx="12" cy="12" r="2"/>',hray:'<path d="M5 12h16"/><circle cx="5" cy="12" r="2"/>',vline:'<path d="M12 3v18"/><circle cx="12" cy="12" r="2"/>',rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',fib:'<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',long:'<rect x="5" y="4" width="14" height="8" fill="currentColor" fill-opacity=".3"/><rect x="5" y="12" width="14" height="8"/>',short:'<rect x="5" y="4" width="14" height="8"/><rect x="5" y="12" width="14" height="8" fill="currentColor" fill-opacity=".3"/>',text:'<path d="M6 6h12M12 6v13"/>',magnet:'<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z"/>',lock:'<rect x="6" y="11" width="12" height="9" rx="1"/><path d="M9 11V8a3 3 0 016 0v3"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>'};
+const TG=[["cross","trend","ray","ext","hline","hray","vline"],["rect","fib"],["long","short","text"]];
+const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
+function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" title="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
+return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
+function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
+function setTool(k){TOOL=k;DRAFT=null;SELD=null;tbRef()}
+function togT(k){if(k==="MAG")MAG=!MAG;else if(k==="LOCKD"){LOCKD=!LOCKD;SELD=null}else HIDD=!HIDD;tbRef()}
+function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?")){S.dr[S.chart.sym]=[];SELD=null;save();tbRef()}}
+function delSel(){if(SELD){const L=DL(),i=L.indexOf(SELD);if(i>=0)L.splice(i,1);SELD=null;save();tbRef()}}
+function dpe(){const c=document.getElementById("dc");if(c){c.style.pointerEvents=(TOOL!=="cross"||SELD||DRAFT)&&!HIDD?"auto":"none";c.style.cursor=TOOL!=="cross"?"crosshair":"default"}}
+function dsel(){const e=document.getElementById("dsel");if(!e)return;if(!SELD){e.style.display="none";return}
+e.style.display="flex";e.innerHTML=`<input type="color" value="${SELD.c}" oninput="SELD.c=this.value;save()"><select onchange="SELD.w=+this.value;save()">${[1,2,3,4].map(w=>`<option ${w==SELD.w?"selected":""}>${w}</option>`).join("")}</select><button onclick="delSel()" title="Delete">🗑</button>`}
+// time <-> x and price <-> y (times are stored, so drawings follow the chart across timeframes)
+function t2l(t){const tt=G.tt,n=tt.length-1,st=G.st;if(t<=tt[0])return(t-tt[0])/st;if(t>=tt[n])return n+(t-tt[n])/st;let lo=0,hi=n;while(hi-lo>1){const m=(lo+hi)>>1;if(tt[m]>t)hi=m;else lo=m}return lo+(t-tt[lo])/(tt[hi]-tt[lo])}
+function l2t(l){const tt=G.tt,n=tt.length-1,st=G.st;if(l<=0)return tt[0]+l*st;if(l>=n)return tt[n]+(l-n)*st;const i=Math.floor(l);return tt[i]+(l-i)*(tt[i+1]-tt[i])}
+const px=p=>({x:ch.timeScale().logicalToCoordinate(t2l(p.t)),y:MS.priceToCoordinate(p.y)});
+const un=(x,y)=>({t:l2t(ch.timeScale().coordinateToLogical(x)),y:MS.coordinateToPrice(y)});
+function snapP(x,y){const p=un(x,y);if(!MAG)return p;const l=Math.round(ch.timeScale().coordinateToLogical(x)),c=G.a[l];if(!c)return p;
+let best=null,bd=24;[c.o!=null?c.o:c.c,c.h,c.l,c.c].forEach(v=>{const yy=MS.priceToCoordinate(v);if(yy!=null&&Math.abs(yy-y)<bd){bd=Math.abs(yy-y);best=v}});if(best!=null){p.y=best;p.t=G.tt[l]}return p}
+function ends(d,q){const[a,b]=q,dx=b.x-a.x,dy=b.y-a.y,k=6000/(Math.hypot(dx,dy)||1);return d.t==="trend"?[a,b]:d.t==="ray"?[a,{x:a.x+dx*k,y:a.y+dy*k}]:[{x:a.x-dx*k,y:a.y-dy*k},{x:a.x+dx*k,y:a.y+dy*k}]}
+function sd(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l));return Math.hypot(x-a.x-t*dx,y-a.y-t*dy)}
+function hit(d,x,y){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
+if(t==="hline")return Math.abs(y-a.y)<n;if(t==="hray")return Math.abs(y-a.y)<n&&x>a.x-n;if(t==="vline")return Math.abs(x-a.x)<n;
+if(t==="text")return Math.abs(x-a.x)<60&&Math.abs(y-a.y)<14;
+if(t==="trend"||t==="ray"||t==="ext"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
+const xs=q.map(o=>o.x),ys=q.map(o=>o.y);return x>Math.min(...xs)-n&&x<Math.max(...xs)+n&&y>Math.min(...ys)-n&&y<Math.max(...ys)+n}
+function shape(g,d,W,H,sel){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return;const t=d.t,a=q[0],b=q[1],c=d.c;
+g.lineWidth=d.w;g.strokeStyle=c;g.fillStyle=c;g.font="12px system-ui,sans-serif";g.setLineDash([]);
+const ln=(x1,y1,x2,y2)=>{g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke()};
+const tag=(s,x,y,bg)=>{const w=g.measureText(s).width+10;g.fillStyle=bg||c;g.fillRect(x,y-9,w,18);g.fillStyle="#fff";g.fillText(s,x+5,y+4)};
+if(t==="trend"||t==="ray"||t==="ext"){const[e,f]=ends(d,q);ln(e.x,e.y,f.x,f.y)}
+else if(t==="hline"){ln(0,a.y,W,a.y);tag(fp(d.p[0].y),W-66,a.y)}
+else if(t==="hray")ln(a.x,a.y,W,a.y);
+else if(t==="vline")ln(a.x,0,a.x,H);
+else if(t==="rect"){g.globalAlpha=.15;g.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);g.globalAlpha=1;g.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y)}
+else if(t==="fib"){const pa=d.p[0].y,pb=d.p[1].y,x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x);
+[0,.236,.382,.5,.618,.786,1].forEach(lv=>{const yy=b.y+(a.y-b.y)*lv;ln(x1,yy,x2,yy);g.fillStyle=c;g.fillText(lv+" ("+fp(pb+(pa-pb)*lv)+")",x1+4,yy-3)})}
+else if(t==="long"||t==="short"){const e=d.p[0].y,tp=d.p[1].y,sl=d.p[2].y,x1=Math.min(a.x,b.x),w=Math.abs(b.x-a.x),yT=b.y,yS=q[2].y,gr="#089981",rd="#f23645";
+g.globalAlpha=.2;g.fillStyle=gr;g.fillRect(x1,Math.min(a.y,yT),w,Math.abs(yT-a.y));g.fillStyle=rd;g.fillRect(x1,Math.min(a.y,yS),w,Math.abs(yS-a.y));g.globalAlpha=1;
+g.strokeStyle="#787b86";ln(x1,a.y,x1+w,a.y);
+g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x1+6,yT<a.y?yT+14:yT-5);
+g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
+tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
+else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
+if(sel)q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,5,0,7);g.fillStyle="#fff";g.fill();g.lineWidth=2;g.strokeStyle=c;g.stroke()})}
+function paint(){const cv=document.getElementById("dc");if(!cv||!ch||!G)return;const W=cv.clientWidth,H=cv.clientHeight,r=devicePixelRatio||1;
+if(cv.width!==Math.round(W*r)||cv.height!==Math.round(H*r)){cv.width=Math.round(W*r);cv.height=Math.round(H*r)}
+const g=cv.getContext("2d"),ts=ch.timeScale(),tw=(ts.width&&ts.width())||W-60;g.setTransform(r,0,0,r,0,0);g.clearRect(0,0,W,H);if(HIDD)return;
+g.save();g.beginPath();g.rect(0,0,tw,H-26);g.clip();
+DL().concat(DRAFT?[DRAFT]:[]).forEach(d=>shape(g,d,tw,H,d===SELD));
+if(TOOL!=="cross"&&MX){g.strokeStyle="#787b86";g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(MX[0],0);g.lineTo(MX[0],H);g.moveTo(0,MX[1]);g.lineTo(tw,MX[1]);g.stroke()}
+g.restore()}
+const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-(d.p[1].y-d.p[0].y)/2}}
+function dFin(){const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;DL().push(d);SELD=d;TOOL="cross";save();tbRef()}
+function dDown(e){const[x,y]=xy(e);MX=[x,y];try{e.target.setPointerCapture(e.pointerId)}catch(_){}
+if(TOOL!=="cross"){const p=snapP(x,y);
+if(DRAFT){DRAFT.p[1]=p;fixPos(DRAFT);dFin();return}
+const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2};
+if(N2.test(TOOL)){d.p.push({...p});if(TOOL==="long"||TOOL==="short")d.p.push({...p});d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)}
+else{if(TOOL==="text"){d.txt=prompt("Text","")||"";if(!d.txt)return}DRAFT=d;dFin()}return}
+if(SELD){const q=SELD.p.map(px),i=q.findIndex(o=>o.x!=null&&Math.hypot(o.x-x,o.y-y)<14);
+if(i>=0){DRG={d:SELD,i};return}
+if(hit(SELD,x,y)){DRG={d:SELD,i:-1,o:un(x,y),c:clone(SELD.p)};return}}
+const d=[...DL()].reverse().find(d=>hit(d,x,y));SELD=d||null;if(d)DRG={d,i:-1,o:un(x,y),c:clone(d.p)};dpe();dsel()}
+function dMove(e){const[x,y]=xy(e);MX=[x,y];
+if(DRAFT&&DRAFT.p.length>1){DRAFT.p[1]=snapP(x,y);fixPos(DRAFT);if(Math.hypot(x-DRAFT.x0,y-DRAFT.y0)>8)DRAFT.mv=1}
+if(DRG){const d=DRG.d,p=snapP(x,y);
+if(DRG.i>=0){d.p[DRG.i]=p;if(d.t==="long"||d.t==="short"){if(DRG.i===1)d.p[2]={t:p.t,y:d.p[2].y};if(DRG.i===2)d.p[2]={t:d.p[1].t,y:p.y}}}
+else{const u=un(x,y),dt=u.t-DRG.o.t,dy=u.y-DRG.o.y;d.p=DRG.c.map(q=>({t:q.t+dt,y:q.y+dy}))}}}
+function dUp(){if(DRAFT&&DRAFT.mv)dFin();if(DRG){DRG=null;save()}}
+function initDraw(a,T,st){G={a,st,tt:a.map((_,i)=>T(i))};if(SELD&&!DL().includes(SELD))SELD=null;DRAFT=null;DRG=null;
+const host=document.getElementById("cv"),cv=document.createElement("canvas");cv.id="dc";cv.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;z-index:6;touch-action:none";host.appendChild(cv);
+cv.onpointerdown=dDown;cv.onpointermove=dMove;cv.onpointerup=dUp;
+host.addEventListener("pointerdown",e=>{host._d=[e.clientX,e.clientY]},true);
+host.addEventListener("pointerup",e=>{if(!host._d||TOOL!=="cross"||LOCKD||HIDD||Math.hypot(e.clientX-host._d[0],e.clientY-host._d[1])>5)return;
+const r=host.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=[...DL()].reverse().find(d=>hit(d,x,y));if(d&&d!==SELD){SELD=d;dpe();dsel()}});
+dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"))return;paint();requestAnimationFrame(f)})()}
+document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
+if(e.key==="Escape"){DRAFT=null;setTool("cross")}else if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel()}});
 function setM(tab){const C=S.chart,p=pal();
 const o=(arr,v)=>arr.map(([k,n])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${n}</option>`).join("");
 const ck=(k,l)=>`<label class="chk"><input type="checkbox" data-c="${k}" ${C[k]?"checked":""}>${l}</label>`;

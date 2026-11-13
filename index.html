@@ -594,14 +594,14 @@ g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
 else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
-// optional text label — sits on top of the continuous line (TradingView style, no gap)
+// optional text label — middle breaks the line; other alignments sit near a continuous line
 if(d.txt&&t!=="text"){
   const fs=d.txtSize||12,bold=d.txtBold?"bold ":"",italic=d.txtItalic?"italic ":"";
   g.font=italic+bold+fs+"px system-ui,sans-serif";
   const m=g.measureText(d.txt),tw=m.width,th=fs,pad=4;
   const va=d.txtVA||"top",ha=d.txtHA||"right";
   const isLine=t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray"||t==="vline";
-  let tx,ty;
+  let tx,ty,gap=null;
   if(isLine){
     const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
     const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
@@ -611,7 +611,11 @@ if(d.txt&&t!=="text"){
     else tx=midX-tw/2;
     if(va==="top")ty=midY-th-pad;
     else if(va==="bottom")ty=midY+th+pad;
-    else ty=midY+th/3; // middle — text sits on the unbroken line
+    else ty=midY+th/3; // middle
+    // only middle creates a gap in the line
+    if(va==="middle"){
+      gap={x:tx-pad,w:tw+pad*2,y:ty-th/2};
+    }
   }else{
     const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
     const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
@@ -622,6 +626,14 @@ if(d.txt&&t!=="text"){
     if(va==="top")ty=minY-pad;
     else if(va==="middle")ty=midY+th/3;
     else ty=maxY+th+pad;
+  }
+  // break the line only for middle
+  if(gap&&(t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray")){
+    g.save();
+    g.globalCompositeOperation="destination-out";
+    g.fillStyle="#000";
+    g.fillRect(gap.x,gap.y-2,gap.w,th+4);
+    g.restore();
   }
   g.fillStyle=d.txtCol||c;
   g.fillText(d.txt,tx,ty);

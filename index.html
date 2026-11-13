@@ -585,12 +585,20 @@ if(C.plusBtn){
   pb.onclick=()=>setTool("hline");
   document.getElementById("cv").parentElement.appendChild(pb);
 }
-// high/low labels
+// high/low labels (TradingView style)
 if(C.hlLabel==="val"&&D.length){
   const hi=Math.max(...D.map(d=>d.high)),lo=Math.min(...D.map(d=>d.low));
-  const hl=document.createElement("div");hl.style.cssText="position:absolute;right:70px;font-size:11px;color:var(--mut);z-index:5";
-  hl.innerHTML=`<div style="color:#089981">H ${fp(hi)}</div><div style="color:#f23645">L ${fp(lo)}</div>`;
+  const hiIdx=D.findIndex(d=>d.high===hi),loIdx=D.findIndex(d=>d.low===lo);
+  const hl=document.createElement("div");hl.style.cssText="position:absolute;left:8px;font-size:11px;z-index:5;pointer-events:none";
+  hl.innerHTML=`<div style="position:absolute;top:60px;background:${C.hlCol||"#787b86"};color:#fff;padding:1px 4px;border-radius:2px">${fp(hi)} High</div><div style="position:absolute;bottom:40px;background:${C.hlCol||"#787b86"};color:#fff;padding:1px 4px;border-radius:2px">${fp(lo)} Low</div>`;
   document.getElementById("cv").parentElement.appendChild(hl);
+}
+// bid/ask labels
+if(C.baLabel==="val"&&D.length){
+  const last=D[D.length-1].close,spread=last*0.0001;
+  const ba=document.createElement("div");ba.style.cssText="position:absolute;right:70px;top:50%;transform:translateY(-50%);font-size:11px;z-index:5";
+  ba.innerHTML=`<div style="background:${C.askCol||"#f23645"};color:#fff;padding:1px 4px;border-radius:2px;margin-bottom:2px">${fp(last+spread)} Ask</div><div style="background:${C.bidCol||"#2962ff"};color:#fff;padding:1px 4px;border-radius:2px">${fp(last-spread)} Bid</div>`;
+  document.getElementById("cv").parentElement.appendChild(ba);
 }
 // buy/sell buttons
 if(C.showBuySell){
@@ -1045,8 +1053,10 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +ck("noOverlap","No overlapping labels")
 +ck("plusBtn","Plus button")
 +ck("countdown","Countdown to bar close")
-+sl("hlLabel","High and low",[["hide","Hidden"],["val","Value"]])
-+sl("baLabel","Bid and ask",[["hide","Hidden"],["val","Value"]])
++sl("hlLabel","High and low",[["hide","Hidden"],["val","Value, line"]])
++`<span style="margin-left:8px">${co("hlCol","#787b86")}</span>`
++sl("baLabel","Bid and ask",[["hide","Hidden"],["val","Value, line"]])
++`<span style="margin-left:8px">${co("bidCol","#2962ff")}${co("askCol","#f23645")}</span>`
 +sec("TIME SCALE")
 +ck("dowLabels","Day of week on labels")
 +sl("dateFmt","Date format",[["dmy","Mon 29 Sep '97"],["mdy","Sep 29, 1997"],["iso","1997-09-29"]])

@@ -258,10 +258,10 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 
 <section class="ctl">
 
-<label class="chk"><input type="checkbox" id="hideNV">Hide FX/CFD</label>
+
 </section>
 <section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
-<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button></section>
+<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="favM()" title="Add to watchlist">★</button><button onclick="dataM()">Data</button></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
@@ -1452,6 +1452,24 @@ tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
 if(bn){if(!base.has(t))return;if(S.dvOn&&d!=null&&d<cut)return}
 else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return;if(S.dvOn&&d!=null&&d<cut)return}
 need(s,t,PRI.has(s[0]))}));status()}
+function favM(){
+  const groups=S.wlx.groups;
+  const opts=groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
+  modal(`<h3>Add to Watchlist</h3><label>Select watchlist<select id="fav_grp">${opts}</select></label><label>Or create new<input id="fav_new" placeholder="New watchlist name"></label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="favApply()">Apply</button></div>`);
+}
+function favApply(){
+  const newName=document.getElementById("fav_new").value.trim();
+  const grpId=document.getElementById("fav_grp").value;
+  const sym=S.chart.sym;
+  if(newName){
+    const id="g"+Date.now();
+    S.wlx.groups.push({id,name:newName,syms:[sym],open:true});
+  }else if(grpId){
+    const g=S.wlx.groups.find(x=>x.id===grpId);
+    if(g&&!g.syms.includes(sym))g.syms.push(sym);
+  }
+  save();closeM();renderWL();
+}
 function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}"></label><label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
 function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{localStorage.removeItem("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
@@ -1476,7 +1494,7 @@ saveP();render();m.textContent="Imported "+n+" preset(s)."}catch(e){m.textConten
 const rDeb=deb(render,200);
 
 
-document.getElementById("hideNV").onchange=e=>{S.hideNV=e.target.checked;save();render()};
+
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
 // up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
 document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;

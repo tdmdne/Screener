@@ -304,7 +304,7 @@ scMode:0,scAuto:true,scInv:false,scBorder:true,scBorderCol:"",scTop:.1,scBot:.1,
 wm:false,wmCol:"",
 ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
 function chMig(c){if(c&&c.up&&c.upBody===undefined){c.upBody=c.upBorder=c.upWick=c.lineCol=c.up;c.dnBody=c.dnBorder=c.dnWick=c.dn;if(c.grid===false)c.showGridV=c.showGridH=false}}
-S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;S.tfFav=S.tfFav||["1m","5m","15m","30m","1H","4H","1D","1W","1M"];if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
+S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;S.tfFav=S.tfFav||["1m","5m","15m","30m","1H","4H","1D","1W","1M"];S.tfCustom=S.tfCustom||[];if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
 const WLD=()=>({open:true,groups:[{id:"g1",name:"Traded",open:true,syms:[]},{id:"g2",name:"Section",open:true,syms:[]}]});
 S.wlx=S.wlx&&Array.isArray(S.wlx.groups)&&S.wlx.groups.length?S.wlx:WLD();
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
@@ -555,9 +555,29 @@ function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML()
 function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}
 function tfPick(t){S.chart.tf=t;save();drawChart();const m=document.getElementById("tfm");if(m)m.style.display="none"}
 function tfMenu(){const m=document.getElementById("tfm");if(!m)return;m.style.display=m.style.display==="block"?"none":"block"}
-function tfHTML(){const fav=S.tfFav||[],C=S.chart;
+function tfCustomM(){
+  modal(`<h3>Add custom interval</h3><div class="row"><input type="number" id="tc_n" min="1" value="1" style="width:80px"><select id="tc_u"><option value="s">seconds</option><option value="m" selected>minutes</option><option value="H">hours</option><option value="D">days</option><option value="W">weeks</option><option value="M">months</option></select></div><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="tfCustomAdd()">Add</button></div>`);
+}
+function tfCustomAdd(){
+  const n=+document.getElementById("tc_n").value||1,u=document.getElementById("tc_u").value;
+  const label=n+u;
+  if(!S.tfCustom.find(c=>c.label===label))S.tfCustom.push({n,u,label});
+  if(!S.tfFav.includes(label))S.tfFav.push(label);
+  // register step and interval so the chart can use it
+  const mult={s:1,m:60,H:3600,D:86400,W:604800,M:2592000};
+  STEP[label]=n*mult[u];INT[label]=label;TS[label]=TS[label]||0.5;
+  save();closeM();drawChart();
+}
+function tfCustomDel(label){
+  S.tfCustom=S.tfCustom.filter(c=>c.label!==label);
+  S.tfFav=S.tfFav.filter(t=>t!==label);
+  save();drawChart();
+}
+function tfHTML(){const fav=S.tfFav||[],C=S.chart,custom=S.tfCustom||[];
 let h=`<div class="tfs tfb">${fav.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="tfPick('${t}')">${t}</button>`).join("")}<button class="chip" onclick="tfMenu()" title="All timeframes">▾</button></div>`;
-h+=`<div id="tfm" style="display:none;position:absolute;top:100%;left:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;z-index:20;max-height:360px;overflow:auto;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.2);padding:4px 0">`;
+h+=`<div id="tfm" style="display:none;position:absolute;top:100%;left:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;z-index:20;max-height:400px;overflow:auto;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.2);padding:4px 0">`;
+h+=`<div style="padding:6px 12px;cursor:pointer;border-bottom:1px solid var(--line)" onclick="tfCustomM()">＋ Add custom interval…</div>`;
+if(custom.length){h+=`<div style="padding:6px 12px 2px;font-size:11px;color:var(--mut);font-weight:600">CUSTOM</div>`;custom.forEach(c=>{const on=fav.includes(c.label);h+=`<div style="display:flex;align-items:center;padding:5px 12px;cursor:pointer" onclick="tfPick('${c.label}')"><span style="flex:1">${c.label}</span><span onclick="event.stopPropagation();tfCustomDel('${c.label}')" title="Delete" style="cursor:pointer;margin-right:6px">🗑</span><span onclick="event.stopPropagation();tfStar('${c.label}')" style="cursor:pointer;font-size:14px">${on?"★":"☆"}</span></div>`})}
 for(const[cat,arr]of Object.entries(TF_CAT)){
   h+=`<div style="padding:6px 12px 2px;font-size:11px;color:var(--mut);font-weight:600">${cat}</div>`;
   arr.forEach(t=>{const on=fav.includes(t);h+=`<div style="display:flex;align-items:center;padding:5px 12px;cursor:pointer" onclick="tfPick('${t}')"><span style="flex:1">${t}</span><span onclick="event.stopPropagation();tfStar('${t}')" style="cursor:pointer;font-size:14px">${on?"★":"☆"}</span></div>`});

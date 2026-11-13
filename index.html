@@ -594,12 +594,33 @@ g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
 else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
-// draw optional text label on any drawing (TradingView style)
-if(d.txt&&t!=="text"){const fs=d.txtSize||12,bold=d.txtBold?"bold ":"";g.font=bold+fs+"px system-ui,sans-serif";g.fillStyle=d.txtCol||c;const m=g.measureText(d.txt),tw=m.width,th=fs;
-let tx=a.x,ty=a.y;const va=d.txtVA||"top",ha=d.txtHA||"right";
-if(ha==="left")tx-=tw+6;else if(ha==="center")tx-=tw/2;else tx+=6;
-if(va==="top")ty-=6;else if(va==="middle")ty+=th/2;else ty+=th+6;
-g.fillText(d.txt,tx,ty)}
+// draw optional text label on any drawing (TradingView-style positioning relative to bounding box)
+if(d.txt&&t!=="text"){
+  const fs=d.txtSize||12,bold=d.txtBold?"bold ":"",italic=d.txtItalic?"italic ":"";
+  g.font=italic+bold+fs+"px system-ui,sans-serif";
+  g.fillStyle=d.txtCol||c;
+  const m=g.measureText(d.txt),tw=m.width,th=fs;
+  // bounding box of the drawing points
+  const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const midX=(minX+maxX)/2,midY=(minY+maxY)/2;
+  const va=d.txtVA||"top",ha=d.txtHA||"right";
+  const pad=8;
+  let tx,ty;
+  // horizontal
+  if(ha==="left")tx=minX-tw-pad;
+  else if(ha==="center")tx=midX-tw/2;
+  else tx=maxX+pad;
+  // vertical
+  if(va==="top")ty=minY-pad;
+  else if(va==="middle")ty=midY+th/3; // slight offset so it sits cleanly on the line rather than buried in the stroke
+  else ty=maxY+th+pad;
+  // for pure lines, prefer centering along the line when middle+center
+  if((t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray")&&va==="middle"&&ha==="center"){
+    tx=midX-tw/2;ty=midY-th/2;
+  }
+  g.fillText(d.txt,tx,ty);
+}
 if(sel){g.setLineDash([]);q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,5,0,7);g.fillStyle="#fff";g.fill();g.lineWidth=2;g.strokeStyle=c;g.stroke()})}}
 function paint(){const cv=document.getElementById("dc");if(!cv||!ch||!G)return;const W=cv.clientWidth,H=cv.clientHeight,r=devicePixelRatio||1;
 if(cv.width!==Math.round(W*r)||cv.height!==Math.round(H*r)){cv.width=Math.round(W*r);cv.height=Math.round(H*r)}

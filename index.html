@@ -1210,8 +1210,8 @@ function drawSetM(tab){
   const isPos=t==="long"||t==="short";
   const styleTab=`<div class="tp" data-t="style">
 ${isPos?`<label>Target colour${colorPicker("ds_tc",d.targetCol||"#089981")}</label>
-<label>Stop colour${colorPicker("ds_sc",d.stopCol||"#f23645")}</label>
-<label>Text colour${colorPicker("ds_txc",d.txtCol||"#787b86")}</label>`:`<label>Line colour${colorPicker("ds_c",d.c||"#2962ff")}</label>`}
+<label>Stop colour${colorPicker("ds_sc",d.stopCol||"#f23645")}</label>`:`<label>Tool colour${colorPicker("ds_c",d.c||"#2962ff")}</label>`}
+<label>Text colour${colorPicker("ds_txc",d.txtCol||"#787b86")}</label>
 <label>Line type<select id="ds_s" onchange="SELD.s=+this.value">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(d.s||0)?"selected":""}>${st.n}</option>`).join("")}</select></label>
 <label>Line width<select id="ds_w" onchange="SELD.w=+this.value">${[1,2,3,4].map(w=>`<option value="${w}" ${w==(d.w||2)?"selected":""}>${w}</option>`).join("")}</select></label></div>`;
   const textTab=`<div class="tp" data-t="text"><div class="row">${colorPicker("ds_tc",d.txtCol||d.c||"#2962ff")}<select id="ds_ts" onchange="SELD.txtSize=+this.value">${[10,12,14,16,18,20,24].map(s=>`<option ${s==(d.txtSize||12)?"selected":""}>${s}</option>`).join("")}</select><button type="button" id="ds_tb" class="${d.txtBold?"on":""}" onclick="this.classList.toggle('on');SELD.txtBold=this.classList.contains('on')">B</button><button type="button" id="ds_ti" class="${d.txtItalic?"on":""}" onclick="this.classList.toggle('on');SELD.txtItalic=this.classList.contains('on')">I</button></div>

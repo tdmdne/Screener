@@ -717,7 +717,11 @@ function showColorPop(id){
 }
 function closeColorPop(e){const p=document.getElementById("cpop");if(p&&!p.contains(e.target))p.remove()}
 function selectColor(id,c){document.getElementById(id).value=c;document.getElementById(id+"_sw").style.background=c;document.getElementById("cpop").remove()}
-function addCustomColor(id){const c=prompt("Enter hex color (e.g. #ff0000):");if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor(id,c)}}
+function inputDialog(title,placeholder,cb){
+  modal(`<h3>${title}</h3><input id="inp_val" placeholder="${placeholder||""}" style="width:100%;padding:8px;font-size:14px" autofocus><div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="const v=document.getElementById('inp_val').value;closeM();(${cb})(v)">OK</button></div>`);
+  setTimeout(()=>document.getElementById("inp_val").focus(),50);
+}
+function addCustomColor(id){inputDialog("Custom color","#ff0000",`function(c){if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor('${id}',c)}}`)}
 function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=d.style.display==="none"?"block":"none"}
 function snapCanvas(){return new Promise(r=>{html2canvas(document.querySelector(".cm"),{backgroundColor:null,scale:2}).then(c=>r(c))})}
 async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
@@ -964,7 +968,7 @@ if(DRAFT){
   DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return
 }
 const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2,s:0};
-if(TOOL==="note"){d.p.push({t:p.t,y:p.y});d.txt=prompt("Note text","")||"Note";DRAFT=d;dFin();return}
+if(TOOL==="note"){d.p.push({t:p.t,y:p.y});inputDialog("Note text","",`function(t){d.txt=t||"Note";DRAFT=d;dFin()}`);return}
 if(TOOL==="brush"){d.p=[p];DRAFT=d;return}
 if(N2.test(TOOL)){
   d.p.push({...p});
@@ -976,7 +980,7 @@ if(N2.test(TOOL)){
   if(TOOL==="long"||TOOL==="short")d.p.push({...p});
   d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)
 }
-else{if(TOOL==="text"||TOOL==="note"){d.txt=prompt(TOOL==="note"?"Note text":"Text","")||"";if(!d.txt)return}DRAFT=d;dFin()}return}
+else{if(TOOL==="text"||TOOL==="note"){inputDialog(TOOL==="note"?"Note text":"Text","",`function(t){if(!t)return;d.txt=t;DRAFT=d;dFin()}`);return}DRAFT=d;dFin()}return}
 if(SELD){const q=SELD.p.map(px),i=q.findIndex(o=>o.x!=null&&Math.hypot(o.x-x,o.y-y)<14);
 if(i>=0){DRG={d:SELD,i};return}
 if(SELD.t==="note"){

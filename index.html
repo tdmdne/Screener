@@ -584,8 +584,9 @@ if(t==="note"){
 }
 if(t==="trend"||t==="ray"||t==="ext"||t==="arrow"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
 if(t==="path"||t==="curve"){
-  for(let i=1;i<q.length;i++)if(sd(x,y,q[i-1],q[i])<n)return 1;
-  return q.some(o=>Math.hypot(x-o.x,y-o.y)<10);
+  // click on any segment or near any point
+  for(let i=1;i<q.length;i++)if(sd(x,y,q[i-1],q[i])<12)return 1;
+  return q.some(o=>Math.hypot(x-o.x,y-o.y)<14)?1:0;
 }
 if(t==="prange"||t==="drange"){
   const xs=q.map(o=>o.x),ys=q.map(o=>o.y);
@@ -611,9 +612,15 @@ g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
 else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
 else if(t==="arrow"){
-  const[e,f]=q;ln(e.x,e.y,f.x,f.y);
-  const ang=Math.atan2(f.y-e.y,f.x-e.x),ah=12;
-  g.beginPath();g.moveTo(f.x,f.y);g.lineTo(f.x-ah*Math.cos(ang-0.4),f.y-ah*Math.sin(ang-0.4));g.lineTo(f.x-ah*Math.cos(ang+0.4),f.y-ah*Math.sin(ang+0.4));g.closePath();g.fill();
+  const[e,f]=q;
+  // TradingView-style open arrowhead
+  const ang=Math.atan2(f.y-e.y,f.x-e.x),ah=14,aw=0.45;
+  g.beginPath();g.moveTo(e.x,e.y);g.lineTo(f.x,f.y);g.stroke();
+  g.beginPath();g.moveTo(f.x,f.y);
+  g.lineTo(f.x-ah*Math.cos(ang-aw),f.y-ah*Math.sin(ang-aw));
+  g.moveTo(f.x,f.y);
+  g.lineTo(f.x-ah*Math.cos(ang+aw),f.y-ah*Math.sin(ang+aw));
+  g.stroke();
 }
 else if(t==="note"){
   const txt=d.txt||"Note";
@@ -643,7 +650,13 @@ else if(t==="path"){
 else if(t==="curve"){
   if(q.length>=3){
     g.beginPath();g.moveTo(q[0].x,q[0].y);g.quadraticCurveTo(q[1].x,q[1].y,q[2].x,q[2].y);g.stroke();
-    if(sel){g.setLineDash([3,3]);g.strokeStyle="#787b86";ln(q[0].x,q[0].y,q[1].x,q[1].y);ln(q[2].x,q[2].y,q[1].x,q[1].y);g.setLineDash([])}
+    if(sel){
+      g.setLineDash([3,3]);g.strokeStyle="#787b86";g.lineWidth=1;
+      ln(q[0].x,q[0].y,q[1].x,q[1].y);ln(q[2].x,q[2].y,q[1].x,q[1].y);
+      g.setLineDash([]);
+      // control point handle
+      g.beginPath();g.arc(q[1].x,q[1].y,5,0,7);g.fillStyle="#fff";g.fill();g.strokeStyle=c;g.lineWidth=2;g.stroke();
+    }
   }else if(q.length===2){ln(q[0].x,q[0].y,q[1].x,q[1].y)}
 }
 else if(t==="prange"){
@@ -760,8 +773,10 @@ function dDown(e){const[x,y]=xy(e);MX=[x,y];MOD=[e.shiftKey,e.ctrlKey||e.metaKey
 if(TOOL!=="cross"){const p=snapP(x,y);
 if(DRAFT){
   if(TOOL==="path"){
-    // double-click finishes without adding a duplicate point
-    if(e.detail===2){if(DRAFT.p.length>1)dFin();return}
+    const now=Date.now();
+    // double-click (or click within 300ms of last) finishes the path
+    if(DRAFT._lt&&now-DRAFT._lt<300&&DRAFT.p.length>1){dFin();return}
+    DRAFT._lt=now;
     DRAFT.p.push(p);return
   }
   DRAFT.p[1]=ptAt(x,y,DRAFT.p[0],DRAFT.t);fixPos(DRAFT);dFin();return

@@ -443,26 +443,34 @@ const PRESETS={
 };
 function scoreMarket(s){
   try{
-    const a=candles(s,"1D");if(!a||a.length<50)return 0;
+    const tf=S.evcTf||"H";
+    const tfs={H:"1D",M:"1H",L:"15m"};
+    const a=candles(s,tfs[tf]||"1D");if(!a||a.length<30)return 0;
     const cl=a.map(d=>d.c);
     const ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20);
     const last=a.length-1,c=cl[last];
     let score=0;
-    const chg20=((c/cl[Math.max(0,last-20)])-1)*100;
+    const chg=((c/cl[Math.max(0,last-20)])-1)*100;
+    // EMA position
     if(c>ema5[last])score+=10;
     if(c>ema10[last])score+=10;
     if(c>ema20[last])score+=15;
-    if(chg20>10)score+=30;
-    else if(chg20>5)score+=20;
-    else if(chg20>0)score+=10;
+    // Expansion (momentum)
+    if(chg>15)score+=35;
+    else if(chg>8)score+=25;
+    else if(chg>3)score+=15;
+    else if(chg>0)score+=5;
+    // Full alignment bonus (coming out of accumulation)
     if(c>ema5[last]&&c>ema10[last]&&c>ema20[last])score+=15;
     return Math.min(100,score);
   }catch(e){return 0}
 }
 function renderPresets(){
   const el=document.getElementById("presets");if(!el)return;
-  el.innerHTML=Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("");
+  const tf=S.evcTf||"H";
+  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}</span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("");
 }
+function setEvcTf(t){S.evcTf=t;S.page=0;save();render()}
 function applyPreset(k){
   S.preset=k;
   S.page=0;save();render();

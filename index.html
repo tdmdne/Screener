@@ -575,10 +575,11 @@ function hit(d,x,y){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))retur
 if(t==="hline")return Math.abs(y-a.y)<n;if(t==="hray")return Math.abs(y-a.y)<n&&x>a.x-n;if(t==="vline")return Math.abs(x-a.x)<n;
 if(t==="text")return Math.abs(x-a.x)<60&&Math.abs(y-a.y)<14;
 if(t==="note"){
-  // whole note is clickable: anchor + box
-  const txt=d.txt||"Note",tw=12*txt.length*0.6+16,bx=a.x+18,by=a.y-36,bw=tw,bh=22;
-  if(Math.hypot(x-a.x,y-a.y)<12)return 1;
-  if(x>=bx&&x<=bx+bw&&y>=by&&y<=by+bh)return 1;
+  const txt=d.txt||"Note",tw=12*txt.length*0.6+16;
+  const bp=q[1]||{x:a.x+40,y:a.y-40};
+  const bx=bp.x,by=bp.y,bw=tw,bh=22;
+  if(Math.hypot(x-a.x,y-a.y)<12)return 1; // anchor
+  if(x>=bx&&x<=bx+bw&&y>=by&&y<=by+bh)return 2; // box (return 2 so we know it's the box)
   return 0;
 }
 if(t==="trend"||t==="ray"||t==="ext"||t==="arrow"){const[e,f]=ends(d,q);return sd(x,y,e,f)<n}
@@ -618,25 +619,25 @@ else if(t==="note"){
   const txt=d.txt||"Note";
   g.font="12px system-ui,sans-serif";
   const tw=g.measureText(txt).width,bw=tw+16,bh=22;
-  const bx=a.x+18,by=a.y-36;
-  // small white box with subtle border
+  // box position: second point if set, otherwise default offset
+  const bp=q[1]||{x:a.x+40,y:a.y-40};
+  const bx=bp.x,by=bp.y;
   g.fillStyle="#ffffff";g.strokeStyle="#d1d4dc";g.lineWidth=1;
   g.beginPath();g.roundRect(bx,by,bw,bh,4);g.fill();g.stroke();
-  // thin pointer line to the anchor
   g.strokeStyle="#787b86";g.lineWidth=1;
   g.beginPath();g.moveTo(a.x,a.y);g.lineTo(bx+8,by+bh);g.stroke();
-  // small dot at the anchor
   g.fillStyle="#131722";g.beginPath();g.arc(a.x,a.y,2.5,0,7);g.fill();
-  // text inside the box
   g.fillStyle="#131722";g.fillText(txt,bx+8,by+15);
 }
 else if(t==="path"){
   if(q.length>1){g.beginPath();g.moveTo(q[0].x,q[0].y);for(let i=1;i<q.length;i++)g.lineTo(q[i].x,q[i].y);g.stroke()}
-  q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,3,0,7);g.fill()});
+  if(sel)q.forEach(o=>{g.beginPath();g.arc(o.x,o.y,4,0,7);g.fillStyle="#fff";g.fill();g.strokeStyle=c;g.stroke()});
 }
 else if(t==="curve"){
-  if(q.length>=3){g.beginPath();g.moveTo(q[0].x,q[0].y);g.quadraticCurveTo(q[1].x,q[1].y,q[2].x,q[2].y);g.stroke()}
-  else if(q.length===2){ln(q[0].x,q[0].y,q[1].x,q[1].y)}
+  if(q.length>=3){
+    g.beginPath();g.moveTo(q[0].x,q[0].y);g.quadraticCurveTo(q[1].x,q[1].y,q[2].x,q[2].y);g.stroke();
+    if(sel){g.setLineDash([3,3]);g.strokeStyle="#787b86";ln(q[0].x,q[0].y,q[1].x,q[1].y);ln(q[2].x,q[2].y,q[1].x,q[1].y);g.setLineDash([])}
+  }else if(q.length===2){ln(q[0].x,q[0].y,q[1].x,q[1].y)}
 }
 else if(t==="prange"){
   // Price Range — horizontal levels with shaded area, price diff and %
@@ -739,7 +740,15 @@ if(TOOL!=="cross"&&MX){g.strokeStyle="#787b86";g.lineWidth=1;g.setLineDash([4,4]
 g.restore()}
 const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
 function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-(d.p[1].y-d.p[0].y)/2}}
-function dFin(){const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;DL().push(d);SELD=d;TOOL="cross";save();tbRef()}
+function dFin(){
+  const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;
+  // for curves, offset the control point so it's visibly curved
+  if(d.t==="curve"&&d.p.length>=3){
+    const a=d.p[0],b=d.p[2];
+    d.p[1]={t:(a.t+b.t)/2,y:(a.y+b.y)/2+Math.abs(b.y-a.y)*0.3+0.001};
+  }
+  DL().push(d);SELD=d;TOOL="cross";save();tbRef()
+}
 function dDown(e){const[x,y]=xy(e);MX=[x,y];MOD=[e.shiftKey,e.ctrlKey||e.metaKey];try{e.target.setPointerCapture(e.pointerId)}catch(_){}
 if(TOOL!=="cross"){const p=snapP(x,y);
 if(DRAFT){
@@ -752,10 +761,25 @@ if(DRAFT){
 }
 const d={id:Date.now(),t:TOOL,p:[p],c:TOOL==="fib"?"#787b86":"#2962ff",w:2,s:0};
 if(TOOL==="path"){DRAFT=d;return}
-if(N2.test(TOOL)){d.p.push({...p});if(TOOL==="long"||TOOL==="short"||TOOL==="curve")d.p.push({...p});d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)}
+if(TOOL==="note"){d.p.push({t:p.t,y:p.y});d.txt=prompt("Note text","")||"Note";DRAFT=d;dFin();return}
+if(N2.test(TOOL)){
+  d.p.push({...p});
+  if(TOOL==="curve"){
+    // control point offset so the curve is visible by default
+    const mid={t:(p.t+p.t)/2,y:p.y};
+    d.p=[p,mid,{...p}];
+  }
+  if(TOOL==="long"||TOOL==="short")d.p.push({...p});
+  d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)
+}
 else{if(TOOL==="text"||TOOL==="note"){d.txt=prompt(TOOL==="note"?"Note text":"Text","")||"";if(!d.txt)return}DRAFT=d;dFin()}return}
 if(SELD){const q=SELD.p.map(px),i=q.findIndex(o=>o.x!=null&&Math.hypot(o.x-x,o.y-y)<14);
 if(i>=0){DRG={d:SELD,i};return}
+if(SELD.t==="note"){
+  const h=hit(SELD,x,y);
+  if(h===2){DRG={d:SELD,i:1};return} // drag box
+  if(h===1){DRG={d:SELD,i:0};return} // drag anchor
+}
 if(hit(SELD,x,y)){DRG={d:SELD,i:-1,o:un(x,y),c:clone(SELD.p)};return}}
 const d=[...DL()].reverse().find(d=>hit(d,x,y));SELD=d||null;if(d)DRG={d,i:-1,o:un(x,y),c:clone(d.p)};dpe();dsel()}
 function dMove(e){const[x,y]=xy(e);MOD=[e.shiftKey,e.ctrlKey||e.metaKey];dPos(x,y)}

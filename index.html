@@ -640,7 +640,16 @@ const TG=[["cross","trend","ray","ext","hline","hray","vline","arrow","brush"],[
 const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
 function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" title="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
 return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
-function resetLive(){if(!ch||!MS)return;const a=candles(symOf(S.chart.sym),S.chart.tf);if(!a||!a.length)return;const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;ch.timeScale().setVisibleLogicalRange({from:a.length-nb+30,to:a.length+30});MS.applyOptions({autoScale:true});setTimeout(()=>{if(MS)MS.applyOptions({autoScale:true})},50)}
+function resetLive(){
+  if(!ch||!MS)return;
+  const a=candles(symOf(S.chart.sym),S.chart.tf);
+  if(!a||!a.length)return;
+  const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;
+  ch.timeScale().setVisibleLogicalRange({from:a.length-nb+30,to:a.length+30});
+  const vis=a.slice(-nb),hi=Math.max(...vis.map(d=>d.h)),lo=Math.min(...vis.map(d=>d.l));
+  const pad=(hi-lo)*0.15||hi*0.01;
+  MS.setVisiblePriceRange?.({minValue:lo-pad,maxValue:hi+pad})||MS.applyOptions({autoScale:true});
+}
 function setTool(t){TOOL=t;DRAFT=null;tbRef()}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
 function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}

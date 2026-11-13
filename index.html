@@ -123,7 +123,8 @@ a.btn{display:inline-block;text-decoration:none;border-radius:8px;padding:7px 12
 a.btn:hover{background:var(--acc-hover);border-color:var(--acc-hover)}
 td.sy{cursor:pointer}
 td.sy:hover{color:var(--acc);text-decoration:underline}
-.ws{display:grid;gap:12px}
+.ws{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.ws>*{min-width:0}
 .phone-only{display:none}
 :root[data-ui="phone"] .phone-only{display:flex}
 :root[data-ui="pc"] .wrap{max-width:none}
@@ -148,6 +149,8 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 :root[data-split="1"] .side .ctl{margin:3px 0;gap:6px 8px}
 :root[data-split="1"] .side input,:root[data-split="1"] .side select,:root[data-split="1"] .side button{padding:5px 8px;font-size:13px}
 :root[data-split="1"] .side input[type=number]{width:90px}
+:root[data-split="1"] .side #ps{flex:1 1 120px;min-width:0;width:auto}
+:root[data-split="1"] .side button{white-space:nowrap}
 :root[data-split="1"] .side #q{flex:1;min-width:110px}
 :root[data-split="1"] table{min-width:0}
 :root[data-split="1"] th,:root[data-split="1"] td{padding:6px 8px}
@@ -183,6 +186,30 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 #sr div,#sr a{display:block;padding:9px 10px;color:inherit;text-decoration:none;cursor:pointer;font-size:14px}
 #sr div:hover,#sr a:hover{background:var(--card);color:var(--acc)}
 .sqs i.n{background:var(--line)}
+/* watchlist */
+.wl{border:1px solid var(--line);border-radius:10px;background:var(--bg);margin-bottom:4px;overflow:hidden}
+.wlh{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 8px;background:var(--card);border-bottom:1px solid var(--line)}
+.wl.shut .wlh{border-bottom:0}
+.wlt{font-size:12px;font-weight:700;letter-spacing:.06em;cursor:pointer;user-select:none}
+.wlb{max-height:min(34vh,300px);overflow:auto}
+:root[data-split="1"] .wlb{max-height:26vh}
+.wc,.wr{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 22px;gap:6px;align-items:center;padding:0 8px}
+.wc{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);padding-top:4px;padding-bottom:4px;position:sticky;top:0;background:var(--bg);z-index:2;border-bottom:1px solid var(--line)}
+.wc span:not(:first-child),.wv{text-align:right}
+.wr{padding-top:5px;padding-bottom:5px;cursor:pointer;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.wr:hover{background:var(--card)}
+.wr.sel{background:color-mix(in srgb,var(--acc) 14%,var(--bg))}
+.wn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wv{font-variant-numeric:tabular-nums}
+.wv.up{color:var(--g)}
+.wv.dn{color:var(--r)}
+.wg{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--card);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border-bottom:1px solid var(--line)}
+.wgn{cursor:pointer;font-weight:600;user-select:none}
+.wl-empty{padding:6px 10px;font-size:12px}
+.ib{padding:2px 7px!important;font-size:11px!important;min-height:0!important;border-radius:6px;line-height:1.3}
+.ib.x{opacity:.35;border:0;background:none;padding:0!important;font-size:12px!important}
+.wr:hover .ib.x{opacity:1}
+.star{color:var(--acc);font-size:16px!important;line-height:1;padding:4px 9px!important}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -204,6 +231,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
   <div class="srch"><input id="sq" placeholder="Search symbol…" autocomplete="off" oninput="srch()" onkeydown="if(event.key==='Enter')srchGo()" onblur="setTimeout(hideSrBox,150)"><div id="sr"></div></div>
 </header>
 <div class="ws"><div class="side">
+<div class="wl" id="wl"></div>
 <section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
@@ -247,6 +275,8 @@ try{const x=JSON.parse(localStorage.getItem("scr2")||"null");if(x&&Array.isArray
 const WL0=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["AAPL","STK","NASDAQ:AAPL"],["NVDA","STK","NASDAQ:NVDA"],["TSLA","STK","NASDAQ:TSLA"],["AMD","STK","NASDAQ:AMD"],["BTC/USD","CRY","BITSTAMP:BTCUSD"],["ETH/USD","CRY","BITSTAMP:ETHUSD"],["SPY","ETF","AMEX:SPY"],["QQQ","ETF","NASDAQ:QQQ"],["GLD","ETF","AMEX:GLD"],["USO","ETF","AMEX:USO"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 const CH0={type:"candle",up:"#0f9d58",dn:"#d93025",bg:"auto",grid:true,tf:"1H",sym:"EURUSD",ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
 S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67"},S.data||{});S.page=S.page||0;if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);
+const WLD=()=>({open:true,groups:[{id:"g1",name:"Traded",open:true,syms:[]},{id:"g2",name:"Section",open:true,syms:[]}]});
+S.wlx=S.wlx&&Array.isArray(S.wlx.groups)&&S.wlx.groups.length?S.wlx:WLD();
 function save(){try{localStorage.setItem("scr2",JSON.stringify(S))}catch(e){}}
 function saveP(){try{localStorage.setItem("scr2p",JSON.stringify(P))}catch(e){}}
 const deb=(f,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms)}};
@@ -349,7 +379,50 @@ const PG=R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map
 PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
-document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";kick()}
+document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";renderWL();kick()}
+// ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
+const CUS={};
+const guessM=n=>/=X$/.test(n)?"FX":/=F$/.test(n)?"FUT":/^\^/.test(n)?"IDX":/-USD$/.test(n)?"CRY":"STK";
+const wlAll=()=>S.wlx.groups.flatMap(g=>g.syms);
+// find a symbol by name: the screener universe first, otherwise a custom ticker (loaded from Yahoo by that name)
+function symOf(n){const s=SYMS.find(x=>x[0]===n);if(s)return s;if(!wlAll().includes(n))return null;
+const k=(isLive()?"L":"S")+n;let c=CUS[k];
+if(!c)c=CUS[k]=isLive()?[n,guessM(n),null,0,1,.01,n,"","yf",n,1]:[n,guessM(n),20+seed(n)%380,5e6,1,.03];
+if(isLive()){const d=LIVE[n+"|1D"];if(d&&d.length)c[2]=d[d.length-1].c}
+return c}
+function wlData(n){const s=symOf(n);if(!s)return{};const d=candles(s,"1D"),L=d&&d.length?d[d.length-1]:null,Pv=d&&d.length>1?d[d.length-2]:null;
+return{last:L?L.c:s[2],chg:L&&Pv?(L.c/Pv.c-1)*100:null,vol:L&&L.v?L.v:(isLive()?null:(s[3]||null))}}
+function renderWL(){const el=document.getElementById("wl"),W=S.wlx;if(!el)return;
+el.className="wl"+(W.open?"":" shut");
+let h=`<div class="wlh"><span class="wlt" onclick="wlTog()">${W.open?"▾":"▸"} WATCHLIST</span><span class="sp"></span><button class="ib" onclick="wlAddM()">+ Symbol</button><button class="ib" onclick="wlSecM()">+ Section</button></div>`;
+if(W.open){h+=`<div class="wlb"><div class="wc"><span>Symbol</span><span>Last</span><span>Chg%</span><span>Vol</span><span></span></div>`;
+W.groups.forEach(g=>{h+=`<div class="wg"><span class="wgn" onclick="wlGTog('${g.id}')">${g.open?"▾":"▸"} ${esc(g.name)}</span><span>${g.syms.length}</span><span class="sp"></span><button class="ib" title="Add a symbol here" onclick="wlAddM('${g.id}')">＋</button><button class="ib" title="Rename section" onclick="wlSecM('${g.id}')">✎</button><button class="ib" title="Delete section" onclick="wlDelG('${g.id}')">✕</button></div>`;
+if(g.open){if(!g.syms.length)h+=`<div class="wl-empty mut">No symbols yet. Press ＋ to add some.</div>`;
+g.syms.forEach(n=>{const d=wlData(n),q=esc(n);
+h+=`<div class="wr ${n===S.chart.sym?"sel":""}" data-s="${q}" onclick="openChart('${q}')"><span class="wn">${q}</span><span class="wv">${d.last==null?"…":fp(d.last)}</span><span class="wv ${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"…":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span><span class="wv mut">${d.vol?fm(d.vol):"–"}</span><button class="ib x" title="Remove" onclick="event.stopPropagation();wlRm('${g.id}','${q}')">✕</button></div>`})}});
+h+=`</div>`}
+el.innerHTML=h}
+function wlTog(){S.wlx.open=!S.wlx.open;save();renderWL()}
+function wlGTog(id){const g=S.wlx.groups.find(x=>x.id===id);if(g){g.open=!g.open;save();renderWL()}}
+function wlRm(gid,n){const g=S.wlx.groups.find(x=>x.id===gid);if(g){g.syms=g.syms.filter(x=>x!==n);save();renderWL();wlStarSync()}}
+function wlDelG(id){const g=S.wlx.groups.find(x=>x.id===id);if(!g)return;
+if(g.syms.length&&!confirm("Delete the section “"+g.name+"” and its "+g.syms.length+" symbol(s)?"))return;
+S.wlx.groups=S.wlx.groups.filter(x=>x.id!==id);if(!S.wlx.groups.length)S.wlx=WLD();save();renderWL();wlStarSync()}
+function wlAddM(gid){const W=S.wlx;
+modal(`<h3>Add to watchlist</h3><label>Symbols<input id="wl_s" placeholder="AAPL, MRNA, EURUSD, ES=F" autocomplete="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')wlAdd()"></label><label>Section<select id="wl_g">${W.groups.map(g=>`<option value="${g.id}" ${g.id===gid?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label><p class="mut">Anything already in the screener is matched by name. For other stocks and ETFs just type the ticker. Otherwise use the Yahoo format: ES=F (futures), EURUSD=X (forex), BTC-USD (crypto), ^GSPC (indices). Separate several with commas or spaces.</p><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="wlAdd()">Add</button></div>`);
+setTimeout(()=>{const i=document.getElementById("wl_s");if(i)i.focus()},30)}
+function wlAdd(){const g=S.wlx.groups.find(x=>x.id===document.getElementById("wl_g").value)||S.wlx.groups[0],have=new Set(wlAll());
+document.getElementById("wl_s").value.toUpperCase().split(/[\s,;]+/).map(x=>x.replace(/[^A-Z0-9.\-=^_]/g,"")).filter(Boolean).forEach(n=>{if(!have.has(n)){have.add(n);g.syms.push(n)}});
+save();closeM();render();wlStarSync()}
+function wlSecM(id){const g=id&&S.wlx.groups.find(x=>x.id===id);
+modal(`<h3>${g?"Rename section":"New section"}</h3><label>Name<input id="wl_n" maxlength="30" value="${g?esc(g.name):""}" onkeydown="if(event.key==='Enter')wlSecSave('${id||""}')"></label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="wlSecSave('${id||""}')">Save</button></div>`);
+setTimeout(()=>{const i=document.getElementById("wl_n");if(i)i.focus()},30)}
+function wlSecSave(id){const n=document.getElementById("wl_n").value.trim();if(!n)return;
+if(id){const g=S.wlx.groups.find(x=>x.id===id);if(g)g.name=n}else S.wlx.groups.push({id:"g"+Date.now(),name:n,open:true,syms:[]});
+save();closeM();renderWL()}
+// star button in the chart header: add/remove the charted symbol (goes in the first section)
+function wlStar(){const n=S.chart.sym;if(wlAll().includes(n))S.wlx.groups.forEach(g=>{g.syms=g.syms.filter(x=>x!==n)});else S.wlx.groups[0].syms.push(n);save();renderWL();wlStarSync()}
+function wlStarSync(){const b=document.getElementById("wst");if(b)b.textContent=wlAll().includes(S.chart.sym)?"★":"☆"}
 function srt(id){S.sort=S.sort.id===id?{id,dir:-S.sort.dir}:{id,dir:id==="sym"?1:-1};save();render()}
 const MD=document.getElementById("modal");
 let ch=null,ch2=null;
@@ -394,14 +467,14 @@ function vols(s,tf){if(isLive())return candles(s,tf).map(x=>x.v||0);const a=cand
 function killCharts(){[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
 function pal(){const cs=getComputedStyle(document.documentElement),v=k=>cs.getPropertyValue(k).trim(),b=S.chart.bg;
 return b==="dark"?{bg:"#121316",tx:"#a1a1aa",gr:"#27272a"}:b==="light"?{bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"}:{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
-function markSel(){document.querySelectorAll("#t tbody tr").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
+function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
 function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
-let s=SYMS.find(x=>x[0]===C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
+let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}<div class="tfs tfb">${TFS.map(t=>`<button class="chip ${t===C.tf?"on":""}" onclick="S.chart.tf='${t}';save();drawChart()">${t}</button>`).join("")}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="setM()">Settings</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,op=()=>({autoSize:true,layout:{background:{type:"solid",color:p.bg},textColor:p.tx},grid:{vertLines:{visible:C.grid,color:p.gr},horzLines:{visible:C.grid,color:p.gr}},timeScale:{timeVisible:C.tf!=="1D",borderColor:p.gr},rightPriceScale:{borderColor:p.gr}});
 if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
@@ -473,7 +546,7 @@ SYMS=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YF
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
 d.textContent=(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
-function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn")return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
+function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10])return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
 err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
 if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
@@ -559,7 +632,8 @@ function pgGo(d){S.page+=d;save();render()}
 function kick(){if(!isLive()||!READY)return;
 if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
-const cut=S.acct*S.mult,cs=SYMS.find(x=>x[0]===S.chart.sym);if(cs)need(cs,S.chart.tf,true);
+const cut=S.acct*S.mult,cs=symOf(S.chart.sym);if(cs)need(cs,S.chart.tf,true);
+wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)}); // watchlist symbols load first
 const eq=m=>m==="STK"||m==="ETF"||m==="FUT";
 const tfl=["1D",...[...base].filter(t=>t!=="1D")];
 tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);

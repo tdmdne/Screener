@@ -627,12 +627,17 @@ if(d.txt&&t!=="text"){
     else if(va==="middle")ty=midY+th/3;
     else ty=maxY+th+pad;
   }
-  // break the line only for middle
-  if(gap&&(t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray")){
+  // break the line only for middle (all line tools)
+  if(gap&&(t==="trend"||t==="ray"||t==="ext"||t==="hline"||t==="hray"||t==="vline")){
     g.save();
     g.globalCompositeOperation="destination-out";
     g.fillStyle="#000";
-    g.fillRect(gap.x,gap.y-2,gap.w,th+4);
+    if(t==="vline"){
+      // vertical line: cut a horizontal gap across the line
+      g.fillRect(gap.x-2,gap.y,tw+pad*2,th+4);
+    }else{
+      g.fillRect(gap.x,gap.y-2,gap.w,th+4);
+    }
     g.restore();
   }
   g.fillStyle=d.txtCol||c;

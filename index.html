@@ -718,8 +718,8 @@ function showColorPop(id){
 function closeColorPop(e){const p=document.getElementById("cpop");if(p&&!p.contains(e.target))p.remove()}
 function selectColor(id,c){document.getElementById(id).value=c;document.getElementById(id+"_sw").style.background=c;document.getElementById("cpop").remove()}
 function inputDialog(title,placeholder,cb){
-  modal(`<h3>${title}</h3><input id="inp_val" placeholder="${placeholder||""}" style="width:100%;padding:8px;font-size:14px" autofocus><div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="const v=document.getElementById('inp_val').value;closeM();(${cb})(v)">OK</button></div>`);
-  setTimeout(()=>document.getElementById("inp_val").focus(),50);
+  modal(`<h3>${title}</h3><input id="inp_val" placeholder="${placeholder||""}" style="width:100%;padding:8px;font-size:14px" autofocus><div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" id="inp_ok">OK</button></div>`);
+  setTimeout(()=>{document.getElementById("inp_val").focus();document.getElementById("inp_ok").onclick=()=>{const v=document.getElementById("inp_val").value;closeM();if(cb)cb(v)}},50);
 }
 function addCustomColor(id){inputDialog("Custom color","#ff0000",`function(c){if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor('${id}',c)}}`)}
 function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=d.style.display==="none"?"block":"none"}
@@ -827,7 +827,7 @@ g.strokeStyle="#787b86";ln(x1,a.y,x1+w,a.y);
 g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x1+6,yT<a.y?yT+14:yT-5);
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
-else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillText(d.txt||"",a.x,a.y)}
+else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillStyle=d.txtCol||d.c||contrastText(pal().bg||"#fff");g.fillText(d.txt||"",a.x,a.y)}
 else if(t==="arrow"){
   const[e,f]=q;
   // TradingView-style open arrowhead
@@ -980,7 +980,7 @@ if(N2.test(TOOL)){
   if(TOOL==="long"||TOOL==="short")d.p.push({...p});
   d.x0=x;d.y0=y;d.mv=0;DRAFT=d;fixPos(d)
 }
-else{if(TOOL==="text"||TOOL==="note"){inputDialog(TOOL==="note"?"Note text":"Text","",`function(t){if(!t)return;d.txt=t;DRAFT=d;dFin()}`);return}DRAFT=d;dFin()}return}
+else{if(TOOL==="text"||TOOL==="note"){const dd=d;inputDialog(TOOL==="note"?"Note text":"Text","",v=>{if(!v)return;dd.txt=v;dd.txtCol=contrastText(pal().bg||"#fff");DRAFT=dd;dFin()});return}DRAFT=d;dFin()}return}
 if(SELD){const q=SELD.p.map(px),i=q.findIndex(o=>o.x!=null&&Math.hypot(o.x-x,o.y-y)<14);
 if(i>=0){DRG={d:SELD,i};return}
 if(SELD.t==="note"){

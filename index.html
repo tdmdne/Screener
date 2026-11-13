@@ -856,7 +856,7 @@ const sl=(k,l,arr)=>`<label>${l}<select data-c="${k}">${o(arr,C[k])}</select></l
 const nu=(k,l,mn,mx,st)=>`<label>${l}<input type="number" data-c="${k}" min="${mn}" max="${mx}" step="${st}" value="${C[k]}"></label>`;
 const cr=(c,l,a,b)=>`<div class="csr">${c?ck(c,l):`<span>${l}</span>`}<span class="sp"></span>${a}${b||""}</div>`;
 const tp=(t,h)=>`<div class="tp" data-t="${t}" style="display:none">${h}</div>`;
-modal(`<h3>Chart settings</h3><div class="tabs">${[["sym","Symbol"],["can","Canvas"],["sc","Scales"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
+modal(`<h3>Chart settings</h3><div class="tabs">${[["sym","Symbol"],["can","Canvas"],["sc","Scales"],["ui","Interface"]].map(([t,n])=>`<button data-t="${t}" onclick="swTab('${t}')">${n}</button>`).join("")}</div>`
 +tp("sym",sl("type","Chart type",[["candle","Candles"],["hollow","Hollow candles"],["bars","Bars"],["line","Line"],["area","Area"]])
 +cr("showBody","Body",co("upBody"),co("dnBody"))+cr("showBorder","Borders",co("upBorder"),co("dnBorder"))+cr("showWick","Wick",co("upWick"),co("dnWick"))
 +cr(0,"Line / area colour",co("lineCol"))+nu("lineW","Line width",1,4,1)
@@ -868,6 +868,25 @@ modal(`<h3>Chart settings</h3><div class="tabs">${[["sym","Symbol"],["can","Canv
 +cr(0,"Crosshair colour",co("xhCol",p.tx))+ck("xhLabels","Crosshair labels")+cr("wm","Watermark",co("wmCol","#787882")))
 +tp("sc",sl("scMode","Price scale",[[0,"Normal"],[1,"Logarithmic"],[2,"Percentage"],[3,"Indexed to 100"]])+ck("scAuto","Auto scale")+ck("scInv","Invert scale")
 +cr("scBorder","Scale border",co("scBorderCol",p.gr))+nu("scTop","Top margin",0,.5,.05)+nu("scBot","Bottom margin",0,.5,.05))
++tp("ui",`<div class="mut" style="margin-bottom:8px">Keyboard shortcuts</div>
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Redo</td><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Save</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Hide all drawings</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Trend line</td><td><kbd>Alt</kbd>+<kbd>T</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Horizontal line</td><td><kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Vertical line</td><td><kbd>Alt</kbd>+<kbd>V</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Fib retracement</td><td><kbd>Alt</kbd>+<kbd>F</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Rectangle</td><td><kbd>Alt</kbd>+<kbd>R</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Arrow</td><td><kbd>Alt</kbd>+<kbd>A</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Note</td><td><kbd>Alt</kbd>+<kbd>N</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Cancel / crosshair</td><td><kbd>Esc</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Delete selected</td><td><kbd>Delete</kbd> or <kbd>Backspace</kbd></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan chart</td><td>Arrow keys</td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan further</td><td><kbd>Ctrl</kbd>+Arrow keys</td></tr>
+</table>
+<p class="mut" style="margin-top:8px">On Mac, use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd>.</p>`)
 +`<div class="row"><button onclick="setReset()">Reset</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Apply</button></div>`);
 swTab(typeof tab==="string"?tab:"sym")}
 function swTab(t){MD.querySelectorAll(".tp").forEach(e=>e.style.display=e.dataset.t===t?"flex":"none");MD.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t))}

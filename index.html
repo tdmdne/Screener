@@ -554,7 +554,11 @@ function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML()
 function setTool(k){TOOL=k;DRAFT=null;SELD=null;tbRef()}
 function togT(k){if(k==="MAG")MAG=!MAG;else if(k==="LOCKD"){LOCKD=!LOCKD;SELD=null}else HIDD=!HIDD;tbRef()}
 function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?")){S.dr[S.chart.sym]=[];SELD=null;save();tbRef()}}
-function delSel(){if(SELD){const L=DL(),i=L.indexOf(SELD);if(i>=0)L.splice(i,1);SELD=null;save();tbRef()}}
+let UNDO=[],REDO=[];
+function pushUndo(){UNDO.push(JSON.stringify(S.dr||{}));if(UNDO.length>50)UNDO.shift();REDO=[]}
+function doUndo(){if(!UNDO.length)return;REDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(UNDO.pop());SELD=null;save();tbRef()}
+function doRedo(){if(!REDO.length)return;UNDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(REDO.pop());SELD=null;save();tbRef()}
+function delSel(){if(SELD){pushUndo();const L=DL(),i=L.indexOf(SELD);if(i>=0)L.splice(i,1);SELD=null;save();tbRef()}}
 function dpe(){const c=document.getElementById("dc");if(c){c.style.pointerEvents=(TOOL!=="cross"||SELD||DRAFT)&&!HIDD?"auto":"none";c.style.cursor=TOOL!=="cross"?"crosshair":"default"}}
 function dsel(){const e=document.getElementById("dsel");if(!e)return;if(!SELD){e.style.display="none";return}
 e.style.display="flex";e.innerHTML=`<input type="color" value="${SELD.c}" oninput="SELD.c=this.value;save()"><select title="Line type" onchange="SELD.s=+this.value;save()">${LSTYLES.map((st,i)=>`<option value="${i}" ${i==(SELD.s||0)?"selected":""}>${st.n}</option>`).join("")}</select><select onchange="SELD.w=+this.value;save()">${[1,2,3,4].map(w=>`<option ${w==SELD.w?"selected":""}>${w}</option>`).join("")}</select><button onclick="drawSetM()" title="Settings">⚙</button><button onclick="delSel()" title="Delete">🗑</button>`}
@@ -735,8 +739,8 @@ const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.
 function fixPos(d){if(d.t==="long"||d.t==="short")d.p[2]={t:d.p[1].t,y:d.p[0].y-(d.p[1].y-d.p[0].y)/2}}
 function dFin(){
   const d=DRAFT;DRAFT=null;delete d.x0;delete d.y0;delete d.mv;delete d._lt;
+  pushUndo();
   DL().push(d);SELD=d;
-  // if lock is on, stay on the current tool so you can keep drawing
   if(!LOCKD)TOOL="cross";
   save();tbRef()
 }
@@ -785,7 +789,33 @@ dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
 document.addEventListener("keydown",kmod);document.addEventListener("keyup",kmod);addEventListener("blur",()=>{MOD=[false,false]});
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
-if(e.key==="Escape"){DRAFT=null;setTool("cross")}else if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel()}});
+const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
+// Undo / Redo
+if(ctrl&&e.key==="z"&&!sh){e.preventDefault();doUndo();return}
+if(ctrl&&(e.key==="y"||(e.key==="z"&&sh))){e.preventDefault();doRedo();return}
+// Save
+if(ctrl&&e.key==="s"){e.preventDefault();save();return}
+// Hide all drawings
+if(ctrl&&alt&&(e.key==="h"||e.key==="H")){e.preventDefault();HIDD=!HIDD;tbRef();return}
+// Drawing tool shortcuts
+if(alt&&!ctrl){
+  const map={t:"trend",h:"hline",v:"vline",f:"fib",r:"rect",a:"arrow",n:"note"};
+  if(map[e.key.toLowerCase()]){e.preventDefault();setTool(map[e.key.toLowerCase()]);return}
+}
+// Escape
+if(e.key==="Escape"){DRAFT=null;setTool("cross");return}
+// Delete selected
+if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel();return}
+// Arrow keys to pan
+if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)&&ch){
+  e.preventDefault();
+  const ts=ch.timeScale(),r=ts.getVisibleLogicalRange();
+  if(!r)return;
+  const step=(r.to-r.from)*(ctrl?0.2:0.05)*(e.key.includes("Left")||e.key==="ArrowUp"?-1:1);
+  if(e.key==="ArrowLeft"||e.key==="ArrowRight")ts.setVisibleLogicalRange({from:r.from+step,to:r.to+step});
+  return
+}
+});
 function drawSetM(tab){
   if(!SELD)return;
   const d=SELD,t=d.t||"trend";

@@ -756,6 +756,11 @@ if(cv.width!==Math.round(W*r)||cv.height!==Math.round(H*r)){cv.width=Math.round(
 const g=cv.getContext("2d"),ts=ch.timeScale(),tw=(ts.width&&ts.width())||W-60;g.setTransform(r,0,0,r,0,0);g.clearRect(0,0,W,H);if(HIDD)return;
 g.save();g.beginPath();g.rect(0,0,tw,H-26);g.clip();
 DL().concat(DRAFT?[DRAFT]:[]).forEach(d=>{if(!d.hide)shape(g,d,tw,H,d===SELD)});
+// ghost preview line for path tool
+if(DRAFT&&DRAFT.t==="path"&&DRAFT.p.length&&MX){
+  const last=px(DRAFT.p[DRAFT.p.length-1]);
+  if(last.x!=null){g.strokeStyle="#2962ff";g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(last.x,last.y);g.lineTo(MX[0],MX[1]);g.stroke();g.setLineDash([])}
+}
 if(TOOL!=="cross"&&MX){g.strokeStyle="#787b86";g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(MX[0],0);g.lineTo(MX[0],H);g.moveTo(0,MX[1]);g.lineTo(tw,MX[1]);g.stroke();if(MAG||MOD[1]){const o=px(snapP(MX[0],MX[1]));if(o.x!=null){g.setLineDash([]);g.beginPath();g.arc(o.x,o.y,5,0,7);g.strokeStyle="#f97316";g.lineWidth=2;g.stroke()}}}
 g.restore()}
 const xy=e=>{const r=e.currentTarget.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};

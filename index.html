@@ -827,7 +827,7 @@ g.strokeStyle="#787b86";ln(x1,a.y,x1+w,a.y);
 g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x1+6,yT<a.y?yT+14:yT-5);
 g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
 tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
-else if(t==="text"){g.font="14px system-ui,sans-serif";g.fillStyle=d.txtCol||d.c||contrastText(pal().bg||"#fff");g.fillText(d.txt||"",a.x,a.y)}
+else if(t==="text"){if(!d.txt)return;g.font="14px system-ui,sans-serif";g.fillStyle=d.txtCol||d.c||contrastText(pal().bg||"#fff");g.fillText(d.txt,a.x,a.y+4)}
 else if(t==="arrow"){
   const[e,f]=q;
   // TradingView-style open arrowhead

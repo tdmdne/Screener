@@ -820,8 +820,39 @@ const r=host.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=[...
 dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"))return;paint();requestAnimationFrame(f)})()}
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
 document.addEventListener("click",e=>{if(!e.target.closest("#tfm")&&!e.target.closest(".tfb")){const m=document.getElementById("tfm");if(m)m.style.display="none"}});
+let TFBUF="";
+function tfFromType(s){
+  s=s.trim();if(!s)return null;
+  const m=s.match(/^(\d+)\s*([smhMwW])?$/i);
+  if(!m)return null;
+  const n=+m[1],u=(m[2]||"m").toLowerCase();
+  const map={s:"s",m:"m",h:"H",w:"W",M:"M"};
+  // capital M = month, lowercase m = minute
+  const unit=m[2]==="M"?"M":map[u];
+  if(!unit)return null;
+  return n+unit;
+}
+function tfGo(label){
+  if(!label)return;
+  // if it's a known timeframe or already custom, just switch
+  if(TFS.includes(label)||(S.tfCustom||[]).some(c=>c.label===label)){tfPick(label);return}
+  // otherwise create it as a custom interval
+  const m=label.match(/^(\d+)([smHWM])$/);
+  if(!m)return;
+  const n=+m[1],u=m[2];
+  S.tfCustom=S.tfCustom||[];
+  if(!S.tfCustom.find(c=>c.label===label))S.tfCustom.push({n,u,label});
+  if(!S.tfFav.includes(label))S.tfFav.push(label);
+  const mult={s:1,m:60,H:3600,D:86400,W:604800,M:2592000};
+  STEP[label]=n*(mult[u]||60);INT[label]=label;TS[label]=TS[label]||0.5;
+  save();tfPick(label);
+}
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
+// timeframe typing: digits + optional unit letter, Enter to go
+if(!ctrl&&!alt&&/^[0-9smhMwW]$/.test(e.key)){TFBUF+=e.key;return}
+if(e.key==="Enter"&&TFBUF){e.preventDefault();const label=tfFromType(TFBUF);TFBUF="";if(label)tfGo(label);return}
+if(e.key==="Escape")TFBUF="";
 // Undo / Redo
 if(ctrl&&e.key==="z"&&!sh){e.preventDefault();doUndo();return}
 if(ctrl&&(e.key==="y"||(e.key==="z"&&sh))){e.preventDefault();doRedo();return}

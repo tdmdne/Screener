@@ -255,7 +255,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 </header>
 <div class="ws"><div class="side">
 <div class="wl" id="wl"></div>
-<section class="ctl"><select id="ps" onchange="pick(this.value)"></select><button onclick="saveCur()">Save</button><button onclick="saveAs()">Save as…</button><button id="del" onclick="delP()">Delete</button><button onclick="xfer()">Export/Import</button><span class="mut" id="msg"></span></section>
+
 <section class="ctl">
 <label>Account size<input id="acct" type="number" inputmode="numeric"></label>
 <label>Multiplier<select id="mult"><option>10</option><option>50</option><option>100</option></select></label>
@@ -435,26 +435,27 @@ if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 const PRESETS={
-  P1:{name:"P1 Best",minScore:80,desc:"Strong EMA alignment + high volume + momentum"},
-  P2:{name:"P2 Strong",minScore:65,desc:"EMA alignment + volume"},
-  P3:{name:"P3 Good",minScore:50,desc:"Partial EMA alignment"},
-  P4:{name:"P4 Moderate",minScore:35,desc:"Basic momentum"},
-  P5:{name:"P5 All",minScore:0,desc:"All markets"}
+  P1:{name:"P1",minScore:50,desc:"Strong expansion + EMA alignment"},
+  P2:{name:"P2",minScore:35,desc:"Good expansion"},
+  P3:{name:"P3",minScore:20,desc:"Moderate momentum"},
+  P4:{name:"P4",minScore:10,desc:"Basic criteria"},
+  P5:{name:"P5",minScore:0,desc:"All markets"}
 };
 function scoreMarket(s){
   try{
-    const a=candles(s,"1D");if(!a||a.length<200)return 0;
+    const a=candles(s,"1D");if(!a||a.length<50)return 0;
     const cl=a.map(d=>d.c);
-    const ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20),sma200=smaArr(cl,200);
+    const ema5=emaArr(cl,5),ema10=emaArr(cl,10),ema20=emaArr(cl,20);
     const last=a.length-1,c=cl[last];
     let score=0;
-    if(c>ema5[last])score+=15;
-    if(c>ema10[last])score+=15;
-    if(c>ema20[last])score+=20;
-    if(c>sma50[last])score+=20;
-    if(ema5[last]>ema10[last]&&ema10[last]>ema20[last])score+=15;
-    const chg=((c/cl[Math.max(0,last-20)])-1)*100;
-    if(chg>5)score+=15;else if(chg>0)score+=5;
+    const chg20=((c/cl[Math.max(0,last-20)])-1)*100;
+    if(c>ema5[last])score+=10;
+    if(c>ema10[last])score+=10;
+    if(c>ema20[last])score+=15;
+    if(chg20>10)score+=30;
+    else if(chg20>5)score+=20;
+    else if(chg20>0)score+=10;
+    if(c>ema5[last]&&c>ema10[last]&&c>ema20[last])score+=15;
     return Math.min(100,score);
   }catch(e){return 0}
 }
@@ -475,8 +476,7 @@ const ss=document.getElementById("srtsel");if(ss){ss.innerHTML=`<option value="s
 const mks=document.getElementById("mkts"),mkl=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)||S.mkt===k);
 mks.innerHTML=mkl.map(k=>`<option value="${k}">${MK[k]}</option>`).join("");mks.value=S.mkt;
 const o=k=>`<option value="${esc(k)}" ${S.cur===k?"selected":""}>${esc(k)}</option>`;
-document.getElementById("ps").innerHTML=`<option value="">Working copy</option><optgroup label="Built-in">${Object.keys(BI).map(o).join("")}</optgroup><optgroup label="My presets">${Object.keys(P).map(o).join("")}</optgroup>`;
-const del=document.getElementById("del");del.textContent=arm?"Confirm?":"Delete";del.disabled=!(S.cur&&P[S.cur]);
+
 const ar=id=>S.sort.id===id?(S.sort.dir<0?" ▼":" ▲"):"";
 let h=`<tr><th><span class="h" onclick="srt('sym')">Symbol${ar("sym")}</span></th>`;
 vis.forEach(c=>{h+=`<th><span class="h" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">⚙</button></th>`});

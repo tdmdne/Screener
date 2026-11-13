@@ -821,22 +821,28 @@ dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
 document.addEventListener("click",e=>{if(!e.target.closest("#tfm")&&!e.target.closest(".tfb")){const m=document.getElementById("tfm");if(m)m.style.display="none"}});
 let TFBUF="";
+function tfHint(){
+  let h=document.getElementById("tfhint");
+  if(!h){h=document.createElement("div");h.id="tfhint";h.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;z-index:100;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.3)";document.body.appendChild(h)}
+  h.textContent=TFBUF?"Type: "+TFBUF+"  ·  Enter to go  ·  Esc to cancel":"";
+  h.style.display=TFBUF?"block":"none";
+}
 function tfFromType(s){
   s=s.trim();if(!s)return null;
   const m=s.match(/^(\d+)\s*([smhMwW])?$/i);
   if(!m)return null;
-  const n=+m[1],u=(m[2]||"m").toLowerCase();
-  const map={s:"s",m:"m",h:"H",w:"W",M:"M"};
-  // capital M = month, lowercase m = minute
-  const unit=m[2]==="M"?"M":map[u];
-  if(!unit)return null;
+  const n=+m[1];
+  // capital M = month; everything else lowercase
+  let unit="m";
+  if(m[2]){
+    if(m[2]==="M")unit="M";
+    else{const map={s:"s",m:"m",h:"H",w:"W"};unit=map[m[2].toLowerCase()]||"m"}
+  }
   return n+unit;
 }
 function tfGo(label){
   if(!label)return;
-  // if it's a known timeframe or already custom, just switch
   if(TFS.includes(label)||(S.tfCustom||[]).some(c=>c.label===label)){tfPick(label);return}
-  // otherwise create it as a custom interval
   const m=label.match(/^(\d+)([smHWM])$/);
   if(!m)return;
   const n=+m[1],u=m[2];
@@ -849,10 +855,11 @@ function tfGo(label){
 }
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
-// timeframe typing: digits + optional unit letter, Enter to go
-if(!ctrl&&!alt&&/^[0-9smhMwW]$/.test(e.key)){TFBUF+=e.key;return}
-if(e.key==="Enter"&&TFBUF){e.preventDefault();const label=tfFromType(TFBUF);TFBUF="";if(label)tfGo(label);return}
-if(e.key==="Escape")TFBUF="";
+// timeframe typing
+if(!ctrl&&!alt&&/^[0-9smhMwW]$/.test(e.key)){TFBUF+=e.key;tfHint();return}
+if(e.key==="Enter"&&TFBUF){e.preventDefault();const label=tfFromType(TFBUF);TFBUF="";tfHint();if(label)tfGo(label);return}
+if(e.key==="Escape"&&TFBUF){TFBUF="";tfHint();return}
+if(e.key==="Backspace"&&TFBUF){TFBUF=TFBUF.slice(0,-1);tfHint();return}
 // Undo / Redo
 if(ctrl&&e.key==="z"&&!sh){e.preventDefault();doUndo();return}
 if(ctrl&&(e.key==="y"||(e.key==="z"&&sh))){e.preventDefault();doRedo();return}

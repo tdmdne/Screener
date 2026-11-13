@@ -646,9 +646,8 @@ function resetLive(){
   const a=candles(symOf(S.chart.sym),S.chart.tf);
   if(!a||!a.length)return;
   const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;
-  ch.timeScale().setVisibleLogicalRange({from:a.length-nb+10,to:a.length+10});
-  ch.priceScale("right").applyOptions({autoScale:true});
-  ch.timeScale().fitContent();
+  ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
+  ch.priceScale("right").applyOptions({autoScale:true,scaleMargins:{top:0.3,bottom:0.1}});
 }
 function setTool(t){TOOL=t;DRAFT=null;tbRef()}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}

@@ -585,30 +585,11 @@ if(C.plusBtn){
   pb.onclick=()=>setTool("hline");
   document.getElementById("cv").parentElement.appendChild(pb);
 }
-// high/low labels positioned at actual prices
-if(C.hlLabel==="val"&&D.length&&MS){
-  const hi=Math.max(...D.map(d=>d.high)),lo=Math.min(...D.map(d=>d.low));
-  const hiY=MS.priceToCoordinate(hi),loY=MS.priceToCoordinate(lo);
-  if(hiY!=null){const hl=document.createElement("div");hl.style.cssText=`position:absolute;left:4px;top:${hiY-8}px;font-size:11px;background:${C.hlCol||"#787b86"};color:#fff;padding:1px 4px;border-radius:2px;z-index:5;pointer-events:none`;hl.textContent=fp(hi)+" High";document.getElementById("cv").parentElement.appendChild(hl)}
-  if(loY!=null){const ll=document.createElement("div");ll.style.cssText=`position:absolute;left:4px;top:${loY-8}px;font-size:11px;background:${C.hlCol||"#787b86"};color:#fff;padding:1px 4px;border-radius:2px;z-index:5;pointer-events:none`;ll.textContent=fp(lo)+" Low";document.getElementById("cv").parentElement.appendChild(ll)}
-}
-// bid/ask labels at current price
-if(C.baLabel==="val"&&D.length&&MS){
-  const last=D[D.length-1].close,spread=last*0.0001;
-  const y=MS.priceToCoordinate(last);
-  if(y!=null){
-    const ask=document.createElement("div");ask.style.cssText=`position:absolute;right:60px;top:${y-22}px;font-size:11px;background:${C.askCol||"#f23645"};color:#fff;padding:1px 4px;border-radius:2px;z-index:5`;ask.textContent=fp(last+spread)+" Ask";document.getElementById("cv").parentElement.appendChild(ask);
-    const bid=document.createElement("div");bid.style.cssText=`position:absolute;right:60px;top:${y+4}px;font-size:11px;background:${C.bidCol||"#2962ff"};color:#fff;padding:1px 4px;border-radius:2px;z-index:5`;bid.textContent=fp(last-spread)+" Bid";document.getElementById("cv").parentElement.appendChild(bid);
-  }
-}
-// countdown next to current price
-if(C.countdown&&D.length&&MS){
-  const y=MS.priceToCoordinate(D[D.length-1].close);
-  if(y!=null){
-    const cd=document.createElement("div");cd.id="barcd";cd.style.cssText=`position:absolute;right:60px;top:${y-8}px;font-size:11px;background:#131722;color:#fff;padding:1px 4px;border-radius:2px;z-index:5`;
-    document.getElementById("cv").parentElement.appendChild(cd);
-    const tick=()=>{const st=STEP[C.tf]||60,now=Date.now()/1000,left=st-(now%st);cd.textContent=Math.floor(left/60)+":"+String(Math.floor(left%60)).padStart(2,"0");if(document.getElementById("barcd"))requestAnimationFrame(tick)};tick();
-  }
+// plus button on price scale
+if(C.plusBtn){
+  const pb=document.createElement("button");pb.textContent="+";pb.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:4px;border:1px solid var(--line);background:var(--bg);cursor:pointer;z-index:5;font-size:14px";
+  pb.onclick=()=>setTool("hline");
+  document.getElementById("cv").parentElement.appendChild(pb);
 }
 // buy/sell buttons
 if(C.showBuySell){
@@ -628,7 +609,13 @@ if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.i
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
 const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st)}
+ch.timeScale().setVisibleLogicalRange({from:a.length-nb,to:a.length+4});initDraw(a,T,st);
+// current time in bottom right (click to change timezone)
+const ct=document.createElement("div");ct.style.cssText="position:absolute;bottom:4px;right:8px;font-size:11px;color:var(--mut);z-index:5;cursor:pointer";
+const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
+const tick=()=>{const now=new Date(),tz=tzMap[C.tz]||"UTC";ct.textContent=now.toLocaleTimeString("en-GB",{hour12:C.timeFmt==="12",timeZone:tz})+" "+(C.tz||"utc").toUpperCase();if(document.body.contains(ct))requestAnimationFrame(tick)};tick();
+ct.onclick=()=>{const opts=Object.keys(tzMap).map(k=>`<option value="${k}" ${k===(C.tz||"utc")?"selected":""}>${k.toUpperCase()}</option>`).join("");modal(`<h3>Timezone</h3><select id="tz_sel">${opts}</select><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="S.chart.tz=document.getElementById('tz_sel').value;save();closeM();drawChart()">Apply</button></div>`)};
+document.getElementById("cv").parentElement.appendChild(ct)}
 // ---------- drawing tools (left toolbar like TradingView; drawings are saved per symbol) ----------
 let MS=null,TOOL="cross",MAG=false,LOCKD=false,HIDD=false,SELD=null,DRAFT=null,DRG=null,G=null,MX=null,MOD=[false,false]; // MOD = [shift held, ctrl/cmd held]
 const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short|arrow|prange|drange)$/;
@@ -1053,14 +1040,7 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +ck("indTitles","Titles")
 +ck("indValues","Values"))
 +tp("scales",sl("scalePlace","Scales placement",[["auto","Auto"],["left","Left"],["right","Right"]])
-+sec("PRICE LABELS & LINES")
-+ck("noOverlap","No overlapping labels")
 +ck("plusBtn","Plus button")
-+ck("countdown","Countdown to bar close")
-+sl("hlLabel","High and low",[["hide","Hidden"],["val","Value, line"]])
-+`<span style="margin-left:8px">${co("hlCol","#787b86")}</span>`
-+sl("baLabel","Bid and ask",[["hide","Hidden"],["val","Value, line"]])
-+`<span style="margin-left:8px">${co("bidCol","#2962ff")}${co("askCol","#f23645")}</span>`
 +sec("TIME SCALE")
 +ck("dowLabels","Day of week on labels")
 +sl("dateFmt","Date format",[["dmy","Mon 29 Sep '97"],["mdy","Sep 29, 1997"],["iso","1997-09-29"]])

@@ -535,7 +535,7 @@ if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class=
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const TZ_OFF={"ny":-5,"utc":0,"lon":0,"par":1,"ber":1,"tok":9,"sha":8,"sgp":8,"hkg":8,"syd":10,"dub":4,"mos":3,"sao":-3,"chi":-6,"den":-7,"la":-8};
 const tzOff=(C.tz&&TZ_OFF[C.tz]!=null)?TZ_OFF[C.tz]:0;
-const op=m=>({autoSize:true,
+const op=m=>({autoSize:true,handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:true},handleScale:{axisPressedMouseMove:true,mouseWheel:true,pinch:true},
 crosshair:{mode:C.xhMode==="magnet"?L.CrosshairMode.Magnet:L.CrosshairMode.Normal,vertLine:{color:C.xhCol||p.tx,style:+C.xhStyle||0,labelVisible:C.xhLabels!==false},horzLine:{color:C.xhCol||p.tx,style:+C.xhStyle||0,labelVisible:C.xhLabels!==false}},
 layout:{background:{type:"solid",color:C.bg==="custom"&&C.bgCol?C.bgCol:p.bg},textColor:C.txtCol||p.tx,fontSize:+C.fs||12},
 grid:{vertLines:{visible:C.showGridV!==false,color:C.gridV||p.gr},horzLines:{visible:C.showGridH!==false,color:C.gridH||p.gr}},
@@ -908,6 +908,9 @@ function dUp(){if(DRAFT&&(DRAFT.mv||DRAFT.t==="brush"))dFin();if(DRG){DRG=null;s
 function initDraw(a,T,st){G={a,st,tt:a.map((_,i)=>T(i))};if(SELD&&!DL().includes(SELD))SELD=null;DRAFT=null;DRG=null;
 const host=document.getElementById("cv"),cv=document.createElement("canvas");cv.id="dc";cv.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;z-index:6;touch-action:none";host.appendChild(cv);
 cv.onpointerdown=dDown;cv.onpointermove=dMove;cv.onpointerup=dUp;
+cv.ontouchstart=e=>{e.preventDefault();dDown(e.touches[0])};
+cv.ontouchmove=e=>{e.preventDefault();dMove(e.touches[0])};
+cv.ontouchend=e=>{e.preventDefault();dUp()};
 cv.oncontextmenu=e=>{e.preventDefault();if(LOCKD){TOOL="cross";DRAFT=null;tbRef()}};
 host.addEventListener("pointerdown",e=>{host._d=[e.clientX,e.clientY]},true);
 host.addEventListener("pointerup",e=>{if(!host._d||TOOL!=="cross"||LOCKD||HIDD||Math.hypot(e.clientX-host._d[0],e.clientY-host._d[1])>5)return;

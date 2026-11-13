@@ -909,12 +909,29 @@ else if(t==="brush"&&q.length>1){g.beginPath();g.moveTo(q[0].x,q[0].y);for(let i
 else if(t==="rect"){g.globalAlpha=.15;g.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);g.globalAlpha=1;g.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y)}
 else if(t==="fib"){const pa=d.p[0].y,pb=d.p[1].y,x1=Math.min(a.x,b.x),x2=Math.max(a.x,b.x);
 [0,.236,.382,.5,.618,.786,1].forEach(lv=>{const yy=b.y+(a.y-b.y)*lv;ln(x1,yy,x2,yy);g.fillStyle=c;g.fillText(lv+" ("+fp(pb+(pa-pb)*lv)+")",x1+4,yy-3)})}
-else if(t==="long"||t==="short"){const e=d.p[0].y,tp=d.p[1].y,sl=d.p[2].y,x1=Math.min(a.x,b.x),w=Math.abs(b.x-a.x),yT=b.y,yS=q[2].y,gr="#089981",rd="#f23645";
-g.globalAlpha=.2;g.fillStyle=gr;g.fillRect(x1,Math.min(a.y,yT),w,Math.abs(yT-a.y));g.fillStyle=rd;g.fillRect(x1,Math.min(a.y,yS),w,Math.abs(yS-a.y));g.globalAlpha=1;
-g.strokeStyle="#787b86";ln(x1,a.y,x1+w,a.y);
-g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+((tp-e)/e*100).toFixed(2)+"%)",x1+6,yT<a.y?yT+14:yT-5);
-g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+((sl-e)/e*100).toFixed(2)+"%)",x1+6,yS<a.y?yS+14:yS-5);
-tag("R/R "+(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2),x1+w/2-28,a.y,"#787b86")}
+else if(t==="long"||t==="short"){
+  const e=d.p[0].y,tp=d.p[1].y,sl=d.p[2].y;
+  const x1=Math.min(a.x,b.x),w=Math.max(80,Math.abs(b.x-a.x));
+  const yT=b.y,yS=q[2]?q[2].y:a.y+(t==="long"?30:-30);
+  const gr="#089981",rd="#f23645";
+  const isLong=t==="long";
+  // Profit zone (green)
+  g.globalAlpha=.15;g.fillStyle=gr;g.fillRect(x1,Math.min(a.y,yT),w,Math.abs(yT-a.y));
+  // Stop zone (red)
+  g.fillStyle=rd;g.fillRect(x1,Math.min(a.y,yS),w,Math.abs(yS-a.y));g.globalAlpha=1;
+  // Entry line
+  g.strokeStyle="#787b86";g.lineWidth=1;ln(x1,a.y,x1+w,a.y);
+  // Labels
+  g.font="11px system-ui,sans-serif";
+  const tpPct=((tp-e)/e*100).toFixed(2),slPct=((sl-e)/e*100).toFixed(2);
+  const rr=(Math.abs(tp-e)/(Math.abs(e-sl)||1)).toFixed(2);
+  // Target label
+  g.fillStyle=gr;g.fillText("Target "+fp(tp)+" ("+tpPct+"%)",x1+4,yT<(a.y)?yT+14:yT-4);
+  // Stop label
+  g.fillStyle=rd;g.fillText("Stop "+fp(sl)+" ("+slPct+"%)",x1+4,yS<(a.y)?yS+14:yS-4);
+  // R/R in middle
+  g.fillStyle="#787b86";g.fillText("R/R "+rr,x1+w/2-16,a.y-4);
+}
 else if(t==="text"){if(!d.txt)return;g.font="14px system-ui,sans-serif";g.fillStyle=d.txtCol||d.c||contrastText(pal().bg||"#fff");g.fillText(d.txt,a.x,a.y+4)}
 else if(t==="arrow"){
   const[e,f]=q;

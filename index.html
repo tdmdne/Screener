@@ -241,7 +241,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 <label class="chk"><input type="checkbox" id="hideNV">Hide FX/CFD</label>
 </section>
 <section class="ctl scrh"><b class="scrt">SCREENER</b><span class="sp"></span><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select></section>
-<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button><select id="rows" onchange="S.rows=+this.value;S.page=0;save();render()" title="Rows per page"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></section>
+<section class="ctl"><input id="q" placeholder="Search this list…"><button onclick="openCols()">Columns</button><button onclick="dataM()">Data</button></section>
 <section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
@@ -647,7 +647,7 @@ let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function setUI(v){S.ui=v;save();applyUI();render();drawChart()}
 addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM+"|"+document.documentElement.dataset.split;applyUI();if(UIM+"|"+document.documentElement.dataset.split!==o){render();drawChart()}},200)});
-function sync(){document.getElementById("rows").value=S.rows||20;document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
+function sync(){document.getElementById("acct").value=S.acct;document.getElementById("mult").value=S.mult;document.getElementById("dvOn").checked=S.dvOn;document.getElementById("hideNV").checked=S.hideNV;document.getElementById("q").value=S.q}
 function pick(n){if(!n){S.cur="";save();render();return}
 const p=BI[n]||P[n];if(!p)return;Object.assign(S,clone(p),{cur:n});S.cols=norm(S.cols);S.chart=Object.assign(clone(CH0),S.chart);sync();save();render();drawChart()}
 const snap=()=>clone({acct:S.acct,mult:S.mult,dvOn:S.dvOn,hideNV:S.hideNV,mkt:S.mkt,sort:S.sort,cols:S.cols,chart:S.chart});

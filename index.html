@@ -488,11 +488,11 @@ if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 const PRESETS={
-  P1:{name:"P1",desc:"Liquidity + positive change (validation TF)"},
-  P2:{name:"P2",desc:"P1 + price above EMA 10/20 (validation)"},
-  P3:{name:"P3",desc:"P2 + short expansion on entry TF"},
-  P4:{name:"P4",desc:"Strong EMA alignment + expansion"},
-  P5:{name:"P5",desc:"All markets (liquidity only)"}
+  P1:{name:"P1",desc:"Best: strong alignment + expansion"},
+  P2:{name:"P2",desc:"Good: EMA alignment + positive change"},
+  P3:{name:"P3",desc:"Moderate: positive change + light EMA"},
+  P4:{name:"P4",desc:"Basic: any positive change"},
+  P5:{name:"P5",desc:"All markets"}
 };
 function scoreMarket(s){
   try{
@@ -544,10 +544,10 @@ function passesPreset(s,preset){
       exp=(ce-lo)/lo*100>1.5||(hi-ce)/hi*100>1.5;
     }
     if(preset==="P5")return true;
-    if(preset==="P1")return chgv>0;
-    if(preset==="P2")return chgv>0&&above;
-    if(preset==="P3")return chgv>0&&above&&exp;
-    if(preset==="P4")return scoreMarket(s)>=45;
+    if(preset==="P4")return chgv>0;
+    if(preset==="P3")return chgv>0&&above;
+    if(preset==="P2")return chgv>0&&above&&exp;
+    if(preset==="P1")return scoreMarket(s)>=45;
     return true;
   }catch(e){return false}
 }

@@ -19,6 +19,8 @@ const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Address
 <tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. The app ships with a default key; you can enter your own under Data.</td></tr>
 <tr><td>Finnhub (only if you add a key)</td><td><code>finnhub.io</code>, WebSocket <code>ws.finnhub.io</code></td><td>Stock candles, the US stock list and live stock trades.</td></tr>
 <tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Stock candles and the stock and ETF list.</td></tr>
+<tr><td>Forex Factory (Fair Economy)</td><td><code>nfs.faireconomy.media</code>, directly or through the public CORS proxies above</td><td>This week\u2019s economic calendar on the Calendar \u0026 News page, fetched only while that page is open.</td></tr>
+<tr><td>Yahoo Finance RSS</td><td><code>feeds.finance.yahoo.com</code>, directly or through the public CORS proxies above</td><td>Headline titles and links for the symbols you choose on the Calendar \u0026 News page. Articles open on the publisher\u2019s site.</td></tr>
 <tr><td>CoinGecko</td><td><code>api.coingecko.com</code></td><td>Fallback daily crypto candles.</td></tr>
 <tr><td>jsDelivr CDN</td><td><code>cdn.jsdelivr.net</code></td><td>Loads the charting library (TradingView Lightweight Charts 4.1.3) and html2canvas 1.4.1 (chart snapshots).</td></tr>
 <tr><td>TradingView (links only)</td><td><code>www.tradingview.com</code></td><td>Opens only when you click a \u201cTradingView\u201d link. Nothing is loaded from it in the background.</td></tr>

@@ -3,6 +3,12 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Calendar & News page (replaces the placeholder).**
+  - **Economic calendar:** this week's events from the public Forex Factory (Fair Economy) feed, fetched directly and then through the same public CORS proxies the app already uses. Rows are validated before display; times are shown in your local time zone.
+    - Filters: impact, currency chips, search, and a show-past toggle. A countdown shows the next high-impact event.
+    - If the feed can't be reached, the page says so plainly. Nothing is made up or cached as a stand-in.
+  - **Headlines:** Yahoo Finance RSS headlines for symbols you choose (saved in your settings). Text only, links only if https, opening in a new tab.
+  - Data Sources page: added Forex Factory (Fair Economy) and Yahoo Finance RSS rows.
 - **Journal review: local summary + optional AI review (bring your own key).**
   - **Local summary (default):** descriptive, rule-based observations worked out in the browser from the trades in view. Examples: average win against average loss, best and worst setups, weekday, long vs short, trades without stops, loss streaks, tags tied to losses, and busy days. Nothing is sent, and the wording describes the record without giving advice.
   - **AI review:** off until used. Choose OpenAI, Anthropic or an OpenAI-compatible endpoint (https only), a model, and your own key.

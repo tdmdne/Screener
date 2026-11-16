@@ -565,6 +565,23 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 @media (max-width:640px){.hmgrid{height:68vh;min-height:360px}.hmbar{gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}.hmbar::-webkit-scrollbar{display:none}.hmseg{flex:0 0 auto;flex-wrap:nowrap}.hmseg button{white-space:nowrap}.hmstats .sp{display:none}.hmlegend i{width:100px}}
 @media (prefers-reduced-motion:reduce){.hmt{transition:none}.hmlive.on::before{animation:none}}
 :root .hmt{min-height:0!important;min-width:0!important}
+/* keyboard shortcut overlay */
+.box:has(>.kbm){width:min(860px,94vw);max-width:none}
+.kbm .kbhd{display:flex;align-items:center;gap:8px;margin-bottom:10px}.kbm .kbhd h3{margin:0}
+.kbg{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;align-items:start;max-height:min(70vh,640px);overflow:auto;padding-right:4px}
+@media (max-width:720px){.kbg{grid-template-columns:1fr}}
+.kbs{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.kbs.here{border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
+.kbs h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);display:flex;align-items:center;gap:8px}
+.kbhere{white-space:nowrap;font-size:10.5px;letter-spacing:.04em;padding:1px 7px;border-radius:999px;background:var(--acc-soft);color:var(--fg)}
+.kbs dl{margin:0}.kbr{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px dashed var(--line)}.kbr:first-child{border-top:0}
+.kbr dt{display:flex;align-items:center;gap:3px;flex:0 0 auto;order:2}.kbr dd{margin:0;font-size:13px;order:1}
+.kbm kbd,.kbft kbd{display:inline-block;min-width:22px;padding:2px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--bg);
+  font:600 11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center;color:var(--fg)}
+.kbp{font-size:11px;color:var(--mut)}
+.kbft{margin:6px 0 0;font-size:12px}
+.kbm .kbs{animation:vtPageIn .32s var(--vt-ease-out) both}.kbm .kbs:nth-child(2){animation-delay:40ms}.kbm .kbs:nth-child(3){animation-delay:80ms}.kbm .kbs:nth-child(4){animation-delay:120ms}
+@media (hover:none) and (pointer:coarse){#vft_kb{display:none}}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -3401,6 +3418,41 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
     if(asof){const a=t?"Candles as of "+new Date(t).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+(fromCache?" (cache)":""):"Loading candles\u2026";if(asof.textContent!==a)asof.textContent=a}}}
 PAGE_HOOK.heatmap={enter(){hmBuild();hmTick(true);requestAnimationFrame(()=>hmTick(true));clearInterval(HM.timer);HM.timer=setInterval(()=>{if(document.visibilityState==="visible")hmTick(false)},1000)},
   leave(){clearInterval(HM.timer);HM.timer=0;hmTip(null)}};
+// ---------- Keyboard shortcut overlay ("?") ----------
+// Lists the shortcuts the app really has (tests/shortcuts.js presses each one and checks it does what the list says).
+// Opens with "?" anywhere except while typing, or from the footer button; Esc or "?" closes it.
+const VT_MAC=/Mac|iPhone|iPad/.test((navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||"");
+const VT_KB=[
+  {id:"general",t:"Anywhere",rows:[[["?"],"Show or hide this list"],[["Esc"],"Close a dialog, menu or panel"],[["Tab"],"Move between controls; the first Tab offers \u201cSkip to main content\u201d"],[["Enter"],"Activate the focused item (also Space)"]]},
+  {id:"list",t:"Screener list (Workspace, Chart, Screener)",pages:["workspace","chart","screener"],rows:[[["\u2193"],"Next symbol in the list"],[["\u2191"],"Previous symbol in the list"]]},
+  {id:"chart",t:"Chart (Workspace and Chart pages)",pages:["workspace","chart"],rows:[
+    [["0\u20139"],"Change interval: type a number, e.g. 15 or 4H"],[["A\u2013Z"],"Search symbol: start typing a name"],
+    [["\u2190","\u2192"],"Scroll the chart (hold Ctrl for bigger steps)",1],
+    [["Ctrl","Z"],"Undo"],[["Ctrl","Y"],"Redo (or Ctrl+Shift+Z)"],[["Ctrl","S"],"Save now"],
+    [["Alt","T"],"Trend line"],[["Alt","H"],"Horizontal line"],[["Alt","V"],"Vertical line"],[["Alt","F"],"Fibonacci retracement"],
+    [["Alt","R"],"Rectangle"],[["Alt","A"],"Arrow"],[["Alt","N"],"Note"],
+    [["Ctrl","Alt","H"],"Hide or show all drawings"],[["Delete"],"Delete the selected drawing (or Backspace)"],[["Esc"],"Cancel drawing and go back to the cursor"]]},
+  {id:"heatmap",t:"Heatmaps",pages:["heatmap"],rows:[[["\u2190","\u2191","\u2192","\u2193"],"Move between markets",1],[["Home"],"First market"],[["End"],"Last market"],[["Enter"],"Open the chart"]]},
+];
+function vtKbKey(k){if(VT_MAC&&k==="Ctrl")k="\u2318";if(VT_MAC&&k==="Alt")k="\u2325";return'<kbd>'+esc(k)+'</kbd>'}
+function vtKbOpen(){if(document.querySelector(".kbm"))return vtKbClose();
+  const pg=document.documentElement.dataset.page||"workspace";
+  const secs=VT_KB.slice().sort((a,b)=>(b.pages&&b.pages.includes(pg)?1:0)-(a.pages&&a.pages.includes(pg)?1:0));
+  const sec=s=>`<section class="kbs${s.pages&&s.pages.includes(pg)?" here":""}" aria-labelledby="kb_${s.id}"><h4 id="kb_${s.id}">${esc(s.t)}${s.pages&&s.pages.includes(pg)?' <span class="kbhere">This page</span>':""}</h4><dl>${s.rows.map(([k,d,or])=>`<div class="kbr"><dt>${k.map(vtKbKey).join(or?'<span class="kbp"> / </span>':'<span class="kbp" aria-hidden="true">+</span>')}</dt><dd>${esc(d)}</dd></div>`).join("")}</dl></section>`;
+  modal(`<div class="kbm"><div class="kbhd"><h3 id="kb_title">Keyboard shortcuts</h3><span class="sp"></span><button type="button" class="ibtn" id="kb_x" aria-label="Close" onclick="closeM()">\u2715</button></div>
+<div class="kbg" tabindex="0" role="region" aria-label="Shortcut list">${vtKbCols(secs).map(c=>`<div class="kbc">${c.map(sec).join("")}</div>`).join("")}</div><p class="mut kbft">Shortcuts don\u2019t fire while you type in a field. Press <kbd>?</kbd> to open this list again.</p></div>`);
+  const ov=MD.querySelector(".ov");if(ov){ov.classList.add("kbov");const b=ov.querySelector(".box");if(b)b.setAttribute("aria-labelledby","kb_title")}}
+// two balanced columns (greedy by row count), keeping the sort order inside each column
+function vtKbCols(secs){const c=[[],[]],h=[0,0];for(const x of secs){const i=h[0]<=h[1]?0:1;c[i].push(x);h[i]+=x.rows.length+2}return c}
+function vtKbClose(){if(document.querySelector(".kbm"))closeM()}
+function vtTyping(t){t=t||document.activeElement;return !!t&&(/INPUT|SELECT|TEXTAREA/.test(t.tagName||"")||t.isContentEditable)}
+document.addEventListener("keydown",e=>{if(e.key!=="?"||e.ctrlKey||e.metaKey||e.altKey||e.defaultPrevented)return;if(vtTyping(e.target))return;
+  if(MD.innerHTML&&!document.querySelector(".kbm"))return; // another dialog is open
+  if(document.documentElement.classList.contains("locked"))return; // sign-in screen
+  e.preventDefault();e.stopPropagation();vtKbOpen()},true);
+// footer entry point (hidden on touch-only phones)
+if(typeof vtFooterBuild==="function"){const _vtKbF=vtFooterBuild;vtFooterBuild=function(){const r=_vtKbF.apply(this,arguments);try{const f=document.querySelector("footer.vfoot");
+  if(f&&!document.getElementById("vft_kb")){const b=document.createElement("button");b.type="button";b.className="lnk";b.id="vft_kb";b.textContent="Keyboard shortcuts";b.setAttribute("aria-keyshortcuts","Shift+Slash");b.onclick=vtKbOpen;f.appendChild(b)}}catch(e){}return r}}
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.

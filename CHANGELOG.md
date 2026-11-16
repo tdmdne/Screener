@@ -3,6 +3,12 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Keyboard shortcut overlay.** Press `?` anywhere (except while typing in a field, over another dialog, or on the sign-in screen) to see the keyboard shortcuts. There is also a "Keyboard shortcuts" button in the footer, hidden on touch-only phones.
+  - The list covers only shortcuts the app really has: general keys, the screener list (Up/Down), the chart (intervals, symbol search, pan, undo/redo, save, Alt+drawing tools, hide drawings, delete, Esc) and the heatmap (arrows, Home/End, Enter).
+  - The current page's sections come first and are marked "This page". On a Mac the keys show as ⌘ and ⌥.
+  - The overlay is an accessible dialog: Esc or `?` closes it and focus returns to where it was.
+  - Tests: new `tests/shortcuts.js`, which also presses every listed shortcut to check that it works.
+
 - **Animations across the app, in the sign-in screen's style** (calm ease-out curves, orange accents). Only opacity, transform and background tints animate, so nothing re-lays out. The new code lives in `08_motion`.
   - **Page transitions:** pages rise and fade in over 0.24s. The workspace and chart area only fade, so chart coordinates are never transformed.
   - **Tick flashes:** when a number changes in the screener table, the watchlist or the chart header price, its cell gets a short green or red tint that fades out. The table is rebuilt on every tick, so a running flash carries on with a negative delay instead of restarting. Flashes are found by comparing the DOM before and after the normal render; the feeds and sockets are untouched.

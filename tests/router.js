@@ -28,7 +28,7 @@ assert.deepStrictEqual(await P.evaluate(()=>[document.documentElement.dataset.pa
 // logo -> workspace; workspace features still work
 await P.click("header h1");await P.waitForTimeout(400);
 assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"workspace");
-const wf=await P.evaluate(async()=>{applyPreset("P5");const n5=document.querySelectorAll("#t tbody tr").length;setDir("short");const sh=S.dir;setDir("long");
+const wf=await P.evaluate(async()=>{applyPreset("P5");const n5=document.querySelectorAll("#t tbody tr[data-s]").length;setDir("short");const sh=S.dir;setDir("long");
   openChart("ETHUSDT","1H");await new Promise(r=>setTimeout(r,1500));alertsM();const am=!!document.getElementById("al_px");closeM();
   return{n5,sh,chart:!!ch&&S.chart.sym==="ETHUSDT",am,wl:!!document.querySelector("#wl .wlh")}});
 console.log("workspace",JSON.stringify(wf));assert(wf.n5>0&&wf.sh==="short"&&wf.chart&&wf.am&&wf.wl);

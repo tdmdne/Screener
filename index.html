@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" class="locked"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TDM Screener</title>
 <style>
@@ -233,6 +233,25 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 .preset-btn{padding:4px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);cursor:pointer;font-size:12px}
 .preset-btn.on{background:#2962ff;color:#fff;border-color:#2962ff}
 .preset-btn:hover{background:var(--hover)}
+/* login gate */
+html.locked .wrap{visibility:hidden}
+.auth{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));overflow:auto}
+html.locked .auth{display:flex}
+.auth-card{width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px 22px;margin:auto}
+.auth-h{margin:0;font-size:22px;display:flex;align-items:center;gap:8px}
+.auth-h::before{content:"";display:inline-block;width:9px;height:21px;border-radius:3px;background:var(--acc)}
+.auth-sub{margin:-8px 0 0;color:var(--mut);font-size:13px}
+.auth-card label{font-size:13px;gap:5px}
+.auth-card label.chk{font-size:13px}
+.auth-card input:not([type=checkbox]){width:100%;min-height:44px;font-size:16px;padding:9px 12px}
+.auth-card input[aria-invalid=true]{border-color:var(--r);box-shadow:0 0 0 2px var(--rb)}
+.auth-card .pw{position:relative;display:block}
+.auth-card .pw input{padding-right:64px}
+.auth-card .pwt{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;padding:6px 10px;font-size:12px;font-weight:600;color:var(--mut);min-height:0}
+.auth-card .pwt:hover:not(:disabled){color:var(--acc)}
+.auth-err{min-height:18px;font-size:13px;color:var(--r)}
+.auth-card button.pri{min-height:44px;font-size:15px}
+.auth-card .note{margin:0;text-align:center}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -240,6 +259,7 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
   <span class="tag" id="tag">Prototype · sample data</span>
   <span class="mut" id="dst"></span>
   <button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button>
+  <button id="lgo" class="theme-btn" onclick="authSignOut()" title="Log out">Log out</button>
   <div class="mode-icons" id="uim" title="Layout mode">
     <button class="mode-btn" onclick="setUI('phone')" data-m="phone" title="Phone layout" aria-label="Phone layout">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
@@ -268,6 +288,25 @@ td.sy:hover{color:var(--acc);text-decoration:underline}
 </div><div id="cp"></div></div>
 </div>
 <div id="modal"></div>
+<div class="auth" id="auth">
+  <form class="auth-card" id="auForm" novalidate>
+    <h2 class="auth-h">TDM Screener</h2>
+    <p class="auth-sub">Sign in to continue</p>
+    <label>Username or email
+      <input id="auId" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" aria-describedby="auErr">
+    </label>
+    <label>Password
+      <span class="pw">
+        <input id="auPw" name="password" type="password" autocomplete="current-password" aria-describedby="auErr">
+        <button type="button" id="auTog" class="pwt" aria-label="Show password" aria-pressed="false">Show</button>
+      </span>
+    </label>
+    <label class="chk"><input type="checkbox" id="auRem" checked> Keep me signed in on this device</label>
+    <div id="auErr" class="auth-err" role="alert" aria-live="polite"></div>
+    <button type="submit" id="auBtn" class="pri">Sign in</button>
+    <p class="note">Prototype: sign-in isn’t connected to a server yet.</p>
+  </form>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
@@ -329,7 +368,7 @@ function togTheme(){
 }
 if(window.matchMedia){
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{
-    if(!S.theme){applyTheme();drawChart();}
+    if(!S.theme){applyTheme();if(BOOTED)drawChart();}
   });
 }
 
@@ -1567,10 +1606,55 @@ document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
 // up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
 document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
 const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
+let BOOTED=false;
+// the app only starts (and only fetches market data) once someone is signed in
+function boot(){if(BOOTED)return;BOOTED=true;
 if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
-applyTheme();applyUI();sync();render();drawChart();
+applyUI();sync();render();drawChart();
 loadCache().then(snapInit).then(()=>{READY=true;render();drawChart()});
 // every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
 setInterval(autoRefresh,15*60*1000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}})}
+
+/* ---- Login (UI only) ----
+   authSignIn() is a PLACEHOLDER: it accepts any username/email + password and just remembers the name on this device.
+   This is not security. To make it real, replace its body with a call to your backend, e.g.
+     const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({id,password:pw})});
+     return r.ok?{ok:true,user:(await r.json()).user}:{ok:false,error:"Wrong username/email or password."};
+   and let the server (not this page) decide who is allowed in. */
+const AUTH_KEY="scr2a";
+async function authSignIn(id,pw){
+  await new Promise(r=>setTimeout(r,350));
+  return{ok:true,user:{id}}}
+function authUser(){for(const st of [localStorage,sessionStorage]){try{const u=JSON.parse(st.getItem(AUTH_KEY)||"null");if(u&&u.id)return u}catch(e){}}return null}
+function authStore(u,keep){authClear();try{(keep?localStorage:sessionStorage).setItem(AUTH_KEY,JSON.stringify(u))}catch(e){}}
+function authClear(){try{localStorage.removeItem(AUTH_KEY)}catch(e){}try{sessionStorage.removeItem(AUTH_KEY)}catch(e){}}
+function authSignOut(){authClear();location.reload()}
+function authEnter(u){
+  document.documentElement.classList.remove("locked");
+  const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";
+  document.getElementById("auPw").value="";
+  boot()}
+function authErr(msg,field){
+  const e=document.getElementById("auErr");e.textContent=msg||"";
+  for(const id of ["auId","auPw"])document.getElementById(id).removeAttribute("aria-invalid");
+  if(field){const f=document.getElementById(field);f.setAttribute("aria-invalid","true");f.focus()}}
+function authInit(){
+  const f=document.getElementById("auForm"),idEl=document.getElementById("auId"),pwEl=document.getElementById("auPw"),btn=document.getElementById("auBtn"),tog=document.getElementById("auTog");
+  tog.onclick=()=>{const show=pwEl.type==="password";pwEl.type=show?"text":"password";tog.textContent=show?"Hide":"Show";tog.setAttribute("aria-pressed",show);tog.setAttribute("aria-label",show?"Hide password":"Show password")};
+  idEl.oninput=pwEl.oninput=()=>authErr("");
+  f.onsubmit=async ev=>{ev.preventDefault();
+    const id=idEl.value.trim(),pw=pwEl.value;
+    if(!id)return authErr("Enter your username or email.","auId");
+    if(id.includes("@")&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id))return authErr("That email address doesn’t look right.","auId");
+    if(!pw)return authErr("Enter your password.","auPw");
+    authErr("");btn.disabled=true;btn.textContent="Signing in…";
+    try{const r=await authSignIn(id,pw);
+      if(r&&r.ok){authStore(r.user,document.getElementById("auRem").checked);authEnter(r.user)}
+      else authErr((r&&r.error)||"Couldn’t sign you in. Check your details and try again.","auPw")}
+    catch(e){authErr("Couldn’t reach the server. Try again in a moment.")}
+    finally{btn.disabled=false;btn.textContent="Sign in"}};
+  const u=authUser();
+  if(u)authEnter(u);else idEl.focus()}
+applyTheme();authInit();
 </script></body></html>

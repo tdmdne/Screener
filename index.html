@@ -717,6 +717,19 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 :root[data-ui="phone"] .jrcd{min-height:44px;padding:2px 3px;font-size:10px}
 :root[data-ui="phone"] .jrpas{grid-template-columns:1fr}
 #jr_aic:empty{display:none}
+/* Journal review (local + AI) */
+#jr_aic .seg button{min-height:0}
+.jail{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13.5px}
+.jaifrm{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}.jaifrm label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;margin:0}
+.jaiopts{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:10px 0}.jaiopts .chk{display:flex;align-items:center;gap:8px;margin:0}.jaisub{font-size:12px;flex:1 1 260px}
+.jaiopts .lnk,.jaisub .lnk{background:none;border:0;padding:0;color:var(--acc);text-decoration:underline;cursor:pointer;font:inherit;min-height:0}
+.jaidisc{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;background:var(--card)}
+.jaidisc a{color:var(--acc)}.jaidisc .chk{display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600}
+.jaiprev{margin-top:8px}.jaiprev summary{cursor:pointer;font-weight:600}.jaiprev pre{max-height:260px;overflow:auto;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;white-space:pre-wrap;word-break:break-word}
+.jaibtns{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+#jai_out:not(:empty){margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.jaiouth{font-size:12px;color:var(--mut);margin-bottom:6px}.jaitxt h4{margin:10px 0 4px}.jaitxt p{margin:4px 0}.jaitxt li{margin:3px 0 3px 18px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .jaiopts .lnk,:root:is([data-ui="phone"],[data-ui="tablet"]) .jaisub .lnk{min-height:44px}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -4296,6 +4309,122 @@ function jrAcctEdit(name){const J=jrCfg(),a=name?J.accts.find(x=>x.name===name):
   setTimeout(()=>{const s=document.getElementById("jra_name");if(s)s.focus()},30)}
 PAGE_HOOK.journal={enter(){jrBuild()},sub(){jrBuild()}};
 addEventListener("resize",deb(()=>{if(document.documentElement.dataset.page==="journal")jrRender()},200));
+/* ---------- Journal review: local summary + optional AI review with your own API key ----------
+   Local summary: rule-based observations computed in the browser; nothing leaves the device.
+   AI review (off until you use it): only when you press "Send to <provider>" after ticking the disclosure. The request goes straight
+   from your browser to the provider you chose, with your key. Vektor has no server in the middle and never sees the key or the data.
+   The key stays in memory for this tab unless you tick "Remember", which needs the Optional preferences choice (vt_aikey). */
+const JAI_KEY="vt_aikey";
+const JAI_PROV={openai:{name:"OpenAI",host:"api.openai.com",url:"https://api.openai.com/v1/chat/completions",model:"gpt-4o-mini",terms:"https://openai.com/policies/"},
+  anthropic:{name:"Anthropic",host:"api.anthropic.com",url:"https://api.anthropic.com/v1/messages",model:"claude-3-5-haiku-latest",terms:"https://www.anthropic.com/legal"},
+  custom:{name:"OpenAI-compatible endpoint",host:"",url:"",model:"",terms:""}};
+const JAI={key:"",busy:false,out:null,err:"",mode:"local",ack:false,ctl:null};
+function jaiCfg(){const J=jrCfg();if(!J.ai||typeof J.ai!=="object")J.ai={};const A=J.ai;if(!JAI_PROV[A.prov])A.prov="openai";if(typeof A.model!=="string")A.model="";if(typeof A.base!=="string")A.base="";A.notes=!!A.notes;return A}
+function jaiStoredKey(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest()))return null;try{const o=JSON.parse(localStorage.getItem(JAI_KEY)||"null");return o&&typeof o.k==="string"?o:null}catch(e){return null}}
+function jaiForget(){JAI.key="";try{localStorage.removeItem(JAI_KEY)}catch(e){}}
+function jaiRemember(on){if(!on){try{localStorage.removeItem(JAI_KEY)}catch(e){}return false}if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest())||!JAI.key)return false;
+  try{localStorage.setItem(JAI_KEY,JSON.stringify({p:jaiCfg().prov,k:JAI.key}));return true}catch(e){return false}}
+/* the provider endpoint for the current settings, or an error message */
+function jaiEndpoint(){const A=jaiCfg(),P=JAI_PROV[A.prov];if(A.prov!=="custom")return{url:P.url,host:P.host};
+  let u;try{u=new URL(A.base.trim())}catch(e){return{err:"Enter the endpoint\u2019s base URL, e.g. https://example.com/v1"}}
+  const local=/^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);if(u.protocol!=="https:"&&!(u.protocol==="http:"&&local))return{err:"The endpoint must use https:// (http:// only for localhost)"};
+  if(u.username||u.password)return{err:"Don\u2019t put credentials in the URL; use the API key field"};
+  return{url:u.origin+u.pathname.replace(/\/+$/,"")+"/chat/completions",host:u.host}}
+/* ---- what gets sent: aggregated stats plus the most recent closed trades (no account names, notes only if you tick it) */
+const JAI_MAX_TRADES=200;
+function jaiPayload(T,st){const A=jaiCfg(),f=jrCfg().f,C=jrClosed(T).slice(-JAI_MAX_TRADES);const r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
+  const wd=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return{period:{filter:f.period,side:f.side||"both",setup:f.setup||"all",account_filtered:!!f.acct,from:C.length?jrDay(C[0]):null,to:C.length?jrDay(C[C.length-1]):null},
+    summary:{closed_trades:st.n,net_pnl:r2(st.net),win_rate:r2(st.winRate),profit_factor:st.pf===Infinity?"no losses":r2(st.pf),expectancy:r2(st.exp),avg_win:r2(st.avgWin),avg_loss:r2(st.avgLoss),avg_r:r2(st.avgR),trades_with_stop:st.nR,max_drawdown:r2(st.maxDD),longest_win_streak:st.winStreak,longest_loss_streak:st.lossStreak},
+    by_setup:Object.entries(st.bySetup).map(([k,b])=>({setup:k,trades:b.n,net:r2(b.net),win_rate:r2(b.wins/b.n),avg_r:b.nR?r2(b.sumR/b.nR):null})),
+    by_weekday:st.byWeekday.map((b,i)=>({day:wd[i],trades:b.n,net:r2(b.net)})).filter(x=>x.trades),
+    by_side:{long:{trades:st.bySide.long.n,net:r2(st.bySide.long.net)},short:{trades:st.bySide.short.n,net:r2(st.bySide.short.net)}},
+    trades:C.map(t=>{const o={closed:t.close,symbol:t.sym,side:t.side,pnl:r2(jrPnl(t)),r:r2(jrR(t)),setup:t.setup||null,tags:t.tags||null};if(t.open)o.opened=t.open;if(A.notes&&t.notes)o.notes=t.notes.slice(0,500);return o}),
+    trades_included:C.length,trades_total_in_view:st.n}}
+const JAI_SYS="You review a trader's own journal data to describe patterns in their trading process. Strict rules: do not give financial, investment or trading advice; "+
+  "do not recommend buying, selling or holding anything, entries, exits, position sizes or leverage; do not predict prices or markets; do not name instruments to trade. "+
+  "Describe only what the data shows (results by setup, weekday, side and tags, streaks, losses compared with wins, missing stops, data gaps), and end with up to three neutral questions the trader could reflect on about their own process and record-keeping. "+
+  "If there are fewer than 10 closed trades, say the sample is too small to show reliable patterns. Plain British English, under 250 words, short headings and bullet points, no tables, no markdown links.";
+function jaiRequest(payload){const A=jaiCfg(),ep=jaiEndpoint();if(ep.err)throw new Error(ep.err);const model=(A.model||JAI_PROV[A.prov].model||"").trim();if(!model)throw new Error("Enter a model name");
+  const user="Here is my trading journal summary as JSON. Describe the patterns as instructed.\n"+JSON.stringify(payload);
+  if(A.prov==="anthropic")return{url:ep.url,host:ep.host,model,init:{method:"POST",headers:{"content-type":"application/json","x-api-key":JAI.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model,max_tokens:800,temperature:0.2,system:JAI_SYS,messages:[{role:"user",content:user}]})}};
+  return{url:ep.url,host:ep.host,model,init:{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+JAI.key},body:JSON.stringify({model,temperature:0.2,max_tokens:800,messages:[{role:"system",content:JAI_SYS},{role:"user",content:user}]})}}}
+function jaiText(j,prov){try{if(prov==="anthropic")return(j.content||[]).filter(c=>c&&c.type==="text").map(c=>c.text).join("\n").trim();const c=j.choices&&j.choices[0];const m=c&&c.message&&c.message.content;return typeof m==="string"?m.trim():Array.isArray(m)?m.map(x=>x&&x.text||"").join("\n").trim():""}catch(e){return""}}
+async function jaiSend(T,st){if(JAI.busy)return;const A=jaiCfg();JAI.err="";JAI.out=null;
+  if(!JAI.key){JAI.err="Enter your API key first.";jaiCardRender();return}if(!JAI.ack){JAI.err="Tick the box to confirm you want to send this data.";jaiCardRender();return}
+  let rq;try{rq=jaiRequest(jaiPayload(T,st))}catch(e){JAI.err=e.message;jaiCardRender();return}
+  JAI.busy=true;JAI.ctl=new AbortController();const to=setTimeout(()=>JAI.ctl&&JAI.ctl.abort(),60000);jaiCardRender();
+  try{const res=await fetch(rq.url,Object.assign({},rq.init,{signal:JAI.ctl.signal,credentials:"omit",referrerPolicy:"no-referrer",cache:"no-store"}));let j=null;try{j=await res.json()}catch(e){}
+    if(!res.ok){const m=j&&(j.error&&(j.error.message||j.error.type)||j.message)||"";throw new Error(res.status===401||res.status===403?"The provider rejected the key ("+res.status+"). Check it and try again.":res.status===429?"The provider says you\u2019ve hit a rate or spending limit (429).":res.status===404?"The provider couldn\u2019t find that model or endpoint (404). Check the model name.":"The provider returned an error ("+res.status+")"+(m?": "+String(m).slice(0,200):"."))}
+    const txt=jaiText(j,A.prov);if(!txt)throw new Error("The provider sent back no text.");
+    JAI.out={text:txt.slice(0,6000),prov:JAI_PROV[A.prov].name,host:rq.host,model:rq.model,at:new Date(),n:(jrClosed(T).slice(-JAI_MAX_TRADES)).length}}
+  catch(e){JAI.err=e.name==="AbortError"?"The request was cancelled or took longer than 60 seconds.":e instanceof TypeError?"Couldn\u2019t reach "+rq.host+". The network, an ad blocker or the provider\u2019s browser (CORS) rules may be blocking it.":e.message}
+  finally{clearTimeout(to);JAI.busy=false;JAI.ctl=null;JAI.ack=false;jaiCardRender()}}
+/* ---- local, rule-based observations (descriptive only) */
+function jaiLocal(T,st){const o=[];const n=st.n;if(!n)return["No closed trades in this view yet. Observations appear once trades are logged with a close date and exit or P\u0026L."];
+  const $=v=>jrUsd(v);if(n<10)o.push("Small sample: "+n+" closed trade"+(n===1?"":"s")+". Patterns below can change a lot with more trades.");
+  o.push("Net "+$(st.net)+" over "+n+" closed trades; "+jrPct(st.winRate)+" winners, profit factor "+jrFx(st.pf)+".");
+  if(st.avgWin!=null&&st.avgLoss!=null)o.push("The average win ("+jrAbs(st.avgWin)+") is "+(st.avgWin/Math.abs(st.avgLoss)).toFixed(2)+"\u00d7 the average loss ("+jrAbs(st.avgLoss)+").");
+  const S=Object.entries(st.bySetup).filter(([k,b])=>b.n>=3&&k!=="(no setup)").sort((a,b)=>b[1].net-a[1].net);
+  if(S.length>=2){const [bn,bb]=S[0],[wn,wb]=S[S.length-1];if(bb.net!==wb.net)o.push("By setup (3+ trades): \u201c"+bn+"\u201d has the highest net ("+$(bb.net)+", "+bb.n+" trades) and \u201c"+wn+"\u201d the lowest ("+$(wb.net)+", "+wb.n+" trades).")}
+  const ns=st.bySetup["(no setup)"];if(ns&&ns.n/n>=.3)o.push(Math.round(ns.n/n*100)+"% of trades have no setup tag, so the setup breakdown covers only part of the record.");
+  const W=st.byWeekday.map((b,i)=>({i,...b})).filter(b=>b.n>=3).sort((a,b)=>a.net-b.net),wd=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  if(W.length>=2&&W[0].net<0)o.push(wd[W[0].i]+" has the lowest result ("+$(W[0].net)+" over "+W[0].n+" trades).");
+  const L=st.bySide.long,Sh=st.bySide.short;if(L.n>=3&&Sh.n>=3)o.push("Long trades: "+$(L.net)+" ("+L.n+"); short trades: "+$(Sh.net)+" ("+Sh.n+").");
+  const nostop=n-st.nR;if(nostop/n>=.3)o.push(nostop+" of "+n+" trades have no stop recorded, so R-multiples cover only "+st.nR+" trades.");
+  if(st.lossStreak>=3)o.push("Longest run of losses: "+st.lossStreak+" in a row. Longest run of wins: "+st.winStreak+".");
+  const tag={};jrClosed(T).forEach(t=>{const p=jrPnl(t);(t.tags||"").split(",").map(x=>x.trim()).filter(Boolean).forEach(g=>{const b=tag[g]||(tag[g]={n:0,net:0});b.n++;b.net+=p})});
+  const tg=Object.entries(tag).filter(([k,b])=>b.n>=2).sort((a,b)=>a[1].net-b[1].net);if(tg.length&&tg[0][1].net<0)o.push("Trades tagged \u201c"+tg[0][0]+"\u201d: "+$(tg[0][1].net)+" across "+tg[0][1].n+" trades.");
+  const days={};jrClosed(T).forEach(t=>{const d=jrDay(t);days[d]=(days[d]||0)+1});const dv=Object.values(days).sort((a,b)=>a-b),med=dv[Math.floor(dv.length/2)]||0;
+  const busy=Object.entries(days).filter(([d,c])=>med&&c>=Math.max(3,med*2));if(busy.length){const net=busy.reduce((s,[d])=>s+st.byDay[d],0);o.push("On "+busy.length+" day"+(busy.length===1?"":"s")+" with at least twice your usual number of trades, the combined result was "+$(net)+".")}
+  if(st.maxDD>0)o.push("Largest fall from a closed-equity peak: "+jrAbs(st.maxDD)+".");
+  return o}
+/* ---- card on the Journal page */
+let JAI_T=[],JAI_ST=null;
+function jaiCard(T,st){JAI_T=T;JAI_ST=st;jaiCardRender()}
+function jaiCardRender(){const el=document.getElementById("jr_aic");if(!el)return;const A=jaiCfg(),P=JAI_PROV[A.prov],ep=jaiEndpoint(),prefs=typeof vtPrefsOK==="function"&&vtPrefsOK(),guest=typeof vtIsGuest==="function"&&vtIsGuest();
+  if(!JAI.key){const s=jaiStoredKey();if(s&&s.p===A.prov)JAI.key=s.k}
+  const stored=!!jaiStoredKey(),T=JAI_T,st=JAI_ST||jrStats([]),inc=jrClosed(T).slice(-JAI_MAX_TRADES).length;const tabs=[["local","Local summary"],["ai","AI review (your own key)"]];
+  const fe=document.activeElement&&el.contains(document.activeElement)?document.activeElement.id:"";
+  el.innerHTML=`<div class="jrch"><h3 id="jai_h">Journal review</h3><div class="seg" role="tablist" aria-labelledby="jai_h">${tabs.map(([k,n])=>`<button type="button" role="tab" id="jai_tab_${k}" aria-selected="${JAI.mode===k}" aria-controls="jai_p" class="${JAI.mode===k?"on":""}" tabindex="${JAI.mode===k?0:-1}">${n}</button>`).join("")}</div></div>
+<div id="jai_p" role="tabpanel" aria-labelledby="jai_tab_${JAI.mode}">${JAI.mode==="local"?`<p class="cnote">Worked out in your browser from the trades in this view. Nothing is sent anywhere. These are descriptions of your record, not advice.</p><ul class="jail">${jaiLocal(T,st).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:
+`<div class="jaiw"><div class="frm jaifrm"><label>Provider<select id="jai_prov">${Object.keys(JAI_PROV).map(k=>`<option value="${k}"${k===A.prov?" selected":""}>${esc(JAI_PROV[k].name)}</option>`).join("")}</select></label>
+${A.prov==="custom"?`<label>Endpoint base URL<input id="jai_base" type="url" value="${esc(A.base)}" placeholder="https://\u2026/v1" autocomplete="off" spellcheck="false"></label>`:""}
+<label>Model<input id="jai_model" value="${esc(A.model)}" placeholder="${esc(P.model||"model name")}" autocomplete="off" spellcheck="false"></label>
+<label>API key<input id="jai_key" type="password" value="${esc(JAI.key)}" autocomplete="off" spellcheck="false" placeholder="paste your key"></label></div>
+<div class="jaiopts"><label class="chk"><input type="checkbox" id="jai_rem"${stored?" checked":""}${prefs&&!guest?"":" disabled"}> Remember the key on this device</label><span class="mut jaisub">${guest?"Not available in guest mode.":prefs?"Stored in this browser only (<code>vt_aikey</code>) until you untick this or withdraw Optional preferences.":"Needs \u201cOptional preferences\u201d in <button type=\"button\" class=\"lnk\" id=\"jai_ck\">Cookie settings</button>. Without it the key is kept only until you close this tab."}</span>
+${JAI.key?`<button type="button" class="lnk" id="jai_forget">Forget key</button>`:""}
+<label class="chk"><input type="checkbox" id="jai_notes"${A.notes?" checked":""}> Include my trade notes</label></div>
+<div class="jaidisc" id="jai_disc"><b>Before you send:</b> pressing Send sends ${inc} closed trade${inc===1?"":"s"} from this view (date, symbol, side, P\u0026L, R, setup and tags${A.notes?", and your notes":""}) plus summary statistics directly from your browser to <b>${esc(ep.host||"the endpoint you enter")}</b>, using your key. Account names aren\u2019t included. Vektor Terminal has no server in between and doesn\u2019t receive your key or this data. ${A.prov!=="custom"?`${esc(P.name)}\u2019s own terms and privacy policy apply (<a href="${esc(P.terms)}" target="_blank" rel="noopener noreferrer">${esc(P.name)} policies</a>), and you pay for the request on your account.`:"The endpoint owner\u2019s terms and privacy policy apply."} The reply is generated by AI: it can be wrong and is not financial advice.
+<details class="jaiprev"><summary>See exactly what will be sent</summary><pre id="jai_json" tabindex="0"></pre></details>
+<label class="chk"><input type="checkbox" id="jai_ack"${JAI.ack?" checked":""}> I understand and want to send this data to ${esc(ep.host||"this endpoint")}</label></div>
+<div class="row jaibtns"><button type="button" class="pri" id="jai_send"${JAI.busy||!inc?" disabled":""}>${JAI.busy?"Waiting for "+esc(P.name)+"\u2026":"Send to "+esc(A.prov==="custom"?(ep.host||"endpoint"):P.name)}</button>${JAI.busy?`<button type="button" id="jai_cancel">Cancel</button>`:""}${!inc?`<span class="mut">Log some closed trades first.</span>`:""}</div>
+<div id="jai_msg" role="status" aria-live="polite">${JAI.err?`<p class="vsmsg err">${esc(JAI.err)}</p><p class="cnote">Here is the local summary instead (worked out in your browser):</p><ul class="jail">${jaiLocal(T,st).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}</div>
+<div id="jai_out"></div></div>`}</div>`;
+  const q=id=>document.getElementById(id);
+  el.querySelectorAll('[role="tab"]').forEach((b,i,all)=>{b.onclick=()=>{JAI.mode=b.id.slice(8);jaiCardRender();q("jai_tab_"+JAI.mode).focus()};b.onkeydown=e=>{if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();all[(i+(e.key==="ArrowRight"?1:all.length-1))%all.length].click()}}});
+  if(JAI.mode==="ai"){
+    q("jai_prov").onchange=e=>{A.prov=e.target.value;A.model="";const s=jaiStoredKey();JAI.key=s&&s.p===A.prov?s.k:"";JAI.ack=false;save();jaiCardRender()};
+    if(q("jai_base"))q("jai_base").onchange=e=>{A.base=e.target.value.trim().slice(0,300);JAI.ack=false;save();jaiCardRender()};
+    q("jai_model").onchange=e=>{A.model=e.target.value.trim().slice(0,120);save();jaiCardRender()};
+    q("jai_key").oninput=e=>{JAI.key=e.target.value.trim();if(jaiStoredKey())jaiRemember(true)};
+    q("jai_rem").onchange=e=>{const ok=jaiRemember(e.target.checked);if(e.target.checked&&!ok){e.target.checked=false;toast(JAI.key?"Couldn\u2019t save the key":"Enter a key first")}else toast(e.target.checked?"Key remembered on this device":"Key no longer remembered")};
+    if(q("jai_ck"))q("jai_ck").onclick=()=>{if(typeof vtBanner==="function")vtBanner(true)};
+    if(q("jai_forget"))q("jai_forget").onclick=()=>{jaiForget();toast("Key forgotten");jaiCardRender()};
+    q("jai_notes").onchange=e=>{A.notes=e.target.checked;JAI.ack=false;save();jaiCardRender()};
+    q("jai_ack").onchange=e=>{JAI.ack=e.target.checked};
+    const pv=el.querySelector(".jaiprev");pv.ontoggle=()=>{if(pv.open)q("jai_json").textContent=JSON.stringify(jaiPayload(JAI_T,JAI_ST||jrStats([])),null,2)};
+    q("jai_send").onclick=()=>jaiSend(JAI_T,JAI_ST||jrStats([]));if(q("jai_cancel"))q("jai_cancel").onclick=()=>{if(JAI.ctl)JAI.ctl.abort()};
+    if(JAI.out)jaiOut(q("jai_out"))}
+  if(fe&&q(fe))q(fe).focus()}
+/* AI text is shown as plain text only (never as HTML) */
+const JAI_ADVICE=/\b(you should (buy|sell|short|go long|go short)|buy (now|the dip)|sell (now|everything)|price target|will (rise|fall|go up|go down|rally|crash)|guaranteed|risk[- ]free)\b/i;
+function jaiOut(box){const o=JAI.out;box.innerHTML="";const h=document.createElement("div");h.className="jaiouth";h.textContent="AI-generated by "+o.prov+" ("+o.model+") from "+o.n+" trade"+(o.n===1?"":"s")+" at "+o.at.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+". It can be wrong. It describes your record and is not financial advice.";box.appendChild(h);
+  const body=document.createElement("div");body.className="jaitxt";o.text.split(/\n{1,}/).map(s=>s.trim()).filter(Boolean).forEach(line=>{const m=/^(#{1,4}\s*|[-*\u2022]\s+|\d+[.)]\s+)?(.*)$/.exec(line);const p=document.createElement(m[1]&&/^#/.test(m[1])?"h4":m[1]?"li":"p");p.textContent=m[2].replace(/\*\*(.+?)\*\*/g,"$1");body.appendChild(p)});
+  box.appendChild(body);if(JAI_ADVICE.test(o.text)){const w=document.createElement("p");w.className="vsmsg err";w.textContent="Part of this reply reads like a trading instruction or prediction. Vektor asked the AI not to do that; treat it as a description only, not advice.";box.appendChild(w)}
+  const cp=document.createElement("button");cp.type="button";cp.textContent="Copy text";cp.onclick=()=>{try{navigator.clipboard.writeText(h.textContent+"\n\n"+o.text);toast("Copied")}catch(e){}};box.appendChild(cp)}
+document.addEventListener("vt-consent",e=>{if(!(e.detail&&e.detail.prefs)){try{localStorage.removeItem(JAI_KEY)}catch(x){}}if(document.getElementById("jai_p"))jaiCardRender()});
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.
@@ -4309,7 +4438,7 @@ const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th>
 <tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
 <tr><td>sessionStorage</td><td><code>vt_guest</code></td><td>Only that you chose \u201cContinue without signing in\u201d, so a reload keeps you in guest mode. Cleared when the tab closes. Guests\u2019 charts, drawings and other work are kept in memory only and are not saved.</td></tr><tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
 <tr><td>localStorage</td><td><code>vt_consent</code>, <code>vt_consent_log</code></td><td>Your storage choices, plus a log of each choice with its date, time and policy version (the last 50), so we can show what you agreed to.</td></tr>
-<tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
+<tr><td>localStorage (only if you allow it and tick \u201cRemember the key\u201d)</td><td><code>vt_aikey</code></td><td><b>Optional preferences:</b> the AI provider name and the API key you entered for the Journal AI review. It stays in this browser and is only ever sent to that provider. It is deleted when you untick \u201cRemember\u201d, press \u201cForget key\u201d or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
 <tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
 const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
 <tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
@@ -4320,10 +4449,11 @@ const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Address
 <tr><td>CoinGecko</td><td><code>api.coingecko.com</code></td><td>Fallback daily crypto candles.</td></tr>
 <tr><td>jsDelivr CDN</td><td><code>cdn.jsdelivr.net</code></td><td>Loads the charting library (TradingView Lightweight Charts 4.1.3) and html2canvas 1.4.1 (chart snapshots).</td></tr>
 <tr><td>TradingView (links only)</td><td><code>www.tradingview.com</code></td><td>Opens only when you click a \u201cTradingView\u201d link. Nothing is loaded from it in the background.</td></tr>
+<tr><td>AI provider you choose (only if you use the Journal AI review)</td><td><code>api.openai.com</code>, <code>api.anthropic.com</code>, or the OpenAI-compatible endpoint you enter</td><td>Only when you press Send in the Journal AI review: the journal data shown on screen, sent with your own key. Never contacted otherwise.</td></tr>
 <tr><td>This website</td><td><code>data/manifest.json</code>, <code>data/c_*.json</code></td><td>An optional pre-built market data snapshot, if the site operator publishes one.</td></tr></tbody></table>
 <p><b>What each of them receives:</b> your IP address, your browser\u2019s user-agent and language, the time of the request, and the market symbols and timeframes requested. Requests go out without cookies. They also receive the API key, for Twelve Data, Finnhub and Polygon (including through the proxies, where a key is part of the address). The WebSocket services keep a connection open while the app is open. Each third party acts as an independent controller of that data under its own privacy policy. None of them is our processor, and none receives your settings, alerts, watchlist or sign-in name.</p>
 <p><b>Fonts and icons:</b> no web fonts are loaded and there is no Google Fonts, so text uses your device\u2019s system fonts. Icons are inline SVG drawn for this app ${PH("confirm icon origin and licence")}.</p>
-<p><b>AI:</b> Vektor Terminal doesn\u2019t use artificial intelligence or machine learning. Scores, tiers and signals come from fixed, rule-based formulas, and nothing is sent to any AI service.</p>`;
+<p><b>AI:</b> Scores, tiers, signals and the Journal\u2019s local summary come from fixed, rule-based formulas; no artificial intelligence or machine learning is used for them. The only AI feature is the optional <b>Journal AI review</b>. It is off until you use it and works only with your own API key. When you press Send, your browser sends the journal data shown on screen directly to the AI provider you choose (OpenAI, Anthropic or an OpenAI-compatible endpoint you enter). Vektor Terminal has no server in between and receives neither the data nor your key. The provider\u2019s own terms and privacy policy apply. AI replies can be wrong and are not financial advice.</p>`;
 const LEGAL={
 terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
 <h2>1. About these terms</h2><p>These terms apply to your use of Vektor Terminal (the \u201cService\u201d) at ${PH("Website URL")}. By using the Service you accept them. If you don\u2019t agree, please don\u2019t use it.</p>
@@ -4332,7 +4462,7 @@ terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
 <h2>4. Who can use it</h2><p>The Service is for people aged 18 and over. You must be allowed to use services like this where you live. We don\u2019t knowingly collect data from anyone under 18. If you think a child has used the Service, contact us and we\u2019ll delete anything we hold.</p>
 <h2>4a. Paid plans</h2><p>The Service is currently free. If a paid plan is offered, the <a href="#/legal/refunds">Refunds and Cancellation</a> terms apply.</p>
 <h2>5. Your account and sign-in</h2><p>The sign-in screen is currently a prototype. It does not check credentials against a server, and your password is neither stored nor sent anywhere. It only remembers your username or email on your device. Don\u2019t rely on it to protect your data on a shared device.</p>
-<h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. Some requests go through public proxies (see the <a href="#/legal/privacy">Privacy Policy</a>).</p>
+<h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. Some requests go through public proxies (see the <a href="#/legal/privacy">Privacy Policy</a>). The optional Journal AI review sends your data to the AI provider you choose with your own key, under that provider\u2019s terms and at your own cost. Its replies are generated automatically, can be wrong, and are not financial, investment or trading advice.</p>
 <h2>7. Acceptable use</h2><p>Don\u2019t misuse the Service. That includes trying to disrupt it, overloading data providers through it, scraping or redistributing third-party data in breach of their terms, or using it for anything unlawful.</p>
 <h2>8. Intellectual property</h2><p>The Service, its design and code belong to ${PH("Company legal name")} or its licensors. Third-party libraries are used under their own licences (see <a href="#/legal/data">Data Sources and Attributions</a>). Your own notes, journal entries and settings stay yours.</p>
 <h2>9. Availability and changes</h2><p>The Service is provided \u201cas is\u201d and \u201cas available\u201d. Features, data sources and these terms may change. We\u2019ll update the effective date when the terms change.</p>
@@ -4367,13 +4497,13 @@ privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <h2>10. International transfers</h2><p>Several of the third parties in section 5 are based, or run servers, outside the UK (for example in the United States). When your browser contacts them, your IP address and the request details go to those countries. These requests are made directly by your browser to show you prices, and each provider handles the data under its own terms. Where we transfer personal data ourselves (for example to our hosting provider), we rely on ${PH("transfer mechanism, e.g. UK adequacy regulations or the UK International Data Transfer Agreement / Addendum")}.</p>
 <h2>11. Your rights</h2><p>Under UK GDPR you have the right to: be informed; access your data; rectification; erasure; restriction of processing; data portability; object; and not to be subject to solely automated decisions with legal or similarly significant effects (we make none). Where we rely on consent, you can withdraw it at any time, and doing so doesn\u2019t affect what happened before. Use <a href="#/legal/your-data">Your data</a> to download or delete what\u2019s on this device, or email ${VT_MAIL()}. We\u2019ll reply within one month. You can complain to the Information Commissioner\u2019s Office: ico.org.uk/make-a-complaint, 0303 123 1113, Wycliffe House, Water Lane, Wilmslow, SK9 5AF.</p>
 <h2>12. Children</h2><p>The Service is for people aged 18 and over. We don\u2019t knowingly collect data from anyone under 18.</p>
-<h2>13. Automated decisions and AI</h2><p>No AI or machine learning is used, and no decisions about you are made automatically.</p>
+<h2>13. Automated decisions and AI</h2><p>No decisions about you are made automatically. Scores and signals are fixed, rule-based formulas, not AI.</p><p><b>Journal AI review (optional):</b> if you enter your own API key and press Send, your browser sends the trades shown in the Journal (date, symbol, side, P\u0026L, R, setup and tags, plus your notes only if you tick that option) and summary statistics directly to the provider you choose. Account names aren\u2019t sent. That provider receives the data and your IP address and processes it under its own terms and privacy policy, possibly outside the UK. Vektor Terminal never receives the data, the key or the reply. Nothing is sent unless you tick the confirmation and press Send each time. Your key is kept only in this tab\u2019s memory unless you choose to remember it (see Cookies \u0026 Local Storage). [Solicitor to confirm: lawful basis and transfer wording for user-initiated sends to an AI provider.]</p>
 <h2>14. Changes</h2><p>We\u2019ll update this page and its effective date if the way the app handles data changes.</p>`],
 cookies:["Cookies \u0026 Local Storage",()=>`<h1>Cookies and Local Storage</h1>${LG_META()}
 <h2>Cookies</h2><p>Vektor Terminal does not set any cookies. It uses no analytics, advertising, social media or other tracking tools.</p>
 <h2>Categories</h2><ul><li><b>Strictly necessary (always on):</b> settings, watchlist, alerts, drawings, layouts, saved API keys, sign-in name and your consent record. Under the Privacy and Electronic Communications Regulations (PECR), these don\u2019t need consent.</li>
 <li><b>Market-data cache (optional, off by default):</b> an IndexedDB cache of price data that makes the app faster. It\u2019s only created after you choose \u201cAccept all\u201d or turn it on under \u201cManage choices\u201d.</li>
-<li><b>Optional preferences (optional, off by default):</b> extras you turn on, such as the alert sound, remembered in <code>vt_prefs</code>. Without this choice they still work, but only until you close the tab.</li>
+<li><b>Optional preferences (optional, off by default):</b> extras you turn on, such as the alert sound, remembered in <code>vt_prefs</code>, and, only if you also tick \u201cRemember the key\u201d, your Journal AI key in <code>vt_aikey</code>. Without this choice they still work, but only until you close the tab.</li>
 <li><b>Analytics and advertising:</b> not used.</li></ul>
 <h2>Your choice</h2><p>On your first visit, a banner offers \u201cReject all\u201d and \u201cAccept all\u201d as equal buttons, plus \u201cManage choices\u201d with a switch for each category. Until you choose, only strictly necessary storage is used. You can change or withdraw your choice at any time with <b>Cookie settings</b> in the footer, or on <a href="#/legal/your-data">Your data</a>. Withdrawing deletes the cache and any saved optional preferences. Each choice is logged on your device with its date, time and policy version. We ask again after 12 months, or sooner if this notice changes.</p>
 <h2>Everything stored</h2>${LG_STORE}
@@ -4439,7 +4569,7 @@ function vtCacheOK(){const c=vtConsent();return !!(c&&c.cache)}
 // this category existed have no "prefs" field and so count as "no"
 function vtPrefsOK(){const c=vtConsent();return !!(c&&c.prefs)}
 const VT_PREFS_KEY="vt_prefs";
-function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY)}catch(e){}}
+function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY);localStorage.removeItem("vt_aikey")}catch(e){}}
 function vtConsentLog(){try{const l=JSON.parse(vtLS(VT_CL)||"[]");return Array.isArray(l)?l:[]}catch(e){return[]}}
 function vtConsentSet(cache,method,prefs){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,prefs:prefs==null?method==="accept_all":!!prefs,method};
 vtLS(VT_CK,JSON.stringify(rec));const l=vtConsentLog();l.push(rec);vtLS(VT_CL,JSON.stringify(l.slice(-50)));
@@ -4459,7 +4589,7 @@ el.innerHTML=`<h2 id="vcb_t">Storage on this device</h2>
 ${manage?`<div class="cats">
 <div class="cat"><input type="checkbox" checked disabled id="vcb_nec" aria-describedby="vcb_nec_d"><label for="vcb_nec"><b>Strictly necessary</b><span class="mut" id="vcb_nec_d">Settings, watchlist, alerts, layouts, sign-in name and this consent record. Needed for the app to work.</span></label><span class="st">Always on</span></div>
 <div class="cat"><input type="checkbox" id="vcb_cache" ${c&&c.cache?"checked":""} aria-describedby="vcb_cache_d"><label for="vcb_cache"><b>Market-data cache</b><span class="mut" id="vcb_cache_d">Keeps downloaded price candles and the market list in IndexedDB so the app starts faster and makes fewer requests. Off unless you turn it on.</span></label></div>
-<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
+<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>), and your Journal AI key if you tick \u201cRemember\u201d (<code>vt_aikey</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
 <div class="cat"><input type="checkbox" disabled id="vcb_an"><label for="vcb_an"><b>Analytics and advertising</b><span class="mut">Not used. There are no analytics, advertising cookies or third-party trackers.</span></label><span class="st">Not used</span></div></div>`:""}
 <div class="btns"><button type="button" class="cbtn" id="vcb_rej">Reject all</button><button type="button" class="cbtn" id="vcb_acc">Accept all</button>${manage?`<button type="button" class="cbtn alt" id="vcb_save">Save my choices</button>`:`<button type="button" class="cbtn alt" id="vcb_man">Manage choices</button>`}</div>`;
 document.body.appendChild(el);

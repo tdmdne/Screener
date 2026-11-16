@@ -1,0 +1,13 @@
+/* Journal review (local + AI) */
+#jr_aic .seg button{min-height:0}
+.jail{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13.5px}
+.jaifrm{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}.jaifrm label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;margin:0}
+.jaiopts{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:10px 0}.jaiopts .chk{display:flex;align-items:center;gap:8px;margin:0}.jaisub{font-size:12px;flex:1 1 260px}
+.jaiopts .lnk,.jaisub .lnk{background:none;border:0;padding:0;color:var(--acc);text-decoration:underline;cursor:pointer;font:inherit;min-height:0}
+.jaidisc{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;background:var(--card)}
+.jaidisc a{color:var(--acc)}.jaidisc .chk{display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600}
+.jaiprev{margin-top:8px}.jaiprev summary{cursor:pointer;font-weight:600}.jaiprev pre{max-height:260px;overflow:auto;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;white-space:pre-wrap;word-break:break-word}
+.jaibtns{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+#jai_out:not(:empty){margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.jaiouth{font-size:12px;color:var(--mut);margin-bottom:6px}.jaitxt h4{margin:10px 0 4px}.jaitxt p{margin:4px 0}.jaitxt li{margin:3px 0 3px 18px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .jaiopts .lnk,:root:is([data-ui="phone"],[data-ui="tablet"]) .jaisub .lnk{min-height:44px}

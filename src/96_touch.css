@@ -1,8 +1,8 @@
 /* Touch QA (phones 360-430px and tablets): 44px tap targets everywhere outside the chart canvas, usable nav, tablet chart sizing.
    Chart overlays (#cv: "+", alert handles, position handles) keep their own sizes; their hit areas are handled in their own code. */
-:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,select,a.btn,.chip,[role="button"],input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])):not(#cv *):not(.hmt):not(.vschip):not(.mc){min-height:44px!important}
-:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,[role="button"],.chip):not(#cv *):not(.hmt):not(.vschip):not(.mc):not(.tbar button){min-width:44px!important}
-:root[data-ui="tablet"] :is(button,select,a.btn,.chip):not(#cv *):not(.hmt):not(.vschip):not(.mc){min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,select,a.btn,.chip,[role="button"],input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])):not(#cv *):not(.hmt):not(.mc){min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,[role="button"],.chip):not(#cv *):not(.hmt):not(.mc):not(.tbar button){min-width:44px!important}
+:root[data-ui="tablet"] :is(button,select,a.btn,.chip):not(#cv *):not(.hmt):not(.mc){min-height:44px!important}
 /* icon buttons and the small "ib" buttons (watchlist, calculator rows) */
 :root:is([data-ui="phone"],[data-ui="tablet"]) :is(.ibtn,.ib,.ib.x):not(#cv *){min-width:44px!important;min-height:44px!important;display:inline-flex;align-items:center;justify-content:center}
 :root:is([data-ui="phone"],[data-ui="tablet"]) :is(.wlt,.wgn){display:inline-flex;align-items:center;min-height:44px!important}
@@ -48,3 +48,6 @@
 /* sign-in: the Show password toggle (sign-in can render before the phone/tablet class is set, so also match coarse pointers) */
 :root:is([data-ui="phone"],[data-ui="tablet"]) .auth-card .pwt{min-height:44px;min-width:44px;right:0}
 @media (pointer:coarse){.auth-card .pwt{min-height:44px;min-width:44px;right:0}.auth-card .pw input{min-height:44px}}
+/* expandable help sections and script legend chips */
+:root:is([data-ui="phone"],[data-ui="tablet"]) details>summary{min-height:44px;display:flex;align-items:center}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vschip{min-height:44px!important;padding:0 12px}

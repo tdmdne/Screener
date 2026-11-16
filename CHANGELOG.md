@@ -3,6 +3,15 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Journal review: local summary + optional AI review (bring your own key).**
+  - **Local summary (default):** descriptive, rule-based observations worked out in the browser from the trades in view. Examples: average win against average loss, best and worst setups, weekday, long vs short, trades without stops, loss streaks, tags tied to losses, and busy days. Nothing is sent, and the wording describes the record without giving advice.
+  - **AI review:** off until used. Choose OpenAI, Anthropic or an OpenAI-compatible endpoint (https only), a model, and your own key.
+    - Before every send, a disclosure says exactly what goes where: trade date, symbol, side, P&L, R, setup and tags, plus summary statistics. Account names are never sent, and notes only if you tick that option. A "See exactly what will be sent" preview shows the JSON. You must tick a confirmation each time.
+    - The browser calls the provider directly. Vektor has no server in between and never sees the key, data or reply.
+    - The system prompt forbids advice, recommendations and predictions. Replies are shown as plain text (never HTML), labelled as AI-generated, possibly wrong and not financial advice. A warning appears if a reply still reads like a trading instruction.
+    - Errors (bad key, rate limit, model not found, network/CORS, 60s timeout) are explained and the local summary is shown instead.
+  - **Key storage:** in memory for the tab only. "Remember the key" needs Optional preferences consent, stores `vt_aikey`, is never available to guests, and is deleted on untick, "Forget key" or withdrawing consent.
+  - **Legal pages updated:** the Data Sources AI statement, Privacy section 13 (with a solicitor-check placeholder for lawful basis/transfers), the Terms data-provider section, the AI provider row in the third-party table, the `vt_aikey` row in the storage table, and the Optional preferences description in the cookie banner.
 - **Journal & Prop Tracker page (replaces the "coming later" placeholder).** A trade journal you fill in yourself. Nothing connects to a broker, and empty journals show empty states, not sample data.
   - **Trades:** add, edit and delete with a form that checks the input. P&L = (exit − entry) × quantity × point value × direction − fees, or your broker's figure as an override. R-multiples are calculated when you give a stop. You can add a setup, tags, notes and an account. Open trades are listed but don't count in results.
   - **Stats:** net P&L, win rate, profit factor, expectancy, average R, average win/loss, max drawdown and streaks. Also an equity curve, a monthly daily-P&L calendar, results by setup, weekday and side, and filters by account, period, side and setup.

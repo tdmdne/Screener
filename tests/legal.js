@@ -1,12 +1,12 @@
 // Legal pages: every #/legal route renders, footer links work, WebSockets survive, no placeholder/entity leaks, vt_page untouched.
 const {launch}=require("./harness");const assert=require("assert");
-const DOCS={terms:"Terms of Use",privacy:"Privacy Policy",cookies:"Cookies and Local Storage",risk:"Risk Disclaimer and Not Financial Advice",data:"Data Sources and Attributions",liability:"Disclaimer of Liability"};
+const DOCS={terms:"Terms of Use",privacy:"Privacy Policy",cookies:"Cookies and Local Storage",risk:"Risk Disclaimer and Not Financial Advice",data:"Data Sources and Attributions",liability:"Disclaimer of Liability",refunds:"Refunds and Cancellation",about:"About and Contact",accessibility:"Accessibility statement","your-data":"Your data"};
 (async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 const ws0=await P.evaluate(()=>{window.__w0=BNWS.ws;return __WS.length});
 // footer present with one-line risk disclaimer
 const ft=await P.evaluate(()=>{const f=document.querySelector("footer.vfoot");return f&&{t:f.textContent,links:[...f.querySelectorAll("a")].map(a=>a.getAttribute("href")),vis:f.offsetParent!==null}});
-assert(ft&&ft.vis&&/high risk/.test(ft.t)&&ft.links.includes("#/legal/risk")&&ft.links.length===6,JSON.stringify(ft));
+assert(ft&&ft.vis&&/high risk/.test(ft.t)&&ft.links.includes("#/legal/risk")&&ft.links.length===10,JSON.stringify(ft));
 // the solicitor-review note lives in the source only
 assert(!(await P.evaluate(()=>document.body.innerText)).includes("solicitor"));
 await P.click('footer.vfoot a[href="#/legal/privacy"]');await P.waitForTimeout(300);
@@ -23,7 +23,7 @@ for(const s of ["UK GDPR","Data Protection Act 2018","scr2","scr2a","IndexedDB",
 assert(await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0),"websocket replaced");
 // index route + reload deep link
 await P.evaluate(()=>{location.hash="#/legal"});await P.waitForTimeout(250);
-assert.strictEqual(await P.evaluate(()=>document.querySelectorAll("#pv-legal article li a").length),6);
+assert.strictEqual(await P.evaluate(()=>document.querySelectorAll("#pv-legal article li a").length),10);
 await P.goto(h.base+"#/legal/cookies");await P.reload();await P.waitForFunction(()=>BOOTED);await P.waitForTimeout(300);
 assert.deepStrictEqual(await P.evaluate(()=>[document.documentElement.dataset.page,location.hash,document.querySelector("#pv-legal h1").textContent]),["legal","#/legal/cookies","Cookies and Local Storage"]);
 // back to a normal page via nav; WebSockets kept across in-page switches (checked before reload)

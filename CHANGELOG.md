@@ -3,6 +3,15 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Heatmaps page (was a placeholder).** A treemap of the screener's markets, built from the same data as the screener.
+  - **Data:** tiles use the live price from the existing feeds against the previous candle close (1H, 4H, 1D or 1W). Colour can also show the screener's momentum read-out or the Vektor score, both computed with the existing unchanged scoring functions. No new sockets or feeds are opened; missing candles are queued through the normal loader, 8 at a time.
+  - **Instant first load:** when the cache is allowed, the map paints from the cached candles in the first frame. A badge shows Live, Delayed or Sample, and the header shows "Candles as of HH:MM (cache)" until fresh data arrives.
+  - **Grid:** a squarified treemap grouped by market. Tile size is traded value (log-scaled so one market can't swallow the map) or equal. Groups get half their area by value and half by count. Includes market, metric, timeframe, size, count (30/60/100) and scale controls, a breadth bar, top and bottom movers, a legend and the not-advice note.
+  - **Live ticks:** tiles update colour and text in place, with a short flash on change (off under reduced motion). The layout is only rebuilt when the set of markets changes.
+  - **Keyboard and screen readers:** arrow keys move between tiles, Enter or click opens the chart, each tile has a full label, and there is a hover/focus tooltip.
+  - **Phone:** control rows scroll sideways, the default is 30 markets, and tiles are exempt from the 44px minimum button size that made them overlap.
+  - Tests: new `tests/heatmap.js`.
+
 - **Accessibility pass (checklist 6).** Audited with axe-core (WCAG 2.1 A/AA rules) on every page in dark and light themes, plus the main dialogs. The result is 0 violations, and `tests/a11y.js` re-checks it on every run.
   - **Keyboard:**
     - Every clickable non-button element (sort headers, symbol cells, watchlist rows, colour swatches, menus, the VT home monogram) now gets a role and tab stop, and works with Enter/Space.

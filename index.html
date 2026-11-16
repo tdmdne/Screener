@@ -483,6 +483,54 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 .prog.w>b{background:#e3a008}.prog.x>b{background:var(--r)}
 .ftbl th{white-space:normal;line-height:1.2}
 .ftbl td.l input{text-align:left}
+/* Heatmaps */
+.hmw{min-height:calc(100vh - 150px)}
+.hmlive{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.hmlive.on{color:var(--g);border-color:rgba(34,197,94,.45)}
+.hmlive.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:6px;vertical-align:1px;animation:hmPulse 2s ease-in-out infinite}
+.hmlive.off{color:var(--acc);border-color:rgba(245,158,11,.45)}
+@keyframes hmPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+.hmasof{font-size:12px}
+.hmbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.hmseg{display:inline-flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
+.hmseg .sxlbl{padding:0 6px 0 4px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.hmseg button{background:none;border:0;padding:5px 9px;border-radius:6px;font-size:12.5px;color:var(--mut);cursor:pointer;min-height:0}
+.hmseg button.on{background:var(--acc-soft);color:var(--fg);font-weight:700}
+.hmstats{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);min-height:28px}
+.hmstats .upc{color:var(--g)}.hmstats .dnc{color:var(--r)}
+.hmbreadth{display:flex;width:120px;height:6px;border-radius:3px;overflow:hidden;background:var(--line)}
+.hmbreadth i{display:block;height:100%}.hmbreadth .u{background:#089981}.hmbreadth .f{background:#787b86}.hmbreadth .d{background:#f23645}
+.hml{font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.hmchip{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:3px 8px;font-size:12px;color:var(--fg);cursor:pointer;min-height:0}
+.hmchip.up b{color:var(--g)}.hmchip.dn b{color:var(--r)}
+.hmgrid{position:relative;flex:1;min-height:440px;height:calc(100vh - 290px);border-radius:10px;overflow:hidden;background:#15171c;border:1px solid var(--line)}
+.hmgh{position:absolute;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);pointer-events:none}
+.hmgh span{position:absolute;left:6px;top:2px;font-size:11px;font-weight:700;color:#c8cbd2;text-transform:uppercase;letter-spacing:.06em}
+.hmt{position:absolute;box-sizing:border-box;margin:1px;border:0;border-radius:3px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff;
+  font:600 12px/1.15 system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;overflow:hidden;cursor:pointer;transition:background-color .45s cubic-bezier(.2,.7,.2,1),filter .15s;min-height:0;min-width:0}
+.hmt .hn{font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmt .hv{font-variant-numeric:tabular-nums;white-space:nowrap}
+.hmt .hp{font-size:11px;color:rgba(255,255,255,.88);font-variant-numeric:tabular-nums}
+.hmt.big .hn{font-size:clamp(13px,1.3vw,19px)}.hmt.big .hv{font-size:clamp(12px,1.1vw,16px)}
+.hmt.tiny{font-size:9.5px}.hmt.tiny .hv{display:none}
+.hmt.na .hv{color:#b4b8c2}
+.hmt:hover{filter:brightness(1.18)}
+.hmt:focus-visible{outline:2px solid #fff;outline-offset:-3px;z-index:2}
+.hmt.fu{animation:hmFlashU .9s ease-out}.hmt.fd{animation:hmFlashD .9s ease-out}
+@keyframes hmFlashU{0%{box-shadow:inset 0 0 0 2px rgba(34,197,94,.95)}100%{box-shadow:inset 0 0 0 2px rgba(34,197,94,0)}}
+@keyframes hmFlashD{0%{box-shadow:inset 0 0 0 2px rgba(248,113,113,.95)}100%{box-shadow:inset 0 0 0 2px rgba(248,113,113,0)}}
+.hmfoot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.hmfoot .vtna{margin:0;flex:1;min-width:240px}
+.hmlegend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mut)}
+.hmlegend i{display:block;width:160px;height:8px;border-radius:4px}
+.hmtip{position:absolute;z-index:20;min-width:200px;background:rgba(18,19,22,.96);color:#e8e9ec;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;font-size:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);pointer-events:none}
+.hmtip .hmth{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.hmtip .hmth .mut{color:#a1a1aa}
+.hmtip div{display:flex;justify-content:space-between;gap:16px}.hmtip div span{color:#a1a1aa}
+.hmtip p{margin:6px 0 0;font-size:11px;color:#a1a1aa}
+.hmw{position:relative}
+@media (max-width:640px){.hmgrid{height:68vh;min-height:360px}.hmbar{gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}.hmbar::-webkit-scrollbar{display:none}.hmseg{flex:0 0 auto;flex-wrap:nowrap}.hmseg button{white-space:nowrap}.hmstats .sp{display:none}.hmlegend i{width:100px}}
+@media (prefers-reduced-motion:reduce){.hmt{transition:none}.hmlive.on::before{animation:none}}
+:root .hmt{min-height:0!important;min-width:0!important}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -3173,6 +3221,118 @@ el.innerHTML=k("Pass rate",pct(r.pass),r.pass>=0.5?"up":"dn")+k("Fail: max DD",p
 const rows=[5,10,20,30,50,100].map(n=>{let b=o.acct;for(let i=0;i<n;i++)b+=(o.fixed?o.acct:b)*o.riskPct/100*ex;return`<tr><td class="l">${n} trades</td><td>${usd(b,0)}</td><td class="${b>=o.acct?"up":"dn"}">${((b/o.acct-1)*100).toFixed(2)}%</td><td>${b>=o.acct*(1+o.target/100)?"target reached":""}</td></tr>`});
 document.getElementById("c_comp").innerHTML=`<thead><tr><th class="l">At expectancy</th><th>Balance</th><th>Return</th><th></th></tr></thead><tbody>${rows.join("")}</tbody>`},250);
 PAGE_HOOK.calc={enter(){calcBuild()}};
+// ---------- Heatmaps page ----------
+// Data plumbing (read-only, no feed changes):
+//  * universe  = the screener's own SYMS list (filtered by market, ranked by traded value s[2]*s[3])
+//  * values    = % change of the live price s[2] (updated by the existing WebSocket ticks) against the previous bar close
+//                of the chosen timeframe, from the same candle store the screener uses (candles(); LIVE + IndexedDB cache +
+//                server snapshot), or the momentum read-outs the screener already computes (scoreMarket / scoreSymbol, unchanged)
+//  * first load = instant from whatever the cache restored at boot (LIVE/LT/SNAP); missing candles are requested through need()
+//  * live      = a 1s refresh while the page is open (reads SYMS prices); only changed tiles are touched
+const HM_TFS=["1H","4H","1D","1W"];
+const HM_METRICS=[["chg","% change"],["mom","Momentum (signed expansion)"],["score","Vektor score"]];
+const HM={timer:0,ro:null,key:"",tiles:new Map(),vals:new Map(),lastPx:new Map(),focus:null,stale:0};
+const HM_DEF={mkt:"ALL",tf:"1D",metric:"chg",size:"value",n:(window.matchMedia&&matchMedia("(max-width:640px)").matches?30:60),range:"auto"};
+function hmCfg(){const C=S.hm||(S.hm={});for(const k in HM_DEF)if(C[k]==null)C[k]=HM_DEF[k];return C}// fills in place: callers may keep a reference
+function hmTradedValue(s){const v=(+s[3]||0)*(+s[2]||0);return isFinite(v)?v:0}
+function hmUniverse(){const C=hmCfg();let L=SYMS.filter(s=>s&&s[0]&&(C.mkt==="ALL"||s[1]===C.mkt));
+  L=L.slice().sort((a,b)=>hmTradedValue(b)-hmTradedValue(a)||String(a[0]).localeCompare(b[0]));return L.slice(0,C.n)}
+function hmChg(s,tf){const a=candles(s,tf);if(!a||a.length<2)return null;const prev=a[a.length-2].c,px=s[2]!=null&&isFinite(s[2])?+s[2]:a[a.length-1].c;
+  if(!(prev>0)||!(px>0))return null;return(px/prev-1)*100}
+function hmVal(s){const C=hmCfg();try{if(C.metric==="score"){const v=scoreMarket(s);return typeof v==="number"&&isFinite(v)?v:null}
+  if(C.metric==="mom"){const r=scoreSymbol(s);return r&&r.dir?r.dir*r.score:(r&&r.phase!=="\u2014"?0:null)}
+  return hmChg(s,C.tf)}catch(e){return null}}
+// diverging colour scale (our own palette; dark-terminal friendly, white text stays >= 4.5:1)
+const HM_NEU=[42,46,57],HM_UP=[9,110,92],HM_DN=[178,34,47];
+function hmRange(vals){const C=hmCfg();if(C.metric==="score")return 50;if(C.range!=="auto")return +C.range;
+  const a=vals.filter(v=>v!=null).map(Math.abs).sort((x,y)=>x-y);if(!a.length)return 1;const p=a[Math.floor(a.length*0.9)]||a[a.length-1];return Math.max(0.25,+p.toPrecision(2))}
+function hmColor(v,R){if(v==null)return"rgb(32,34,41)";const C=hmCfg();const x=C.metric==="score"?(v-50):v;const t=Math.max(-1,Math.min(1,x/R)),k=Math.pow(Math.abs(t),0.75),T=t>=0?HM_UP:HM_DN;
+  return"rgb("+HM_NEU.map((n,i)=>Math.round(n+(T[i]-n)*k)).join(",")+")"}
+function hmFmt(v){const C=hmCfg();if(v==null)return"\u2013";if(C.metric==="score")return Math.round(v)+"";if(C.metric==="mom")return(v>0?"+":v<0?"\u2212":"")+Math.round(Math.abs(v));
+  return(v>0?"+":v<0?"\u2212":"")+Math.abs(v).toFixed(Math.abs(v)<10?2:1)+"%"}
+// squarified treemap (Bruls et al.)
+function hmSquarify(items,x,y,w,h){const out=[];let rest=items.filter(i=>i.w>0).slice().sort((a,b)=>b.w-a.w);const tot=rest.reduce((a,b)=>a+b.w,0);if(!tot||w<=0||h<=0)return out;
+  const sc=w*h/tot;rest=rest.map(i=>Object.assign({},i,{a:i.w*sc}));
+  const worst=(row,len)=>{const s=row.reduce((p,r)=>p+r.a,0),mx=Math.max(...row.map(r=>r.a)),mn=Math.min(...row.map(r=>r.a));return Math.max(len*len*mx/(s*s),s*s/(len*len*mn))};
+  let row=[];while(rest.length){const len=Math.min(w,h),c=rest[0];
+    if(!row.length||worst(row.concat([c]),len)<=worst(row,len)){row.push(c);rest.shift();continue}
+    ({x,y,w,h}=hmLay(row,x,y,w,h,out));row=[]}
+  if(row.length)hmLay(row,x,y,w,h,out);return out}
+function hmLay(row,x,y,w,h,out){const s=row.reduce((p,r)=>p+r.a,0);
+  if(w>=h){const cw=s/h;let yy=y;for(const r of row){const rh=r.a/cw;out.push(Object.assign(r,{x,y:yy,w:cw,h:rh}));yy+=rh}return{x:x+cw,y,w:w-cw,h}}
+  const rh=s/w;let xx=x;for(const r of row){const cw=r.a/rh;out.push(Object.assign(r,{x:xx,y,w:cw,h:rh}));xx+=cw}return{x,y:y+rh,w,h:h-rh}}
+function hmLayout(U,W,H){const C=hmCfg(),wt=s=>C.size==="equal"?1:1+Math.pow(Math.log10(1+hmTradedValue(s)),1.6);// log-compressed so one giant market cannot swallow the map
+  const groups={};for(const s of U)(groups[s[1]]=groups[s[1]]||[]).push(s);const keys=Object.keys(groups);
+  if(keys.length<=1)return{groups:[],tiles:hmSquarify(U.map(s=>({s,w:wt(s)})),0,0,W,H)};
+  const sw=k=>groups[k].reduce((a,s)=>a+wt(s),0),tot=keys.reduce((a,k)=>a+sw(k),0)||1;
+  /* each market group gets half its area by traded value and half by number of markets, so small groups stay readable */
+  const G=hmSquarify(keys.map(k=>({k,w:tot*(0.5*sw(k)/tot+0.5*groups[k].length/U.length)})).sort((a,b)=>b.w-a.w),0,0,W,H),tiles=[];
+  for(const g of G){const hd=g.h>60&&g.w>70?18:0;g.hd=hd;tiles.push(...hmSquarify(groups[g.k].map(s=>({s,w:wt(s)})),g.x+1,g.y+hd+1,g.w-2,g.h-hd-2))}
+  return{groups:G,tiles}}
+// ---- page ----
+function hmBuild(){const el=document.getElementById("pv-heatmap");if(!el)return;const C=hmCfg();
+  const mk=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k));
+  const seg=(id,label,opts,cur)=>`<div class="hmseg" role="group" aria-label="${label}"><span class="sxlbl">${label}</span>${opts.map(([v,n])=>`<button type="button" class="${String(cur)===String(v)?"on":""}" aria-pressed="${String(cur)===String(v)}" data-hm="${id}" data-v="${esc(v)}">${esc(n)}</button>`).join("")}</div>`;
+  el.innerHTML=`<div class="pgw hmw"><div class="pgh"><h2>Heatmaps</h2><span class="hmlive" id="hm_src" aria-live="off"></span><span class="sp"></span><span class="mut hmasof" id="hm_asof"></span></div>
+<div class="hmbar">${seg("mkt","Market",mk.map(k=>[k,MK[k]]),C.mkt)}${seg("metric","Colour by",HM_METRICS,C.metric)}${C.metric==="chg"?seg("tf","Change",HM_TFS.map(t=>[t,t]),C.tf):""}
+${seg("size","Size",[["value","Traded value"],["equal","Equal"]],C.size)}${seg("n","Markets",[[30,"30"],[60,"60"],[100,"100"]],C.n)}${C.metric==="chg"?seg("range","Scale",[["auto","Auto"],[1,"\u00b11%"],[3,"\u00b13%"],[5,"\u00b15%"],[10,"\u00b110%"]],C.range):""}</div>
+<div class="hmstats" id="hm_stats" aria-live="polite"></div>
+<div class="hmgrid" id="hm_grid" role="region" aria-label="Market heatmap. Arrow keys move between markets, Enter opens the chart."></div>
+<div class="hmfoot"><div class="hmlegend" id="hm_leg" aria-hidden="true"></div><p class="vtna">Colours show ${C.metric==="chg"?"the change of the live price against the previous "+esc(C.tf)+" close":C.metric==="mom"?"the screener\u2019s expansion read-out (green = rising, red = falling)":"the Vektor score (50 = neutral)"}. ${VT_NA_TXT} <a href="#/legal/risk">Risk disclaimer</a></p></div>
+<div class="hmtip" id="hm_tip" role="tooltip" hidden></div></div>`;
+  el.querySelectorAll("[data-hm]").forEach(b=>b.onclick=()=>{const k=b.dataset.hm,v=b.dataset.v;C[k]=(k==="n"||(k==="range"&&v!=="auto"))?+v:v;save();HM.key="";hmBuild();hmTick(true)});
+  const g=document.getElementById("hm_grid");
+  g.addEventListener("keydown",hmKeys);
+  g.addEventListener("pointerover",e=>{const t=e.target.closest(".hmt");if(t)hmTip(t)});g.addEventListener("pointerleave",()=>hmTip(null));
+  g.addEventListener("focusin",e=>{const t=e.target.closest(".hmt");if(t)hmTip(t)});g.addEventListener("focusout",()=>hmTip(null));
+  if(HM.ro)HM.ro.disconnect();HM.ro=new ResizeObserver(()=>{HM.key="";hmTick(true)});HM.ro.observe(g);HM.key=""}
+function hmKeys(e){const T=[...document.querySelectorAll("#hm_grid .hmt")];const i=T.indexOf(document.activeElement);if(i<0)return;
+  let j=null;const r=T[i].getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const pick=f=>{let best=null,bd=1e9;T.forEach((t,k)=>{if(k===i)return;const q=t.getBoundingClientRect(),x=q.left+q.width/2,y=q.top+q.height/2,d=f(x-cx,y-cy);if(d!=null&&d<bd){bd=d;best=k}});return best};
+  if(e.key==="ArrowRight")j=pick((dx,dy)=>dx>2?dx+Math.abs(dy)*2:null);else if(e.key==="ArrowLeft")j=pick((dx,dy)=>dx<-2?-dx+Math.abs(dy)*2:null);
+  else if(e.key==="ArrowDown")j=pick((dx,dy)=>dy>2?dy+Math.abs(dx)*2:null);else if(e.key==="ArrowUp")j=pick((dx,dy)=>dy<-2?-dy+Math.abs(dx)*2:null);
+  else if(e.key==="Home")j=0;else if(e.key==="End")j=T.length-1;
+  if(j!=null){e.preventDefault();T.forEach(t=>t.tabIndex=-1);T[j].tabIndex=0;T[j].focus()}}
+function hmTip(t){const tip=document.getElementById("hm_tip");if(!tip)return;if(!t){tip.hidden=true;return}const s=symOf(t.dataset.s);if(!s){tip.hidden=true;return}
+  const row=(a,b)=>`<div><span>${a}</span><b>${b}</b></div>`,pc=tf=>{const v=hmChg(s,tf);return v==null?"\u2013":(v>0?"+":v<0?"\u2212":"")+Math.abs(v).toFixed(2)+"%"};
+  let sc="\u2013",tier="\u2013";try{const v=scoreMarket(s);if(typeof v==="number")sc=Math.round(v);tier=sxTier(s)}catch(e){}
+  tip.innerHTML=`<div class="hmth"><b>${esc(s[0])}</b><span class="mut">${esc(MK[s[1]]||s[1])}</span></div>${row("Price",s[2]!=null?fp(s[2]):"\u2013")}${HM_TFS.map(tf=>row(tf+" change",pc(tf))).join("")}${row("Vektor score",sc)}${row("Tier",tier)}${row("Traded value",hmTradedValue(s)?fm(hmTradedValue(s)):"\u2013")}<p class="mut">Enter or click opens the chart.</p>`;
+  tip.hidden=false;const g=document.getElementById("hm_grid").getBoundingClientRect(),r=t.getBoundingClientRect(),W=tip.offsetWidth,H=tip.offsetHeight;
+  let x=r.right-g.left+8,y=r.top-g.top;if(x+W>g.width)x=Math.max(0,r.left-g.left-W-8);if(y+H>g.height)y=Math.max(0,g.height-H);tip.style.left=x+"px";tip.style.top=(y+document.getElementById("hm_grid").offsetTop)+"px"}
+function hmOpen(sym){openChart(sym);go("chart")}
+function hmTick(force){const g=document.getElementById("hm_grid");if(!g||document.documentElement.dataset.page!=="heatmap")return;const C=hmCfg();
+  const U=hmUniverse(),W=Math.floor(g.clientWidth),H=Math.floor(g.clientHeight);if(W<10||H<10)return;
+  // ask the existing loader for anything missing (front of the queue for what's on screen, a few per second)
+  if(C.metric==="chg"||C.metric==="mom"){const tf=C.metric==="mom"?"1D":C.tf;let n=0;for(const s of U){if(n>=8)break;if(!candles(s,tf)){try{need(s,tf,true)}catch(e){}n++}}}
+  const vals=U.map(hmVal),R=hmRange(vals);const key=[W,H,C.mkt,C.metric,C.tf,C.size,C.n,U.map(s=>s[0]).join(",")].join("|");
+  if(force||key!==HM.key){HM.key=key;const L=hmLayout(U,W,H);const keep=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.s:null;
+    g.innerHTML=L.groups.map(gr=>`<div class="hmgh" style="left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px"><span>${esc(MK[gr.k]||gr.k)}</span></div>`).join("")+
+      L.tiles.map((t,i)=>{const s=t.s,big=t.w>86&&t.h>52,mid=t.w>46&&t.h>28;return`<button type="button" class="hmt${big?" big":mid?"":" tiny"}" data-s="${esc(s[0])}" tabindex="${i===0?0:-1}" style="left:${t.x.toFixed(1)}px;top:${t.y.toFixed(1)}px;width:${Math.max(0,t.w-2).toFixed(1)}px;height:${Math.max(0,t.h-2).toFixed(1)}px"><span class="hn">${esc(String(s[0]).replace(/USDT$/,""))}</span><span class="hv"></span>${big?'<span class="hp"></span>':""}</button>`}).join("");
+    HM.tiles=new Map([...g.querySelectorAll(".hmt")].map(b=>[b.dataset.s,b]));g.querySelectorAll(".hmt").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s));
+    if(keep&&HM.tiles.get(keep)){g.querySelectorAll(".hmt").forEach(t=>t.tabIndex=-1);HM.tiles.get(keep).tabIndex=0;HM.tiles.get(keep).focus({preventScroll:true})}HM.lastPx.clear()}
+  // paint values (only touch what changed)
+  let up=0,dn=0,fl=0,have=[];const rm=VT_RM();
+  U.forEach((s,i)=>{const b=HM.tiles.get(s[0]);if(!b)return;const v=vals[i];if(v!=null){have.push([s,v]);if(C.metric==="score"?v>50:v>0)up++;else if(C.metric==="score"?v<50:v<0)dn++;else fl++}
+    const bg=hmColor(v,R);if(b.style.background!==bg)b.style.background=bg;
+    const tv=hmFmt(v),hv=b.querySelector(".hv");if(hv.textContent!==tv)hv.textContent=tv;b.classList.toggle("na",v==null);
+    const hp=b.querySelector(".hp");if(hp){const p=s[2]!=null?fp(s[2]):"";if(hp.textContent!==p)hp.textContent=p}
+    const lbl=s[0]+", "+(MK[s[1]]||s[1])+", "+(v==null?"no data yet":(C.metric==="chg"?C.tf+" change "+tv:C.metric==="mom"?"momentum "+tv:"score "+tv));if(b.getAttribute("aria-label")!==lbl)b.setAttribute("aria-label",lbl);
+    const lp=HM.lastPx.get(s[0]),px=s[2];if(lp!=null&&px!=null&&px!==lp&&!rm){b.classList.remove("fu","fd");void b.offsetWidth;b.classList.add(px>lp?"fu":"fd")}if(px!=null)HM.lastPx.set(s[0],px)});
+  // stats + legend + source badge
+  const st=document.getElementById("hm_stats");if(st){const sorted=have.slice().sort((a,b)=>b[1]-a[1]),med=have.length?sorted[Math.floor(sorted.length/2)][1]:null;
+    const chip=([s,v])=>`<button type="button" class="hmchip ${(C.metric==="score"?v>=50:v>=0)?"up":"dn"}" data-s="${esc(s[0])}">${esc(String(s[0]).replace(/USDT$/,""))} <b>${hmFmt(v)}</b></button>`;
+    const tot=up+dn+fl||1;const html=`<div class="hmbreadth" title="${up} up, ${dn} down, ${fl} flat"><i class="u" style="width:${up/tot*100}%"></i><i class="f" style="width:${fl/tot*100}%"></i><i class="d" style="width:${dn/tot*100}%"></i></div>
+<span><b class="upc">${up}</b> up \u00b7 <b class="dnc">${dn}</b> down${fl?" \u00b7 "+fl+" flat":""}${med!=null?" \u00b7 median "+hmFmt(med):""} \u00b7 ${have.length}/${U.length} with data</span>
+<span class="sp"></span>${sorted.length?`<span class="hml">Top</span>${sorted.slice(0,3).map(chip).join("")}<span class="hml">Bottom</span>${sorted.slice(-3).reverse().map(chip).join("")}`:""}`;
+    if(st.dataset.h!==html){st.dataset.h=html;st.innerHTML=html;st.querySelectorAll(".hmchip").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s))}}
+  const lg=document.getElementById("hm_leg");if(lg){const lab=C.metric==="score"?["0","50","100"]:C.metric==="mom"?["falling","flat","rising"]:["\u2212"+R+"%","0","+"+R+"%"];const html=`<span>${lab[0]}</span><i style="background:linear-gradient(90deg,${hmColor(C.metric==="score"?0:-R,R)},${hmColor(C.metric==="score"?50:0,R)},${hmColor(C.metric==="score"?100:R,R)})"></i><span>${lab[2]}</span>`;if(lg.dataset.h!==html){lg.dataset.h=html;lg.innerHTML=html}}
+  const src=document.getElementById("hm_src"),asof=document.getElementById("hm_asof");if(src){const live=isLive(),ws=typeof BNWS!=="undefined"&&BNWS.ws&&BNWS.ws.readyState===1;
+    const tf=C.metric==="mom"?"1D":C.tf;let t=0;for(const s of U){const k=s[0]+"|"+tf;if(LT[k]>t)t=LT[k]}
+    const fromCache=t&&t<performance.timeOrigin;/* restored from the IndexedDB cache or snapshot, not fetched in this session */const txt=!live?"Sample data":ws?"Live":"Delayed";const cls=!live?"smp":ws?"on":"off";
+    if(src.textContent!==txt){src.textContent=txt;src.className="hmlive "+cls}
+    if(asof){const a=t?"Candles as of "+new Date(t).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+(fromCache?" (cache)":""):"Loading candles\u2026";if(asof.textContent!==a)asof.textContent=a}}}
+PAGE_HOOK.heatmap={enter(){hmBuild();hmTick(true);requestAnimationFrame(()=>hmTick(true));clearInterval(HM.timer);HM.timer=setInterval(()=>{if(document.visibilityState==="visible")hmTick(false)},1000)},
+  leave(){clearInterval(HM.timer);HM.timer=0;hmTip(null)}};
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.
@@ -3440,7 +3600,6 @@ window.addEventListener("hashchange",()=>{vtMoreClose();const b=document.getElem
 // touch: one-finger horizontal pan, pinch zoom, long-press crosshair (stays until the next tap); vertical swipes scroll the page on phones
 function vtTouchChart(c){if(!c)return;try{c.applyOptions({handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:!(VT_COARSE&&UIM==="phone")},
 handleScale:{mouseWheel:true,pinch:true,axisPressedMouseMove:true,axisDoubleClickReset:true},kineticScroll:{touch:true,mouse:false},trackingMode:{exitMode:1}})}catch(e){}}
-stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");
 stubPage("backtest","Backtest Lab","Backtesting and bar replay are coming in a later update.");

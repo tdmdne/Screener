@@ -1678,7 +1678,9 @@ function pgGo(d){S.page+=d;save();render()}
 //  2) the other timeframes, only for stocks/ETFs/futures that pass the dollar-volume cutoff
 // Symbols on screen jump the queue.
 function kick(){if(!isLive()||!READY)return;
-if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN();if(S.data.fhKey&&!FHU.loaded&&!FHU.busy)loadFHU();if(S.data.polyKey&&!PGU.loaded&&!PGU.busy)loadPGU()}
+if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
+if(S.data.fhKey&&!FHU.loaded&&!FHU.busy)loadFHU();
+if(S.data.polyKey&&!PGU.loaded&&!PGU.busy)loadPGU();
 const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
 const cut=S.acct*S.mult,cs=symOf(S.chart.sym);if(cs)need(cs,S.chart.tf,true);
 wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)}); // watchlist symbols load first
@@ -1710,7 +1712,10 @@ function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything lo
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
-function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart()}
+function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart();
+if(S.data.fhKey){FHU.loaded=false;loadFHU()}
+if(S.data.polyKey){PGU.loaded=false;loadPGU()}
+}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}

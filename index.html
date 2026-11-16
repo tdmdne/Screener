@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" class="locked"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TDM Screener</title>
+<title>Vektor Terminal</title>
 <style>
 :root{
   --bg:#ffffff;
@@ -255,7 +255,7 @@ html.locked .auth{display:flex}
 </style></head><body>
 <div class="wrap">
 <header>
-  <h1>TDM Screener</h1>
+  <h1>Vektor Terminal</h1>
   <span class="tag" id="tag">Prototype · sample data</span>
   <span class="mut" id="dst"></span>
   <button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme">☀ Light</button>
@@ -290,7 +290,7 @@ html.locked .auth{display:flex}
 <div id="modal"></div>
 <div class="auth" id="auth">
   <form class="auth-card" id="auForm" novalidate>
-    <h2 class="auth-h">TDM Screener</h2>
+    <h2 class="auth-h">Vektor Terminal</h2>
     <p class="auth-sub">Sign in to continue</p>
     <label>Username or email
       <input id="auId" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" aria-describedby="auErr">
@@ -892,7 +892,7 @@ function checkAlerts(sym,price){
 function fireAlert(a,price){
   const msg=a.sym+" crossed "+a.dir+" "+a.price+" ("+price+")";
   toast(msg);
-  try{if(typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification("TDM Alert",{body:msg})}catch(e){}
+  try{if(typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification("Vektor Alert",{body:msg})}catch(e){}
   try{
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
     const o=ctx.createOscillator(),g=ctx.createGain();

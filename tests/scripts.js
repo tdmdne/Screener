@@ -52,7 +52,7 @@ await P.click("#vsb");await P.waitForSelector(".vsm");await P.click('.vsex[data-
 let msg=await P.textContent("#vs_msg");assert(/No errors/.test(msg),"example checks clean: "+msg);
 assert.strictEqual(await P.locator("#vs_inp input").count(),3,"MACD inputs shown");
 const nser0=await P.evaluate(()=>VSUI.ser.length);await P.click("#vs_tog");await P.waitForTimeout(500);
-let st=await P.evaluate(()=>({ser:VSUI.ser.length,refs:VSUI.ser[0]&&VSUI.ser[0].refs.length,leg:[...document.querySelectorAll("#vsleg .vschip")].map(b=>b.textContent),saved:JSON.parse(localStorage.getItem("scr2")).vs.list[0].on}));
+let st=await P.evaluate(()=>({ser:VSUI.ser.length,refs:VSUI.ser[0]&&VSUI.ser[0].refs.length,leg:[...document.querySelectorAll("#vsleg .vschip")].map(b=>b.textContent),saved:JSON.parse(localStorage.getItem(vtSK("scr2"))).vs.list[0].on}));
 assert.strictEqual(nser0,0);assert.strictEqual(st.ser,1);assert(st.refs>=3,"MACD draws 3 series");assert.deepStrictEqual(st.leg,["MACD"]);assert.strictEqual(st.saved,true,"persisted");
 // edit an input -> recompute
 await P.fill('#vs_inp input >> nth=0','5');await P.dispatchEvent('#vs_inp input >> nth=0','change');await P.waitForTimeout(300);

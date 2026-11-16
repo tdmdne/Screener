@@ -3,6 +3,13 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Backtest Lab page (replaces the placeholder).**
+  - **Rules:** EMA cross, RSI reversal, or N-bar breakout; long, short or both. Stop is an ATR(14) multiple or a % of entry, with an optional target in R and an optional exit on the opposite signal. Risk per trade is a % of the starting balance, and fees apply on both sides.
+  - **No look-ahead:** a signal on a closed bar fills at the next bar's open. When a bar touches both the stop and the target, the stop counts first. Gaps past a level fill at the open. There is no new entry on the bar where a stop or target was hit. Open trades close at the last bar ("end of data").
+  - **Results:** the Journal's KPIs (net, return, win rate, profit factor, expectancy in R, max drawdown), an equity curve, a trades table and CSV export. The CSV uses the Journal format with account "Backtest", so it can be imported and kept apart.
+  - **Bar replay:** candles shown up to a chosen bar with entry/exit markers, step, play/pause, speed and a slider.
+  - Runs on the candles the app already has for the symbol (usually the latest ~250 bars). It is labelled as hypothetical, with its limits, and is not financial advice.
+- **Pages now open at the top.** Switching pages used to keep the previous page's scroll position, so leaving a long page could put the next page's chart off-screen (found by the phone touch test).
 - **Calendar & News page (replaces the placeholder).**
   - **Economic calendar:** this week's events from the public Forex Factory (Fair Economy) feed, fetched directly and then through the same public CORS proxies the app already uses. Rows are validated before display; times are shown in your local time zone.
     - Filters: impact, currency chips, search, and a show-past toggle. A countdown shows the next high-impact event.

@@ -613,6 +613,28 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 .sndc{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:13px}
 .sndc label{margin:0;display:inline;color:var(--mut)}.sndc select{width:auto}
 .sndn{margin:6px 0 0;font-size:12px}
+/* session summary */
+.box:has(>.smm){width:min(880px,95vw);max-width:none}
+.smhd{display:flex;align-items:flex-start;gap:10px}.smhd h3{margin:0}.smhd p{margin:2px 0 0;font-size:12.5px}
+.smwarn{margin:10px 0 0;padding:8px 10px;border-radius:8px;border:1px solid var(--acc);color:var(--fg);background:var(--acc-soft);font-size:13px}
+.smk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+.smc{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:12px;min-width:0}
+.smc b{font-size:20px;font-variant-numeric:tabular-nums;color:var(--fg)}.smc b.up{color:var(--g)}.smc b.dn{color:var(--r)}
+.sms{margin:12px 0 0}.sms h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.smg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.sml{list-style:none;margin:0;padding:0}.sml li{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-top:1px dashed var(--line);font-size:13px}.sml li:first-child{border-top:0}
+.sml li b{margin-left:auto;font-variant-numeric:tabular-nums}.sml .up{color:var(--g)}.sml .dn{color:var(--r)}
+.sml .lnk{background:none;border:0;padding:0;color:var(--fg);font-weight:700;cursor:pointer;min-height:0}.sml .lnk:hover{color:var(--acc)}
+.smtw{overflow:auto}.smt{width:100%;border-collapse:collapse;font-size:13px}.smt th,.smt td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+.smt th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}.smt .num{text-align:right;font-variant-numeric:tabular-nums}.smt .up{color:var(--g)}.smt .dn{color:var(--r)}
+.smn{font-size:12px;margin:6px 0 0}
+.sma{list-style:none;margin:0;padding:0}.sma li{display:flex;flex-wrap:wrap;gap:4px 10px;padding:5px 0;border-top:1px dashed var(--line);font-size:13px}.sma li:first-child{border-top:0}
+.smna{margin:12px 0 0}
+.smm>.smk,.smm>.sms{animation:vtPageIn .34s var(--vt-ease-out,ease-out) both}.smm>.sms:nth-of-type(1){animation-delay:50ms}.smm>.sms:nth-of-type(2){animation-delay:100ms}.smm>.sms:nth-of-type(3){animation-delay:150ms}
+.vtsumchip{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid color-mix(in srgb,var(--acc) 50%,var(--line));
+  background:var(--bg);color:var(--fg);box-shadow:0 14px 34px rgba(0,0,0,.35);font-size:13px;animation:vtDlgIn .3s var(--vt-ease-out,ease-out) both}
+@media (max-width:640px){.smk{grid-template-columns:repeat(2,minmax(0,1fr))}.vtsumchip{left:12px;right:12px;bottom:76px}}
+:root[data-ui="phone"] #sumb{display:none}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -3566,6 +3588,79 @@ function vtSoundWire(){const on=document.getElementById("snd_on");if(!on)return;
   const upd=()=>{const saved=vtSoundSet(on.checked,vol.value);note.textContent=vtSoundNote(saved)};
   on.onchange=upd;vol.onchange=upd;document.getElementById("snd_test").onclick=()=>vtChime(vol.value)}
 if(typeof alertsM==="function"){const _vtAM=alertsM;alertsM=function(){const r=_vtAM.apply(this,arguments);try{const box=MD.querySelector(".box");if(box&&!box.querySelector(".sndrow")){const d=document.createElement("div");d.innerHTML=vtSoundRow();const row=box.querySelector(".row");(row?row.parentNode:box).insertBefore(d.firstElementChild,row?row.nextSibling:null);vtSoundWire()}}catch(e){console.error(e)}return r}}
+// ---------- End-of-day session summary ----------
+// Built only from data the app already has: position-tool drawings (long/short) with their own risk settings and the
+// candle store, live prices vs the previous daily close (same definition as the heatmap and the "% change 1D" column),
+// and the log of alerts that triggered (S.alog). Nothing is estimated or filled in; empty sections say so.
+const SUM={chipDay:""};
+function vtDayStart(d){d=d||new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime()}
+function vtTZ(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"local time"}catch(e){return"local time"}}
+function vtChg1D(s){if(!s||s[2]==null)return null;const a=candles(s,"1D");if(!a||a.length<2)return null;const p=a[a.length-2].c;return p?(s[2]/p-1)*100:null}
+function vtPosBars(s){for(const tf of ["1m","5m","15m","1H","4H","1D"]){const a=candles(s,tf);if(a&&a.length)return{tf,a}}return null}
+function vtSumPositions(t0){const out=[];const now=Date.now()/1000;
+  for(const sym in (S.dr||{})){const L=S.dr[sym];if(!Array.isArray(L))continue;const s=symOf(sym);
+    for(const d of L){if(!d||(d.t!=="long"&&d.t!=="short")||!d.p||d.p.length<3)continue;
+      const E=+d.p[0].y,T=+d.p[1].y,Sx=+d.p[2].y,te=+d.p[0].t,tend=Math.max(+d.p[1].t||te,te);if(!(E>0)||!(te<=now))continue;
+      const o=typeof posO==="function"?posO(d):{acct:1e4,risk:1,ru:"%",lot:1,lev:0,prec:2};
+      const c=posCalc({side:d.t,entry:E,tp:T,sl:Sx,acct:o.acct,risk:o.risk,ru:o.ru,lot:o.lot,lev:o.lev,prec:o.prec,pv:1,tick:s&&s[2]<10?1e-4:.01});
+      const B=s&&vtPosBars(s);const st=B?posState(B.a,d.t,E,T,Sx,te,tend):{state:"none"};
+      let pnl=null,kind="";if(st.state==="tp"){pnl=c.pnlTP;kind="closed"}else if(st.state==="sl"){pnl=c.pnlSL;kind="closed"}else if(st.state==="open"&&tend*1000>=Date.now()-6e4){const px=s&&s[2]!=null?s[2]:st.px;pnl=c.pnlAt(px);kind="open"}
+      // only what belongs to today: closed today, or still open now
+      if(kind==="closed"&&st.t*1000<t0)continue;if(!kind)continue;
+      out.push({sym,side:d.t,entry:E,tp:T,sl:Sx,state:st.state,at:st.t*1000,qty:c.qty,pnl,kind,tf:B&&B.tf})}}
+  return out}
+function vtSumData(){const t0=vtDayStart(),live=typeof isLive==="function"&&isLive();
+  const ch=[];for(const s of SYMS){const v=vtChg1D(s);if(v!=null&&isFinite(v))ch.push([s,v])}ch.sort((a,b)=>b[1]-a[1]);
+  const up=ch.filter(x=>x[1]>0).length,dn=ch.filter(x=>x[1]<0).length;
+  const wl=[];((S.wlx&&S.wlx.groups)||[]).forEach(g=>g.syms.forEach(n=>{const s=symOf(n),v=vtChg1D(s);if(v!=null&&!wl.some(x=>x[0][0]===n))wl.push([s,v])}));wl.sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+  const al=(S.alog||[]).filter(a=>a&&a.at>=t0).sort((a,b)=>a.at-b.at);
+  const pos=vtSumPositions(t0),closed=pos.filter(p=>p.kind==="closed"),open=pos.filter(p=>p.kind==="open");
+  const sum=a=>a.reduce((x,p)=>x+(p.pnl||0),0);
+  return{t0,now:Date.now(),live,total:SYMS.length,withData:ch.length,gain:ch.slice(0,5).filter(x=>x[1]>0),lose:ch.slice(-5).reverse().filter(x=>x[1]<0),up,dn,wl:wl.slice(0,8),al,closed,open,real:sum(closed),unreal:sum(open),wins:closed.filter(p=>p.pnl>0).length}}
+const vtSgn=v=>(v>0?"+":v<0?"\u2212":"")+Math.abs(v).toFixed(2);
+const vtPct=v=>vtSgn(v)+"%";
+const vtHM=t=>new Date(t).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+function vtSumText(D){const L=[],day=new Date(D.t0).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  L.push("Vektor Terminal \u2013 session summary","Day: "+day+" (since 00:00, "+vtTZ()+"), generated "+vtHM(D.now),"Prices: "+(D.live?"live and delayed market feeds":"offline sample data, not real prices"),"");
+  L.push("Position tool (paper positions from your long/short drawings)");if(!D.closed.length&&!D.open.length)L.push("  No positions closed today or open now.");
+  D.closed.forEach(p=>L.push("  "+p.sym+" "+p.side+" "+(p.state==="tp"?"target hit":"stop hit")+" "+vtHM(p.at)+": "+vtSgn(p.pnl)));D.open.forEach(p=>L.push("  "+p.sym+" "+p.side+" open: "+vtSgn(p.pnl)));
+  if(D.closed.length||D.open.length)L.push("  Closed today: "+vtSgn(D.real)+" ("+D.wins+" of "+D.closed.length+" at target)   Open now: "+vtSgn(D.unreal));L.push("");
+  L.push("Markets ("+D.withData+" of "+D.total+" with daily candles): "+D.up+" up, "+D.dn+" down");
+  L.push("  Top gainers: "+(D.gain.map(([s,v])=>s[0]+" "+vtPct(v)).join(", ")||"none"));L.push("  Top losers: "+(D.lose.map(([s,v])=>s[0]+" "+vtPct(v)).join(", ")||"none"));
+  if(D.wl.length)L.push("  Watchlist: "+D.wl.map(([s,v])=>s[0]+" "+vtPct(v)).join(", "));L.push("");
+  L.push("Alerts triggered today: "+D.al.length);D.al.forEach(a=>L.push("  "+vtHM(a.at)+" "+a.sym+" "+(a.dir==="below"?"crossed down through":a.dir==="above"?"crossed up through":"crossed")+" "+a.level+" (price "+a.px+")"+(a.msg?" \u2013 "+a.msg:"")));
+  L.push("","Rule-based figures from past prices; not investment advice.");return L.join("\n")}
+function vtSumM(){const D=vtSumData();SUM.last=D;const day=new Date(D.t0).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+  const mv=([s,v])=>`<li><button type="button" class="lnk sm_sym" data-s="${esc(s[0])}">${esc(String(s[0]).replace(/USDT$/,""))}</button><span class="mut">${esc(MK[s[1]]||s[1])}</span><b class="${v>=0?"up":"dn"}">${vtPct(v)}</b></li>`;
+  const posRow=p=>`<tr><td>${esc(p.sym)}</td><td>${p.side==="long"?"Long":"Short"}</td><td>${p.kind==="open"?"Open":p.state==="tp"?"Target hit "+vtHM(p.at):"Stop hit "+vtHM(p.at)}</td><td class="num">${fp(p.entry)}</td><td class="num ${p.pnl>=0?"up":"dn"}">${vtSgn(p.pnl)}</td></tr>`;
+  const hasPos=D.closed.length||D.open.length;
+  modal(`<div class="smm"><div class="smhd"><div><h3 id="sm_t">Today\u2019s session</h3><p class="mut">${esc(day)} \u00b7 since 00:00 (${esc(vtTZ())}) \u00b7 updated ${vtHM(D.now)}</p></div><span class="sp"></span><button type="button" class="ibtn" aria-label="Close" onclick="closeM()">\u2715</button></div>
+${D.live?"":`<p class="smwarn" role="note">Offline sample data: these are not real market prices.</p>`}
+<div class="smk">
+<div class="smc"><span class="mut">Closed today (position tool)</span><b class="${D.real>=0?"up":"dn"}" id="sm_real">${hasPos?vtSgn(D.real):"\u2013"}</b><span class="mut">${D.closed.length?D.wins+" of "+D.closed.length+" at target":"no positions closed"}</span></div>
+<div class="smc"><span class="mut">Open now</span><b class="${D.unreal>=0?"up":"dn"}" id="sm_unreal">${D.open.length?vtSgn(D.unreal):"\u2013"}</b><span class="mut">${D.open.length} open</span></div>
+<div class="smc"><span class="mut">Markets up / down</span><b id="sm_breadth">${D.up} / ${D.dn}</b><span class="mut">${D.withData} of ${D.total} with daily candles</span></div>
+<div class="smc"><span class="mut">Alerts triggered</span><b id="sm_alc">${D.al.length}</b><span class="mut">today</span></div></div>
+<section class="sms"><h4>Positions</h4>${hasPos?`<div class="smtw" tabindex="0" role="region" aria-label="Positions"><table class="smt"><thead><tr><th>Symbol</th><th>Side</th><th>Status</th><th class="num">Entry</th><th class="num">P\u0026L</th></tr></thead><tbody>${D.closed.map(posRow).join("")}${D.open.map(posRow).join("")}</tbody></table></div><p class="mut smn">Paper results of your long/short position drawings, using each drawing\u2019s own account and risk settings. Not trades with a broker.</p>`:`<p class="mut">No positions closed today or open now. Long/short position drawings on your charts are totalled here.</p>`}</section>
+<section class="sms smg"><div><h4>Top gainers</h4>${D.gain.length?`<ol class="sml">${D.gain.map(mv).join("")}</ol>`:`<p class="mut">None yet.</p>`}</div><div><h4>Top losers</h4>${D.lose.length?`<ol class="sml">${D.lose.map(mv).join("")}</ol>`:`<p class="mut">None yet.</p>`}</div>
+${D.wl.length?`<div><h4>Your watchlist</h4><ol class="sml">${D.wl.map(mv).join("")}</ol></div>`:""}</section>
+<section class="sms"><h4>Alerts triggered today</h4>${D.al.length?`<ul class="sma">${D.al.map(a=>`<li><span class="mut">${vtHM(a.at)}</span><b>${esc(a.sym)}</b><span>${a.dir==="below"?"crossed down through":a.dir==="above"?"crossed up through":"crossed"} ${esc(String(a.level))}</span><span class="mut">price ${esc(String(a.px))}</span>${a.msg?`<span class="mut">\u201c${esc(a.msg)}\u201d</span>`:""}</li>`).join("")}</ul>`:`<p class="mut">No alerts triggered today.</p>`}</section>
+<p class="vtna smna">Change = live price against the previous daily close, the same as the heatmap and the \u201c% change 1D\u201d column. ${VT_NA_TXT}</p>
+<div class="row"><span class="sp"></span><button type="button" id="sm_copy">Copy as text</button><button type="button" id="sm_dl">Download .txt</button><button type="button" class="pri" onclick="closeM()">Close</button></div></div>`);
+  const box=MD.querySelector(".box");if(box)box.setAttribute("aria-labelledby","sm_t");
+  MD.querySelectorAll(".sm_sym").forEach(b=>b.onclick=()=>{closeM();go("workspace");openChart(b.dataset.s)});
+  document.getElementById("sm_copy").onclick=async()=>{const t=vtSumText(D);try{await navigator.clipboard.writeText(t);toast("Summary copied")}catch(e){toast("Couldn\u2019t copy; use Download instead")}};
+  document.getElementById("sm_dl").onclick=()=>{const t=vtSumText(D),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/plain"}));a.download="vektor-session-"+new Date(D.t0).toISOString().slice(0,10)+".txt";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}}
+// entry points: a header button (desktop/tablet), the phone "More" sheet, and a one-off chip after 21:00 local time
+function vtSumBtn(){if(document.getElementById("sumb"))return;const t=document.getElementById("thm");if(!t)return;const b=document.createElement("button");b.type="button";b.id="sumb";b.className="theme-btn";b.title="Today\u2019s session summary";b.textContent="Today";b.onclick=vtSumM;t.before(b)}
+vtSumBtn();
+if(typeof vtMoreOpen==="function"){const _vtSMo=vtMoreOpen;vtMoreOpen=function(){const r=_vtSMo.apply(this,arguments);try{const m=document.getElementById("vmore");if(m&&!m.querySelector("#vm_sum")){const h=document.createElement("h3");h.textContent="Tools";const g=document.createElement("div");g.className="grid";
+  g.innerHTML='<button type="button" id="vm_sum">Today\u2019s session</button>';const pg=m.querySelector(".grid");(pg?pg.nextSibling:null)?m.insertBefore(h,pg.nextSibling):m.appendChild(h);h.after(g);g.querySelector("#vm_sum").onclick=()=>{vtMoreClose();vtSumM()}}}catch(e){}return r}}
+function vtSumChip(force){const now=new Date(),key=now.toDateString();if(SUM.chipDay===key||(!force&&now.getHours()<21))return; /* once per day; "force" only skips the 21:00 check */if(document.getElementById("vtsumchip")||document.documentElement.classList.contains("locked"))return;SUM.chipDay=key;
+  const c=document.createElement("div");c.id="vtsumchip";c.className="vtsumchip";c.setAttribute("role","status");
+  c.innerHTML='<span>Today\u2019s session summary is ready.</span><button type="button" class="pri" id="vtsum_open">Open</button><button type="button" class="ibtn" id="vtsum_x" aria-label="Dismiss">\u2715</button>';document.body.appendChild(c);
+  c.querySelector("#vtsum_open").onclick=()=>{c.remove();vtSumM()};c.querySelector("#vtsum_x").onclick=()=>c.remove()}
+setInterval(()=>{if(!document.hidden&&typeof BOOTED!=="undefined"&&BOOTED)vtSumChip(false)},60000);
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.

@@ -3,6 +3,15 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **End-of-day session summary.** "Today" in the header (or More → Today’s session on phones) opens a summary of the day since 00:00 local time. From 21:00, a small chip offers it once a day.
+  - **Data:** everything comes from data the app already has; nothing is estimated or filled in.
+  - **P&L:** paper results of your long/short position-tool drawings. Positions closed today (target or stop hit, walked bar by bar with the existing position logic) and positions still open (valued at the live price) are shown, each with its own account and risk settings. They are clearly labelled as not broker trades.
+  - **Markets:** up/down breadth and the top gainers and losers (live price against the previous daily close, the same as the heatmap and the "% change 1D" column), plus your watchlist's movers. It shows how many markets have daily candles.
+  - **Alerts triggered today:** taken from the new alert log, with time, level, price and note.
+  - Empty sections say so ("No positions closed today or open now", "No alerts triggered today"). With offline sample data, a warning says the prices are not real.
+  - **Export:** "Copy as text" or "Download .txt". Clicking a mover opens its chart. The not-advice note is included.
+  - Tests: new `tests/summary.js`.
+
 - **Alert sound cue (off by default).** Triggered alerts used to always play a fixed beep. Now they make no sound unless you turn it on in the Price Alerts dialog ("Alert sound": on/off, volume, test).
   - The tone is a soft two-note chime made with Web Audio, with no files and nothing downloaded.
   - **Consent:** turning it on works straight away for the current tab. It is only remembered on the device (localStorage `vt_prefs`) if you allow the new **Optional preferences** category in Cookie settings. That category is off by default, on with "Accept all", and off with "Reject all". Withdrawing it deletes `vt_prefs`. If you turn the sound on first and allow the category later, the setting is saved then. Consent records made before this category existed count as "no".

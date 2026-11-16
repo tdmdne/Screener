@@ -6,16 +6,16 @@
 :root{
   --bg:#ffffff;
   --fg:#18181b;
-  --mut:#71717a;
+  --mut:#52525b;
   --line:#e4e4e7;
   --card:#f4f4f5;
-  --acc:#f97316;
-  --acc-hover:#ea580c;
+  --acc:#c2410c;
+  --acc-hover:#9a3412;
   --accfg:#ffffff;
   --acc-soft:#ffedd5;
-  --g:#0f9d58;
+  --g:#0a7a43;
   --gb:#e3f4ea;
-  --r:#d93025;
+  --r:#b42318;
   --rb:#fbe6e4;
   color-scheme:light;
   box-sizing:border-box;
@@ -258,6 +258,13 @@ html.locked .auth{display:flex}
 /* ==== VT PAGES CSS BEGIN ==== */
 .vtna{margin:6px 8px 8px;font-size:11.5px;line-height:1.45;color:var(--mut)}
 .vtna a{color:inherit;text-decoration:underline}
+/* accessibility: visible focus everywhere, skip link */
+:where(button,a,[role=button],[role=link],[tabindex]:not([tabindex="-1"]),summary,.chip,.preset-btn):focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+[role=main]:focus{outline:none}
+.ov>.box:focus{outline:none}
+.vt-skip{position:fixed;left:8px;top:-80px;z-index:400;background:var(--acc);color:var(--accfg,#111);padding:10px 14px;border-radius:8px;font-weight:700;text-decoration:none;transition:top .1s}
+.vt-skip:focus{top:8px;outline:2px solid var(--fg);outline-offset:2px}
 /* top navigation + page views (multi-page terminal) */
 .vnav{display:flex;gap:2px;align-items:center;overflow-x:auto;scrollbar-width:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px;min-width:0}
 .vnav::-webkit-scrollbar{display:none}
@@ -333,6 +340,10 @@ html.locked .auth{display:flex}
 .ibtn{border:0;background:none;padding:4px 6px;color:var(--mut);border-radius:6px;min-height:0!important;line-height:1}
 .ibtn:hover{color:var(--fg);background:var(--card)}
 .ibtn.on{color:var(--acc)}
+
+.dkt .dktb{background:none;border:0;padding:0;margin:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;min-height:0}
+.dkt .sp{align-self:stretch;cursor:pointer}
+.dwsw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
 /* price-scale plus button + menu */
 .vplus{position:absolute;z-index:9;width:18px;height:18px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:600 14px/16px system-ui,sans-serif;text-align:center;cursor:pointer;display:none;padding:0;min-height:0!important;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .vplus:hover{border-color:var(--acc);color:var(--acc)}
@@ -512,7 +523,7 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 .vlm .box{max-width:860px;max-height:90vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 20px;position:relative}
 .vlm .x{position:sticky;top:0;float:right}
 .pcact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
-.pcdanger{border:1px solid var(--red,#ef5350)!important;color:var(--red,#ef5350)!important;background:transparent!important}
+.pcdanger{border:1px solid var(--r,#ef5350)!important;color:var(--r,#ef5350)!important;background:transparent!important}
 .pcform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:8px 0}
 .pcform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
 .pcform textarea{min-height:70px;grid-column:1/-1}
@@ -620,7 +631,7 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 
 </section>
 <section class="ctl"><input id="q" placeholder="Search this list…"><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select><button onclick="favM()" title="Add to watchlist">★</button><button onclick="dataM()">Data</button></section>
-<section class="ctl phone-only"><select id="srtsel" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
+<section class="ctl phone-only"><select id="srtsel" aria-label="Sort by" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)">⇅</button></section>
 <div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
 <p class="note foot">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
@@ -1147,7 +1158,7 @@ if(C.indTitles!==false&&C.ind.length){
   const topPos=C.showBuySell?"48px":"8px";
   const leftPad=C.scalePlace==="left"?90:8;
   const idv=document.createElement("div");idv.style.cssText=`position:absolute;top:${topPos};left:${leftPad}px;font-size:11px;z-index:4;color:${txtCol}`;
-  idv.innerHTML=`<details style="background:transparent"><summary style="cursor:pointer;color:${txtCol};list-style:none">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="background:transparent;padding:2px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:4px;padding:1px 0"><span style="color:${d.hidden?"#555":d.col};font-size:8px">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:8px;opacity:.8"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">${d.hidden?"○":"●"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
+  idv.innerHTML=`<details style="background:transparent"><summary style="cursor:pointer;color:${txtCol};list-style:none">${C.ind.length} indicator${C.ind.length>1?"s":""}</summary><div style="background:transparent;padding:2px 0">${C.ind.map(d=>`<div style="display:flex;align-items:center;gap:4px;padding:1px 0"><span aria-hidden="true" style="color:${d.hidden?"#555":d.col};font-size:8px">●</span><span style="${d.hidden?"opacity:.5":""}">${IND[d.t]||d.t} ${d.len||""}</span><span style="margin-left:8px;opacity:.8"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">${d.hidden?"○":"●"}</button><button onclick="editInd('${d.id}')" title="Settings" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${txtCol}">⚙</button><button onclick="rmInd('${d.id}')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:#f23645">✕</button></span></div>`).join("")}</div></details>`;
   document.getElementById("cv").parentElement.appendChild(idv);
 }
 // ATR display in bottom right
@@ -2320,6 +2331,75 @@ function vtNaNote(){const tw=document.querySelector(".side>.tw");if(!tw||documen
   const p=document.createElement("p");p.id="vtna";p.className="vtna";p.append(VT_NA_TXT+" ");
   const a=document.createElement("a");a.href="#/legal/risk";a.textContent="Risk disclaimer";p.append(a);tw.after(p)}
 const _vtRenderNA=render;render=function(){const r=_vtRenderNA.apply(this,arguments);try{vtNaNote()}catch(e){}return r};
+// ---------- accessibility layer (checklist 6) ----------
+// Generic, additive fixes applied to whatever the app renders (MutationObserver, batched per frame):
+//  * clickable non-native elements (inline onclick on div/span/td/h1) get role + tabindex and work with Enter/Space
+//  * icon-only buttons and unlabeled form fields get an accessible name (from title / placeholder / nearby text)
+//  * every modal() is a labelled dialog: focus moves in, Tab stays inside, Esc closes, focus returns on close
+//  * a skip link, one "main" landmark (the visible page), labelled chart regions, visible focus outlines (CSS)
+const VT_NATIVE=/^(BUTTON|A|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY|OPTION|DETAILS)$/;
+const VT_A11Y={raf:0,prev:null};
+const vtTxt=s=>String(s||"").replace(/\s+/g," ").trim();
+function vtNameFromBg(x){const c=x.style&&(x.style.background||x.style.backgroundColor);return c?"Colour "+c:""}
+function vtA11yFix(root){root=root&&root.querySelectorAll?root:document;
+  root.querySelectorAll("[onclick]").forEach(x=>{if(VT_NATIVE.test(x.tagName)||x.classList.contains("ov")||x.closest("svg")||x.closest("[aria-hidden=true]"))return;
+    const oc=x.getAttribute("onclick")||"";if(/^\s*event\.stopPropagation\(\)\s*;?\s*$/.test(oc)||/event\.target===this/.test(oc))return;
+    if(!x.hasAttribute("role"))x.setAttribute("role",x.tagName==="H1"?"link":"button");if(!x.hasAttribute("tabindex"))x.tabIndex=0;
+    if(!vtTxt(x.textContent)&&!x.hasAttribute("aria-label")){const n=x.title||vtNameFromBg(x);if(n)x.setAttribute("aria-label",n)}
+    if(x.tagName==="H1"&&!x.hasAttribute("aria-label"))x.setAttribute("aria-label","Vektor Terminal home")});
+  root.querySelectorAll("button,a[href],[role=button]").forEach(b=>{if(b.hasAttribute("aria-label")||b.hasAttribute("aria-labelledby"))return;
+    const t=vtTxt(b.textContent);if(/[A-Za-z0-9]/.test(t))return;
+    const n=b.title||(b.dataset&&b.dataset.tool&&typeof DT==="object"&&DT[b.dataset.tool])||"";if(n)b.setAttribute("aria-label",n)});
+  root.querySelectorAll("input:not([type=hidden]),select,textarea").forEach(f=>{if(f.hasAttribute("aria-label")||f.hasAttribute("aria-labelledby")||f.closest("label"))return;
+    if(f.id&&document.querySelector('label[for="'+CSS.escape(f.id)+'"]'))return;
+    let n=f.placeholder||f.title||"";
+    if(!n){let p=f.previousElementSibling;while(p&&!vtTxt(p.textContent))p=p.previousElementSibling;if(p&&!/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(p.tagName))n=vtTxt(p.textContent).slice(0,60)}
+    if(!n){const td=f.closest("td"),tb=td&&td.closest("table");if(tb){const i=[...td.parentElement.children].indexOf(td),th=tb.querySelectorAll("thead th")[i];const rh=td.parentElement.querySelector("th,td:first-child");
+      if(th)n=vtTxt(th.textContent)+(rh&&rh!==td&&vtTxt(rh.textContent)&&!rh.querySelector("input")?" \u2013 "+vtTxt(rh.textContent):"")}}
+    if(!n&&f.parentElement){const c=f.parentElement.cloneNode(true);c.querySelectorAll("input,select,textarea,option,button").forEach(z=>z.remove());n=vtTxt(c.textContent).slice(0,60)}
+    if(n)f.setAttribute("aria-label",n)});
+  // tables that scroll sideways must be reachable by keyboard
+  root.querySelectorAll(".ftbl").forEach(t=>{if(t.scrollWidth>t.clientWidth+1){if(!t.hasAttribute("tabindex"))t.tabIndex=0}else if(t.getAttribute("tabindex")==="0"&&!t.dataset.keep)t.removeAttribute("tabindex")});
+  // sortable headers: expose the sort state on the <th>
+  document.querySelectorAll("#t thead th").forEach(th=>{const h=th.querySelector("span.h");if(!h)return;const t=h.textContent;th.setAttribute("aria-sort",/\u25b2/.test(t)?"ascending":/\u25bc/.test(t)?"descending":"none")});
+  vtA11yLandmarks()}
+function vtA11yLandmarks(){const pg=document.documentElement.dataset.page||"workspace";
+  const main=pg==="workspace"||pg==="chart"||pg==="screener"?document.querySelector(".wrap>.ws"):document.getElementById("pv-"+pg)||document.querySelector('.wrap>.pv[data-pv="'+pg+'"]');
+  document.querySelectorAll('.wrap>[role="main"]').forEach(e=>{if(e!==main)e.removeAttribute("role")});
+  if(main){if(main.getAttribute("role")!=="main")main.setAttribute("role","main");if(!main.id)main.id="vtmain";if(!main.hasAttribute("tabindex"))main.tabIndex=-1}
+  const cv=document.getElementById("cv");if(cv&&S&&S.chart){const l="Price chart, "+S.chart.sym+" "+S.chart.tf;if(cv.getAttribute("aria-label")!==l){cv.setAttribute("role","region");cv.setAttribute("aria-label",l)}}
+  const cb=document.getElementById("cvB");if(cb&&S&&S.sc){const l="Second chart pane, "+S.chart.sym+" "+S.sc.tfB;if(cb.getAttribute("aria-label")!==l){cb.setAttribute("role","region");cb.setAttribute("aria-label",l)}}}
+function vtA11ySoon(){if(VT_A11Y.raf)return;VT_A11Y.raf=setTimeout(()=>{VT_A11Y.raf=0;try{vtA11yFix(document)}catch(e){console.error(e)}},120)}// batched: live price ticks mutate the DOM often
+new MutationObserver(vtA11ySoon).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["data-page"]});
+// Enter / Space activate role=button / role=link elements that aren't native controls
+document.addEventListener("keydown",e=>{const t=e.target;if(!t||!t.getAttribute||e.defaultPrevented)return;const r=t.getAttribute("role");
+  if((r==="button"||r==="link")&&!VT_NATIVE.test(t.tagName)&&(e.key==="Enter"||(e.key===" "&&r==="button"))){e.preventDefault();t.click()}});
+// ---- dialogs ----
+const VT_FOCUSABLE='a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function vtFocusables(root){return[...root.querySelectorAll(VT_FOCUSABLE)].filter(x=>x.offsetParent!==null||x===document.activeElement)}
+const _vtModalA=modal;modal=function(){const a=document.activeElement;if(a&&!MD.contains(a)&&a!==document.body)VT_A11Y.prev=a;
+  const r=_vtModalA.apply(this,arguments);const box=MD.querySelector(".ov>.box");
+  if(box){const inner=box.querySelector('[role="dialog"]');if(!inner){box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
+      const h=box.querySelector("h1,h2,h3,h4");if(h){if(!h.id)h.id="vtdlg_h"+Date.now();box.setAttribute("aria-labelledby",h.id)}else box.setAttribute("aria-label","Dialog")}
+    if(!box.hasAttribute("tabindex"))box.tabIndex=-1;
+    setTimeout(()=>{if(!MD.contains(document.activeElement)){const f=vtFocusables(box);(f.find(x=>/^(INPUT|SELECT|TEXTAREA)$/.test(x.tagName))||f[0]||box).focus()}},0)}
+  vtA11yFix(MD);return r};
+const _vtCloseMA=closeM;closeM=function(){const had=!!MD.firstChild;const r=_vtCloseMA.apply(this,arguments);const p=VT_A11Y.prev;
+  if(had&&p&&p.isConnected&&!MD.contains(p)&&!document.documentElement.classList.contains("locked")){try{p.focus()}catch(e){}}if(had)VT_A11Y.prev=null;return r};
+document.addEventListener("keydown",e=>{if(!MD.firstChild||e.defaultPrevented)return;const box=MD.querySelector(".ov>.box");if(!box)return;
+  if(e.key==="Escape"){if(e.target.closest&&e.target.closest(".cpop,.vpmenu"))return;e.preventDefault();closeM();return}
+  if(e.key==="Tab"){const f=vtFocusables(box);if(!f.length){e.preventDefault();box.focus();return}const a=f[0],z=f[f.length-1],cur=document.activeElement;
+    if(!box.contains(cur)){e.preventDefault();a.focus()}else if(e.shiftKey&&(cur===a||cur===box)){e.preventDefault();z.focus()}else if(!e.shiftKey&&cur===z){e.preventDefault();a.focus()}}});
+// ---- skip link ----
+(function(){const s=document.createElement("a");s.href="#vtmain";s.className="vt-skip";s.textContent="Skip to main content";
+  s.addEventListener("click",e=>{e.preventDefault();vtA11yLandmarks();const m=document.querySelector('.wrap>[role="main"]');if(m)m.focus()});
+  const w=document.querySelector(".wrap");if(w)w.prepend(s)})();
+// the screener table is re-rendered on live ticks: fix it synchronously and keep keyboard focus on the same control
+const _vtRenderA=render;render=function(){const a=document.activeElement,t=document.getElementById("t");let key=null;
+  if(a&&t&&t.contains(a)){const oc=a.getAttribute("onclick");if(oc)key=oc}
+  const r=_vtRenderA.apply(this,arguments);const t2=document.getElementById("t");
+  if(t2){vtA11yFix(t2);if(key&&!t2.contains(document.activeElement)){const el=[...t2.querySelectorAll("[onclick]")].find(x=>x.getAttribute("onclick")===key);if(el)el.focus({preventScroll:true})}}
+  return r};
 // ---------- pages + client-side router ----------
 // Every page lives in this one document. Switching pages only toggles what's visible (data-page on <html>),
 // so WebSockets (BNWS, BNKL, FHWS), LIVE candle caches and timers are never torn down.
@@ -2420,7 +2500,7 @@ function scDW(){const el=document.getElementById("dkdw");if(!el||!SC.dw)return;c
 const o=x.o!=null?x.o:i?a[i-1].c:x.c,prev=i?a[i-1].c:null,chg=prev?(x.c/prev-1)*100:null,d=new Date(T(i)*1000);
 const f=v=>v==null||!isFinite(v)?"\u2013":fp(v);
 let h=`<span>Symbol</span><span>${esc(s[0])} \u00b7 ${esc(S.chart.tf)}</span><span>Time</span><span>${d.toISOString().slice(0,16).replace("T"," ")} UTC</span><span>Open</span><span>${f(o)}</span><span>High</span><span>${f(x.h)}</span><span>Low</span><span>${f(x.l)}</span><span>Close</span><span>${f(x.c)}</span><span>Change</span><span class="${chg==null?"":chg<0?"dn":"up"}">${chg==null?"\u2013":(chg>0?"+":"")+chg.toFixed(2)+"%"}</span><span>Volume</span><span>${vol&&vol[i]!=null?fm(vol[i]):"\u2013"}</span>`;
-inds.forEach(({d,v})=>{h+=`<span style="color:${d.col}">${esc(IND[d.t]||d.t)} ${d.len}</span><span>${v[i]==null?"\u2013":d.t==="rsi"?v[i].toFixed(1):fp(v[i])}</span>`});
+inds.forEach(({d,v})=>{h+=`<span><i class="dwsw" style="background:${esc(d.col)}" aria-hidden="true"></i>${esc(IND[d.t]||d.t)} ${d.len}</span><span>${v[i]==null?"\u2013":d.t==="rsi"?v[i].toFixed(1):fp(v[i])}</span>`});
 el.innerHTML=h}
 function scDock(){const el=document.getElementById("dock");if(!el)return;
 if(S.pageView!=="chart"){el.innerHTML="";return}
@@ -2429,7 +2509,7 @@ const P1='<rect x="3" y="4" width="18" height="16" rx="1"/>',P2='<rect x="3" y="
 el.className="dock"+(D.dock?"":" shut");
 const head=`<div class="dkh"><button class="ibtn ${D.panes===1?"on":""}" title="One chart" onclick="scSetPanes(1)">${ic(P1)}</button><button class="ibtn ${D.panes===2?"on":""}" title="Two charts side by side (e.g. higher + lower timeframe)" onclick="scSetPanes(2)">${ic(P2)}</button>${D.dock?'<span class="sp"></span>':""}<button class="ibtn" title="${D.dock?"Collapse":"Expand"} panel" onclick="scTogDock()">${ic(D.dock?'<path d="M9 6l6 6-6 6"/>':'<path d="M15 6l-6 6 6 6"/>')}</button></div>`;
 if(!D.dock){el.innerHTML=head;return}
-const sec=(k,t,body,extra)=>`<div class="dks"><div class="dkt" onclick="scTogSec('${k}')">${D.secs[k]?"\u25be":"\u25b8"} ${t}<span class="sp"></span>${extra||""}</div>${D.secs[k]?body:""}</div>`;
+const sec=(k,t,body,extra)=>`<div class="dks"><div class="dkt"><button type="button" class="dktb" onclick="scTogSec('${k}')" aria-expanded="${!!D.secs[k]}">${D.secs[k]?"\u25be":"\u25b8"} ${t}</button><span class="sp" onclick="scTogSec('${k}')" aria-hidden="true"></span>${extra||""}</div>${D.secs[k]?body:""}</div>`;
 el.innerHTML=head+`<div class="dkb">`+sec("wl","Watchlist",`<div id="dkwl"></div>`)+sec("al","Active alerts",`<div id="dkal"></div>`,`<button class="ib" onclick="event.stopPropagation();alertsM()">+ Alert</button>`)+sec("dw","Data window",`<div class="dkdw" id="dkdw"></div>`)+`</div>`;
 scDockLive();scDW()}
 function scRow(n){const d=wlData(n);return`<div class="dkr ${n===S.chart.sym?"sel":""}" onclick="openChart('${esc(n)}')"><b>${esc(n)}</b><span>${d.last==null?"\u2026":fp(d.last)}</span><span class="${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"\u2026":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span></div>`}
@@ -3048,7 +3128,7 @@ el.innerHTML=`<div class="pgw"><div class="pgh"><h2>Calculators</h2><span class=
 <div class="cout"><div class="kpi"><div class="k">Contracts</div><div class="v cbig" id="c_cts"></div></div><div class="kpi"><div class="k">Tick / point</div><div class="v" id="c_tk"></div></div><div class="kpi"><div class="k">Stop in points</div><div class="v" id="c_pts"></div></div><div class="kpi"><div class="k">Risk at stop</div><div class="v" id="c_frk"></div></div></div><p class="cnote" id="c_futn"></p></div>
 <div class="vcard"><h3>Pip \u0026 tick value</h3><div class="frm">${cin("pvSym","FX pair",{text:1,list:"fxlist"})}${cin("pvLots","Lots",{step:0.01})}${cin("pvFut","Futures",{opts:futOpts})}${cin("pvCts","Contracts",{step:1})}</div>
 <div class="cout"><div class="kpi"><div class="k">Per pip</div><div class="v" id="c_pp"></div></div><div class="kpi"><div class="k">Per 10 pips</div><div class="v" id="c_pp10"></div></div><div class="kpi"><div class="k">Per tick</div><div class="v" id="c_pt"></div></div><div class="kpi"><div class="k">Per point</div><div class="v" id="c_ppt"></div></div></div><p class="cnote" id="c_ppn"></p></div>
-<div class="vcard"><h3>Drawdown recovery</h3><div style="max-height:300px;overflow:auto"><table class="ftbl" id="c_rec"></table></div><p class="cnote">Wins needed assumes the challenge simulator's risk % and R:R below, compounding.</p></div>
+<div class="vcard"><h3>Drawdown recovery</h3><div style="max-height:300px;overflow:auto" tabindex="0" role="region" aria-label="Drawdown recovery table"><table class="ftbl" id="c_rec"></table></div><p class="cnote">Wins needed assumes the challenge simulator's risk % and R:R below, compounding.</p></div>
 <div class="vcard wide"><h3>Multiple prop accounts</h3><table class="ftbl macc" id="c_macc"></table><div class="row" style="margin-top:8px"><button onclick="S.calc.accts.push({name:'Account '+String.fromCharCode(65+S.calc.accts.length),size:100000,riskPct:S.calc.riskPct});save();calcBuild()">+ Account</button><span class="mut">Uses the FX pair and stop, and the futures contract and stop, from the cards above.</span></div></div>
 <div class="vcard wide"><h3>Challenge phase simulator</h3><div class="frm">${cin("sim.target","Profit target (%)",{step:0.5})}${cin("sim.maxDD","Max drawdown (%)",{step:0.5})}${cin("sim.dailyDD","Daily loss limit (%)",{step:0.5})}${cin("sim.riskPct","Risk per trade (%)",{step:0.05})}${cin("sim.winRate","Win rate (%)",{step:1})}${cin("sim.rr","Avg reward : risk",{step:0.1})}${cin("sim.tradesPerDay","Trades per day",{step:1,min:1})}${cin("sim.maxDays","Days allowed",{step:1,min:1})}${cin("sim.runs","Simulations",{step:500,min:100})}</div>
 <div class="row" style="margin-top:8px;flex-wrap:wrap">${cin("sim.trailing","Trailing drawdown (from equity peak)",{type:"check"})}${cin("sim.fixed","Risk a fixed % of the starting balance",{type:"check"})}</div>

@@ -3,6 +3,25 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Accessibility pass (checklist 6).** Audited with axe-core (WCAG 2.1 A/AA rules) on every page in dark and light themes, plus the main dialogs. The result is 0 violations, and `tests/a11y.js` re-checks it on every run.
+  - **Keyboard:**
+    - Every clickable non-button element (sort headers, symbol cells, watchlist rows, colour swatches, menus, the VT home monogram) now gets a role and tab stop, and works with Enter/Space.
+    - The screener table keeps keyboard focus when it re-renders on live ticks.
+    - Dock section toggles are real buttons with `aria-expanded`.
+    - A "Skip to main content" link moves focus to the visible page, which is the single `main` landmark.
+  - **Dialogs:** every dialog is a labelled `role="dialog"`. Focus moves in when it opens, Tab stays inside, Esc closes it, and focus returns to the control that opened it.
+  - **Names:**
+    - Icon-only buttons get names from their tooltips.
+    - Unlabelled fields (including the calculator account rows and the phone sort menu) get labels from their column header or nearby text.
+    - Sortable columns report `aria-sort`.
+    - Charts are labelled regions, e.g. "Price chart, BTCUSDT 1H".
+    - Tables that scroll sideways can be reached by keyboard.
+  - **Focus:** a 2px accent focus outline on every control.
+  - **Contrast:**
+    - Light theme only: muted text #52525b, accent #c2410c, green #0a7a43, red #b42318, all now 4.5:1 or better. The dark terminal theme is unchanged.
+    - In the Data window, indicator names are in normal text colour with a colour swatch, instead of text in the line colour.
+  - Tests: `tests/a11y.js`, which needs the axe-core dev dependency (`npm i -D axe-core`).
+
 - **Claims review and not-advice notes (checklist 5).**
   - Preset copy now describes filters instead of ranking quality:
     - Removed: "Best markets", "P1 is the best quality", "Higher presets = stronger market cycles" and "coming out of accumulation/manipulation".

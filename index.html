@@ -252,6 +252,9 @@ html.locked .auth{display:flex}
 .auth-err{min-height:18px;font-size:13px;color:var(--r)}
 .auth-card button.pri{min-height:44px;font-size:15px}
 .auth-card .note{margin:0;text-align:center}
+#msg{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:200;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none;max-width:90vw}
+#msg:empty{display:none}
+:root{--hover:var(--card)}
 </style></head><body>
 <div class="wrap">
 <header>
@@ -294,6 +297,7 @@ html.locked .auth{display:flex}
 </div><div id="cp"></div></div>
 </div>
 <div id="modal"></div>
+<div id="msg" role="status" aria-live="polite"></div>
 <div class="auth" id="auth">
   <form class="auth-card" id="auForm" novalidate>
     <h2 class="auth-h">
@@ -669,7 +673,7 @@ const MD=document.getElementById("modal");
 let ch=null,ch2=null;
 function modal(h){MD.innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="box">${h}</div></div>`}
 function closeM(){MD.innerHTML=""}
-function toast(t){const m=document.getElementById("msg");m.textContent=t;setTimeout(()=>{m.textContent=""},2200)}
+let toastT=0;function toast(t){const m=document.getElementById("msg");if(!m)return;m.textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>{m.textContent=""},2200)}
 const sel=(k,arr,v,lab)=>`<label>${lab}<select data-k="${k}">${arr.map(a=>{const[x,y]=Array.isArray(a)?a:[a,a];return`<option value="${x}" ${x==v?"selected":""}>${y}</option>`}).join("")}</select></label>`;
 const num=(k,v,lab,mn,mx,st)=>`<label>${lab}<input data-k="${k}" data-n="1" type="number" min="${mn}" max="${mx}" step="${st||1}" value="${v}"></label>`;
 function form(c){const t=c.type;let h="";
@@ -731,7 +735,7 @@ function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
-const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b>${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
+const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b id="cpx">${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
 cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot">📷</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset to live">↺</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
@@ -837,7 +841,8 @@ if(tb){
   const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
   const workerCode=`self.onmessage=e=>{const{tz,fmt}=e.data;setInterval(()=>{const now=new Date();const t=now.toLocaleTimeString("en-GB",{hour12:fmt==="12",timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit"});self.postMessage(t)},1000)}`;
   const blob=new Blob([workerCode],{type:"application/javascript"});
-  const worker=new Worker(URL.createObjectURL(blob));
+  if(window.__tbw){try{window.__tbw.terminate()}catch(e){}}
+  const wurl=URL.createObjectURL(blob),worker=new Worker(wurl);URL.revokeObjectURL(wurl);window.__tbw=worker;
   worker.onmessage=e=>{tb.textContent=e.data+" "+(C.tz||"utc").toUpperCase()};
   worker.postMessage({tz:tzMap[C.tz]||"UTC",fmt:C.timeFmt});
   tb.style.cursor="pointer";
@@ -849,7 +854,7 @@ function alertsM(prefill){
   const sym=S.chart.sym||"";
   const price=prefill&&prefill.price?prefill.price:"";
   const dir=prefill&&prefill.dir?prefill.dir:"above";
-  const list=(S.alerts||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(a.sym)} ${a.dir==="above"?"crosses above":"crosses below"} ${a.price}</span><span class="sp"></span><button onclick="rmAlert(${i})">✕</button></div>`).join("")||`<p class="mut">No alerts yet.</p>`;
+  const list=(S.alerts||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(a.sym)} ${a.dir==="above"?"crosses above":"crosses below"} ${a.price}${a.fired?` <span class="pill b" style="min-width:0">triggered</span>`:""}</span><span class="sp"></span>${a.fired?`<button onclick="rearmAlert(${i})" title="Arm this alert again">Re-arm</button>`:""}<button onclick="rmAlert(${i})">✕</button></div>`).join("")||`<p class="mut">No alerts yet.</p>`;
   modal(`<h3>Price Alerts</h3>
   <label>Symbol<input id="al_sym" value="${esc(sym)}"></label>
   <label>Price<input id="al_px" type="number" step="any" value="${price}"></label>
@@ -868,6 +873,7 @@ function addAlert(){
   if(typeof Notification!=="undefined"&&Notification.permission==="default")Notification.requestPermission();
 }
 function rmAlert(i){S.alerts.splice(i,1);save();alertsM()}
+function rearmAlert(i){const a=S.alerts[i];if(a){a.fired=false;a.on=true;delete lastPx[a.sym];save()}alertsM()}
 function alertFromHline(price){alertsM({price,dir:"above"})}
 let lastPx={};
 function checkAlerts(sym,price){
@@ -886,7 +892,7 @@ function fireAlert(a,price){
   toast(msg);
   try{if(typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification("Vektor Alert",{body:msg})}catch(e){}
   try{
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=window.__actx||(window.__actx=new (window.AudioContext||window.webkitAudioContext)());if(ctx.state==="suspended")ctx.resume();
     const o=ctx.createOscillator(),g=ctx.createGain();
     o.connect(g);g.connect(ctx.destination);
     o.frequency.value=880;g.gain.value=0.15;
@@ -1534,7 +1540,7 @@ const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC 
 const YCR=("BTC ETH BNB SOL XRP ADA DOGE AVAX DOT LINK LTC BCH ATOM XLM NEAR ETC FIL TRX SHIB ICP AAVE ALGO XMR HBAR").split(" ").map(n=>({n:n+"USD",m:"CRY",td:n+"-USD",tv:"COINBASE:"+n+"USD"}));
 // redraw the table less often while a big queue is still loading, so the page thread stays free for fetching
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},QT.length+QB.length+QY.length>40?1200:300)};
-const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
+const fin=(s,tf)=>{const fd=LIVE[s[0]+"|"+tf];if(fd&&fd.length)checkAlerts(s[0],fd[fd.length-1].c);tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};
 // ----- Extra free API fallbacks -----
 const FH={busy:0};
@@ -1633,7 +1639,7 @@ function bnwsConnect(){
         const s=SYMS.find(x=>x[0]===sym);
         if(s)s[2]=+t.c;checkAlerts(sym,+t.c);
       });
-      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym))drawChart();
+      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym)){updateLiveBar(S.chart.sym,S.chart.tf);const s=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&s&&s[2]!=null)q.textContent=fp(s[2])}
     }catch(err){}
   };
   BNWS.ws.onclose=()=>setTimeout(bnwsConnect,5000);
@@ -1809,7 +1815,9 @@ let IDB=null,READY=false,fl=0;const DIRTY=new Set();
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago"};
 function idb(){return new Promise(res=>{try{const r=indexedDB.open("scr",2);r.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("c"))db.createObjectStore("c");};r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
 function persistUni(){
-  if(!SYMS||!SYMS.length)return;
+  // rebuild the merged universe first, so the snapshot includes the list that just loaded
+  const was=SNAP.ok;SNAP.ok=false;setLive();
+  if(!SYMS||!SYMS.length){SNAP.ok=was;return}
   SNAP.uni=SYMS.map(s=>s.slice());
   SNAP.t=Date.now();
   SNAP.ok=true;

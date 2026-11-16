@@ -300,6 +300,37 @@ html.locked .auth{display:flex}
 .frm{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .frm input,.frm select{width:100%}
 .stub{padding:28px;text-align:center;color:var(--mut)}
+/* Supercharts: optional second pane + right dock */
+:root[data-page="chart"] .dock{display:flex}
+:root[data-page="chart"][data-panes="2"] .sc2{display:flex}
+:root[data-split="1"][data-page="chart"] .ws{grid-template-columns:minmax(0,1fr) auto}
+:root[data-split="1"][data-page="chart"][data-panes="2"] .ws{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+.sc2{flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);min-width:0;min-height:0}
+.sc2h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sc2h .chip{padding:3px 8px;margin:0;font-size:12px}
+#cvB{flex:1 1 0;min-height:300px;position:relative}
+:root[data-split="1"] #cvB{min-height:0}
+.dock{flex-direction:column;width:290px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-height:0;overflow:hidden}
+.dock.shut{width:40px}
+.dkh{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--card)}
+.dock.shut .dkh{flex-direction:column;border-bottom:0;height:100%;background:var(--bg)}
+.dkb{flex:1;min-height:0;overflow:auto}
+.dks{border-bottom:1px solid var(--line)}
+.dkt{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--mut);cursor:pointer;user-select:none;text-transform:uppercase}
+.dkt:hover{color:var(--fg)}
+.dkr{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr);gap:6px;padding:4px 10px;font-size:12px;cursor:pointer;align-items:center}
+.dkr:hover{background:var(--card)}
+.dkr.sel{background:color-mix(in srgb,var(--acc) 14%,var(--bg))}
+.dkr span:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.dkr b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dka{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.dkdw{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;padding:6px 10px 10px;font-size:12px}
+.dkdw span:nth-child(odd){color:var(--mut)}
+.dkdw span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.dkx{padding:6px 10px;font-size:12px}
+.ibtn{border:0;background:none;padding:4px 6px;color:var(--mut);border-radius:6px;min-height:0!important;line-height:1}
+.ibtn:hover{color:var(--fg);background:var(--card)}
+.ibtn.on{color:var(--acc)}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -861,6 +892,7 @@ const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.
 ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
 ch.priceScale("right").applyOptions({autoScale:true});
 initDraw(a,T,st);
+if(typeof vtAfterDraw==="function"){try{vtAfterDraw(s,a,T)}catch(e){console.error(e)}}
 // indicator values dropdown
 if(C.indTitles!==false&&C.ind.length){
   const bg=C.bg==="custom"&&C.bgCol?C.bgCol:(pal().bg||"#fff");
@@ -2077,6 +2109,85 @@ function routerInit(){if(ROUTER)return;ROUTER=true;
 }
 // placeholder for pages that haven't been built yet
 function stubPage(id,title,blurb){PAGE_HOOK[id]=PAGE_HOOK[id]||{enter(){const el=document.getElementById("pv-"+id);if(el&&!el.dataset.built){el.dataset.built=1;el.innerHTML=`<div class="pgw"><div class="pgh"><h2>${title}</h2></div><div class="vcard stub">${blurb}</div></div>`}}}}
+// ---------- Supercharts: full-width chart, optional second pane (HTF/LTF), right dock ----------
+S.sc=Object.assign({panes:1,tfB:"1D",xsync:true,dock:true,secs:{wl:true,al:true,dw:true}},S.sc||{});
+const SC={chB:null,serB:null,barsB:null,keyB:"",dw:null,iv:0,retry:0,lock:0,mainHook:null};
+const SC_TFS=["5m","15m","1H","4H","1D","1W"];
+function scApplyAttr(){document.documentElement.dataset.panes=S.sc.panes===2?"2":"1"}
+// candles for any symbol/timeframe as chart bars, built the same way the main chart builds them
+function vtBars(s,tf){const a=candles(s,tf);if(!a||!a.length)return null;const st=STEP[tf]||3600,now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st;
+const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(tf);
+const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
+return{a,D,T,st}}
+function vtChartOpts(tf,extra){const p=pal(),C=S.chart,L=window.LightweightCharts;
+return Object.assign({autoSize:true,layout:{background:{type:"solid",color:C.bg==="custom"&&C.bgCol?C.bgCol:p.bg},textColor:C.txtCol||p.tx,fontSize:+C.fs||12},
+grid:{vertLines:{visible:C.showGridV!==false,color:C.gridV||p.gr},horzLines:{visible:C.showGridH!==false,color:C.gridH||p.gr}},
+crosshair:{mode:L.CrosshairMode.Normal},timeScale:{timeVisible:!/^(1D|1W|1M)$/.test(tf),secondsVisible:false,borderColor:p.gr},rightPriceScale:{borderColor:p.gr,scaleMargins:{top:.1,bottom:.08}}},extra||{})}
+function vtCandleOpts(s){const C=S.chart,T0="rgba(0,0,0,0)",h=C.type==="hollow",prec=s&&s[2]!=null&&s[2]<10?4:2;
+return{upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick,priceFormat:{type:"price",precision:prec,minMove:prec===4?0.0001:0.01}}}
+// index of the last bar whose time is <= t (binary search); -1 if t is before the first bar
+function barAt(times,t){let lo=0,hi=times.length-1;if(hi<0||t<times[0])return -1;while(lo<hi){const m=(lo+hi+1)>>1;if(times[m]<=t)lo=m;else hi=m-1}return lo}
+function scKillB(){if(SC.chB){try{SC.chB.remove()}catch(e){}}SC.chB=SC.serB=SC.barsB=null;SC.keyB="";clearTimeout(SC.retry)}
+function scPaneB(){const el=document.getElementById("sc2");if(!el)return;
+if(S.pageView!=="chart"||S.sc.panes!==2){scKillB();el.innerHTML="";return}
+const s=symOf(S.chart.sym)||SYMS[0];if(!s){el.innerHTML=`<p class="mut">Loading markets\u2026</p>`;return}
+const tf=S.sc.tfB;
+el.innerHTML=`<div class="sc2h"><b>${esc(s[0])}</b><span class="mut">Pane 2</span><span class="tfs">${SC_TFS.map(t=>`<button class="chip ${t===tf?"on":""}" onclick="scSetTfB('${t}')">${t}</button>`).join("")}</span><span class="sp"></span><label class="chk" style="font-size:12px" title="Move the crosshair on both panes together"><input type="checkbox" ${S.sc.xsync?"checked":""} onchange="S.sc.xsync=this.checked;save()">Sync crosshair</label></div><div id="cvB"></div>`;
+scKillB();
+const B=vtBars(s,tf);
+if(!B){document.getElementById("cvB").innerHTML=`<p class="mut">Loading ${esc(tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,tf,true);SC.retry=setTimeout(scPaneB,1500);return}
+if(!window.LightweightCharts)return;
+const c=LightweightCharts.createChart(document.getElementById("cvB"),vtChartOpts(tf));
+const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
+const cl=B.a.map(x=>x.c),pts=arr=>arr.map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean);
+S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts(d.t==="ema"?emaArr(cl,d.len):smaArr(cl,d.len)))});
+const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8});
+SC.chB=c;SC.serB=ser;SC.barsB=B;SC.keyB=s[0]+"|"+tf;
+c.subscribeCrosshairMove(p=>{if(SC.lock||!S.sc.xsync||!ch||!MS||!G)return;SC.lock=1;try{
+  if(!p||p.time==null){ch.clearCrosshairPosition()}else{const i=barAt(G.tt,p.time),bar=p.seriesData&&p.seriesData.get(ser);if(i>=0&&bar)ch.setCrosshairPosition(bar.close,G.tt[i],MS)}}catch(e){}SC.lock=0});
+}
+function scSetTfB(t){S.sc.tfB=t;save();scPaneB()}
+function scSetPanes(n){S.sc.panes=n;save();scApplyAttr();scDock();scPaneB()}
+function scTogDock(){S.sc.dock=!S.sc.dock;save();scDock()}
+function scTogSec(k){S.sc.secs[k]=!S.sc.secs[k];save();scDock()}
+// main chart -> data window + pane 2 crosshair
+function vtAfterDraw(s,a,T){scApplyAttr();
+const C=S.chart,cl=a.map(x=>x.c),inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):rsiArr(cl,d.len)}));
+const vol=vols(s,C.tf);
+SC.dw={s,a,T,inds,vol,i:a.length-1};scDW();
+ch.subscribeCrosshairMove(p=>{const tt=G&&G.tt;if(!tt)return;
+  const i=p&&p.time!=null?barAt(tt,p.time):-1;SC.dw.i=i>=0?i:a.length-1;scDW();
+  if(SC.lock||!S.sc.xsync||!SC.chB||!SC.serB||!SC.barsB||S.pageView!=="chart")return;SC.lock=1;try{
+  if(i<0){SC.chB.clearCrosshairPosition()}else{const bt=SC.barsB.D.map(x=>x.time),j=barAt(bt,tt[i]);if(j>=0)SC.chB.setCrosshairPosition(a[i].c,bt[j],SC.serB)}}catch(e){}SC.lock=0});
+if(S.pageView==="chart"&&S.sc.panes===2&&SC.keyB!==s[0]+"|"+S.sc.tfB)scPaneB();
+}
+function scDW(){const el=document.getElementById("dkdw");if(!el||!SC.dw)return;const{s,a,T,inds,vol}=SC.dw,i=Math.min(SC.dw.i,a.length-1),x=a[i];if(!x){el.innerHTML="";return}
+const o=x.o!=null?x.o:i?a[i-1].c:x.c,prev=i?a[i-1].c:null,chg=prev?(x.c/prev-1)*100:null,d=new Date(T(i)*1000);
+const f=v=>v==null||!isFinite(v)?"\u2013":fp(v);
+let h=`<span>Symbol</span><span>${esc(s[0])} \u00b7 ${esc(S.chart.tf)}</span><span>Time</span><span>${d.toISOString().slice(0,16).replace("T"," ")} UTC</span><span>Open</span><span>${f(o)}</span><span>High</span><span>${f(x.h)}</span><span>Low</span><span>${f(x.l)}</span><span>Close</span><span>${f(x.c)}</span><span>Change</span><span class="${chg==null?"":chg<0?"dn":"up"}">${chg==null?"\u2013":(chg>0?"+":"")+chg.toFixed(2)+"%"}</span><span>Volume</span><span>${vol&&vol[i]!=null?fm(vol[i]):"\u2013"}</span>`;
+inds.forEach(({d,v})=>{h+=`<span style="color:${d.col}">${esc(IND[d.t]||d.t)} ${d.len}</span><span>${v[i]==null?"\u2013":d.t==="rsi"?v[i].toFixed(1):fp(v[i])}</span>`});
+el.innerHTML=h}
+function scDock(){const el=document.getElementById("dock");if(!el)return;
+if(S.pageView!=="chart"){el.innerHTML="";return}
+const D=S.sc,ic=k=>`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${k}</svg>`;
+const P1='<rect x="3" y="4" width="18" height="16" rx="1"/>',P2='<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M12 4v16"/>';
+el.className="dock"+(D.dock?"":" shut");
+const head=`<div class="dkh"><button class="ibtn ${D.panes===1?"on":""}" title="One chart" onclick="scSetPanes(1)">${ic(P1)}</button><button class="ibtn ${D.panes===2?"on":""}" title="Two charts side by side (e.g. higher + lower timeframe)" onclick="scSetPanes(2)">${ic(P2)}</button>${D.dock?'<span class="sp"></span>':""}<button class="ibtn" title="${D.dock?"Collapse":"Expand"} panel" onclick="scTogDock()">${ic(D.dock?'<path d="M9 6l6 6-6 6"/>':'<path d="M15 6l-6 6 6 6"/>')}</button></div>`;
+if(!D.dock){el.innerHTML=head;return}
+const sec=(k,t,body,extra)=>`<div class="dks"><div class="dkt" onclick="scTogSec('${k}')">${D.secs[k]?"\u25be":"\u25b8"} ${t}<span class="sp"></span>${extra||""}</div>${D.secs[k]?body:""}</div>`;
+el.innerHTML=head+`<div class="dkb">`+sec("wl","Watchlist",`<div id="dkwl"></div>`)+sec("al","Active alerts",`<div id="dkal"></div>`,`<button class="ib" onclick="event.stopPropagation();alertsM()">+ Alert</button>`)+sec("dw","Data window",`<div class="dkdw" id="dkdw"></div>`)+`</div>`;
+scDockLive();scDW()}
+function scRow(n){const d=wlData(n);return`<div class="dkr ${n===S.chart.sym?"sel":""}" onclick="openChart('${esc(n)}')"><b>${esc(n)}</b><span>${d.last==null?"\u2026":fp(d.last)}</span><span class="${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"\u2026":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span></div>`}
+function scDockLive(){const w=document.getElementById("dkwl");
+if(w){const mine=wlAll(),top=PGL.filter(n=>!mine.includes(n)).slice(0,15);
+w.innerHTML=(mine.length?mine.map(scRow).join(""):`<div class="dkx mut">Your watchlist is empty. Use \u2606 on the chart to add symbols.</div>`)+(top.length?`<div class="dkt" style="cursor:default">Screener top</div>`+top.map(scRow).join(""):"")}
+const al=document.getElementById("dkal");
+if(al){const A=S.alerts||[];al.innerHTML=A.length?A.map((x,i)=>{const s=symOf(x.sym),px=s&&s[2],dist=px?(x.price/px-1)*100:null;
+return`<div class="dka"><span style="flex:1;min-width:0"><b>${esc(x.sym)}</b> ${x.dir==="above"?"\u2191":"\u2193"} ${esc(x.price)}${dist!=null?` <span class="mut">(${dist>0?"+":""}${dist.toFixed(2)}%)</span>`:""}${x.fired?` <span class="pill b" style="min-width:0">hit</span>`:""}</span>${x.fired?`<button class="ib" onclick="rearmAlert(${i});scDockLive()">Re-arm</button>`:""}<button class="ib x" style="opacity:1" title="Delete" onclick="S.alerts.splice(${i},1);save();scDockLive()">\u2715</button></div>`}).join(""):`<div class="dkx mut">No alerts. Set one with + Alert or from a horizontal line.</div>`}}
+PAGE_HOOK.chart={enter(){scApplyAttr();scDock();scPaneB();clearInterval(SC.iv);
+  SC.iv=setInterval(()=>{if(S.pageView!=="chart")return;scDockLive();
+    if(SC.serB&&SC.barsB){const s=symOf(S.chart.sym),a=s&&candles(s,S.sc.tfB);if(a&&a.length){const x=a[a.length-1],t=SC.barsB.D[SC.barsB.D.length-1];if(t&&(x.t==null||x.t===t.time)){try{SC.serB.update({time:t.time,open:t.open,high:Math.max(t.high,x.h,x.c),low:Math.min(t.low,x.l,x.c),close:x.c})}catch(e){}}}}},1500)},
+  leave(){clearInterval(SC.iv);scKillB();const d=document.getElementById("dock");if(d)d.innerHTML="";const b=document.getElementById("sc2");if(b)b.innerHTML="";document.documentElement.dataset.panes="1"}};
 stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");

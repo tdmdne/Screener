@@ -17,7 +17,7 @@ FakeWS.OPEN=1;window.WebSocket=FakeWS})();`;
 async function launch(opts={}){
   const srv=await serve(),port=srv.address().port;
   const browser=await chromium.launch();
-  const ctx=await browser.newContext({viewport:opts.viewport||{width:1600,height:950}});
+  const ctx=await browser.newContext({viewport:opts.viewport||{width:1600,height:950},colorScheme:opts.colorScheme||"dark"});
   await ctx.addInitScript(WSMOCK);
   await ctx.addInitScript(({mode,state})=>{if(!localStorage.getItem("scr2a"))localStorage.setItem("scr2a",JSON.stringify({id:"tester"}));
     if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null});

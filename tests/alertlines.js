@@ -20,7 +20,7 @@ await P.click(`#cv .valb[data-al="${id}"]`);await P.waitForSelector("#vae_px");
 assert.strictEqual(+(await P.inputValue("#vae_px")),px);
 await P.fill("#vae_msg","BTC breakout \u2014 check the 4H");await P.selectOption("#vae_dir","cross");await P.click("#vae_ok");await P.waitForTimeout(150);
 let a=await P.evaluate(()=>S.alerts.map(x=>({...x})));assert.strictEqual(a.length,1);assert.strictEqual(a[0].id,id);assert.strictEqual(a[0].msg,"BTC breakout \u2014 check the 4H");assert.strictEqual(a[0].dir,"cross");
-assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem("scr2"))).alerts[0].msg,"BTC breakout \u2014 check the 4H");
+assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem(vtSK("scr2")))).alerts[0].msg,"BTC breakout \u2014 check the 4H");
 await P.evaluate(()=>alertsM());const am=await P.textContent("#modal");assert(am.includes("BTC breakout")&&/crossing/i.test(am),am);await P.evaluate(()=>closeM());
 // 3) fire: toast shows the custom message, exactly once; "crossing" fires on a down-cross too; line goes away once fired
 const fr=await P.evaluate(p=>{__manual=true;lastPx.BTCUSDT=p+5;checkAlerts("BTCUSDT",p+5);checkAlerts("BTCUSDT",p-1);const t=document.getElementById("msg").textContent;checkAlerts("BTCUSDT",p+3);checkAlerts("BTCUSDT",p-3);__manual=false;return[__fires,t]},px);
@@ -44,7 +44,7 @@ await P.screenshot({path:"shots/02c_chart_alertlines.png"});
 await P.click("#dkal .dka span[title='Edit alert'] >> nth=1");await P.waitForSelector("#vae_px");assert.strictEqual(+(await P.inputValue("#vae_px")),dr.price);await P.evaluate(()=>closeM());
 // 7) delete from the editor opened on pane 2: alert and both lines gone
 await P.click(`#cvB .valb[data-al="${id3}"]`);await P.waitForSelector("#vae_del");await P.click("#vae_del");await P.waitForTimeout(200);
-const del=await P.evaluate(id=>[S.alerts.some(a=>a.id===id),document.querySelectorAll(`[data-al="${id}"]`).length,JSON.parse(localStorage.getItem("scr2")).alerts.length,document.querySelectorAll("#dkal .dka").length],id3);
+const del=await P.evaluate(id=>[S.alerts.some(a=>a.id===id),document.querySelectorAll(`[data-al="${id}"]`).length,JSON.parse(localStorage.getItem(vtSK("scr2"))).alerts.length,document.querySelectorAll("#dkal .dka").length],id3);
 console.log("delete",del);assert.deepStrictEqual(del,[false,0,1,1]);
 // 8) persists across reload: armed alert drawn again with its message
 await P.evaluate(id=>{const a=S.alerts.find(x=>x.id===id);a.fired=false;a.msg="kept";save()},id);await P.reload();await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);

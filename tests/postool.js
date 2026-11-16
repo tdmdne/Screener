@@ -27,12 +27,12 @@ await drag(g3.xR,g3.yE,60,0);let g4=await geo(P,d.id);assert(g4.p[1].t>g3.p[1].t
 await drag(g4.xL,g4.yE,0,-10);let g5=await geo(P,d.id);assert(g5.p[0].y>g4.p[0].y&&g5.p[0].y<g5.p[1].y,"entry dragged");
 const rrNow=(g5.p[1].y-g5.p[0].y)/(g5.p[0].y-g5.p[2].y);assert((await lbl(P,d.id)).mid.endsWith(rrNow.toFixed(2)));
 assert.strictEqual(await P.evaluate(()=>S.posDef.rr),+rrNow.toFixed(2),"last R:R remembered");
-assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem("scr2"))).dr.BTCUSDT[0].p[1].y,g5.p[1].y,"saved");
+assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem(vtSK("scr2")))).dr.BTCUSDT[0].p[1].y,g5.p[1].y,"saved");
 // 3) settings dialog: exact prices, risk in money, qty precision 0, style; instant save + defaults; Cancel restores
 await P.mouse.dblclick(box.x+(g5.xL+g5.xR)/2,box.y+(g5.yE+g5.yT)/2);await P.waitForSelector("#ps_acct");
 await P.fill("#ps_en","100");await P.fill("#ps_tp","112");await P.fill("#ps_sl","96");await P.fill("#ps_acct","50000");await P.selectOption("#ps_ru","$");await P.fill("#ps_risk","400");await P.selectOption("#ps_prec","0");
 await P.waitForTimeout(400);
-let dd=await P.evaluate(id=>{const d=DL().find(x=>x.id===id);return{p:d.p.map(q=>q.y),acct:d.acct,ru:d.ru,risk:d.risk,prec:d.prec,saved:JSON.parse(localStorage.getItem("scr2")).dr.BTCUSDT[0].acct,def:S.posDef}},d.id);
+let dd=await P.evaluate(id=>{const d=DL().find(x=>x.id===id);return{p:d.p.map(q=>q.y),acct:d.acct,ru:d.ru,risk:d.risk,prec:d.prec,saved:JSON.parse(localStorage.getItem(vtSK("scr2"))).dr.BTCUSDT[0].acct,def:S.posDef}},d.id);
 assert.deepStrictEqual(dd.p,[100,112,96]);assert.strictEqual(dd.saved,50000,"instant save");assert.strictEqual(dd.def.risk,400);assert.strictEqual(dd.def.ru,"$");
 assert.strictEqual(await P.inputValue("#ps_tpk"),"1200");await P.fill("#ps_slk","300");await P.waitForTimeout(100);assert.strictEqual(await P.inputValue("#ps_sl"),"97");
 await P.click('.tabs button[data-t="style"]');await P.selectOption("#ps_op","0.3");await P.click("#ps_ok");await P.waitForTimeout(150);

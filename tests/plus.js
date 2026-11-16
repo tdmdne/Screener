@@ -17,7 +17,7 @@ async function viaPlus(hostSel,seriesExpr,item){const box=await P.locator(hostSe
 // 1) Workspace chart -> alert
 let px=await viaPlus("#cv",["ch","MS"],"Add alert");
 let al=await P.evaluate(()=>S.alerts.slice(-1)[0]);console.log("workspace alert",JSON.stringify(al),"expected",px);
-assert.strictEqual(al.sym,"BTCUSDT");assert.strictEqual(al.price,px);assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem("scr2"))).alerts.length,1);
+assert.strictEqual(al.sym,"BTCUSDT");assert.strictEqual(al.price,px);assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem(vtSK("scr2")))).alerts.length,1);
 await P.evaluate(()=>alertsM());assert((await P.textContent("#modal")).includes(String(px)));await P.evaluate(()=>closeM());
 // mocked cross: fires exactly once
 const fires=await P.evaluate(p=>{S.alerts.forEach(a=>{a.dir="above"});delete lastPx.ETHX;checkAlerts("BTCUSDT",p-1);checkAlerts("BTCUSDT",p+1);checkAlerts("BTCUSDT",p-1);checkAlerts("BTCUSDT",p+2);return[__fires,S.alerts[0].fired]},px);

@@ -10,8 +10,8 @@ const draw=async(tool,pts)=>{await P.evaluate(t=>setTool(t),tool);for(const[x,y]
 let d1=await draw("trend",[[0.3,0.3],[0.5,0.4]]);assert.strictEqual(d1.t,"trend");
 await P.evaluate(id=>{SELD=DL().find(x=>x.id===id);dpe();dsel()},d1.id);assert(await P.isVisible("#ds_tpl"));
 await P.selectOption("#dsel select:not([title])","3");await P.selectOption("#dsel select[title=\"Line type\"]","1");
-assert.strictEqual(await P.evaluate(()=>JSON.parse(localStorage.getItem("scr2")).toolDef.trend),undefined,"not saved synchronously (debounced)");
-await P.waitForTimeout(450);assert.deepStrictEqual(await P.evaluate(()=>{const t=JSON.parse(localStorage.getItem("scr2")).toolDef.trend;return{w:t.w,s:t.s}}),{w:3,s:1},"saved after the debounce");
+assert.strictEqual(await P.evaluate(()=>JSON.parse(localStorage.getItem(vtSK("scr2"))).toolDef.trend),undefined,"not saved synchronously (debounced)");
+await P.waitForTimeout(450);assert.deepStrictEqual(await P.evaluate(()=>{const t=JSON.parse(localStorage.getItem(vtSK("scr2"))).toolDef.trend;return{w:t.w,s:t.s}}),{w:3,s:1},"saved after the debounce");
 let d2=await draw("trend",[[0.3,0.6],[0.5,0.7]]);assert.deepStrictEqual([d2.w,d2.s],[3,1],"new trend line uses the last-used style");
 // 2) built-in preset applied to the selection
 await P.evaluate(id=>{SELD=DL().find(x=>x.id===id);dpe();dsel()},d2.id);await P.click("#ds_tpl");await P.waitForSelector(".dpm");

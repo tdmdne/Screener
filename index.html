@@ -265,6 +265,40 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .ov>.box:focus{outline:none}
 .vt-skip{position:fixed;left:8px;top:-80px;z-index:400;background:var(--acc);color:var(--accfg,#111);padding:10px 14px;border-radius:8px;font-weight:700;text-decoration:none;transition:top .1s}
 .vt-skip:focus{top:8px;outline:2px solid var(--fg);outline-offset:2px}
+/* Motion: the same calm, orange-accented feel as the sign-in screen. Only opacity and transform are animated, so nothing re-lays out.
+   The global reduced-motion rule (95_mobile.css) switches all of it off, and the JS adds no flash classes then. */
+:root{--vt-ease:cubic-bezier(.2,.7,.2,1);--vt-ease-out:cubic-bezier(.16,1,.3,1);--vt-dur:.24s}
+/* page transitions */
+.vt-pgin{animation:vtPageIn var(--vt-dur) var(--vt-ease-out) both}
+.vt-pgfade{animation:vtFade .2s var(--vt-ease) both}
+@keyframes vtPageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes vtFade{from{opacity:0}to{opacity:1}}
+/* dialogs and sheets */
+.ov{animation:vtFade .18s var(--vt-ease) both}
+.ov .box{animation:vtDlgIn .26s var(--vt-ease-out) both}
+@keyframes vtDlgIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes vtSheetIn{from{opacity:.4;transform:translateY(40px)}to{opacity:1;transform:none}}
+/* tick flashes: a short tint that fades out; the text colour is untouched */
+.vt-fu{animation:vtFlU .9s var(--vt-ease) both}
+.vt-fd{animation:vtFlD .9s var(--vt-ease) both}
+@keyframes vtFlU{0%{background-color:rgba(70,211,138,.28)}100%{background-color:rgba(70,211,138,0)}}
+@keyframes vtFlD{0%{background-color:rgba(248,113,113,.28)}100%{background-color:rgba(248,113,113,0)}}
+#cpx{border-radius:4px;padding:0 3px}
+/* heatmap tiles fade in when the map is (re)built */
+.hmt.vt-in{animation:vtTileIn .42s var(--vt-ease-out) both;animation-delay:var(--d,0ms)}
+.hmt.na.vt-in{animation:vtTileIn .42s var(--vt-ease-out) both,vtShim 1.8s linear infinite;animation-delay:var(--d,0ms),0ms}
+@keyframes vtTileIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+/* skeleton shimmer for loading states */
+.vt-skel{position:relative;overflow:hidden;min-height:180px;margin:0;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line)}
+.vt-skel::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(251,146,60,.10) 45%,rgba(255,255,255,.06) 50%,rgba(251,146,60,.10) 55%,transparent 80%);
+  background-size:220% 100%;animation:vtShim 1.6s linear infinite}
+.vt-skel::after{content:"";position:absolute;left:6%;right:6%;bottom:22%;height:38%;opacity:.35;
+  background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 14px);-webkit-mask:linear-gradient(180deg,transparent,#000 60%);mask:linear-gradient(180deg,transparent,#000 60%)}
+.vt-skel>*,.vt-skel{z-index:0}
+.hmt.na{background-image:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.06) 50%,transparent 70%)!important;background-size:220% 100%!important;animation:vtShim 1.8s linear infinite}
+@keyframes vtShim{from{background-position:120% 0}to{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){.vt-skel::before,.hmt.na{animation:none!important}}
 /* top navigation + page views (multi-page terminal) */
 .vnav{display:flex;gap:2px;align-items:center;overflow-x:auto;scrollbar-width:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px;min-width:0}
 .vnav::-webkit-scrollbar{display:none}
@@ -619,8 +653,7 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 /* bottom sheets */
 :root[data-ui="phone"] .vlm{align-items:flex-end;padding:0}
 :root[data-ui="phone"] .vlm .box{max-width:100%;width:100%;border-radius:14px 14px 0 0;max-height:88vh}
-:root[data-ui="phone"] .ov .box,:root[data-ui="phone"] .vlm .box,#vmore{animation:vsheet .18s ease-out}
-@keyframes vsheet{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+:root[data-ui="phone"] .ov .box,:root[data-ui="phone"] .vlm .box,#vmore{animation:vtSheetIn .3s var(--vt-ease-out) both}
 :root[data-ui="phone"] .vcb{left:6px;right:6px;bottom:calc(62px + env(safe-area-inset-bottom))}
 :root[data-ui="phone"] .vfoot{padding-bottom:6px}
 /* coarse pointers: bigger "+" and alert-line handles */
@@ -1122,7 +1155,7 @@ function updateLiveBar(sym,tf){
   try{MS.update(bar)}catch(e){}
 }
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
-if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
+if(!SYMS.length){cp.innerHTML=`<p class="mut vt-skel" role="status">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b id="cpx">${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
@@ -1153,7 +1186,7 @@ timeScale:{timeVisible:C.tf!=="1D",secondsVisible:false,borderVisible:true,borde
 rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:0.3,bottom:0.1}}:{}),
 leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
 watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
-if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut">Loading candles…</p>`;need(s,C.tf,true);return}
+if(!candles(s,C.tf)){document.getElementById("cv").innerHTML=`<p class="mut vt-skel" role="status">Loading candles…</p>`;need(s,C.tf,true);return}
 ch=L.createChart(document.getElementById("cv"),op(true));
 const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
 const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
@@ -2448,6 +2481,38 @@ const _vtRenderA=render;render=function(){const a=document.activeElement,t=docum
   const r=_vtRenderA.apply(this,arguments);const t2=document.getElementById("t");
   if(t2){vtA11yFix(t2);if(key&&!t2.contains(document.activeElement)){const el=[...t2.querySelectorAll("[onclick]")].find(x=>x.getAttribute("onclick")===key);if(el)el.focus({preventScroll:true})}}
   return r};
+// ---------- Motion (calm, sign-in style) ----------
+// Page transitions, tick flashes on the screener table / watchlist / chart price, heatmap tile fade-ins (42_heatmap),
+// skeleton shimmers on loading placeholders (vt-skel) and dialog/sheet entrances (CSS only).
+// Reads the DOM after the normal renders; never touches the feeds or sockets. Nothing moves under reduced motion.
+const VT_MO={fl:new Map(),dur:900,last:{},pxv:null,pxt:0};
+const vtRM=()=>typeof VT_RM==="function"?VT_RM():!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+function vtNum(t){if(t==null)return null;t=String(t).replace(/\u2212/g,"-").replace(/,/g,"").trim();const m=t.match(/^[+]?(-?\d+(?:\.\d+)?)\s*([KMBT]?)/i);if(!m)return null;
+  return parseFloat(m[1])*({K:1e3,M:1e6,B:1e9,T:1e12}[(m[2]||"").toUpperCase()]||1)}
+// snapshot of numeric cells keyed by row symbol + cell index
+function vtSnap(rowSel,cellSel){const o={};document.querySelectorAll(rowSel).forEach(r=>{const s=r.dataset.s;if(!s)return;r.querySelectorAll(cellSel).forEach((c,i)=>{o[s+"|"+i]=c.textContent})});return o}
+function vtFlashApply(rowSel,cellSel,before,ns){if(vtRM())return 0;const now=performance.now();let n=0;
+  document.querySelectorAll(rowSel).forEach(r=>{const s=r.dataset.s;if(!s)return;r.querySelectorAll(cellSel).forEach((c,i)=>{const k=ns+s+"|"+i,t=c.textContent,b=before[s+"|"+i];
+    if(b!=null&&b!==t){const x=vtNum(b),y=vtNum(t);if(x!=null&&y!=null&&x!==y){VT_MO.fl.set(k,{t:now,d:y>x?"vt-fu":"vt-fd"});n++}}
+    const f=VT_MO.fl.get(k);if(f){const age=now-f.t;if(age>=VT_MO.dur){VT_MO.fl.delete(k);return}
+      // the table is rebuilt on every tick, so a running flash is continued with a negative delay instead of restarting
+      c.classList.add(f.d);c.style.animationDelay=(-Math.round(age))+"ms"}})});
+  if(VT_MO.fl.size>400){for(const [k,f] of VT_MO.fl)if(now-f.t>VT_MO.dur)VT_MO.fl.delete(k)}
+  return n}
+if(typeof render==="function"){const _vtMoR=render;render=function(){const b=vtSnap("#t tbody tr[data-s]","td");const r=_vtMoR.apply(this,arguments);try{vtFlashApply("#t tbody tr[data-s]","td",b,"t:")}catch(e){}return r}}
+if(typeof renderWL==="function"){const _vtMoW=renderWL;renderWL=function(){const b=vtSnap("#wl .wr[data-s]",".wv");const r=_vtMoW.apply(this,arguments);try{vtFlashApply("#wl .wr[data-s]",".wv",b,"w:")}catch(e){}return r}}
+// the chart header price is written by the feed handler; watch its text cheaply instead of touching the feed
+function vtPxWatch(){const q=document.getElementById("cpx");if(!q){VT_MO.pxv=null;return}const t=q.textContent,key=(typeof S!=="undefined"&&S.chart?S.chart.sym:"")+"|";
+  if(VT_MO.pxk===key&&VT_MO.pxv!=null&&t!==VT_MO.pxv&&!vtRM()){const x=vtNum(VT_MO.pxv),y=vtNum(t);if(x!=null&&y!=null&&x!==y){q.classList.remove("vt-fu","vt-fd");void q.offsetWidth;q.classList.add(y>x?"vt-fu":"vt-fd")}}
+  VT_MO.pxv=t;VT_MO.pxk=key}
+setInterval(()=>{if(!document.hidden)vtPxWatch()},250);
+// page transitions
+function vtPageEl(p){return p==="workspace"||p==="chart"||p==="screener"?document.querySelector(".wrap>.ws"):document.getElementById("pv-"+p)||document.querySelector('.wrap>.pv[data-pv="'+p+'"]')}
+function vtPageAnim(p){const el=vtPageEl(p);if(!el||vtRM())return;const ws=el.classList.contains("ws"),c=ws?"vt-pgfade":"vt-pgin";
+  el.classList.remove("vt-pgin","vt-pgfade");void el.offsetWidth;el.classList.add(c);
+  const done=()=>{el.classList.remove(c);el.removeEventListener("animationend",done)};el.addEventListener("animationend",done);setTimeout(done,600)}
+if(typeof showPage==="function"){const _vtMoP=showPage;showPage=function(p,initial){const prev=document.documentElement.dataset.page;const r=_vtMoP.apply(this,arguments);
+  try{const now=document.documentElement.dataset.page;if(!initial&&now&&now!==prev)vtPageAnim(now)}catch(e){}return r}}
 // ---------- pages + client-side router ----------
 // Every page lives in this one document. Switching pages only toggles what's visible (data-page on <html>),
 // so WebSockets (BNWS, BNKL, FHWS), LIVE candle caches and timers are never torn down.
@@ -2513,12 +2578,12 @@ function barAt(times,t){let lo=0,hi=times.length-1;if(hi<0||t<times[0])return -1
 function scKillB(){if(SC.chB){try{SC.chB.remove()}catch(e){}}SC.chB=SC.serB=SC.barsB=null;SC.keyB="";clearTimeout(SC.retry)}
 function scPaneB(){const el=document.getElementById("sc2");if(!el)return;
 if(S.pageView!=="chart"||S.sc.panes!==2){scKillB();el.innerHTML="";return}
-const s=symOf(S.chart.sym)||SYMS[0];if(!s){el.innerHTML=`<p class="mut">Loading markets\u2026</p>`;return}
+const s=symOf(S.chart.sym)||SYMS[0];if(!s){el.innerHTML=`<p class="mut vt-skel" role="status">Loading markets\u2026</p>`;return}
 const tf=S.sc.tfB;
 el.innerHTML=`<div class="sc2h"><b>${esc(s[0])}</b><span class="mut">Pane 2</span><span class="tfs">${SC_TFS.map(t=>`<button class="chip ${t===tf?"on":""}" onclick="scSetTfB('${t}')">${t}</button>`).join("")}</span><span class="sp"></span><label class="chk" style="font-size:12px" title="Move the crosshair on both panes together"><input type="checkbox" ${S.sc.xsync?"checked":""} onchange="S.sc.xsync=this.checked;save()">Sync crosshair</label></div><div id="cvB"></div>`;
 scKillB();
 const B=vtBars(s,tf);
-if(!B){document.getElementById("cvB").innerHTML=`<p class="mut">Loading ${esc(tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,tf,true);SC.retry=setTimeout(scPaneB,1500);return}
+if(!B){document.getElementById("cvB").innerHTML=`<p class="mut vt-skel" role="status">Loading ${esc(tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,tf,true);SC.retry=setTimeout(scPaneB,1500);return}
 if(!window.LightweightCharts)return;
 const c=LightweightCharts.createChart(document.getElementById("cvB"),vtChartOpts(tf));
 const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
@@ -2992,7 +3057,7 @@ d.innerHTML=`<div class="sxdh"><b style="font-size:15px">${esc(sym)}</b><span cl
 d.classList.add("open");sxSel();sxMini()}
 function sxWl(){const g=S.wlx.groups[0];if(!wlAll().includes(SX.sym)){g.syms.push(SX.sym);save();renderWL();wlStarSync()}sxDrawer(SX.sym)}
 function sxMini(){clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}const el=document.getElementById("sxc"),s=symOf(SX.sym);if(!el||!s||!window.LightweightCharts)return;
-const B=vtBars(s,S.sx.tf);if(!B){el.innerHTML=`<p class="mut" style="padding:10px">Loading ${esc(S.sx.tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,S.sx.tf,true);SX.retry=setTimeout(()=>{if(document.querySelector("#sxd.open"))sxMini()},1500);return}
+const B=vtBars(s,S.sx.tf);if(!B){el.innerHTML=`<p class="mut vt-skel" role="status" style="padding:10px">Loading ${esc(S.sx.tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,S.sx.tf,true);SX.retry=setTimeout(()=>{if(document.querySelector("#sxd.open"))sxMini()},1500);return}
 el.innerHTML="";const c=LightweightCharts.createChart(el,vtChartOpts(S.sx.tf));const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
 const cl=B.a.map(x=>x.c);S.chart.ind.filter(x=>!x.hidden&&(x.t==="ema"||x.t==="sma")).forEach(x=>{const l=c.addLineSeries({color:x.col,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData((x.t==="ema"?emaArr(cl,x.len):smaArr(cl,x.len)).map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean))});
 const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-90),to:n+4});SX.ch=c}
@@ -3309,6 +3374,9 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
     g.innerHTML=L.groups.map(gr=>`<div class="hmgh" style="left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px"><span>${esc(MK[gr.k]||gr.k)}</span></div>`).join("")+
       L.tiles.map((t,i)=>{const s=t.s,big=t.w>86&&t.h>52,mid=t.w>46&&t.h>28;return`<button type="button" class="hmt${big?" big":mid?"":" tiny"}" data-s="${esc(s[0])}" tabindex="${i===0?0:-1}" style="left:${t.x.toFixed(1)}px;top:${t.y.toFixed(1)}px;width:${Math.max(0,t.w-2).toFixed(1)}px;height:${Math.max(0,t.h-2).toFixed(1)}px"><span class="hn">${esc(String(s[0]).replace(/USDT$/,""))}</span><span class="hv"></span>${big?'<span class="hp"></span>':""}</button>`}).join("");
     HM.tiles=new Map([...g.querySelectorAll(".hmt")].map(b=>[b.dataset.s,b]));g.querySelectorAll(".hmt").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s));
+    /* fade the new tiles in with a diagonal sweep (08_motion.css); skipped under reduced motion */
+    if(!(typeof VT_RM==="function"&&VT_RM())){const sw=W+H||1;L.tiles.forEach(t=>{const b=HM.tiles.get(t.s[0]);if(!b)return;b.style.setProperty("--d",Math.round(Math.min(1,(t.x+t.y)/sw)*260)+"ms");b.classList.add("vt-in");
+      b.addEventListener("animationend",function e(ev){if(ev.animationName==="vtTileIn"){b.classList.remove("vt-in");b.removeEventListener("animationend",e)}})})}
     if(keep&&HM.tiles.get(keep)){g.querySelectorAll(".hmt").forEach(t=>t.tabIndex=-1);HM.tiles.get(keep).tabIndex=0;HM.tiles.get(keep).focus({preventScroll:true})}HM.lastPx.clear()}
   // paint values (only touch what changed)
   let up=0,dn=0,fl=0,have=[];const rm=VT_RM();

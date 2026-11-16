@@ -3,6 +3,15 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Animations across the app, in the sign-in screen's style** (calm ease-out curves, orange accents). Only opacity, transform and background tints animate, so nothing re-lays out. The new code lives in `08_motion`.
+  - **Page transitions:** pages rise and fade in over 0.24s. The workspace and chart area only fade, so chart coordinates are never transformed.
+  - **Tick flashes:** when a number changes in the screener table, the watchlist or the chart header price, its cell gets a short green or red tint that fades out. The table is rebuilt on every tick, so a running flash carries on with a negative delay instead of restarting. Flashes are found by comparing the DOM before and after the normal render; the feeds and sockets are untouched.
+  - **Heatmap:** tiles fade and scale in with a diagonal sweep when the map is built. Tiles still waiting for data shimmer.
+  - **Skeletons:** "Loading candles" and "Loading markets" placeholders are now shimmering skeleton panels with `role="status"`.
+  - **Dialogs:** the backdrop fades and the dialog scales up slightly. On phones, dialogs slide up as a sheet with the same curve.
+  - **Reduced motion:** none of this runs; no flash classes or tile animations are added.
+  - Tests: new `tests/motion.js`. Render takes a median of about 1.3ms per tick with flashes on.
+
 - **Heatmaps page (was a placeholder).** A treemap of the screener's markets, built from the same data as the screener.
   - **Data:** tiles use the live price from the existing feeds against the previous candle close (1H, 4H, 1D or 1W). Colour can also show the screener's momentum read-out or the Vektor score, both computed with the existing unchanged scoring functions. No new sockets or feeds are opened; missing candles are queued through the normal loader, 8 at a time.
   - **Instant first load:** when the cache is allowed, the map paints from the cached candles in the first frame. A badge shows Live, Delayed or Sample, and the header shows "Candles as of HH:MM (cache)" until fresh data arrives.

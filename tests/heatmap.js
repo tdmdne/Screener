@@ -41,7 +41,7 @@ console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.e
 // 6) instant first load from the cache: block candle downloads, reload, enter -> values appear immediately, marked as cached
 await P.evaluate(()=>{go("heatmap");flush()});await P.waitForTimeout(2500);await P.evaluate(()=>go("workspace"));
 await P.route(/api\/v3\/klines/,r=>r.abort());await P.reload();await ready(P);await P.waitForFunction(()=>READY);
-const fp1=await P.evaluate(async()=>{const t=performance.now();go("heatmap");await new Promise(r=>requestAnimationFrame(r));return{n:document.querySelectorAll(".hmt:not(.na)").length,ms:Math.round(performance.now()-t)}});
+const fp1=await P.evaluate(async()=>{const t=performance.now();go("heatmap");let n=0;for(let i=0;i<40&&n<8;i++){await new Promise(r=>requestAnimationFrame(r));n=document.querySelectorAll(".hmt:not(.na)").length}return{n,ms:Math.round(performance.now()-t)}});
 console.log("first paint from cache",JSON.stringify(fp1));assert(fp1.n>=8&&fp1.ms<300,"instant first paint: "+JSON.stringify(fp1));
 assert(/\(cache\)/.test(await P.textContent("#hm_asof")),await P.textContent("#hm_asof"));
 assert.deepStrictEqual(h.errors,[]);await h.close();

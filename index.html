@@ -341,7 +341,7 @@ const MK={ALL:"All",FX:"Forex",FUT:"Futures",STK:"Stocks",CFD:"CFDs",CRY:"Crypto
 const TY={price:"Price",vol:"Volume",dv:"Dollar volume",pct:"Percent change",cc:"Candle change",adr:"Average daily range %",mac:"Moving average close",mat:"Moving average trend"};
 const DF={price:()=>({}),vol:()=>({per:"7d"}),dv:()=>({per:"7d"}),pct:()=>({tf:"1D"}),cc:()=>({tf:"1H",n:8,mode:"exp",dir:"bull",min:0}),adr:()=>({n:14}),mac:()=>({tf:"1D",ma:"EMA",len:10}),mat:()=>({tfs:["30m","1H","4H","1D"],ma:"EMA",len:10})};
 const mk=(id,t,o)=>Object.assign({id,type:t},DF[t](),o||{});
-const base=(cols,sort)=>({acct:300000,mult:10,dvOn:false,hideNV:false,mkt:"ALL",sort,cols});
+const base=(cols,sort)=>({acct:300000,mult:10,dvOn:false,hideNV:false,mkt:"ALL",dir:"long",sort,cols});
 const BI={"Cheat sheet (candle change)":base([mk("price","price"),mk("dv","dv"),mk("c2","cc",{tf:"1D",n:30,mode:"abs"}),mk("c3","cc"),mk("c4","cc",{dir:"bear"})],{id:"c3",dir:-1}),
 "Trend grid":base([mk("price","price"),mk("pct1","pct"),mk("t1","mat"),mk("t2","mat",{len:20}),mk("a1","adr")],{id:"pct1",dir:-1}),
 "Higher timeframe scan":base([mk("price","price"),mk("dv","dv"),mk("p1","pct",{tf:"1D"}),mk("p2","pct",{tf:"1W"}),mk("c1","cc",{tf:"1D",n:30,mode:"abs"}),mk("c2","cc",{tf:"1D",n:8,mode:"exp"}),mk("t1","mat",{tfs:["1D","1W"],len:20})],{id:"c2",dir:-1})};
@@ -536,17 +536,20 @@ function passesPreset(s,preset){
     const ema10v=emaArr(clv,10),ema20v=emaArr(clv,20);
     const lv=clv.length-1;
     const chgv=((cv/clv[Math.max(0,lv-20)])-1)*100;
-    const above=cv>ema10v[lv]&&cv>ema20v[lv];
+    const dir=S.dir||"long";
+    const bull=dir==="long";
+    const chgOk=bull?chgv>0:chgv<0;
+    const emaOk=bull?(cv>ema10v[lv]&&cv>ema20v[lv]):(cv<ema10v[lv]&&cv<ema20v[lv]);
     let exp=false;
     if(ae&&ae.length>=8){
       const cle=ae.map(d=>d.c),ce=cle[cle.length-1];
       const lo=Math.min(...cle.slice(-8)),hi=Math.max(...cle.slice(-8));
-      exp=(ce-lo)/lo*100>1.5||(hi-ce)/hi*100>1.5;
+      exp=bull?(ce-lo)/lo*100>1.5:(hi-ce)/hi*100>1.5;
     }
     if(preset==="P5")return true;
-    if(preset==="P4")return chgv>0;
-    if(preset==="P3")return chgv>0&&above;
-    if(preset==="P2")return chgv>0&&above&&exp;
+    if(preset==="P4")return chgOk;
+    if(preset==="P3")return chgOk&&emaOk;
+    if(preset==="P2")return chgOk&&emaOk&&exp;
     if(preset==="P1")return scoreMarket(s)>=45;
     return true;
   }catch(e){return false}
@@ -554,9 +557,10 @@ function passesPreset(s,preset){
 function renderPresets(){
   const el=document.getElementById("presets");if(!el)return;
   const tf=S.evcTf||"H";
-  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}<button onclick="evcInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:2px" title="What is H/M/L?">ⓘ</button></span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("")+`<button onclick="presetInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:4px" title="What are P1-P5?">ⓘ</button>`;
+  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}<button onclick="evcInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:2px" title="What is H/M/L?">ⓘ</button></span><span style="margin-right:8px"><button class="preset-btn ${(S.dir||"long")==="long"?"on":""}" onclick="setDir('long')" title="Long setups">Long</button><button class="preset-btn ${(S.dir||"long")==="short"?"on":""}" onclick="setDir('short')" title="Short setups">Short</button></span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("")+`<button onclick="presetInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:4px" title="What are P1-P5?">ⓘ</button>`;
 }
 function setEvcTf(t){S.evcTf=t;S.page=0;save();render()}
+function setDir(d){S.dir=d;S.page=0;save();render()}
 function presetInfo(){modal(`<h3>Preset Levels</h3><div style="line-height:1.6"><p><b>P1</b> - Best markets: strong expansion + full EMA alignment (coming out of accumulation/manipulation)</p><p><b>P2</b> - Good markets: solid expansion with EMA alignment</p><p><b>P3</b> - Decent markets: moderate expansion</p><p><b>P4</b> - Early stage: some momentum building</p><p><b>P5</b> - Watchlist: weaker signals, earlier in cycle</p><p class="mut" style="margin-top:12px">Higher presets = stronger market cycles. P1 is the best quality.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
 function evcInfo(){modal(`<h3>Timeframe Levels</h3><div style="line-height:1.6"><p><b>H</b> - Higher Timeframe: Weekly to Daily to Hourly</p><p><b>M</b> - Medium Timeframe: Daily to Hourly to 10m</p><p><b>L</b> - Lower Timeframe: Hourly to 10m to 1m</p><p class="mut" style="margin-top:12px">Each level uses Entry and Validation timeframes to score markets.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
   function applyPreset(k){S.preset=k;S.page=0;save();render()}

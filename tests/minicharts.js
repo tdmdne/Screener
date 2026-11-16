@@ -9,8 +9,12 @@ await P.evaluate(()=>{window.__ws=__WS.length;window.__w=BNWS.ws;go("screener");
 assert.strictEqual(await P.getAttribute("#minib","aria-pressed"),"false");
 await P.click("#minib");await P.waitForTimeout(400);
 // 1) same symbols, same order as the table page; table hidden
-let st=await P.evaluate(()=>({on:document.documentElement.classList.contains("vt-mini"),tHidden:getComputedStyle(document.getElementById("t")).display==="none",cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice(),pressed:document.getElementById("minib").getAttribute("aria-pressed")}));
+let st=await P.evaluate(()=>({on:document.documentElement.classList.contains("vt-mini"),tHidden:getComputedStyle(document.getElementById("t")).display==="none",cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice(0,MINI.lim),pressed:document.getElementById("minib").getAttribute("aria-pressed")}));
 assert(st.on&&st.tHidden&&st.pressed==="true");assert.deepStrictEqual(st.cards,st.pgl);assert(st.cards.length>=5);
+// continuous desktop list: cards come in batches; Show more adds the next batch
+{const mm=await P.evaluate(()=>({all:PGL.length,lim:MINI.lim,btn:(document.querySelector("#vtmini .mcmore")||{}).textContent||""}));
+ if(mm.all>mm.lim){assert(/Show more \(48 of \d+\)/.test(mm.btn),"show more "+mm.btn);await P.click("#vtmini .mcmore");await P.waitForTimeout(300);
+  const n=await P.evaluate(()=>document.querySelectorAll("#vtmini .mc").length);assert.strictEqual(n,Math.min(96,mm.all));await P.evaluate(()=>{MINI.lim=48;miniSync(true)})}}
 // 2) values: price and change over the shown bars; the canvas is drawn
 await P.waitForFunction(()=>document.querySelectorAll("#vtmini .mc:not(.na)").length>=3,null,{timeout:15000});
 let chk=await P.evaluate(()=>{miniSync(false);miniFlush();const bad=[];let n=0;document.querySelectorAll("#vtmini .mc:not(.na)").forEach(b=>{const s=symOf(b.dataset.s),B=candles(s,S.mini.tf).slice(-48),pc=(B[B.length-1].c/(B[0].o!=null?B[0].o:B[0].c)-1)*100;n++;
@@ -31,7 +35,7 @@ dr=await P.evaluate(s=>({dr:__dr,px:document.querySelector(`#vtmini .mc[data-s="
 assert(dr.dr.includes(sym),"ticked card redrawn");assert(dr.dr.length<=3,"only changed cards redraw: "+dr.dr.join(","));/* the periodic 24h ticker refresh can replace the price between the draw and this read */assert(dr.px===dr.exp||dr.px===dr.set,JSON.stringify({sym,dr}));
 // 4) the list changes -> cards follow; 5) interval switch shows loading state and queues candles
 await P.evaluate(()=>{S.mkt="ALL";render()});await P.waitForTimeout(200);
-st=await P.evaluate(()=>({cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice()}));assert.deepStrictEqual(st.cards,st.pgl);
+st=await P.evaluate(()=>({cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice(0,MINI.lim)}));assert.deepStrictEqual(st.cards,st.pgl);
 await P.evaluate(()=>{S.mkt="CRY";render()});
 await P.click('#vtmini .minitf button[data-tf="15m"]');await P.waitForTimeout(200);
 st=await P.evaluate(()=>({tf:S.mini.tf,pressed:document.querySelector('#vtmini .minitf button[data-tf="15m"]').getAttribute("aria-pressed"),na:document.querySelectorAll("#vtmini .mc.na").length,lbl:(document.querySelector("#vtmini .mc.na .mcw")||{}).textContent||""}));

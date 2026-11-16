@@ -23,6 +23,7 @@ async function launch(opts={}){
     if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.0",ts:Date.now(),cache:true,method:"test"}))}
     if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null,consent:opts.consent,auth:opts.auth});
   await ctx.route("**/*",route=>{const u=route.request().url();
+    if(u.startsWith("http://127.0.0.1:"+port+"/config.local.js"))return route.fulfill({contentType:"application/javascript",body:opts.config?"window.VT_CONFIG="+JSON.stringify(opts.config)+";":"/* no local config in tests */"});
     if(u.startsWith("http://127.0.0.1:"+port))return route.continue();
     const V=f=>fs.existsSync(path.join(__dirname,"vendor",f));
     if(u.includes("lightweight-charts"))return V("lwc.js")?route.fulfill({path:path.join(__dirname,"vendor/lwc.js"),contentType:"application/javascript"}):route.continue();

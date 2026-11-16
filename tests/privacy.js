@@ -25,7 +25,7 @@ await P.evaluate(()=>{location.hash="#/legal/your-data"});await P.waitForTimeout
 const inv=await P.textContent("#pc_inv");assert(inv.includes("scr2")&&/\d+ entries/.test(inv),inv);
 assert((await P.textContent("#pc_log")).includes("custom"));
 const [dl]=await Promise.all([P.waitForEvent("download"),P.click("#pc_exp")]);const f=await dl.path();const J=JSON.parse(fs.readFileSync(f,"utf8"));
-assert(J.localStorage.scr2&&J.localStorage.vt_consent_log.length===2&&J.indexedDB.note,"export");console.log("export keys",Object.keys(J.localStorage));
+const skey=await P.evaluate(()=>vtSK("scr2"));assert(J.localStorage[skey]&&J.localStorage.vt_consent_log.length===2&&J.indexedDB.note,"export");console.log("export keys",Object.keys(J.localStorage));
 // 4) withdraw -> cache deleted
 await P.click("#pc_wd");await P.waitForTimeout(600);assert(!(await dbs(P)).includes("scr"),"withdraw deletes cache");
 assert.strictEqual(await P.evaluate(()=>vtConsent().method),"withdrawn");
@@ -44,7 +44,7 @@ await P.waitForTimeout(2500);assert.strictEqual(await P.evaluate(()=>localStorag
 await P.reload();await P.waitForFunction(()=>BOOTED);await P.evaluate(()=>{location.hash="#/legal/your-data"});await P.waitForTimeout(500);
 await P.evaluate(()=>{S.__mark="wipe-me";save()});await P.click("#pc_del");await P.fill("#vdel_in","DELETE");
 await Promise.all([P.waitForNavigation(),P.click("#vdel_go")]);await P.waitForFunction(()=>typeof BOOTED!=="undefined");await P.waitForTimeout(300);
-const after=await P.evaluate(()=>[Object.keys(localStorage),localStorage.getItem("scr2")||""]);console.log("after delete",after[0]);assert(!after[1].includes("wipe-me")&&!after[0].includes("vt_consent")&&!after[0].includes("vt_consent_log"));
+const after=await P.evaluate(()=>[Object.keys(localStorage),localStorage.getItem(vtSK("scr2"))||""]);console.log("after delete",after[0]);assert(!after[1].includes("wipe-me")&&!after[0].includes("vt_consent")&&!after[0].includes("vt_consent_log"));
 assert(await P.isVisible("#vcb"),"banner again after delete");
 // 7) legal pages readable over the sign-in screen; Esc closes
 await P.evaluate(()=>document.documentElement.classList.add("locked"));await P.click('#vcb a[href="#/legal/cookies"]');await P.waitForSelector("#vlm h1");

@@ -55,11 +55,11 @@ reply={status:200,body:{choices:[{message:{content:"ok"}}]}};await P.fill("#jai_
 s=seen.pop();assert.strictEqual(s.url,"https://llm.example.com/v1/chat/completions");assert.strictEqual(JSON.parse(s.b).model,"my-model");
 // 7) key storage: not without Optional preferences
 await P.selectOption("#jai_prov","openai");await P.fill("#jai_key","sk-keep");await P.press("#jai_key","Tab");
-assert(await P.isDisabled("#jai_rem"),"remember disabled without prefs consent");assert.strictEqual(await P.evaluate(()=>localStorage.getItem("vt_aikey")),null);
+assert(await P.isDisabled("#jai_rem"),"remember disabled without prefs consent");assert.strictEqual(await P.evaluate(()=>localStorage.getItem(vtSK("vt_aikey"))),null);
 await P.evaluate(()=>vtConsentSet(true,"custom",true));await P.waitForTimeout(200);await P.fill("#jai_key","sk-keep");await P.press("#jai_key","Tab");await P.check("#jai_rem");
-assert.deepStrictEqual(await P.evaluate(()=>JSON.parse(localStorage.getItem("vt_aikey"))),{p:"openai",k:"sk-keep"});
+assert.deepStrictEqual(await P.evaluate(()=>JSON.parse(localStorage.getItem(vtSK("vt_aikey")))),{p:"openai",k:"sk-keep"});
 await P.reload();await ready(P);await P.waitForSelector("#jr_aic");await aiTab(P);assert.strictEqual(await P.inputValue("#jai_key"),"sk-keep","remembered key restored");
-await P.evaluate(()=>vtConsentSet(true,"custom",false));await P.waitForTimeout(200);assert.strictEqual(await P.evaluate(()=>localStorage.getItem("vt_aikey")),null,"withdrawing prefs deletes the key");
+await P.evaluate(()=>vtConsentSet(true,"custom",false));await P.waitForTimeout(200);assert.strictEqual(await P.evaluate(()=>localStorage.getItem(vtSK("vt_aikey"))),null,"withdrawing prefs deletes the key");
 await P.reload();await ready(P);await P.waitForSelector("#jr_aic");await aiTab(P);assert.strictEqual(await P.inputValue("#jai_key"),"","key gone after withdrawal");
 // 8) legal pages
 await P.evaluate(()=>{location.hash="#/legal/privacy"});await P.waitForTimeout(500);let lg=await P.textContent("#pv-legal");assert(/Journal AI review \(optional\)/.test(lg)&&!/No AI or machine learning is used/.test(lg));

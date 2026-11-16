@@ -582,6 +582,30 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 .kbft{margin:6px 0 0;font-size:12px}
 .kbm .kbs{animation:vtPageIn .32s var(--vt-ease-out) both}.kbm .kbs:nth-child(2){animation-delay:40ms}.kbm .kbs:nth-child(3){animation-delay:80ms}.kbm .kbs:nth-child(4){animation-delay:120ms}
 @media (hover:none) and (pointer:coarse){#vft_kb{display:none}}
+/* mini-chart mode */
+:root.vt-mini #t{display:none}
+#minib{display:inline-flex;align-items:center;justify-content:center}
+#minib.on{background:var(--acc-soft);color:var(--fg);border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
+.mini{padding:6px}
+.minih{display:flex;align-items:center;gap:8px;padding:2px 2px 6px;font-size:12px}
+.minitf{display:inline-flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:2px}
+.minitf button{background:none;border:0;padding:3px 8px;border-radius:5px;font-size:12px;color:var(--mut);cursor:pointer;min-height:0}
+.minitf button.on{background:var(--acc-soft);color:var(--fg);font-weight:700}
+.minig{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:6px}
+.mc{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 7px 5px;cursor:pointer;color:var(--fg);min-width:0;
+  animation:vtTileIn .36s var(--vt-ease-out,ease-out) both;transition:border-color .15s,transform .15s}
+.mc:hover{border-color:color-mix(in srgb,var(--acc) 50%,var(--line))}
+.mc:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.mch{display:flex;align-items:baseline;gap:6px;min-width:0;font-size:12px}
+.mcn{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcp{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--fg)}
+.mcc{font-variant-numeric:tabular-nums;font-weight:700}.mcc.up{color:var(--g)}.mcc.dn{color:var(--r)}
+.mc canvas{display:block;width:100%;height:56px;align-self:stretch}
+.mcf{display:flex;align-items:baseline;gap:6px;min-width:0;font-size:11.5px}
+.mcw{font-size:10.5px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc.na canvas{background:linear-gradient(100deg,transparent 30%,rgba(251,146,60,.10) 50%,transparent 70%);background-size:220% 100%;animation:vtShim 1.6s linear infinite;border-radius:4px}
+:root[data-ui="phone"] .minig{grid-template-columns:repeat(2,minmax(0,1fr))}
+:root[data-ui="phone"] .mc{min-height:0}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -3453,6 +3477,58 @@ document.addEventListener("keydown",e=>{if(e.key!=="?"||e.ctrlKey||e.metaKey||e.
 // footer entry point (hidden on touch-only phones)
 if(typeof vtFooterBuild==="function"){const _vtKbF=vtFooterBuild;vtFooterBuild=function(){const r=_vtKbF.apply(this,arguments);try{const f=document.querySelector("footer.vfoot");
   if(f&&!document.getElementById("vft_kb")){const b=document.createElement("button");b.type="button";b.className="lnk";b.id="vft_kb";b.textContent="Keyboard shortcuts";b.setAttribute("aria-keyshortcuts","Shift+Slash");b.onclick=vtKbOpen;f.appendChild(b)}}catch(e){}return r}}
+// ---------- Mini-chart mode ----------
+// A compact grid of small candle charts for the symbols on the current screener page (same filter, sort and paging as
+// the table). Uses the existing candle store and live updates; missing candles are queued through need(), a few at a time.
+// Only redraws a card when its last bar or price changed. Click / Enter opens the full chart.
+const MINI_TFS=["15m","1H","4H","1D"],MINI_N=48;
+const MINI={sig:"",cards:new Map(),raf:0,dirty:new Set()};
+function miniCfg(){if(!S.mini||typeof S.mini!=="object")S.mini={};if(typeof S.mini.on!=="boolean")S.mini.on=false;if(!MINI_TFS.includes(S.mini.tf))S.mini.tf="1H";return S.mini}
+function miniToggle(on){const C=miniCfg();C.on=on==null?!C.on:!!on;save();miniApply();if(C.on)miniSync(true)}
+function miniApply(){const C=miniCfg(),tw=document.querySelector(".side>.tw")||document.getElementById("t")&&document.getElementById("t").closest(".tw");
+  document.documentElement.classList.toggle("vt-mini",C.on);const b=document.getElementById("minib");if(b){b.setAttribute("aria-pressed",String(C.on));b.classList.toggle("on",C.on)}
+  let g=document.getElementById("vtmini");if(C.on&&tw&&!g){g=document.createElement("div");g.id="vtmini";g.className="mini";g.setAttribute("role","region");g.setAttribute("aria-label","Mini charts");tw.appendChild(g);MINI.sig=""}
+  if(!C.on&&g){g.remove();MINI.cards.clear();MINI.sig=""}}
+function miniCols(){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();return{g:v("--g")||"#46d38a",r:v("--r")||"#f87171",m:v("--mut")||"#8a8f98",l:v("--line")||"#27272a",acc:v("--acc")||"#fb923c"}}
+function miniBars(s,tf){const a=candles(s,tf);return a&&a.length?a.slice(-MINI_N):null}
+function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getElementById("vtmini");if(!g)return miniApply();
+  const syms=(typeof PGL!=="undefined"&&PGL?PGL:[]).slice(),sig=C.tf+"|"+syms.join(",");
+  if(force||sig!==MINI.sig){MINI.sig=sig;MINI.cards.clear();
+    g.innerHTML=`<div class="minih"><span class="mut">Mini charts \u00b7 last ${MINI_N} bars</span><span class="sp"></span><div class="minitf" role="group" aria-label="Mini chart interval">${MINI_TFS.map(t=>`<button type="button" data-tf="${t}" aria-pressed="${t===C.tf}" class="${t===C.tf?"on":""}">${t}</button>`).join("")}</div></div>`+
+      `<div class="minig">${syms.map(n=>`<button type="button" class="mc" data-s="${esc(n)}"><span class="mch"><b class="mcn">${esc(String(n).replace(/USDT$/,""))}</b><span class="mcp"></span></span><canvas aria-hidden="true"></canvas><span class="mcf"><span class="mcc"></span><span class="mcw mut"></span></span></button>`).join("")}</div>`+
+      (syms.length?"":`<p class="mut" style="padding:10px">No symbols match this list.</p>`);
+    g.querySelectorAll(".minitf button").forEach(b=>b.onclick=()=>{miniCfg().tf=b.dataset.tf;save();miniSync(true)});
+    g.querySelectorAll(".mc").forEach(b=>{b.onclick=()=>openChart(b.dataset.s);MINI.cards.set(b.dataset.s,{el:b,k:""})})}
+  let asked=0;for(const [n,c] of MINI.cards){const s=symOf(n);if(!s)continue;const B=miniBars(s,C.tf);
+    if(!B&&asked<8&&typeof need==="function"&&(typeof isLive!=="function"||isLive())){try{need(s,C.tf,false)}catch(e){}asked++}
+    const last=B&&B[B.length-1],k=[B?B.length:0,last&&last.t,last&&last.c,last&&last.h,last&&last.l,s[2],document.documentElement.dataset.theme||""].join("|");
+    if(force||k!==c.k){c.k=k;MINI.dirty.add(n)}}
+  if(MINI.dirty.size&&!MINI.raf)MINI.raf=requestAnimationFrame(miniFlush)}
+function miniFlush(){MINI.raf=0;const C=miniCfg(),col=miniCols();for(const n of MINI.dirty){const c=MINI.cards.get(n),s=symOf(n);if(c&&s)miniDraw(c.el,s,miniBars(s,C.tf),C.tf,col)}MINI.dirty.clear()}
+function miniDraw(el,s,B,tf,col){const cv=el.querySelector("canvas"),p=el.querySelector(".mcp"),ch=el.querySelector(".mcc"),w=el.querySelector(".mcw");
+  const px=s[2]!=null?s[2]:B&&B.length?B[B.length-1].c:null;p.textContent=px!=null?fp(px):"\u2013";
+  if(!B||B.length<2){el.classList.add("na");ch.textContent="";w.textContent="Loading "+tf+" candles\u2026";el.setAttribute("aria-label",s[0]+", loading "+tf+" candles");const x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);return}
+  el.classList.remove("na");
+  const first=B[0].o!=null?B[0].o:B[0].c,lastC=B[B.length-1].c,pc=(lastC/first-1)*100;
+  ch.textContent=(pc>0?"+":pc<0?"\u2212":"")+Math.abs(pc).toFixed(2)+"%";ch.className="mcc "+(pc>=0?"up":"dn");
+  const span=(MINI_N*({"15m":15,"1H":60,"4H":240,"1D":1440}[tf]||60))/60;w.textContent=B.length+" \u00d7 "+tf+(span>=48?" \u00b7 ~"+Math.round(span/24)+"d":" \u00b7 ~"+Math.round(span)+"h");
+  el.setAttribute("aria-label",s[0]+", "+(px!=null?fp(px):"no price")+", "+ch.textContent+" over the last "+B.length+" "+tf+" bars. Opens the chart.");
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=cv.clientWidth||140,H=cv.clientHeight||56;if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const x=cv.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+  let lo=Infinity,hi=-Infinity;for(const b of B){if(b.l<lo)lo=b.l;if(b.h>hi)hi=b.h}if(!(hi>lo)){hi=lo*1.001+1e-9;lo=lo*.999}
+  const pad=3,Y=v=>pad+(hi-v)/(hi-lo)*(H-pad*2),n=B.length,step=W/n,bw=Math.max(1,Math.min(6,step*.62));
+  // last price guide
+  x.strokeStyle=col.acc;x.globalAlpha=.55;x.setLineDash([2,3]);x.beginPath();x.moveTo(0,Math.round(Y(lastC))+.5);x.lineTo(W,Math.round(Y(lastC))+.5);x.stroke();x.setLineDash([]);x.globalAlpha=1;
+  for(let i=0;i<n;i++){const b=B[i],o=b.o!=null?b.o:b.c,up=b.c>=o,cx=Math.round(i*step+step/2)+.5;x.strokeStyle=x.fillStyle=up?col.g:col.r;
+    x.beginPath();x.moveTo(cx,Y(b.h));x.lineTo(cx,Y(b.l));x.stroke();const y1=Y(Math.max(o,b.c)),y2=Y(Math.min(o,b.c));x.fillRect(Math.round(cx-bw/2),y1,bw,Math.max(1,y2-y1))}}
+// hook into the normal render (called on every tick) and keep the toggle in the list toolbar
+if(typeof render==="function"){const _miniR=render;render=function(){const r=_miniR.apply(this,arguments);try{miniEnsureBtn();if(miniCfg().on){miniApply();miniSync(false)}}catch(e){console.error(e)}return r}}
+function miniEnsureBtn(){if(document.getElementById("minib"))return;const data=document.querySelector('section.ctl button[onclick="dataM()"]'),ctl=data?data.parentNode:document.getElementById("q")&&document.getElementById("q").parentNode;if(!ctl)return;const b=document.createElement("button");b.type="button";b.id="minib";
+  b.title="Mini charts: show the list as small charts";b.setAttribute("aria-label","Mini charts");b.setAttribute("aria-pressed",String(miniCfg().on));
+  b.innerHTML='<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1.5 1.5h5.5v5.5H1.5zM9 1.5h5.5v5.5H9zM1.5 9h5.5v5.5H1.5zM9 9h5.5v5.5H9z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 5.5l1.5-1.5 1 1 1.5-2M10 5.5l1.5-2 1 1 1.5-1.5M2.5 13l1.5-2 1 1 1.5-1.5M10 13l1.5-1 1 .5 1.5-2" fill="none" stroke="currentColor" stroke-width="1"/></svg>';
+  b.onclick=()=>miniToggle();if(data)data.after(b);else ctl.appendChild(b);b.classList.toggle("on",miniCfg().on)}
+// redraw when the theme or size changes
+window.addEventListener("resize",()=>{if(S.mini&&S.mini.on)miniSync(true)});
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.

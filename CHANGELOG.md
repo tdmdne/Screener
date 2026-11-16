@@ -3,6 +3,14 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Mini-chart mode.** A new grid button next to "Data" in the screener list toolbar switches the list to a compact grid of small candle charts.
+  - **What it shows:** the symbols on the current page of the list, in the same filter, sort and page order as the table, on Workspace and Screener.
+  - **Each card:** the live price, the change over the bars shown, the last 48 candles with a dotted last-price line, and the window (for example "48 × 1H · ~2d").
+  - **Interval:** 15m, 1H, 4H or 1D.
+  - **Data:** comes from the existing candle store and live updates. Missing candles are queued through the normal loader, 8 at a time, and show a shimmering loading state. A card is only redrawn when its last bar or price changes, batched into one animation frame (render median about 4ms with the grid on).
+  - Click or Enter opens the full chart, and each card has a full label for screen readers. The choice is remembered with your other settings. On phones the grid has two columns.
+  - Tests: new `tests/minicharts.js`.
+
 - **Keyboard shortcut overlay.** Press `?` anywhere (except while typing in a field, over another dialog, or on the sign-in screen) to see the keyboard shortcuts. There is also a "Keyboard shortcuts" button in the footer, hidden on touch-only phones.
   - The list covers only shortcuts the app really has: general keys, the screener list (Up/Down), the chart (intervals, symbol search, pan, undo/redo, save, Alt+drawing tools, hide drawings, delete, Esc) and the heatmap (arrows, Home/End, Enter).
   - The current page's sections come first and are marked "This page". On a Mac the keys show as ⌘ and ⌥.

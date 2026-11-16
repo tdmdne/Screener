@@ -3,6 +3,18 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Sign-in screen redesign, guest mode and sign-in prompts.**
+  - **Look:** a full-screen dark backdrop of flowing price lines and drifting particles drawn on our own canvas. It shows the headline "Every market. One terminal.", a short feature list and live ticker snippets for BTC, ETH, SOL, BNB and XRP from Binance's public 24h ticker. If that request fails, the snippets are hidden; prices are never made up. The card sits on the right on desktop and below the headline on phones.
+  - **Reduced motion:** with `prefers-reduced-motion` on, one static frame is drawn and there's no animation loop. The loop also stops whenever the sign-in screen is hidden.
+  - **Guests:** "Continue without signing in" opens the app as a guest. Guests can use the charts and screener.
+    - Guest work stays in memory only: `save()` does nothing for guests.
+    - The only thing stored is the guest choice itself, in sessionStorage `vt_guest` (cleared when the tab closes). It's listed in the storage table.
+    - Consent rules are unchanged: nothing optional is written before consent.
+  - **Sign-in prompt:** when a guest tries to add an alert (dialog, "+" menu or chart) or open chart settings, a friendly prompt offers "Sign in" or "Keep exploring". It handles Esc and keeps Tab inside the prompt. Chart templates will use the same prompt.
+  - **Signing in later:** the header button reads "Sign in" for guests. Signing in from there needs no reload and keeps the WebSockets and the current work, and saving starts from that point. The sign-in screen can be closed with x or Esc.
+  - **Auth is honestly still local and mock-pluggable:** `authSignIn()` accepts any name and keeps only the username on this device; no password is stored or sent. Swap in a real backend call to make it real.
+  - Tests: `tests/signin.js` covers desktop and phone. Screenshots: `shots/11_signin.png` and `shots/m/390_signin.png`.
+
 - **Long/Short Position tools rebuilt (our own canvas drawing, styled after the familiar trading-platform look; no third-party code, icons or fonts).**
   - Two stacked zones that share the entry edge: profit in #089981 and loss in #F23645 at 20% fill, a thin grey #787B86 entry line, and a dashed line to the current (or exit) price with darker shading.
   - Labels: "Target: price (pct%) ticks, Amount: x" and "Stop: ...", plus a middle label "Open P&L: v, Qty: q | Risk/Reward Ratio: r", which becomes "Closed P&L" once the target or stop is hit. When both are hit in the same bar, the stop counts first. The entry bar itself doesn't count, because the entry fills at its close.

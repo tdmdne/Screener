@@ -380,6 +380,50 @@ html.locked .auth{display:flex}
 :root[data-page="screener"] th{white-space:normal;vertical-align:bottom;line-height:1.25;min-width:56px}
 :root[data-page="screener"] td{font-size:13px}
 :root[data-page="screener"] .pill{min-width:54px}
+/* sign-in screen: animated market backdrop + hero copy + card; guest mode */
+.auth{display:none;padding:0;background:#0b0c0f;overflow:auto;color-scheme:dark;--bg:#121316;--fg:#f4f4f5;--mut:#a1a1aa;--line:#2f3036;--card:#1c1d21;--acc:#fb923c;--accfg:#121316;--r:#ff7b72;--rb:#3a1a18;color:var(--fg)}
+.auth input:not([type=checkbox]){background:#121316;color:#f4f4f5;border-color:#3a3b42}
+html.locked .auth{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,420px);align-items:center;gap:clamp(20px,5vw,72px);padding:clamp(18px,5vw,64px)}
+.auth #aubg{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.auth::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse at 20% 30%,rgba(251,146,60,.10),transparent 55%),linear-gradient(180deg,rgba(11,12,15,.15),rgba(11,12,15,.75))}
+.auth .auhero,.auth .auth-card{position:relative;z-index:1}
+.auhero{color:#e8e9ec;max-width:620px}
+.auhero .aukick{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fb923c}
+.auhero .aukick::before{content:"";width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+.auhero h1{display:block;margin:14px 0 12px;font-size:clamp(34px,5.4vw,64px);line-height:1.02;letter-spacing:-.035em;font-weight:800}
+.auhero h1 em{font-style:normal;background:linear-gradient(90deg,#fb923c,#fde68a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.auhero p{margin:0 0 20px;font-size:clamp(15px,1.4vw,18px);line-height:1.5;color:#b4b7c0;max-width:520px}
+.auhero ul{list-style:none;margin:0 0 22px;padding:0;display:grid;gap:8px;font-size:14px;color:#cfd2d8}
+.auhero li{display:flex;gap:10px;align-items:center}
+.auhero li::before{content:"";width:14px;height:2px;border-radius:2px;background:#fb923c;flex:none}
+.autick{display:flex;flex-wrap:wrap;gap:8px;min-height:30px}
+.autick span{display:inline-flex;gap:6px;align-items:baseline;padding:6px 10px;border:1px solid rgba(255,255,255,.10);border-radius:8px;background:rgba(18,19,22,.72);font:600 12.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#e8e9ec;backdrop-filter:blur(4px)}
+.autick b{color:#9aa0aa;font-weight:600}
+.autick .up{color:#22c55e}.autick .dn{color:#f87171}
+.autick .src{border:0;background:none;padding:6px 2px;font:500 11px/1 system-ui,sans-serif;color:#7d828c}
+html.locked .auth .auth-card{margin:0;max-width:420px;background:rgba(28,29,33,.86);border-color:rgba(255,255,255,.10);box-shadow:0 30px 80px rgba(0,0,0,.45);backdrop-filter:blur(10px)}
+.auth-card .auguest{min-height:44px;font-size:15px;background:transparent;border:1px solid rgba(255,255,255,.22);color:#e8e9ec;border-radius:8px;font-weight:600;cursor:pointer}
+.auth-card .auguest:hover{border-color:#fb923c;color:#fb923c}
+.auth-card .auor{display:flex;align-items:center;gap:10px;color:#7d828c;font-size:12px;margin:-2px 0}
+.auth-card .auor::before,.auth-card .auor::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.1)}
+.auth-card .augn{margin:0;font-size:12.5px;line-height:1.45;color:#9aa0aa}
+.auth-card .auclose{position:absolute;top:10px;right:10px;min-height:0;padding:6px 9px;background:none;border:0;color:#9aa0aa;font-size:18px;line-height:1;cursor:pointer}
+html:not(.vtguest) .auth-card .auclose{display:none}
+.auth :focus-visible{outline:2px solid #fb923c;outline-offset:2px}
+@media (max-width:820px){
+  html.locked .auth{grid-template-columns:1fr;align-items:start;gap:18px;padding:max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom))}
+  .auhero h1{margin:10px 0 8px}
+  .auhero p{margin-bottom:12px}
+  .auhero ul{display:none}
+  html.locked .auth .auth-card{max-width:none}
+}
+/* friendly sign-in prompt for guests */
+.vgate{max-width:380px}
+.vgate h3{margin:0 0 6px;font-size:18px}
+.vgate p{margin:0 0 16px;color:var(--mut);font-size:14px;line-height:1.5}
+.vgate .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.vgate .row button{min-height:40px;padding:0 16px}
+.auhero h1::before,.auhero h1::after{content:none!important;display:none!important}
 /* Calculators */
 .cout{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-top:10px}
 .cnote{font-size:11.5px;color:var(--mut);margin:8px 0 0}
@@ -2668,6 +2712,95 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelec
 // the list search box was bound to a debounced copy of the original render; rebind it so Pro columns stay
 {const q=document.getElementById("q"),rd=deb(()=>render(),200);if(q)q.oninput=e=>{S.q=e.target.value;save();rd()}}
 PAGE_HOOK.screener={enter(){render()},leave(){sxClose();setTimeout(render,0)}};
+// ---------- sign-in screen, guest mode and the sign-in prompt ----------
+// Auth is still LOCAL and MOCK-PLUGGABLE: authSignIn() (above) accepts any name and stores only the name on this device.
+// Replace authSignIn() with a real backend call to make it real. Nothing here sends a password anywhere.
+// Guests: can chart and screen. Their work lives in memory only (save() is a no-op for guests), so nothing optional is
+// written before consent + sign-in. The only guest key is sessionStorage "vt_guest" (the choice itself; gone when the tab closes).
+const VT_GUEST_KEY="vt_guest";
+let VT_GUEST=false;
+function vtIsGuest(){return VT_GUEST}
+const VT_RM=()=>!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+// ---- hero + guest button, built once into the existing auth screen ----
+function vtAuthDecor(){const A=document.getElementById("auth"),F=document.getElementById("auForm");if(!A||!F||A.querySelector(".auhero"))return;
+  const cv=document.createElement("canvas");cv.id="aubg";cv.setAttribute("aria-hidden","true");A.prepend(cv);
+  const H=document.createElement("section");H.className="auhero";H.setAttribute("aria-label","About Vektor Terminal");
+  H.innerHTML=`<div class="aukick">Live markets</div><h1>Every market.<br><em>One terminal.</em></h1>
+<p>Charts, a multi-market screener, alerts and position planning in one fast, dark workspace.</p>
+<ul><li>Crypto, FX and stocks side by side</li><li>Drawing tools, alerts and long/short planning</li><li>Your data stays on your device</li></ul>
+<div class="autick" id="autick" aria-live="off"></div>`;
+  A.insertBefore(H,F);
+  const sub=F.querySelector(".auth-sub");if(sub)sub.textContent="Sign in to save alerts, chart templates and settings";
+  const note=F.querySelector(".note");if(note){note.className="note augn";note.textContent="Demo sign-in: accounts aren\u2019t connected to a server yet. Only your username is kept on this device."}
+  const or=document.createElement("div");or.className="auor";or.textContent="or";
+  const g=document.createElement("button");g.type="button";g.id="auGuest";g.className="auguest";g.textContent="Continue without signing in";
+  const gn=document.createElement("p");gn.className="augn";gn.id="auGuestNote";gn.textContent="Guests can use the charts and screener. Nothing you do as a guest is saved after you close the tab.";
+  const btn=document.getElementById("auBtn");btn.after(or,g,gn);g.setAttribute("aria-describedby","auGuestNote");
+  const x=document.createElement("button");x.type="button";x.className="auclose";x.id="auClose";x.setAttribute("aria-label","Close sign-in and keep exploring");x.textContent="\u00d7";F.style.position="relative";F.prepend(x);
+  x.onclick=vtHideSignIn;g.onclick=vtEnterGuest;
+  A.addEventListener("keydown",e=>{if(e.key==="Escape"&&VT_GUEST)vtHideSignIn()})}
+// ---- animated backdrop: flowing price lines + drifting particles (static frame when reduced motion is on) ----
+const AUBG={raf:0,t:0,lines:[],parts:[]};
+function vtNoiseLine(seed,n){let v=0,dv=0;const a=[];let s=seed*9301+49297;const rnd=()=>{s=(s*9301+49297)%233280;return s/233280};
+  for(let i=0;i<n;i++){dv=dv*0.92+(rnd()-0.5)*0.9;v+=dv;a.push(v)}return a}
+function vtAuBgInit(){const cv=document.getElementById("aubg");if(!cv)return;
+  const C=[["rgba(251,146,60,",0.55],["rgba(34,197,94,",0.28],["rgba(248,113,113,",0.22],["rgba(148,163,184,",0.18],["rgba(251,191,36,",0.2]];
+  AUBG.lines=C.map((c,i)=>({c:c[0],a:c[1],pts:vtNoiseLine(i+3,600),y:0.25+i*0.13,sp:0.35+i*0.12,w:i?1.2:2}));
+  AUBG.parts=Array.from({length:46},(_,i)=>({x:Math.random(),y:Math.random(),r:0.6+Math.random()*1.6,v:0.00012+Math.random()*0.0004,a:0.15+Math.random()*0.35}));
+  vtAuBgLoop()}
+function vtAuBgFrame(){const cv=document.getElementById("aubg");if(!cv)return;const dpr=Math.min(2,window.devicePixelRatio||1),W=cv.clientWidth,H=cv.clientHeight;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  g.strokeStyle="rgba(255,255,255,0.035)";g.lineWidth=1;for(let x=0;x<W;x+=64){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke()}for(let y=0;y<H;y+=64){g.beginPath();g.moveTo(0,y+.5);g.lineTo(W,y+.5);g.stroke()}
+  const step=Math.max(6,W/120);
+  for(const L of AUBG.lines){const n=L.pts.length,off=AUBG.t*L.sp;g.beginPath();
+    for(let x=0,i=0;x<=W+step;x+=step,i++){const k=(i+off)%n,i0=Math.floor(k),f=k-i0,v=L.pts[i0]*(1-f)+L.pts[(i0+1)%n]*f;const y=H*L.y+v*H*0.012;i?g.lineTo(x,y):g.moveTo(x,y)}
+    const gr=g.createLinearGradient(0,0,W,0);gr.addColorStop(0,L.c+"0)");gr.addColorStop(0.55,L.c+(L.a*0.6)+")");gr.addColorStop(1,L.c+L.a+")");
+    g.strokeStyle=gr;g.lineWidth=L.w;g.stroke()}
+  for(const p of AUBG.parts){g.fillStyle="rgba(251,146,60,"+p.a+")";g.beginPath();g.arc(p.x*W,p.y*H,p.r,0,6.283);g.fill()}}
+function vtAuBgLoop(){cancelAnimationFrame(AUBG.raf);const rm=VT_RM();
+  const tick=()=>{if(!document.documentElement.classList.contains("locked")){AUBG.raf=0;return}
+    AUBG.t+=0.06;for(const p of AUBG.parts){p.y-=p.v*16;p.x+=p.v*4;if(p.y<-0.02){p.y=1.02;p.x=Math.random()}if(p.x>1.02)p.x=-0.02}
+    vtAuBgFrame();AUBG.raf=requestAnimationFrame(tick)};
+  if(rm){vtAuBgFrame();return}AUBG.raf=requestAnimationFrame(tick)}
+window.addEventListener("resize",()=>{if(document.documentElement.classList.contains("locked")&&VT_RM())vtAuBgFrame()});
+// ---- live ticker snippets: real Binance quotes or nothing (never made up) ----
+const AU_TICK=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT"];
+async function vtAuTicker(){const el=document.getElementById("autick");if(!el)return;
+  try{const j=await bnGet("/api/v3/ticker/24hr?symbols="+encodeURIComponent(JSON.stringify(AU_TICK)));
+    const rows=(Array.isArray(j)?j:[]).filter(r=>AU_TICK.includes(r.symbol)&&isFinite(+r.lastPrice));if(!rows.length){el.textContent="";return}
+    el.textContent="";for(const r of AU_TICK.map(s=>rows.find(x=>x.symbol===s)).filter(Boolean)){const s=document.createElement("span"),b=document.createElement("b");b.textContent=r.symbol.replace(/USDT$/,"");s.append(b," "+(+r.lastPrice).toLocaleString("en-GB",{maximumFractionDigits:(+r.lastPrice)<10?4:2}));
+      const pc=+r.priceChangePercent;if(r.priceChangePercent!=null&&isFinite(pc)){const c=document.createElement("i");c.style.fontStyle="normal";c.className=pc>=0?"up":"dn";c.textContent=(pc>=0?"+":"\u2212")+Math.abs(pc).toFixed(2)+"%";s.append(" ",c)}el.append(s)}
+    const src=document.createElement("span");src.className="src";src.textContent="Binance spot, 24h";el.append(src)}
+  catch(e){el.textContent=""}}
+// ---- guest mode ----
+function vtGuestUI(){document.documentElement.classList.toggle("vtguest",VT_GUEST);const b=document.getElementById("lgo");if(!b)return;
+  if(VT_GUEST){b.textContent="Sign in";b.title="Sign in to save your work";b.onclick=vtShowSignIn}else{b.textContent="Log out";b.onclick=authSignOut}}
+function vtEnterGuest(){VT_GUEST=true;try{ssSet(VT_GUEST_KEY,"1")}catch(e){}
+  if(typeof authErr==="function")authErr("");vtGuestUI();
+  if(BOOTED){document.documentElement.classList.remove("locked");return}
+  authEnter({id:"Guest",guest:true})}
+function vtShowSignIn(){vtAuthDecor();document.documentElement.classList.add("locked");closeM();vtAuBgLoop();vtAuTicker();setTimeout(()=>{const i=document.getElementById("auId");if(i)i.focus()},30)}
+function vtHideSignIn(){if(!BOOTED)return;document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.focus()}
+// signing in from guest mode keeps the session's work and only now starts saving it
+const _vtAuthEnter=authEnter;authEnter=function(u){
+  if(!(u&&u.guest)){const was=VT_GUEST;VT_GUEST=false;try{ssRemove(VT_GUEST_KEY)}catch(e){}vtGuestUI();
+    if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";if(was){save();toast("Signed in \u2014 your work is now saved on this device")}return}}
+  const r=_vtAuthEnter.apply(this,arguments);vtGuestUI();return r};
+const _vtSaveG=save;save=function(){if(VT_GUEST)return;return _vtSaveG.apply(this,arguments)};
+const _vtAuthInit=authInit;authInit=function(){vtAuthDecor();
+  if(!authUser()){let g=null;try{g=ssGet(VT_GUEST_KEY)}catch(e){}if(g==="1"){VT_GUEST=true;vtGuestUI();_vtAuthInit.apply(this,arguments);return authEnter({id:"Guest",guest:true})}
+    vtAuBgInit();vtAuTicker()}
+  return _vtAuthInit.apply(this,arguments)};
+// ---- friendly prompt when a guest tries something that needs an account ----
+function vtGate(what){if(!VT_GUEST)return false;
+  modal(`<div class="vgate" role="dialog" aria-modal="true" aria-labelledby="vg_h"><h3 id="vg_h">Sign in to save ${esc(what)}</h3><p>You\u2019re exploring as a guest. Sign in to keep ${esc(what)} on this device. Your current charts stay as they are.</p><div class="row"><button id="vg_no" type="button">Keep exploring</button><button id="vg_in" type="button" class="pri">Sign in</button></div></div>`);
+  const no=document.getElementById("vg_no"),yes=document.getElementById("vg_in");no.onclick=closeM;yes.onclick=vtShowSignIn;yes.focus();
+  const box=MD.querySelector(".ov");box.addEventListener("keydown",e=>{if(e.key==="Escape")closeM();if(e.key==="Tab"){const f=[no,yes],i=f.indexOf(document.activeElement);e.preventDefault();f[(i+(e.shiftKey?f.length-1:1))%f.length].focus()}});
+  return true}
+const _vtAddAlertG=addAlert;addAlert=function(){if(vtGate("alerts"))return;return _vtAddAlertG.apply(this,arguments)};
+const _vtAddAlertAtG=vtAddAlertAt;vtAddAlertAt=function(){if(vtGate("alerts"))return;return _vtAddAlertAtG.apply(this,arguments)};
+const _vtSetMG=setM;setM=function(){if(vtGate("your chart settings"))return;return _vtSetMG.apply(this,arguments)};
 // <VTC> pure calculator / stats helpers (no DOM; unit-tested in tests/logic.js)
 const VTC=(()=>{
 const METALS={XAU:{contract:100,pip:0.1},XAG:{contract:5000,pip:0.01}};
@@ -2806,7 +2939,7 @@ const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th>
 <tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts, chart settings and drawings, Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
 <tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
 <tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
-<tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
+<tr><td>sessionStorage</td><td><code>vt_guest</code></td><td>Only that you chose \u201cContinue without signing in\u201d, so a reload keeps you in guest mode. Cleared when the tab closes. Guests\u2019 charts, drawings and other work are kept in memory only and are not saved.</td></tr><tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
 <tr><td>localStorage</td><td><code>vt_consent</code>, <code>vt_consent_log</code></td><td>Your storage choices, plus a log of each choice with its date, time and policy version (the last 50), so we can show what you agreed to.</td></tr>
 <tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
 const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>

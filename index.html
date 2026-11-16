@@ -671,6 +671,7 @@ const D={bg:"#121316",tx:"#a1a1aa",gr:"#27272a"},Lt={bg:"#ffffff",tx:"#71717a",g
 return b==="dark"?D:b==="light"?Lt:b==="custom"?Object.assign({},dk(C.bgCol)?D:Lt,{bg:C.bgCol}):{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
 function openChart(sym,tf){S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();
+const cs=symOf(sym);if(cs&&cs[8]==="bn")bnKlineStart(sym,S.chart.tf);else if(cs&&(cs[1]==="STK"||cs[1]==="ETF"))fhSubscribe(sym);
 const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
 if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
 if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
@@ -1533,7 +1534,6 @@ function bnwsConnect(){
           const last=LIVE[k][LIVE[k].length-1];
           if(last){last.c=+t.c;last.h=Math.max(last.h,+t.h);last.l=Math.min(last.l,+t.l)}
         }
-        // Update symbol price
         const s=SYMS.find(x=>x[0]===sym);
         if(s)s[2]=+t.c;
       });
@@ -1543,8 +1543,68 @@ function bnwsConnect(){
   BNWS.ws.onclose=()=>setTimeout(bnwsConnect,5000);
   BNWS.ws.onerror=()=>{if(BNWS.ws)BNWS.ws.close()};
 }
+// Live kline stream for the currently open crypto chart (tick-by-tick candles)
+const BNKL={ws:null,sym:"",tf:""};
+function bnKlineStart(sym,tf){
+  if(!sym||!tf)return;
+  const bni={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"}[tf];
+  if(!bni)return;
+  if(BNKL.ws&&BNKL.sym===sym&&BNKL.tf===tf)return;
+  if(BNKL.ws){try{BNKL.ws.close()}catch(e){}}
+  BNKL.sym=sym;BNKL.tf=tf;
+  const stream=sym.toLowerCase()+"@kline_"+bni;
+  BNKL.ws=new WebSocket("wss://stream.binance.com:9443/ws/"+stream);
+  BNKL.ws.onmessage=e=>{
+    try{
+      const m=JSON.parse(e.data),k=m.k;if(!k)return;
+      markOk("kline");
+      const key=sym+"|"+tf;
+      if(!LIVE[key])LIVE[key]=[];
+      const bar={t:Math.floor(k.t/1000),o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
+      const arr=LIVE[key],last=arr[arr.length-1];
+      if(last&&last.t===bar.t)arr[arr.length-1]=bar;
+      else if(!last||bar.t>last.t)arr.push(bar);
+      if(arr.length>500)arr.splice(0,arr.length-500);
+      const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=bar.c;
+      if(S.chart.sym===sym&&S.chart.tf===tf)drawChart();
+    }catch(err){}
+  };
+  BNKL.ws.onclose=()=>{if(BNKL.sym===sym)setTimeout(()=>bnKlineStart(sym,tf),3000)};
+}
+// Finnhub trade stream for stocks (free tier) — updates last price + forms a live 1m bar
+const FHWS={ws:null,subs:new Set()};
+function fhWsStart(){
+  const key=S.data.fhKey;if(!key||FHWS.ws)return;
+  FHWS.ws=new WebSocket("wss://ws.finnhub.io?token="+key);
+  FHWS.ws.onopen=()=>{FHWS.subs.forEach(s=>FHWS.ws.send(JSON.stringify({type:"subscribe",symbol:s})))};
+  FHWS.ws.onmessage=e=>{
+    try{
+      const m=JSON.parse(e.data);
+      if(m.type!=="trade"||!m.data)return;
+      markOk("fhws");
+      m.data.forEach(t=>{
+        const sym=t.s,price=+t.p,vol=+t.v||0,ts=Math.floor(t.t/1000);
+        const key1=sym+"|1m";
+        if(!LIVE[key1])LIVE[key1]=[];
+        const arr=LIVE[key1],bucket=Math.floor(ts/60)*60,last=arr[arr.length-1];
+        if(last&&last.t===bucket){last.c=price;last.h=Math.max(last.h,price);last.l=Math.min(last.l,price);last.v+=vol}
+        else arr.push({t:bucket,o:price,h:price,l:price,c:price,v:vol});
+        if(arr.length>500)arr.splice(0,arr.length-500);
+        const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=price;
+        if(S.chart.sym===sym)drawChart();
+      });
+    }catch(err){}
+  };
+  FHWS.ws.onclose=()=>{FHWS.ws=null;setTimeout(fhWsStart,5000)};
+}
+function fhSubscribe(sym){
+  if(!sym||FHWS.subs.has(sym))return;
+  FHWS.subs.add(sym);
+  if(FHWS.ws&&FHWS.ws.readyState===1)FHWS.ws.send(JSON.stringify({type:"subscribe",symbol:sym}));
+  else fhWsStart();
+}
 function bnwsStart(){if(!BNWS.ws)bnwsConnect()}
-function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
+function setLive(){if(SNAP.ok&&SNAP.uni&&SNAP.uni.length){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
 const seen=new Set(),out=[];
 const add=arr=>{for(const s of arr){if(!s||seen.has(s[0]))continue;seen.add(s[0]);out.push(s)}};
 add(BN.list);
@@ -1563,7 +1623,7 @@ async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const 
 err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
 if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
 async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/ticker/24hr");
-BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn")}catch(e){BN.err=e.message}
+BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn");persistUni()}catch(e){BN.err=e.message}
 BN.busy=false;render();drawChart()}
 async function proxied(url){
   // try direct first, then the same public proxies used for Yahoo
@@ -1582,7 +1642,7 @@ async function loadFHU(){
       .filter(x=>x.symbol&&(!x.type||x.type==="Common Stock")&&!String(x.symbol).includes("."))
       .slice(0,3000)
       .map(x=>[x.symbol,"STK",null,0,1,.01,x.symbol,"","yf",x.symbol]);
-    FHU.loaded=true;
+    FHU.loaded=true;persistUni();
   }catch(e){FHU.err=e.message}
   FHU.busy=false;setLive();render();
 }
@@ -1594,7 +1654,7 @@ async function loadPGU(){
     PGU.list=(j.results||[])
       .filter(x=>x.ticker&&(x.type==="CS"||x.type==="ETF"||!x.type))
       .map(x=>[x.ticker,x.type==="ETF"?"ETF":"STK",null,0,1,.01,x.ticker,"","yf",x.ticker]);
-    PGU.loaded=true;
+    PGU.loaded=true;persistUni();
   }catch(e){PGU.err=e.message}
   PGU.busy=false;setLive();render();
 }
@@ -1652,6 +1712,13 @@ bz.td=0}
 let IDB=null,READY=false,fl=0;const DIRTY=new Set();
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago"};
 function idb(){return new Promise(res=>{try{const r=indexedDB.open("scr",2);r.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("c"))db.createObjectStore("c");};r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
+function persistUni(){
+  if(!SYMS||!SYMS.length)return;
+  SNAP.uni=SYMS.map(s=>s.slice());
+  SNAP.t=Date.now();
+  SNAP.ok=true;
+  dirtySnap();
+}
 async function loadCache(){try{IDB=await idb();if(IDB){await new Promise(done=>{const q=IDB.transaction("c").objectStore("c").openCursor();
 q.onsuccess=()=>{const c=q.result;if(!c){done();return}const k=c.key,v=c.value;
 if(k==="@bn"){BN.list=v.list||[];BN.loaded=Date.now()-v.t<9e5}

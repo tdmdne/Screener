@@ -345,6 +345,19 @@ html.locked .auth{display:flex}
 .valb.drag,.valh.drag{opacity:.85}
 .vale textarea{width:100%;min-height:58px;resize:vertical;box-sizing:border-box}
 .vale .del{color:var(--red,#ef5350)}
+/* position tool settings + drawing context menu */
+.pset .tp{flex-direction:column;gap:8px}
+.pset .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end}
+.pset .g3{display:grid;grid-template-columns:110px repeat(2,minmax(0,1fr));gap:8px;align-items:end}
+.pset .g3>span{font-size:13px;color:var(--mut);padding-bottom:10px}
+.pset .rk{display:flex;gap:6px}
+.pset .rk input{flex:1 1 auto;min-width:64px;width:auto}
+.pset .rk select{flex:0 0 86px;width:86px!important;min-width:0}
+.pset .cl{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pset .ro{font-size:12px;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;line-height:1.6}
+.vpmenu .sep{height:1px;background:var(--line);margin:4px 0;padding:0;cursor:default}
+.vpmenu .sep:hover{background:var(--line)}
+#dsel .pbtn{min-width:34px}
 /* Screener Pro */
 #sxbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
 :root[data-page="screener"] #sxbar{display:flex}
@@ -2307,7 +2320,7 @@ function scSetPanes(n){S.sc.panes=n;save();scApplyAttr();scDock();scPaneB()}
 function scTogDock(){S.sc.dock=!S.sc.dock;save();scDock()}
 function scTogSec(k){S.sc.secs[k]=!S.sc.secs[k];save();scDock()}
 // main chart -> data window + pane 2 crosshair
-function vtAfterDraw(s,a,T){scApplyAttr();vtPlusAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtAlertAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtTouchChart(ch);
+function vtAfterDraw(s,a,T){scApplyAttr();vtPlusAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtAlertAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtTouchChart(ch);vtPosAttach();
 const C=S.chart,cl=a.map(x=>x.c),inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):rsiArr(cl,d.len)}));
 const vol=vols(s,C.tf);
 SC.dw={s,a,T,inds,vol,i:a.length-1};scDW();
@@ -2452,6 +2465,159 @@ const c=evcCfg(),eq=m=>m==="STK"||m==="ETF"||m==="FUT";
 [c.v,c.e].forEach(t=>SYMS.forEach(s=>{if(t!=="1D"&&s[8]!=="bn"&&eq(s[1])&&!LIVE[s[0]+"|1D"])return;need(s,t,PRI.has(s[0]))}))};
 // true when the candles scoreMarket needs are present
 function evcHas(s){const c=evcCfg(),e=candles(s,c.e),v=candles(s,c.v);return!!(e&&e.length>=20&&v&&v.length>=20)}
+// <POS>
+// Long/short position maths (same definitions as TradingView's public help pages; our own implementation).
+// side "long"|"short"; risk in % of account (ru "%") or money (ru "$"); pv = point value; lot = lot size; lev = leverage (0 = no cap).
+function posCalc(o){const L=o.side!=="short",E=+o.entry,T=+o.tp,Sx=+o.sl,acct=+o.acct||0,lot=+o.lot||1,pv=+o.pv||1,tick=+o.tick||0.01,prec=o.prec==null?2:+o.prec;
+const riskAmt=o.ru==="$"?(+o.risk||0):acct*(+o.risk||0)/100,dist=L?E-Sx:Sx-E,gain=L?T-E:E-T;
+let qty=dist>0?riskAmt/(dist*pv)/lot:0;if(+o.lev>0&&E>0)qty=Math.min(qty,acct*o.lev/E*pv/lot);
+const f=Math.pow(10,prec);qty=Math.floor(qty*f+1e-9)/f;
+const per=pv*lot*qty;
+return{riskAmt,qty,rr:dist>0?gain/dist:0,
+tpOff:Math.abs(T-E),tpPct:E?Math.abs(T-E)/E*100:0,tpTicks:Math.round(Math.abs(T-E)/tick),
+slOff:Math.abs(E-Sx),slPct:E?Math.abs(E-Sx)/E*100:0,slTicks:Math.round(Math.abs(E-Sx)/tick),
+pnlTP:gain*per,pnlSL:-dist*per,amtTP:acct+gain*per,amtSL:acct-dist*per,
+pnlAt:px=>(L?px-E:E-px)*per}}
+// Walk the bars inside the tool's time span: the first bar to touch the target or stop closes it (stop first if one bar touches both).
+function posState(bars,side,E,T,Sx,t0,t1){const L=side!=="short";let last=null,n=0;
+for(const b of bars){if(b.t<=t0)continue;// entry fills at the close of its bar, so only later bars count
+  if(b.t>t1)break;n++;last=b;
+  const hitS=L?b.l<=Sx:b.h>=Sx,hitT=L?b.h>=T:b.l<=T;
+  if(hitS)return{state:"sl",t:b.t,px:Sx};if(hitT)return{state:"tp",t:b.t,px:T}}
+return n?{state:"open",t:last.t,px:last.c}:{state:"none"}}
+// </POS>
+// ---------- Long / Short position tools: TradingView-like look and interactions, built with our own canvas code ----------
+// Data: p[0] = entry (left time), p[1] = target (right time), p[2] = stop (right time). Inputs/style live on the drawing;
+// the last values used become the defaults for the next one (S.posDef). Maths: the <POS> block (posCalc / posState).
+const POS_DEF0={acct:10000,lot:1,risk:1,ru:"%",lev:0,prec:2,rr:2,tc:"#089981",sc:"#F23645",ec:"#787B86",xc:"#FFFFFF",op:0.2,compact:false,full:false,axis:true,bars:24};
+function posDef(){const D=S.posDef||(S.posDef={});for(const k in POS_DEF0)if(D[k]==null)D[k]=POS_DEF0[k];return D}
+const isPos=d=>!!d&&(d.t==="long"||d.t==="short");
+function posO(d){const D=posDef(),o={};for(const k in POS_DEF0)o[k]=d[k]!=null?d[k]:D[k];if(d.targetCol&&d.tc==null)o.tc=d.targetCol;if(d.stopCol&&d.sc==null)o.sc=d.stopCol;return o}
+function posTick(){const s=symOf(S.chart.sym),p=s&&s[2];return p!=null&&p<10?1e-4:0.01}
+let VT_SAVE_T=0;function saveSoon(){clearTimeout(VT_SAVE_T);VT_SAVE_T=setTimeout(()=>save(),250)}
+function hexA(h,a){h=String(h||"#787b86").replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");const n=parseInt(h.slice(0,6),16);return`rgba(${n>>16&255},${n>>8&255},${n&255},${Math.max(0,Math.min(1,a))})`}
+const posMoney=v=>(v<0?"\u2212":"")+Math.abs(v).toLocaleString("en-GB",{minimumFractionDigits:2,maximumFractionDigits:2});
+function posCalcD(d){const o=posO(d);return posCalc({side:d.t,entry:d.p[0].y,tp:d.p[1].y,sl:d.p[2].y,acct:o.acct,risk:o.risk,ru:o.ru,lot:o.lot,lev:o.lev,prec:o.prec,pv:1,tick:posTick()})}
+let POSB={a:null,n:0,b:[]};
+function posBars(){if(!G||!G.a)return[];const a=G.a,n=a.length;if(POSB.a!==a||POSB.n!==n)POSB={a,n,b:a.map((c,i)=>({t:G.tt[i],h:c.h,l:c.l,c:c.c}))};else if(n){const c=a[n-1];POSB.b[n-1]={t:G.tt[n-1],h:c.h,l:c.l,c:c.c}}return POSB.b}
+function posState1(d){return posState(posBars(),d.t,d.p[0].y,d.p[1].y,d.p[2].y,d.p[0].t,Math.max(d.p[1].t,d.p[0].t))}
+const tx=t=>ch.timeScale().logicalToCoordinate(t2l(t));
+function posGeo(d){const a=px(d.p[0]),b=px(d.p[1]),c=px(d.p[2]);if([a.x,a.y,b.x,b.y,c.y].some(v=>v==null))return null;
+return{xL:Math.min(a.x,b.x),xR:Math.max(a.x,b.x),yE:a.y,yT:b.y,yS:c.y}}
+function posPill(g,lines,cx,y,where,bg,fg,tw){g.font="600 11.5px system-ui,-apple-system,'Segoe UI',sans-serif";const lh=15,w=Math.max(...lines.map(s=>g.measureText(s).width))+14,h=lines.length*lh+6;
+let x=Math.round(cx-w/2);x=Math.max(2,Math.min(tw-w-2,x));const top=where==="above"?y-h-5:where==="below"?y+5:y-h/2;
+g.fillStyle=bg;g.beginPath();g.roundRect(x,Math.round(top),w,h,4);g.fill();g.fillStyle=fg;g.textAlign="center";g.textBaseline="middle";
+lines.forEach((s,i)=>g.fillText(s,x+w/2,top+3+lh/2+i*lh));g.textAlign="left";g.textBaseline="alphabetic"}
+let POS_HOV=null;window.__posLbl={};
+function posShape(g,d,W,H,sel){const P=posGeo(d);if(!P)return;const o=posO(d),hov=d===POS_HOV,L=d.t==="long";
+const {xL,xR,yE,yT,yS}=P,w=Math.max(2,xR-xL),al=o.op*(hov||sel?1.3:1);g.setLineDash([]);
+g.fillStyle=hexA(o.tc,al);g.fillRect(xL,Math.min(yE,yT),w,Math.abs(yT-yE));
+g.fillStyle=hexA(o.sc,al);g.fillRect(xL,Math.min(yE,yS),w,Math.abs(yS-yE));
+const c=posCalcD(d),st=posState1(d);let pnl=null;
+if(st.state!=="none"){const xC=Math.min(xR,Math.max(xL,tx(st.t)??xR)),yC=MS.priceToCoordinate(st.px);
+  if(yC!=null){pnl=c.pnlAt(st.px);const col=pnl>=0?o.tc:o.sc;g.fillStyle=hexA(col,Math.min(.6,al+.18));g.fillRect(xL,Math.min(yE,yC),Math.max(1,xC-xL),Math.abs(yC-yE));
+    g.strokeStyle=o.ec;g.lineWidth=1;g.setLineDash([4,3]);g.beginPath();g.moveTo(xL,yE);g.lineTo(xC,yC);g.stroke();g.setLineDash([])}}
+g.strokeStyle=o.ec;g.lineWidth=1;g.beginPath();g.moveTo(xL,Math.round(yE)+.5);g.lineTo(xL+w,Math.round(yE)+.5);g.stroke();
+const full=(sel||hov||o.full)&&!(o.compact&&!sel&&!hov),cx=xL+w/2,dec=o.prec;
+const top=full?`Target: ${fp(d.p[1].y)} (${c.tpPct.toFixed(2)}%) ${c.tpTicks}, Amount: ${posMoney(c.amtTP)}`:`${fp(d.p[1].y)} (${c.tpPct.toFixed(2)}%)`;
+const bot=full?`Stop: ${fp(d.p[2].y)} (${c.slPct.toFixed(2)}%) ${c.slTicks}, Amount: ${posMoney(c.amtSL)}`:`${fp(d.p[2].y)} (${c.slPct.toFixed(2)}%)`;
+const closed=st.state==="tp"||st.state==="sl",pl=pnl==null?"":(closed?"Closed P&L: ":"Open P&L: ")+posMoney(pnl)+", ";
+const mid=full?[`${pl}Qty: ${c.qty.toFixed(dec)}`,`Risk/Reward Ratio: ${c.rr.toFixed(2)}`]:[`${c.rr.toFixed(2)}`];
+posPill(g,[top],cx,yT,yT<yE?"above":"below",o.tc,o.xc,W);posPill(g,[bot],cx,yS,yS<yE?"above":"below",o.sc,o.xc,W);
+posPill(g,mid,cx,yE,"center",pnl==null||Math.abs(pnl)<1e-12?o.ec:pnl>0?o.tc:o.sc,o.xc,W);
+window.__posLbl[d.id]={top,bot,mid:mid.join(" | "),state:st.state,full};
+if(sel&&!d.lock){const R=VT_COARSE?6:4.5;const sq=(x,y)=>{g.fillStyle="#fff";g.strokeStyle="#2962ff";g.lineWidth=1.5;g.fillRect(x-R,y-R,2*R,2*R);g.strokeRect(x-R,y-R,2*R,2*R)};
+  sq(xL,yT);sq(xL,yS);sq(xR,yE);g.beginPath();g.arc(xL,yE,R+.5,0,7);g.fillStyle="#fff";g.fill();g.strokeStyle="#2962ff";g.stroke()}}
+function posHandleAt(d,x,y){const P=posGeo(d);if(!P)return null;const R=VT_COARSE?22:9;
+const hs=[["tp",P.xL,P.yT],["sl",P.xL,P.yS],["en",P.xL,P.yE],["w",P.xR,P.yE]];let best=null,bd=R;
+hs.forEach(([k,hx,hy])=>{const dd=Math.hypot(x-hx,y-hy);if(dd<=bd){bd=dd;best=k}});return best}
+function posPlace(t,x,y){const p=snapP(x,y),D=posDef(),H=document.getElementById("cv").clientHeight;
+const top=MS.coordinateToPrice(10),bot=MS.coordinateToPrice(H-40),span=Math.abs((top??p.y*1.05)-(bot??p.y*.95))||p.y*.05;
+const s=symOf(S.chart.sym),rnd=v=>vtRoundPx(s,v),risk=span*.07,E=rnd(p.y),L=t==="long",tR=l2t(t2l(p.t)+D.bars);
+const d={id:Date.now(),t,c:"#787b86",w:1,s:0,p:[{t:p.t,y:E},{t:tR,y:rnd(L?E+risk*D.rr:E-risk*D.rr)},{t:tR,y:rnd(L?E-risk:E+risk)}]};
+DRAFT=d;dFin();return d}
+function posDrag(d,k,x,y){const u=un(x,y);if(u.y==null||u.t==null)return;const s=symOf(S.chart.sym),tk=posTick(),L=d.t==="long",E=d.p[0].y,py=vtRoundPx(s,u.y);
+if(k==="tp")d.p[1].y=L?Math.max(py,E+tk):Math.min(py,E-tk);
+else if(k==="sl")d.p[2].y=L?Math.min(py,E-tk):Math.max(py,E+tk);
+else if(k==="en"){const lo=Math.min(d.p[1].y,d.p[2].y)+tk,hi=Math.max(d.p[1].y,d.p[2].y)-tk;d.p[0].y=Math.max(lo,Math.min(hi,py));d.p[0].t=Math.min(u.t,d.p[1].t-G.st)}
+else if(k==="w"){const t=Math.max(u.t,d.p[0].t+G.st);d.p[1].t=d.p[2].t=t}}
+// --- hook into the drawing engine (wrap the global bindings; the original functions stay as they were)
+const _vtShape=shape;shape=function(g,d,W,H,sel){if(isPos(d))return posShape(g,d,W,H,sel);return _vtShape.apply(this,arguments)};
+const _vtDDown=dDown;dDown=function(e){const[x,y]=xy(e);
+if(TOOL==="long"||TOOL==="short"){MX=[x,y];posPlace(TOOL,x,y);return}
+if(TOOL==="cross"&&isPos(SELD)&&!SELD.lock){const k=posHandleAt(SELD,x,y);if(k){MX=[x,y];try{e.target.setPointerCapture(e.pointerId)}catch(_){}pushUndo();DRG={d:SELD,pos:k};return}}
+const r=_vtDDown.apply(this,arguments);if(DRG&&DRG.d&&DRG.d.lock)DRG=null;return r};
+const _vtDPos=dPos;dPos=function(x,y){if(DRG&&DRG.pos){MX=[x,y];posDrag(DRG.d,DRG.pos,x,y);return}return _vtDPos.apply(this,arguments)};
+const _vtDUp=dUp;dUp=function(){const g=DRG;const r=_vtDUp.apply(this,arguments);if(g&&isPos(g.d)){const D=posDef(),c=posCalcD(g.d);if(c.rr>0)D.rr=+c.rr.toFixed(2);
+  const bars=Math.round(t2l(g.d.p[1].t)-t2l(g.d.p[0].t));if(bars>0)D.bars=bars;save()}return r};
+// re-bind the canvas handlers that initDraw captured before these wrappers existed (only matters if a chart was drawn already)
+function vtRebindDraw(){const cv=document.getElementById("dc");if(cv){cv.onpointerdown=dDown;cv.onpointermove=dMove;cv.onpointerup=dUp}}
+const _vtPaint=paint;paint=function(){_vtPaint();try{posAxis()}catch(e){}};
+function posAxis(){const cv=document.getElementById("dc");if(!cv||!ch||HIDD)return;const d=isPos(SELD)?SELD:POS_HOV;if(!isPos(d)||d.hide)return;const o=posO(d);if(!o.axis)return;
+const g=cv.getContext("2d"),W=cv.clientWidth,tw=ch.timeScale().width();g.font="600 11px system-ui,sans-serif";g.textBaseline="middle";
+[[d.p[1].y,o.tc],[d.p[2].y,o.sc],[d.p[0].y,o.ec]].forEach(([p,col])=>{const y=MS.priceToCoordinate(p);if(y==null)return;g.fillStyle=col;g.beginPath();g.roundRect(tw+1,Math.round(y-9),W-tw-2,18,3);g.fill();g.fillStyle="#fff";g.fillText(fp(p),tw+6,y)});g.textBaseline="alphabetic"}
+// --- hover, right-click menu, double-click settings (attached to each new chart)
+function vtDrawAt(x,y){return[...DL()].reverse().find(d=>!d.hide&&hit(d,x,y))}
+function vtPosAttach(){const host=document.getElementById("cv");if(!host||host._vtpos)return;host._vtpos=1;vtRebindDraw();
+const rel=e=>{const r=host.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+host.addEventListener("pointermove",e=>{if(TOOL!=="cross"||DRG){return}const[x,y]=rel(e),d=vtDrawAt(x,y);POS_HOV=isPos(d)?d:null;
+  const dc=document.getElementById("dc");if(dc&&isPos(SELD)&&!SELD.lock){const k=posHandleAt(SELD,x,y);dc.style.cursor=k==="w"?"ew-resize":k?"ns-resize":"default"}},true);
+host.addEventListener("pointerleave",()=>{POS_HOV=null});
+host.addEventListener("contextmenu",e=>{const[x,y]=rel(e),d=vtDrawAt(x,y);if(!d&&!DL().some(q=>q.hide))return;e.preventDefault();e.stopPropagation();vtDrawMenu(d,x,y)},true);
+host.addEventListener("dblclick",e=>{const[x,y]=rel(e),d=vtDrawAt(x,y);if(!d)return;e.preventDefault();e.stopPropagation();SELD=d;dpe();dsel();drawSetM(isPos(d)?"inputs":"style")},true)}
+function vtCloneSel(){if(!SELD)return;pushUndo();const d=JSON.parse(JSON.stringify(SELD));d.id=Date.now();const dt=(G&&G.st||3600)*5;d.p.forEach(p=>p.t+=dt);delete d.lock;DL().push(d);SELD=d;save();tbRef();return d}
+function vtDrawMenu(d,x,y){vtPlusClose();const host=document.getElementById("cv"),m=document.createElement("div");m.className="vpmenu";m.setAttribute("role","menu");
+const it=(txt,fn)=>{const e=document.createElement("div");e.setAttribute("role","menuitem");e.tabIndex=0;e.textContent=txt;e.onclick=ev=>{ev.stopPropagation();vtPlusClose();fn()};e.onkeydown=ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();e.click()}};m.appendChild(e)};
+const sep=()=>{const e=document.createElement("div");e.className="sep";m.appendChild(e)};
+if(d){SELD=d;POS_HOV=null;dpe();dsel();
+  it("Settings\u2026",()=>drawSetM(isPos(d)?"inputs":"style"));sep();it("Clone",vtCloneSel);it(d.lock?"Unlock":"Lock",()=>{d.lock=!d.lock;save();dsel()});
+  it("Hide",()=>{d.hide=true;SELD=null;save();tbRef()});sep();it("Delete",delSel)}
+if(DL().some(q=>q.hide)){if(d)sep();it("Show hidden drawings",()=>{DL().forEach(q=>delete q.hide);save();tbRef()})}
+m.style.left=Math.min(x,host.clientWidth-200)+"px";m.style.top=Math.min(y,host.clientHeight-200)+"px";host.appendChild(m);const f=m.querySelector("[role=menuitem]");if(f)f.focus()}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelector("#cv .vpmenu"))vtPlusClose()});
+// --- floating toolbar for a selected position: settings, lock, clone, delete
+const _vtDsel=dsel;dsel=function(){const r=_vtDsel.apply(this,arguments);const e=document.getElementById("dsel");if(e&&isPos(SELD)){
+e.innerHTML=`<button class="pbtn" onclick="drawSetM('inputs')" aria-label="Position settings" title="Settings">\u2699</button><button class="pbtn" onclick="SELD.lock=!SELD.lock;save();dsel()" aria-label="${SELD.lock?"Unlock":"Lock"}" title="${SELD.lock?"Unlock":"Lock"}">${SELD.lock?"\ud83d\udd12":"\ud83d\udd13"}</button><button class="pbtn" onclick="vtCloneSel()" aria-label="Clone" title="Clone"><svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5"/><path d="M4.5 2.5v-.2c0-.5.4-.8.8-.8h7.4c.5 0 .8.4.8.8v7.4c0 .5-.4.8-.8.8h-.2"/></svg></button><button class="pbtn" onclick="delSel()" aria-label="Delete" title="Delete">\ud83d\uddd1</button>`}return r};
+// --- settings dialog (Inputs / Style / Visibility); every change applies and saves at once, Cancel restores
+const _vtDrawSetM=drawSetM;drawSetM=function(tab){if(isPos(SELD))return posSetM(SELD,tab==="style"?"style":tab==="vis"?"vis":"inputs");return _vtDrawSetM.apply(this,arguments)};
+function posSetM(d,tab){const o=posO(d),c=posCalcD(d),tk=posTick(),snap=JSON.stringify(d),L=d.t==="long";
+const n=(id,v,step)=>`<input id="${id}" type="number" step="${step||"any"}" value="${v}" inputmode="decimal">`;
+modal(`<div class="pset"><h3>${L?"Long":"Short"} position</h3><div class="tabs" role="tablist"><button data-t="inputs" onclick="swTab('inputs')">Inputs</button><button data-t="style" onclick="swTab('style')">Style</button><button data-t="vis" onclick="swTab('vis')">Visibility</button></div>
+<div class="tp" data-t="inputs"><div class="g2"><label>Account size${n("ps_acct",o.acct)}</label><label>Lot size${n("ps_lot",o.lot)}</label></div>
+<div class="g2"><label>Risk<span class="rk">${n("ps_risk",o.risk)}<select id="ps_ru" aria-label="Risk unit"><option value="%" ${o.ru==="%"?"selected":""}>%</option><option value="$" ${o.ru==="$"?"selected":""}>Money</option></select></span></label><label>Leverage (0 = none)${n("ps_lev",o.lev)}</label></div>
+<div class="g2"><label>Entry price${n("ps_en",d.p[0].y)}</label><label>Qty precision<select id="ps_prec">${[0,1,2,3,4,5,6,7,8].map(k=>`<option ${k==o.prec?"selected":""}>${k}</option>`).join("")}</select></label></div>
+<div class="g3"><span>Profit level</span><label>Ticks${n("ps_tpk",c.tpTicks,1)}</label><label>Price${n("ps_tp",d.p[1].y)}</label></div>
+<div class="g3"><span>Stop level</span><label>Ticks${n("ps_slk",c.slTicks,1)}</label><label>Price${n("ps_sl",d.p[2].y)}</label></div>
+<div class="ro" id="ps_ro" aria-live="polite"></div></div>
+<div class="tp" data-t="style"><div class="cl">Profit colour${colorPicker("ps_tc",o.tc)}</div><div class="cl">Stop colour${colorPicker("ps_sc",o.sc)}</div><div class="cl">Entry line colour${colorPicker("ps_ec",o.ec)}</div><div class="cl">Text colour${colorPicker("ps_xc",o.xc)}</div>
+<label>Fill opacity<select id="ps_op">${[.1,.15,.2,.25,.3,.4].map(v=>`<option value="${v}" ${Math.abs(v-o.op)<1e-9?"selected":""}>${Math.round(v*100)}%</option>`).join("")}</select></label>
+<label class="chk"><input type="checkbox" id="ps_compact" ${o.compact?"checked":""}> Compact stats</label><label class="chk"><input type="checkbox" id="ps_full" ${o.full?"checked":""}> Always show full stats</label><label class="chk"><input type="checkbox" id="ps_axis" ${o.axis?"checked":""}> Price labels on the scale</label></div>
+<div class="tp" data-t="vis"><label class="chk"><input type="checkbox" id="ps_vis" ${d.hide?"":"checked"}> Visible on chart</label><label class="chk"><input type="checkbox" id="ps_lock" ${d.lock?"checked":""}> Locked</label></div>
+<div class="row"><span class="sp"></span><button type="button" id="ps_cancel">Cancel</button><button type="button" class="pri" id="ps_ok">Ok</button></div></div>`);
+swTab(tab||"inputs");const $=i=>document.getElementById(i),num=i=>parseFloat($(i).value);
+const ro=()=>{const c=posCalcD(d);$("ps_ro").textContent=`Qty ${c.qty.toFixed(posO(d).prec)} \u00b7 Risk ${posMoney(c.riskAmt)} \u00b7 R:R ${c.rr.toFixed(2)} \u00b7 Target ${posMoney(c.pnlTP)} \u00b7 Stop ${posMoney(c.pnlSL)}`};
+const apply=src=>{const D=posDef();const set=(k,v)=>{if(v==null||(typeof v==="number"&&!isFinite(v)))return;d[k]=v;D[k]=v};
+  set("acct",num("ps_acct"));set("lot",num("ps_lot")||1);set("risk",num("ps_risk"));set("ru",$("ps_ru").value);set("lev",num("ps_lev")||0);set("prec",+$("ps_prec").value);
+  ["tc","sc","ec","xc"].forEach(k=>set(k,$("ps_"+k).value));set("op",+$("ps_op").value);set("compact",$("ps_compact").checked);set("full",$("ps_full").checked);set("axis",$("ps_axis").checked);
+  d.hide=!$("ps_vis").checked;d.lock=$("ps_lock").checked;
+  const E=num("ps_en");if(E>0)d.p[0].y=E;const e=d.p[0].y,sg=L?1:-1;
+  if(src==="ps_tpk"){const k=num("ps_tpk");if(k>0){d.p[1].y=+(e+sg*k*tk).toFixed(8);$("ps_tp").value=d.p[1].y}}else{const v=num("ps_tp");if(v>0&&(L?v>e:v<e))d.p[1].y=v}
+  if(src==="ps_slk"){const k=num("ps_slk");if(k>0){d.p[2].y=+(e-sg*k*tk).toFixed(8);$("ps_sl").value=d.p[2].y}}else{const v=num("ps_sl");if(v>0&&(L?v<e:v>e))d.p[2].y=v}
+  const c=posCalcD(d);if(src!=="ps_tpk")$("ps_tpk").value=c.tpTicks;if(src!=="ps_slk")$("ps_slk").value=c.slTicks;if(c.rr>0)D.rr=+c.rr.toFixed(2);ro();saveSoon()};
+MD.querySelector(".pset").addEventListener("input",e=>{if(e.target.id)apply(e.target.id)});MD.querySelector(".pset").addEventListener("change",e=>{if(e.target.id)apply(e.target.id)});
+MD.querySelector(".pset").addEventListener("vtcolor",()=>apply("color"));ro();
+$("ps_ok").onclick=()=>{save();closeM();dsel()};$("ps_cancel").onclick=()=>{const L2=DL(),i=L2.indexOf(d),r=JSON.parse(snap);Object.keys(d).forEach(k=>delete d[k]);Object.assign(d,r);if(i<0)L2.push(d);save();closeM();dsel()};
+const f=$("ps_acct");if(f&&tab!=="style")f.focus()}
+// colour picks inside our dialogs, and style changes from the floating toolbar, save at once (debounced) and become that tool's default
+S.toolDef=S.toolDef||{};
+const _vtSelectColor=selectColor;selectColor=function(id,c){const r=_vtSelectColor.apply(this,arguments);
+if(/^ps_/.test(id)){const p=document.querySelector(".pset");if(p)p.dispatchEvent(new Event("vtcolor"))}
+if(SELD&&(id==="tb_c"||id==="ds_c")&&!isPos(SELD)){(S.toolDef[SELD.t]=S.toolDef[SELD.t]||{}).c=c;saveSoon()}
+if(SELD&&(id==="ds_tc"||id==="ds_sc"||id==="ds_txc"))saveSoon();return r};
+document.addEventListener("change",e=>{const t=e.target;if(!SELD||!t.closest||!t.closest("#dsel,.ov"))return;if(t.closest(".pset"))return;
+if(t.closest("#dsel")||t.id==="ds_s"||t.id==="ds_w"){const D=(S.toolDef[SELD.t]=S.toolDef[SELD.t]||{});if(SELD.s!=null)D.s=SELD.s;if(SELD.w!=null)D.w=SELD.w;if(SELD.c)D.c=SELD.c}saveSoon()},true);
+document.addEventListener("input",e=>{const t=e.target;if(SELD&&t.closest&&t.closest(".ov")&&!t.closest(".pset")&&/^ds_/.test(t.id||""))saveSoon()},true);
+const _vtDFin=dFin;dFin=function(){const d=DRAFT;if(d&&!isPos(d)){const D=S.toolDef[d.t];if(D){if(D.c)d.c=D.c;if(D.w)d.w=D.w;if(D.s!=null)d.s=D.s}}return _vtDFin.apply(this,arguments)};
 // ---------- Screener Pro: full-width table, extra read-only columns, quick filter pills, slide-over chart ----------
 S.sx=Object.assign({tf:"1D"},S.sx||{});
 const SX={ch:null,sym:"",retry:0};
@@ -2633,7 +2799,9 @@ PAGE_HOOK.calc={enter(){calcBuild()}};
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.
 const PH=t=>`<span class="ph">[${t}]</span>`;
-const LG_META=()=>`<p class="meta">Effective date: ${PH("Effective date")} \u00b7 Operated by ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}. Contact: ${PH("Contact email")}.</p>`;
+const VT_CONTACT_EMAIL="vektorhq@proton.me";
+const VT_MAIL=()=>`<a href="mailto:${VT_CONTACT_EMAIL}">${VT_CONTACT_EMAIL}</a>`;
+const LG_META=()=>`<p class="meta">Effective date: ${PH("Effective date")} \u00b7 Operated by ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}. Contact: ${VT_MAIL()}.</p>`;
 const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th><th>What it holds</th></tr></thead><tbody>
 <tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts, chart settings and drawings, Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
 <tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
@@ -2668,10 +2836,10 @@ terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
 <h2>9. Availability and changes</h2><p>The Service is provided \u201cas is\u201d and \u201cas available\u201d. Features, data sources and these terms may change. We\u2019ll update the effective date when the terms change.</p>
 <h2>10. Liability</h2><p>See the <a href="#/legal/liability">Disclaimer of Liability</a>. Nothing in these terms limits liability that cannot be limited under the law of England and Wales, including for death or personal injury caused by negligence, or for fraud, and nothing affects your statutory rights as a consumer.</p>
 <h2>11. Law</h2><p>These terms are governed by the law of England and Wales. The courts of England and Wales have jurisdiction, although if you live elsewhere in the UK you may also bring proceedings in your local courts.</p>
-<h2>12. Contact</h2><p>${PH("Company legal name")}, ${PH("Registered address")}. Email: ${PH("Contact email")}.</p>`],
+<h2>12. Contact</h2><p>${PH("Company legal name")}, ${PH("Registered address")}. Email: ${VT_MAIL()}.</p>`],
 privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <p>This policy explains how personal data is handled when you use Vektor Terminal, under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
-<h2>1. Who is responsible</h2><p>The controller is ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}, ICO registration number ${PH("ICO registration number")}. Contact: ${PH("Contact email")}.</p>
+<h2>1. Who is responsible</h2><p>The controller is ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}, ICO registration number ${PH("ICO registration number")}. Contact: ${VT_MAIL()}.</p>
 <h2>2. The short version</h2><ul><li>The app runs in your browser. It has no account server or database of ours that stores your settings, watchlists, alerts or trades. They stay on your device.</li><li>There are no analytics, advertising or tracking cookies, and we don\u2019t sell data.</li><li>To show prices, your browser contacts third-party market data services directly, and they can see your IP address and which markets you request.</li></ul>
 <h2>3. Sign-in</h2><p>The sign-in screen is a prototype. When you sign in, the username or email you type is saved on your device only (key <code>scr2a</code>). The password is not stored and is not sent anywhere. Logging out deletes the saved name. If a real account system is added, this policy will be updated before it goes live.</p>
 <h2>4. What\u2019s stored on your device</h2>${LG_STORE}<p>This data never leaves your device, except API keys, which your browser sends to the provider they belong to (section 5). You can delete all of it by logging out and clearing this site\u2019s data in your browser. Data \u2192 Reload data also empties the market data cache.</p>
@@ -2695,7 +2863,7 @@ privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <tr><td>Hosting logs</td><td>${PH("Hosting log retention period")}</td></tr>
 <tr><td>Rights requests and correspondence</td><td>${PH("Correspondence retention period")}</td></tr></tbody></table>
 <h2>10. International transfers</h2><p>Several of the third parties in section 5 are based, or run servers, outside the UK (for example in the United States). When your browser contacts them, your IP address and the request details go to those countries. These requests are made directly by your browser to show you prices, and each provider handles the data under its own terms. Where we transfer personal data ourselves (for example to our hosting provider), we rely on ${PH("transfer mechanism, e.g. UK adequacy regulations or the UK International Data Transfer Agreement / Addendum")}.</p>
-<h2>11. Your rights</h2><p>Under UK GDPR you have the right to: be informed; access your data; rectification; erasure; restriction of processing; data portability; object; and not to be subject to solely automated decisions with legal or similarly significant effects (we make none). Where we rely on consent, you can withdraw it at any time, and doing so doesn\u2019t affect what happened before. Use <a href="#/legal/your-data">Your data</a> to download or delete what\u2019s on this device, or email ${PH("Contact email")}. We\u2019ll reply within one month. You can complain to the Information Commissioner\u2019s Office: ico.org.uk/make-a-complaint, 0303 123 1113, Wycliffe House, Water Lane, Wilmslow, SK9 5AF.</p>
+<h2>11. Your rights</h2><p>Under UK GDPR you have the right to: be informed; access your data; rectification; erasure; restriction of processing; data portability; object; and not to be subject to solely automated decisions with legal or similarly significant effects (we make none). Where we rely on consent, you can withdraw it at any time, and doing so doesn\u2019t affect what happened before. Use <a href="#/legal/your-data">Your data</a> to download or delete what\u2019s on this device, or email ${VT_MAIL()}. We\u2019ll reply within one month. You can complain to the Information Commissioner\u2019s Office: ico.org.uk/make-a-complaint, 0303 123 1113, Wycliffe House, Water Lane, Wilmslow, SK9 5AF.</p>
 <h2>12. Children</h2><p>The Service is for people aged 18 and over. We don\u2019t knowingly collect data from anyone under 18.</p>
 <h2>13. Automated decisions and AI</h2><p>No AI or machine learning is used, and no decisions about you are made automatically.</p>
 <h2>14. Changes</h2><p>We\u2019ll update this page and its effective date if the way the app handles data changes.</p>`],
@@ -2726,16 +2894,16 @@ refunds:["Refunds & Cancellation",()=>`<h1>Refunds and Cancellation</h1>${LG_MET
 <h2>Cancel as easily as you signed up</h2><p>You can cancel online, in the same number of steps it took to sign up, from ${PH("Account \u2192 Billing page")}, without phoning or emailing anyone. Cancelling stops the next renewal, and you keep access until the end of the period you\u2019ve paid for. We\u2019ll confirm the cancellation by email.</p>
 <h2>14-day cooling-off period</h2><p>Under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013, you can cancel within 14 days of buying and get a full refund. If you ask us to start the service during those 14 days, we may deduct an amount for the service you\u2019ve already used. ${PH("Solicitor to confirm digital content / service wording")}</p>
 <h2>Renewals</h2><p>We\u2019ll remind you before a ${PH("annual")} plan renews, giving the price and how to cancel.</p>
-<h2>Refunds</h2><p>Approved refunds go back to your original payment method within 14 days. Contact ${PH("Contact email")}.</p>`],
+<h2>Refunds</h2><p>Approved refunds go back to your original payment method within 14 days. Contact ${VT_MAIL()}.</p>`],
 about:["About & Contact",()=>`<h1>About and Contact</h1>${LG_META()}
 <table class="ftbl"><tbody><tr><td>Operator</td><td>${PH("Company legal name")}</td></tr><tr><td>Registered in</td><td>England and Wales ${PH("confirm")}</td></tr><tr><td>Company number</td><td>${PH("Company number")}</td></tr>
-<tr><td>Registered address</td><td>${PH("Registered address")}</td></tr><tr><td>Email</td><td>${PH("Contact email")}</td></tr><tr><td>VAT number</td><td>${PH("VAT number, if registered")}</td></tr><tr><td>ICO registration</td><td>${PH("ICO registration number")}</td></tr></tbody></table>
+<tr><td>Registered address</td><td>${PH("Registered address")}</td></tr><tr><td>Email</td><td>${VT_MAIL()}</td></tr><tr><td>VAT number</td><td>${PH("VAT number, if registered")}</td></tr><tr><td>ICO registration</td><td>${PH("ICO registration number")}</td></tr></tbody></table>
 <p>${PH("Company legal name")} is not authorised or regulated by the Financial Conduct Authority. Vektor Terminal provides charting and screening tools only, not investment advice.</p>`],
 accessibility:["Accessibility",()=>`<h1>Accessibility statement</h1>${LG_META()}
 <p>We want Vektor Terminal to be usable by as many people as possible, and we aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA.</p>
 <h2>What you can do</h2><ul><li>Use the top navigation, tables, dialogs and the alert editor with a keyboard. Tab moves between controls, Enter or Space activates them, and Esc closes dialogs.</li><li>See a visible focus outline on every control.</li><li>Choose the dark or light theme, and zoom up to 200%.</li><li>Use the app with reduced motion when your system asks for it.</li></ul>
 <h2>Known limitations</h2><ul><li>Price charts are drawn on a canvas, so screen readers can\u2019t read individual candles. The Data Window shows the values under the crosshair as text.</li><li>Some drawing tools need a pointer.</li><li>Third-party data and linked sites aren\u2019t under our control.</li></ul>
-<h2>Feedback</h2><p>If something doesn\u2019t work for you, email ${PH("Contact email")}. We aim to reply within ${PH("5 working days")}.</p>
+<h2>Feedback</h2><p>If something doesn\u2019t work for you, email ${VT_MAIL()}. We aim to reply within ${PH("5 working days")}.</p>
 <h2>How we checked</h2><p>This statement was prepared on ${PH("date")} from ${PH("self-assessment / third-party audit")}. ${PH("Accessibility audit pending")}</p>`],
 liability:["Disclaimer of Liability",()=>`<h1>Disclaimer of Liability</h1>${LG_META()}
 <p>Vektor Terminal is provided \u201cas is\u201d, with no warranty that it is accurate, complete, available or fit for any purpose. To the extent the law allows, ${PH("Company legal name")} is not liable for any trading losses, lost profits, or decisions made using the Service, its data, scores, alerts, calculators, journal or back-tests. Nor is it liable for an alert that fails to fire, data that is delayed or wrong, or loss of data stored in your browser.</p>
@@ -2758,7 +2926,8 @@ w.appendChild(f)}
 // Template only, not legal advice; have a solicitor review before publishing.
 const VT_POLICY_V="1.0";             // bump when the cookie/privacy notice changes materially: everyone is asked again
 const VT_CONSENT_MAX_AGE=365*864e5;  // and again after 12 months
-const VT_DSR_EMAIL="";               // [Contact email]: set the real address here to enable the request e-mail button
+let vtOpenMail=u=>{location.href=u};
+const VT_DSR_EMAIL=VT_CONTACT_EMAIL;   // request e-mail button target (set in 90_legal.js)
 const VT_CK="vt_consent",VT_CL="vt_consent_log";
 function vtLS(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
 function vtConsent(){try{const c=JSON.parse(vtLS(VT_CK)||"null");if(c&&c.v===VT_POLICY_V&&Date.now()-c.ts<VT_CONSENT_MAX_AGE)return c}catch(e){}return null}
@@ -2846,11 +3015,11 @@ LEGAL["your-data"]=["Your data",()=>`<h1>Your data</h1>${LG_META()}
 <div id="pc_log"></div>
 <h2>Requests about data held elsewhere</h2>
 <p>This app keeps your data in your browser, not on our servers. Its sign-in is a device-only prototype, so there is no server account. We may still hold some data about you elsewhere, such as hosting logs, emails you\u2019ve sent us, or a server-side account if one is added later. For that data you have the right to <b>access</b>, <b>rectification</b>, <b>erasure</b>, <b>restriction</b>, <b>objection</b> and <b>portability</b>.</p>
-<p>Send your request to ${PH("Contact email")}. We\u2019ll reply without undue delay and <b>within one month</b> of receiving it. If a request is complex, or you send several, we can extend that by up to two further months, and we\u2019ll tell you within the first month if we need to. Requests are free in most cases. We may ask you to confirm your identity first. If you\u2019re unhappy with our answer, you can complain to the Information Commissioner\u2019s Office (ico.org.uk).</p>
+<p>Send your request to ${VT_MAIL()}. We\u2019ll reply without undue delay and <b>within one month</b> of receiving it. If a request is complex, or you send several, we can extend that by up to two further months, and we\u2019ll tell you within the first month if we need to. Requests are free in most cases. We may ask you to confirm your identity first. If you\u2019re unhappy with our answer, you can complain to the Information Commissioner\u2019s Office (ico.org.uk).</p>
 <div class="pcform"><label>Type of request<select id="dsr_t">${DSR_TYPES.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join("")}</select></label>
 <label>Your name<input id="dsr_n" autocomplete="name"></label><label>Your email<input id="dsr_e" type="email" autocomplete="email"></label>
 <label style="grid-column:1/-1">Details (optional)<textarea id="dsr_d" maxlength="2000"></textarea></label></div>
-<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="dsr_ok" style="margin-top:3px"> <span>I understand this opens my own email app to send the request to ${PH("Contact email")}, and that my name and email will be used only to handle it, as described in the <a href="#/legal/privacy">Privacy Policy</a>.</span></label>
+<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="dsr_ok" style="margin-top:3px"> <span>I understand this opens my own email app to send the request to ${VT_MAIL()}, and that my name and email will be used only to handle it, as described in the <a href="#/legal/privacy">Privacy Policy</a>.</span></label>
 <div class="pcact"><button type="button" class="pri" id="dsr_go" disabled>Email this request</button><button type="button" id="dsr_cp">Copy request text</button><span class="mut" id="dsr_st"></span></div>`,
 async root=>{const $=s=>root.querySelector(s);
 const inv=await vtInventory(),row=(k,n)=>`<tr><td><code>${esc(k)}</code></td><td>${n.toLocaleString()} characters</td></tr>`;
@@ -2863,7 +3032,8 @@ const L=vtConsentLog();$("#pc_log").innerHTML=L.length?`<table class="ftbl" aria
 const txt=()=>{const t=DSR_TYPES.find(x=>x[0]===$("#dsr_t").value);return"Data subject request: "+t[1]+"\nName: "+$("#dsr_n").value.trim()+"\nEmail: "+$("#dsr_e").value.trim()+"\nDetails: "+($("#dsr_d").value.trim()||"(none)")+"\nSent: "+new Date().toISOString()};
 const upd=()=>{$("#dsr_go").disabled=!($("#dsr_ok").checked&&$("#dsr_e").value.trim())};["#dsr_ok","#dsr_e"].forEach(s=>$(s).addEventListener("input",upd));$("#dsr_ok").addEventListener("change",upd);
 $("#dsr_go").onclick=()=>{if(!VT_DSR_EMAIL){$("#dsr_st").textContent="The contact address hasn\u2019t been set up yet. Copy the text and send it to the address above.";return}
-  location.href="mailto:"+VT_DSR_EMAIL+"?subject="+encodeURIComponent("Data subject request ("+$("#dsr_t").value+")")+"\u0026body="+encodeURIComponent(txt())};
+  $("#dsr_st").textContent="Opening your email app to send this to "+VT_DSR_EMAIL+". If nothing opens, copy the text and email it yourself.";
+  vtOpenMail("mailto:"+VT_DSR_EMAIL+"?subject="+encodeURIComponent("Data subject request ("+$("#dsr_t").value+")")+"\u0026body="+encodeURIComponent(txt()))};
 $("#dsr_cp").onclick=async()=>{try{await navigator.clipboard.writeText(txt());$("#dsr_st").textContent="Copied."}catch(e){$("#dsr_st").textContent="Couldn\u2019t copy. Select and copy it manually."}}}];
 // footer (built here so every page above is linked) and first-visit banner
 vtFooterBuild();

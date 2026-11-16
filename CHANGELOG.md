@@ -3,6 +3,23 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Long/Short Position tools rebuilt (our own canvas drawing, styled after the familiar trading-platform look; no third-party code, icons or fonts).**
+  - Two stacked zones that share the entry edge: profit in #089981 and loss in #F23645 at 20% fill, a thin grey #787B86 entry line, and a dashed line to the current (or exit) price with darker shading.
+  - Labels: "Target: price (pct%) ticks, Amount: x" and "Stop: ...", plus a middle label "Open P&L: v, Qty: q | Risk/Reward Ratio: r", which becomes "Closed P&L" once the target or stop is hit. When both are hit in the same bar, the stop counts first. The entry bar itself doesn't count, because the entry fills at its close.
+  - Labels are compact unless the tool is hovered or selected, or "Always show full labels" is on. There are price-axis tags for target, entry and stop.
+  - Click to place with the last-used R:R and width (the first default is 1:2). Drag the target, stop and entry handles and the right-edge width handle, with a live update.
+  - Settings dialog (double-click, the gear button or right-click > Settings):
+    - Inputs: account size, lot size, risk in % or money, leverage, entry price, quantity precision, and profit/stop as ticks or price.
+    - Style: colours, opacity, compact labels, axis tags.
+    - Visibility/lock.
+    - Every change applies and saves instantly (debounced). Cancel restores the previous values, and new tools default to the last-used settings.
+  - Right-click menu with Settings, Clone, Lock/Unlock, Hide, Delete and Show hidden drawings. The floating toolbar has settings, lock, clone and delete.
+  - Touch: handles have a 22px hit radius, and the settings open as a bottom sheet on phones.
+  - Maths: quantity = risk / (stop distance x point value) / lot size, capped by leverage when it's set, and floored to the precision. Point value is 1 (quote currency).
+  - Last-used style per drawing tool (colour, width, line style) becomes that tool's default, saved with a debounce.
+  - Tests: `tests/postool.js` covers desktop and 390px touch: placement, exact long and short R:R/P&L/amount labels, handle drags, the settings dialog, the menu, lock, hide and clone. `tests/logic_pos.js` covers the maths. Screenshots: `shots/pos_tool_before.png` and `shots/pos_tool_after.png`.
+- **Contact email set to vektorhq@proton.me** in all 9 places it appeared (Terms, Privacy, Refunds, About & Contact, Accessibility and the Your data centre). The data request button now opens the user's own email app addressed to it. The other placeholders are unchanged.
+
 - **Phones (tested at 375x812 and 390x844 with touch emulation).**
   - **Layout:**
     - A fixed bottom tab bar with Workspace, Supercharts, Screener, Calculators and More. More opens a bottom sheet with Heatmaps, Calendar, Journal, Backtest, legal and privacy links, Cookie settings, the layout switch and the data status.

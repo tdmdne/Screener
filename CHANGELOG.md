@@ -3,6 +3,11 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Mobile QA pass (phones 390px and 360px, tablet 768px, touch).** Audited every page, dialog and new feature. There was no page-level sideways scrolling to fix; the fixes are in a new `src/96_touch.css`:
+  - **Tap targets:** every control outside the chart canvas is now at least 44x44px on phones and tablets. This covers the watchlist "+ Symbol"/"+ Section"/edit/remove buttons, the chart header icons and dock buttons, the dock rows, Screener sort headers and rows, the calculator account table inputs and remove buttons, Settings colour swatches and tabs, dialog close buttons, the heatmap and mini-chart interval buttons, footer and legal-page links, the skip link, the VT home button and the sign-in "Show" password toggle. Links inside legal text get a taller hit area without moving the text.
+  - **Tablet:** all eight pages are visible in the nav (it wraps instead of hiding Backtest off-screen); the chart is taller (up to 62% of the screen) and the drawing-tool column scrolls instead of leaving a large empty area; tablet controls use 44px instead of 38px.
+  - **Phones:** the chart header (star, Indicators, Alerts, Settings) starts at the left edge instead of floating right; the Settings tab strip scrolls in one row instead of squeezing labels together.
+  - The keyboard-shortcut overlay stays keyboard-only: its footer button is hidden on touch screens.
 - **End-of-day session summary.** "Today" in the header (or More → Today’s session on phones) opens a summary of the day since 00:00 local time. From 21:00, a small chip offers it once a day.
   - **Data:** everything comes from data the app already has; nothing is estimated or filled in.
   - **P&L:** paper results of your long/short position-tool drawings. Positions closed today (target or stop hit, walked bar by bar with the existing position logic) and positions still open (valued at the live price) are shown, each with its own account and risk settings. They are clearly labelled as not broker trades.

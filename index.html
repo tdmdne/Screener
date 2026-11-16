@@ -745,6 +745,56 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 :root[data-ui="phone"] #presets button{min-width:44px}
 :root[data-ui="phone"] .ov{z-index:70}
 :root[data-ui="phone"] .ov .box{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+/* Touch QA (phones 360-430px and tablets): 44px tap targets everywhere outside the chart canvas, usable nav, tablet chart sizing.
+   Chart overlays (#cv: "+", alert handles, position handles) keep their own sizes; their hit areas are handled in their own code. */
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,select,a.btn,.chip,[role="button"],input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])):not(#cv *):not(.hmt):not(.vschip):not(.mc){min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(button,[role="button"],.chip):not(#cv *):not(.hmt):not(.vschip):not(.mc):not(.tbar button){min-width:44px!important}
+:root[data-ui="tablet"] :is(button,select,a.btn,.chip):not(#cv *):not(.hmt):not(.vschip):not(.mc){min-height:44px!important}
+/* icon buttons and the small "ib" buttons (watchlist, calculator rows) */
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(.ibtn,.ib,.ib.x):not(#cv *){min-width:44px!important;min-height:44px!important;display:inline-flex;align-items:center;justify-content:center}
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(.wlt,.wgn){display:inline-flex;align-items:center;min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .wlh,:root:is([data-ui="phone"],[data-ui="tablet"]) .wg{min-height:44px!important;align-items:center}
+/* Supercharts dock rows */
+:root:is([data-ui="phone"],[data-ui="tablet"]) .dkr{min-height:44px!important;align-items:center}
+/* the VT home monogram and the skip link */
+:root:is([data-ui="phone"],[data-ui="tablet"]) header h1{min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-skip{min-height:44px!important;display:inline-flex;align-items:center}
+/* footer and legal navigation links: 44px rows */
+:root:is([data-ui="phone"],[data-ui="tablet"]) footer.vfoot>a,:root:is([data-ui="phone"],[data-ui="tablet"]) footer.vfoot>button{display:inline-flex;align-items:center;min-height:44px!important;padding:0 6px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) footer.vfoot .risk a{display:inline-flex;align-items:center;min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .lgl nav a{display:inline-flex;align-items:center;min-height:44px!important}
+/* checkboxes: the whole label row is the target */
+:root:is([data-ui="phone"],[data-ui="tablet"]) label:has(>input[type="checkbox"]),:root:is([data-ui="phone"],[data-ui="tablet"]) .sw{min-height:44px!important;display:flex;align-items:center;gap:10px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) input[type="checkbox"]{width:22px;height:22px}
+/* colour swatches in Settings */
+:root:is([data-ui="phone"],[data-ui="tablet"]) [id$="_sw"]{min-width:44px!important;min-height:44px!important}
+/* segmented controls (heatmap, mini charts): wider buttons */
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(.hmseg,.minitf) button{min-width:44px!important;min-height:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .sm_sym{min-width:44px!important;min-height:44px!important}
+/* phone: chart header buttons start on the left when they wrap */
+:root[data-ui="phone"] .cpb .row.top>.sp{display:none}
+/* tablet: all nav pages visible (wrap instead of a hidden sideways scroll); chart fills the screen and the tool column scrolls */
+:root[data-ui="tablet"] .vnav{flex-wrap:wrap;overflow-x:visible}
+:root[data-ui="tablet"] #cv{height:min(62vh,680px)}
+:root[data-ui="tablet"] .tbar{max-height:min(62vh,680px);overflow-y:auto}
+/* buttons that set min-height:0!important in their base style */
+:root:is([data-ui="phone"],[data-ui="tablet"]) :is(.mode-btn,.ibtn,.ib){min-height:44px!important;min-width:44px!important}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .ib{padding:4px 10px!important}
+:root[data-ui="tablet"] .tbar button{width:44px;height:44px;flex:none}
+:root[data-ui="tablet"] .vnav a{min-height:44px}
+/* Screener: sortable headers and symbol cells */
+:root:is([data-ui="phone"],[data-ui="tablet"]) #t th span.h{display:inline-flex;align-items:center;min-height:44px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) #t tbody td{height:44px}
+/* calculator: multi-account table inputs */
+:root:is([data-ui="phone"],[data-ui="tablet"]) td input[data-ma]{min-width:64px}
+/* inline links inside legal text: taller hit area without moving the text */
+:root:is([data-ui="phone"],[data-ui="tablet"]) .lgldoc a{padding:14px 0}
+/* dialog tab strips (Settings): one scrolling row instead of squeezed, wrapped labels */
+:root:is([data-ui="phone"],[data-ui="tablet"]) .tabs{overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .tabs button{flex:none;white-space:nowrap}
+/* sign-in: the Show password toggle (sign-in can render before the phone/tablet class is set, so also match coarse pointers) */
+:root:is([data-ui="phone"],[data-ui="tablet"]) .auth-card .pwt{min-height:44px;min-width:44px;right:0}
+@media (pointer:coarse){.auth-card .pwt{min-height:44px;min-width:44px;right:0}.auth-card .pw input{min-height:44px}}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">

@@ -1565,16 +1565,22 @@ if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status
 async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/ticker/24hr");
 BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn")}catch(e){BN.err=e.message}
 BN.busy=false;render();drawChart()}
+async function proxied(url){
+  // try direct first, then the same public proxies used for Yahoo
+  try{const r=await fetch(url);if(r.ok)return await r.json()}catch(e){}
+  for(const px of PX){
+    try{const r=await fetch(px(url));if(r.ok){const t=await r.text();try{return JSON.parse(t)}catch(e){return JSON.parse(JSON.parse(t))}}}catch(e){}
+  }
+  throw Error("Failed to fetch (CORS/proxy)");
+}
 async function loadFHU(){
   const key=S.data.fhKey;if(!key||FHU.busy||FHU.loaded)return;
-  FHU.busy=true;status();
+  FHU.busy=true;FHU.err="";status();
   try{
-    const r=await fetch(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${key}`);
-    if(!r.ok)throw Error("HTTP "+r.status);
-    const j=await r.json();
+    const j=await proxied(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${key}`);
     FHU.list=(Array.isArray(j)?j:[])
-      .filter(x=>x.symbol&&x.type==="Common Stock"&&!x.symbol.includes("."))
-      .slice(0,2500)
+      .filter(x=>x.symbol&&(!x.type||x.type==="Common Stock")&&!String(x.symbol).includes("."))
+      .slice(0,3000)
       .map(x=>[x.symbol,"STK",null,0,1,.01,x.symbol,"","yf",x.symbol]);
     FHU.loaded=true;
   }catch(e){FHU.err=e.message}
@@ -1582,13 +1588,11 @@ async function loadFHU(){
 }
 async function loadPGU(){
   const key=S.data.polyKey;if(!key||PGU.busy||PGU.loaded)return;
-  PGU.busy=true;status();
+  PGU.busy=true;PGU.err="";status();
   try{
-    const r=await fetch(`https://api.polygon.io/v3/reference/tickers?market=stocks&active=true&limit=1000&apiKey=${key}`);
-    if(!r.ok)throw Error("HTTP "+r.status);
-    const j=await r.json();
+    const j=await proxied(`https://api.polygon.io/v3/reference/tickers?market=stocks&active=true&limit=1000&apiKey=${key}`);
     PGU.list=(j.results||[])
-      .filter(x=>x.ticker&&(x.type==="CS"||x.type==="ETF"))
+      .filter(x=>x.ticker&&(x.type==="CS"||x.type==="ETF"||!x.type))
       .map(x=>[x.ticker,x.type==="ETF"?"ETF":"STK",null,0,1,.01,x.ticker,"","yf",x.ticker]);
     PGU.loaded=true;
   }catch(e){PGU.err=e.message}

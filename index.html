@@ -1250,13 +1250,13 @@ if(alt&&!ctrl){
 if(e.key==="Escape"){DRAFT=null;setTool("cross");return}
 // Delete selected
 if((e.key==="Delete"||e.key==="Backspace")&&SELD){e.preventDefault();delSel();return}
-// Arrow keys to pan
-if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)&&ch){
+// Arrow Left/Right pan the chart; Up/Down are reserved for symbol navigation
+if((e.key==="ArrowLeft"||e.key==="ArrowRight")&&ch){
   e.preventDefault();
   const ts=ch.timeScale(),r=ts.getVisibleLogicalRange();
   if(!r)return;
-  const step=(r.to-r.from)*(ctrl?0.2:0.05)*(e.key.includes("Left")||e.key==="ArrowUp"?-1:1);
-  if(e.key==="ArrowLeft"||e.key==="ArrowRight")ts.setVisibleLogicalRange({from:r.from+step,to:r.to+step});
+  const step=(r.to-r.from)*(ctrl?0.2:0.05)*(e.key==="ArrowLeft"?-1:1);
+  ts.setVisibleLogicalRange({from:r.from+step,to:r.to+step});
   return
 }
 });
@@ -1354,7 +1354,8 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Fib retracement</td><td><kbd>Alt</kbd>+<kbd>F</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Cancel / crosshair</td><td><kbd>Esc</kbd></td></tr>
 <tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Delete selected</td><td><kbd>Delete</kbd></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan chart</td><td>Arrow keys</td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Previous / next symbol</td><td>↑ / ↓</td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:var(--mut)">Pan chart</td><td>← / →</td></tr>
 </table>`)
 +`<div class="row"><button onclick="setReset()">Reset</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="setSave()">Ok</button></div>`);
 swTab(typeof tab==="string"?tab:"sym")}
@@ -1651,9 +1652,23 @@ const rDeb=deb(render,200);
 
 
 document.getElementById("q").oninput=e=>{S.q=e.target.value;save();rDeb()};
-// up/down arrow keys step through the list and open each chart (not while typing or with a dialog open)
-document.addEventListener("keydown",e=>{if((e.key!=="ArrowDown"&&e.key!=="ArrowUp")||e.metaKey||e.ctrlKey||e.altKey||MD.innerHTML||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))return;
-const i=PGL.indexOf(S.chart.sym),n=i<0?0:Math.max(0,Math.min(PGL.length-1,i+(e.key==="ArrowDown"?1:-1)));if(PGL[n]){e.preventDefault();openChart(PGL[n])}});
+// Symbol keyboard navigation: ArrowUp / ArrowDown instantly cycle the chart through the visible screener rows
+document.addEventListener("keydown",e=>{
+  if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  if(MD.innerHTML)return;
+  const ae=document.activeElement;
+  if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName||""))return;
+  if(!PGL||!PGL.length)return;
+  e.preventDefault();
+  e.stopPropagation();
+  const dir=e.key==="ArrowDown"?1:-1;
+  let i=PGL.indexOf(S.chart.sym);
+  if(i<0)i=dir>0?0:PGL.length-1;
+  else i=Math.max(0,Math.min(PGL.length-1,i+dir));
+  const next=PGL[i];
+  if(next&&next!==S.chart.sym)openChart(next);
+},true);
 let BOOTED=false;
 // the app only starts (and only fetches market data) once someone is signed in
 function boot(){if(BOOTED)return;BOOTED=true;

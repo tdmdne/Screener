@@ -331,6 +331,28 @@ html.locked .auth{display:flex}
 .ibtn{border:0;background:none;padding:4px 6px;color:var(--mut);border-radius:6px;min-height:0!important;line-height:1}
 .ibtn:hover{color:var(--fg);background:var(--card)}
 .ibtn.on{color:var(--acc)}
+/* Screener Pro */
+#sxbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
+:root[data-page="screener"] #sxbar{display:flex}
+:root[data-page="screener"] .side>.wl{display:none}
+:root[data-page="screener"] th,:root[data-page="screener"] td{padding:6px 9px}
+:root[data-page="screener"] #t tbody tr{cursor:pointer}
+.sxlbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:700}
+.tier{display:inline-block;min-width:30px;text-align:center;padding:1px 6px;border-radius:5px;font-weight:700;font-size:11.5px;border:1px solid var(--line)}
+.tier.t1{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+.tier.t2{background:var(--acc-soft);color:var(--acc);border-color:var(--acc)}
+.sbar{display:inline-flex;align-items:center;gap:6px}
+.sbar i{display:inline-block;width:44px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
+.sbar i b{position:absolute;left:0;top:0;bottom:0;background:var(--acc)}
+#sxd{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);border-left:1px solid var(--line);box-shadow:-12px 0 32px rgba(0,0,0,.35);z-index:40;transform:translateX(105%);transition:transform .18s ease;display:flex;flex-direction:column}
+#sxd.open{transform:none}
+.sxdh{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.sxdb{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+#sxc{height:280px;flex:none;position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.sxst{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+:root[data-page="screener"] th{white-space:normal;vertical-align:bottom;line-height:1.25;min-width:56px}
+:root[data-page="screener"] td{font-size:13px}
+:root[data-page="screener"] .pill{min-width:54px}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -2188,6 +2210,68 @@ PAGE_HOOK.chart={enter(){scApplyAttr();scDock();scPaneB();clearInterval(SC.iv);
   SC.iv=setInterval(()=>{if(S.pageView!=="chart")return;scDockLive();
     if(SC.serB&&SC.barsB){const s=symOf(S.chart.sym),a=s&&candles(s,S.sc.tfB);if(a&&a.length){const x=a[a.length-1],t=SC.barsB.D[SC.barsB.D.length-1];if(t&&(x.t==null||x.t===t.time)){try{SC.serB.update({time:t.time,open:t.open,high:Math.max(t.high,x.h,x.c),low:Math.min(t.low,x.l,x.c),close:x.c})}catch(e){}}}}},1500)},
   leave(){clearInterval(SC.iv);scKillB();const d=document.getElementById("dock");if(d)d.innerHTML="";const b=document.getElementById("sc2");if(b)b.innerHTML="";document.documentElement.dataset.panes="1"}};
+// ---------- presets load what they score on ----------
+// scoreMarket/passesPreset read an entry + validation timeframe (H: 1H/1D, M: 15m/1H, L: 1m/15m).
+// kick() only queued the timeframes used by visible columns, so with a preset on, the entry timeframe was often
+// never loaded: scoreMarket returned 0 and P1 could not pass. This adds those timeframes to the queue (math untouched).
+const VT_EVC={H:{e:"1H",v:"1D"},M:{e:"15m",v:"1H"},L:{e:"1m",v:"15m"}};
+function evcCfg(){return VT_EVC[S.evcTf||"H"]||VT_EVC.H}
+function evcNeedsLoad(){return S.preset&&S.preset!=="P5"||S.pageView==="screener"||S.pageView==="heatmap"}
+const _vtKick=kick;kick=function(){_vtKick.apply(this,arguments);if(!isLive()||!READY||!evcNeedsLoad())return;
+const c=evcCfg(),eq=m=>m==="STK"||m==="ETF"||m==="FUT";
+[c.v,c.e].forEach(t=>SYMS.forEach(s=>{if(t!=="1D"&&s[8]!=="bn"&&eq(s[1])&&!LIVE[s[0]+"|1D"])return;need(s,t,PRI.has(s[0]))}))};
+// true when the candles scoreMarket needs are present
+function evcHas(s){const c=evcCfg(),e=candles(s,c.e),v=candles(s,c.v);return!!(e&&e.length>=20&&v&&v.length>=20)}
+// ---------- Screener Pro: full-width table, extra read-only columns, quick filter pills, slide-over chart ----------
+S.sx=Object.assign({tf:"1D"},S.sx||{});
+const SX={ch:null,sym:"",retry:0};
+const SXF=[["all","All"],["s01","S01 \u00b7 Score 80+"],["s02","S02 \u00b7 Expansion"],["s03","S03 \u00b7 Accumulation"],["s04","S04 \u00b7 Retracement"]];
+// strictest preset a market passes (P1 best ... P5 everything); uses passesPreset unchanged
+function sxTier(s){for(const p of ["P1","P2","P3","P4"])if(passesPreset(s,p))return p;return"P5"}
+function sxPct(s){const a=candles(s,"1D");return a&&a.length>1?(a[a.length-1].c/a[a.length-2].c-1)*100:null}
+function sxAdr(s){const a=candles(s,"1D");if(!a||a.length<2)return null;const w=a.slice(-14);return w.reduce((x,y)=>x+(y.h-y.l)/y.c,0)/w.length*100}
+const SXC=[["Market",s=>`<span class="mut">${esc(MK[s[1]]||s[1])}</span>`],
+["1D %",s=>{const v=sxPct(s);return v==null?`<span class="na">\u2026</span>`:`<span class="${v<0?"dn":"up"} num">${v>0?"+":""}${v.toFixed(2)}%</span>`}],
+["ADR 14d",s=>{const v=sxAdr(s);return v==null?`<span class="na">\u2026</span>`:`<span class="num">${v.toFixed(2)}%</span>`}],
+["Vektor",s=>{if(!evcHas(s))return`<span class="na">…</span>`;const v=scoreMarket(s);return`<span class="sbar"><i><b style="width:${v}%"></b></i><span class="num">${v}</span></span>`}],
+["Expansion",s=>{const a=candles(s,"1D");if(!a||a.length<50)return`<span class="na">…</span>`;const r=scoreSymbol(s);return`<span class="num">${Math.round(r.score)}</span> <span class="mut">${esc(r.phase)}</span>`}],
+["Tier",s=>{if(!evcHas(s))return`<span class="na">…</span>`;const t=sxTier(s);return`<span class="tier ${t==="P1"?"t1":t==="P2"?"t2":""}">${t}</span>`}]];
+function sxAugment(){const t=document.getElementById("t");if(!t)return;const hr=t.querySelector("thead tr");if(!hr||hr.dataset.sx)return;hr.dataset.sx=1;
+hr.insertAdjacentHTML("beforeend",SXC.map(([n])=>`<th title="Screener Pro column (read-only)">${n}</th>`).join(""));
+t.querySelectorAll("tbody tr[data-s]").forEach(tr=>{const s=symOf(tr.dataset.s);if(!s)return;tr.insertAdjacentHTML("beforeend",SXC.map(([n,f])=>{let v;try{v=f(s)}catch(e){v=`<span class="na">n/a</span>`}return`<td data-l="${n}">${v}</td>`}).join(""))})}
+function sxBar(){let b=document.getElementById("sxbar");if(!b){const tw=document.querySelector(".side>.tw");if(!tw)return;b=document.createElement("div");b.id="sxbar";tw.parentNode.insertBefore(b,tw)}
+const mk=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k));
+const names=[...Object.keys(BI),...Object.keys(P)];
+b.innerHTML=`<span class="sxlbl">Market</span><span class="seg">${mk.map(k=>`<button class="${S.mkt===k?"on":""}" onclick="S.mkt='${k}';S.page=0;save();render()">${MK[k]}</button>`).join("")}</span>`+
+`<span class="sxlbl">Cycle</span><span class="seg">${SXF.map(([k,n])=>`<button class="${(S.sFilter||"all")===k?"on":""}" onclick="S.sFilter='${k}';S.page=0;save();render()">${n}</button>`).join("")}</span>`+
+`<span class="sxlbl">Rows</span><span class="seg">${[20,50,100].map(n=>`<button class="${(S.rows||20)===n?"on":""}" onclick="S.rows=${n};S.page=0;save();render()">${n}</button>`).join("")}</span>`+
+`<span class="sp"></span><select id="sxlay" title="Saved screener layouts" onchange="pick(this.value)"><option value="">Layout\u2026</option>${names.map(n=>`<option value="${esc(n)}" ${S.cur===n?"selected":""}>${esc(n)}</option>`).join("")}</select><button onclick="saveCur()" title="Save the current columns and filters">Save</button><button onclick="xfer()" title="Export or import saved layouts">Export</button><button onclick="openCols()">Columns</button>`}
+function sxSel(){document.querySelectorAll("#t tbody tr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===SX.sym&&!!document.querySelector("#sxd.open")))}
+function sxDrawer(sym){let d=document.getElementById("sxd");if(!d){d=document.createElement("aside");d.id="sxd";d.setAttribute("aria-label","Chart preview");document.body.appendChild(d)}
+const s=symOf(sym);if(!s)return;SX.sym=sym;
+const sc=scoreSymbol(s),v=scoreMarket(s),pc=sxPct(s),adr=sxAdr(s),t=sxTier(s),inWl=wlAll().includes(sym);
+const k=(a,b,c)=>`<div class="kpi"><div class="k">${a}</div><div class="v ${c||""}">${b}</div></div>`;
+d.innerHTML=`<div class="sxdh"><b style="font-size:15px">${esc(sym)}</b><span class="mut">${esc(MK[s[1]]||s[1])}</span><b class="num">${s[2]!=null?fp(s[2]):""}</b><span class="sp"></span><button class="ibtn" title="Close (Esc)" onclick="sxClose()">\u2715</button></div>
+<div class="sxdb"><div class="tfs">${["15m","1H","4H","1D","1W"].map(x=>`<button class="chip ${x===S.sx.tf?"on":""}" onclick="S.sx.tf='${x}';save();sxDrawer(SX.sym)">${x}</button>`).join("")}</div><div id="sxc"></div>
+<div class="sxst">${k("1D change",pc==null?"\u2013":(pc>0?"+":"")+pc.toFixed(2)+"%",pc==null?"":pc<0?"dn":"up")}${k("Vektor score",v)}${k("Tier",t)}${k("Expansion",Math.round(sc.score))}${k("Phase",esc(sc.phase))}${k("ADR 14d",adr==null?"\u2013":adr.toFixed(2)+"%")}</div>
+<div class="row" style="flex-wrap:wrap"><button class="pri" onclick="sxClose();_vtOpenChart(SX.sym);go('chart')">Open in Supercharts</button><button onclick="sxClose();_vtOpenChart(SX.sym);go('workspace')">Workspace</button><button onclick="sxWl()">${inWl?"\u2605 In watchlist":"\u2606 Watchlist"}</button><button onclick="alertsM()">Alert</button></div>
+<p class="mut" style="margin:0">Scores use the same scoring code as the presets. Tier is the strictest preset (P1 best, P5 broadest) this market passes for the current H/M/L level and Long/Short setting.</p></div>`;
+d.classList.add("open");sxSel();sxMini()}
+function sxWl(){const g=S.wlx.groups[0];if(!wlAll().includes(SX.sym)){g.syms.push(SX.sym);save();renderWL();wlStarSync()}sxDrawer(SX.sym)}
+function sxMini(){clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}const el=document.getElementById("sxc"),s=symOf(SX.sym);if(!el||!s||!window.LightweightCharts)return;
+const B=vtBars(s,S.sx.tf);if(!B){el.innerHTML=`<p class="mut" style="padding:10px">Loading ${esc(S.sx.tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,S.sx.tf,true);SX.retry=setTimeout(()=>{if(document.querySelector("#sxd.open"))sxMini()},1500);return}
+el.innerHTML="";const c=LightweightCharts.createChart(el,vtChartOpts(S.sx.tf));const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
+const cl=B.a.map(x=>x.c);S.chart.ind.filter(x=>!x.hidden&&(x.t==="ema"||x.t==="sma")).forEach(x=>{const l=c.addLineSeries({color:x.col,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData((x.t==="ema"?emaArr(cl,x.len):smaArr(cl,x.len)).map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean))});
+const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-90),to:n+4});SX.ch=c}
+function sxClose(){const d=document.getElementById("sxd");if(d)d.classList.remove("open");clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}sxSel()}
+// hook render/openChart without changing them: Screener Pro only adds to what they already do
+const _vtRender=render;render=function(){_vtRender.apply(this,arguments);if(S.pageView==="screener"){sxBar();sxAugment();sxSel()}};
+const _vtOpenChart=openChart;openChart=function(sym,tf){_vtOpenChart.apply(this,arguments);if(S.pageView==="screener")sxDrawer(sym)};
+document.addEventListener("click",e=>{if(S.pageView!=="screener")return;const tr=e.target.closest&&e.target.closest("#t tbody tr[data-s]");if(!tr||e.target.closest("td.sy,button,a,input,select"))return;openChart(tr.dataset.s)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelector("#sxd.open")&&!MD.innerHTML)sxClose()});
+// the list search box was bound to a debounced copy of the original render; rebind it so Pro columns stay
+{const q=document.getElementById("q"),rd=deb(()=>render(),200);if(q)q.oninput=e=>{S.q=e.target.value;save();rd()}}
+PAGE_HOOK.screener={enter(){render()},leave(){sxClose();setTimeout(render,0)}};
 stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");

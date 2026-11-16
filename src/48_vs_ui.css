@@ -1,0 +1,33 @@
+/* indicator scripts */
+.box:has(>.vsm){width:min(1100px,96vw);max-width:none}
+.vshd{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}.vshd h3{margin:0}
+.vsbody{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;min-height:0}
+.vsside h4{margin:4px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.vsl{list-style:none;margin:0 0 10px;padding:0;max-height:220px;overflow:auto}
+.vsl button{display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:6px;padding:5px 8px;color:var(--fg);cursor:pointer;font-size:13px;min-height:0}
+.vsl button:hover{background:var(--card)}.vsl button.on{background:var(--acc-soft);border-color:color-mix(in srgb,var(--acc) 50%,var(--line));font-weight:700}
+.vsdot{width:7px;height:7px;border-radius:50%;background:var(--g);flex:0 0 auto}
+.vsbtns{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.vsmain{min-width:0;display:flex;flex-direction:column;gap:8px}
+.vsrow{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.vsname{flex:1;min-width:180px;margin:0}
+.vsed{display:flex;border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden;height:min(46vh,420px)}
+.vsgut{margin:0;padding:10px 8px 10px 10px;min-width:34px;text-align:right;color:var(--mut);background:var(--card);border-right:1px solid var(--line);overflow:hidden;user-select:none;
+  font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.vsed textarea{flex:1;margin:0;border:0;border-radius:0;resize:none;padding:10px;background:transparent;color:var(--fg);white-space:pre;overflow:auto;tab-size:2;
+  font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;min-height:0;height:100%}
+.vsed textarea:focus{outline:none}.vsed:focus-within{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-soft)}
+.vsmsg{font-size:13px;min-height:20px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.vsmsg.err{color:var(--r)}.vsmsg.ok{color:var(--g)}
+.vsmsg .lnk{background:none;border:0;padding:0;color:var(--fg);text-decoration:underline;cursor:pointer;min-height:0}
+.vsinp fieldset{border:1px solid var(--line);border-radius:8px;margin:0;padding:6px 10px 10px;display:flex;flex-wrap:wrap;gap:8px 14px}
+.vsinp legend{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);padding:0 4px}
+.vsinp label{margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:3px}.vsinp input{width:110px}
+.vsdanger{color:var(--r)}
+.vsempty{padding:20px;border:1px dashed var(--line);border-radius:10px}
+.vshelp{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px}
+.vshelp summary{cursor:pointer;font-weight:700}.vshb p{margin:6px 0}.vshb code{font:11.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:0 4px;display:inline-block;margin:1px 0}
+.vsleg{position:absolute;left:8px;bottom:34px;z-index:4;display:flex;flex-wrap:wrap;gap:4px;pointer-events:none}
+.vschip{pointer-events:auto;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 85%,transparent);color:var(--fg);cursor:pointer;min-height:0}
+.vschip.err{border-color:var(--r);color:var(--r)}
+@media (max-width:760px){.vsbody{grid-template-columns:1fr}.vsl{max-height:140px}.vsed{height:44vh}}

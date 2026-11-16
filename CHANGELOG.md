@@ -3,6 +3,24 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **UK GDPR and PECR mechanisms: consent banner, privacy centre and fuller legal pages** (template, so a solicitor still needs to review it).
+  - The **storage consent banner** puts "Reject all" and "Accept all" on its first layer as identical buttons (same size, colour and weight), plus "Manage choices" with a toggle per category. The only optional category is the IndexedDB market-data cache, and it's off by default. Strictly necessary storage is shown as always on, and analytics or advertising as not used.
+  - **No optional storage before consent.** `idb()` is gated, so the cache database isn't created until it's accepted, and it's deleted when consent is withdrawn.
+  - Every choice is logged locally (`vt_consent_log`, last 50 entries) with a timestamp, method and policy version (`VT_POLICY_V`). Consent is re-asked after 12 months or when the version changes. A "Cookie settings" footer button reopens the choices at any time.
+  - **Your data** (`#/legal/your-data`):
+    - a live inventory of what this browser holds
+    - a JSON export of all local data, covering access and portability, with the cache optional
+    - "Delete all my data", which needs DELETE typed to confirm. It clears localStorage, sessionStorage, IndexedDB and Cache Storage, disconnects the Binance and Finnhub sockets, then reloads.
+    - consent status and history, with change and withdraw controls
+    - a data subject request form (access, rectification, erasure, restriction, objection, portability) that opens the user's own email app to the `[Contact email]` placeholder (`VT_DSR_EMAIL`, empty for now) and states the one-month response time. Its acknowledgement checkbox is unticked.
+  - **Privacy Policy** now covers lawful bases per activity, retention periods, international transfers, all rights including the ICO complaint route, no automated decisions, and the 18+ rule.
+  - **Third-party audit:** every API, WebSocket, proxy and CDN is listed with what each one receives. There are no web fonts or Google Fonts (system fonts only), icons are inline SVG, and no AI is used.
+  - **New pages:** Refunds and Cancellation (for a future paid tier: prices up front, no hidden fees, cancel as easily as sign-up, the 14-day cooling-off period), About and Contact (imprint placeholders) and an Accessibility statement placeholder.
+  - Terms state 18+ only, with no data knowingly collected from under-18s.
+  - **Dark patterns:** "Keep me signed in" is no longer pre-ticked.
+  - Legal pages also open in a dialog over the sign-in screen, and Esc closes it.
+  - **N/A:** email unsubscribe (the app sends no email) and storage buckets (there's no backend).
+  - Tested in `tests/privacy.js`. The test harness now seeds consent unless a test opts out.
 - **Alerts drawn on the chart (TradingView-style), an add-on to the price-scale "+".** Every active, un-fired price alert for the open symbol is now a dashed orange line with a label on the price scale (bell icon plus price). This works on the Workspace chart and on both Supercharts panes.
   - Clicking the line or its label opens an alert editor where you can change the price, the condition (Crossing, Crossing up, Crossing down) or the pop-up message shown when it fires, or delete the alert. Dragging the line moves the price.
   - Edits change the same alert (same id) and persist. They update the Alerts dialog and the dock (both gained an edit link), and the line disappears once the alert fires.

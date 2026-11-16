@@ -19,8 +19,9 @@ async function launch(opts={}){
   const browser=await chromium.launch();
   const ctx=await browser.newContext({viewport:opts.viewport||{width:1600,height:950},colorScheme:opts.colorScheme||"dark"});
   await ctx.addInitScript(WSMOCK);
-  await ctx.addInitScript(({mode,state})=>{if(!localStorage.getItem("scr2a"))localStorage.setItem("scr2a",JSON.stringify({id:"tester"}));
-    if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null});
+  await ctx.addInitScript(({mode,state,consent})=>{if(!localStorage.getItem("scr2a"))localStorage.setItem("scr2a",JSON.stringify({id:"tester"}));
+    if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.0",ts:Date.now(),cache:true,method:"test"}))}
+    if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null,consent:opts.consent});
   await ctx.route("**/*",route=>{const u=route.request().url();
     if(u.startsWith("http://127.0.0.1:"+port))return route.continue();
     const V=f=>fs.existsSync(path.join(__dirname,"vendor",f));

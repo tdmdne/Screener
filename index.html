@@ -404,6 +404,29 @@ html.locked .auth{display:flex}
 .vfoot a{color:var(--mut);text-decoration:none}
 .vfoot a:hover{color:var(--acc)}
 .vfoot .risk{flex:1;min-width:240px}
+/* consent banner (PECR), privacy centre, legal modal shown over the sign-in screen */
+.vcb{position:fixed;left:12px;right:12px;bottom:12px;z-index:110;max-width:760px;margin:0 auto;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);padding:14px 16px;font-size:13px;line-height:1.5}
+.vcb h2{font-size:15px;margin:0 0 6px}
+.vcb p{margin:0 0 10px}
+.vcb .btns{display:flex;flex-wrap:wrap;gap:8px}
+.vcb .cbtn{flex:1 1 150px;min-height:38px;padding:8px 14px;border-radius:8px;border:1px solid var(--acc);background:var(--acc);color:#111;font-weight:700;font-size:13px;cursor:pointer}
+.vcb .cbtn.alt{background:transparent;color:var(--fg);border-color:var(--line)}
+.vcb .cat{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.vcb .cat b{display:block}
+.vcb .cat .mut{font-size:12px}
+.vcb .cat input{margin-top:3px;width:16px;height:16px;flex:none}
+.vcb .cat .st{margin-left:auto;font-size:11px;color:var(--mut);white-space:nowrap}
+.vlm{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+.vlm .box{max-width:860px;max-height:90vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 20px;position:relative}
+.vlm .x{position:sticky;top:0;float:right}
+.pcact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.pcdanger{border:1px solid var(--red,#ef5350)!important;color:var(--red,#ef5350)!important;background:transparent!important}
+.pcform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:8px 0}
+.pcform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
+.pcform textarea{min-height:70px;grid-column:1/-1}
+.riskbox{border:1px solid var(--red,#ef5350);border-left-width:4px;border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:13px}
+.vfoot button.lnk{background:none;border:0;padding:0;min-height:0;color:var(--mut);font:inherit;cursor:pointer}
+.vfoot button.lnk:hover{color:var(--acc)}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -469,7 +492,7 @@ html.locked .auth{display:flex}
         <button type="button" id="auTog" class="pwt" aria-label="Show password" aria-pressed="false">Show</button>
       </span>
     </label>
-    <label class="chk"><input type="checkbox" id="auRem" checked> Keep me signed in on this device</label>
+    <label class="chk"><input type="checkbox" id="auRem"> Keep me signed in on this device</label>
     <div id="auErr" class="auth-err" role="alert" aria-live="polite"></div>
     <button type="submit" id="auBtn" class="pri">Sign in</button>
     <p class="note">Prototype: sign-in isn’t connected to a server yet.</p>
@@ -2550,8 +2573,9 @@ const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th>
 <tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
 <tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
 <tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
-<tr><td>IndexedDB</td><td>database <code>scr</code>, store <code>c</code></td><td>A cache of market data: price candles, the list of markets and a snapshot of the screener universe, so the app loads instantly next time.</td></tr></tbody></table>`;
-const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Provider</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
+<tr><td>localStorage</td><td><code>vt_consent</code>, <code>vt_consent_log</code></td><td>Your storage choices, plus a log of each choice with its date, time and policy version (the last 50), so we can show what you agreed to.</td></tr>
+<tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
+const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
 <tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
 <tr><td>Yahoo Finance</td><td><code>query1.finance.yahoo.com</code>, reached through public CORS proxies <code>corsproxy.io</code>, <code>api.allorigins.win</code>, <code>api.codetabs.com</code></td><td>Candles for forex, metals, futures, indices, US stocks and ETFs, and for custom watchlist tickers.</td></tr>
 <tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. The app ships with a default key; you can enter your own under Data.</td></tr>
@@ -2559,13 +2583,18 @@ const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Provider</th><th>Addresses 
 <tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Stock candles and the stock and ETF list.</td></tr>
 <tr><td>CoinGecko</td><td><code>api.coingecko.com</code></td><td>Fallback daily crypto candles.</td></tr>
 <tr><td>jsDelivr CDN</td><td><code>cdn.jsdelivr.net</code></td><td>Loads the charting library (TradingView Lightweight Charts 4.1.3) and html2canvas 1.4.1 (chart snapshots).</td></tr>
-<tr><td>This website</td><td><code>data/manifest.json</code>, <code>data/c_*.json</code></td><td>An optional pre-built market data snapshot, if the site operator publishes one.</td></tr></tbody></table>`;
+<tr><td>TradingView (links only)</td><td><code>www.tradingview.com</code></td><td>Opens only when you click a \u201cTradingView\u201d link. Nothing is loaded from it in the background.</td></tr>
+<tr><td>This website</td><td><code>data/manifest.json</code>, <code>data/c_*.json</code></td><td>An optional pre-built market data snapshot, if the site operator publishes one.</td></tr></tbody></table>
+<p><b>What each of them receives:</b> your IP address, your browser\u2019s user-agent and language, the time of the request, and the market symbols and timeframes requested. Requests go out without cookies. They also receive the API key, for Twelve Data, Finnhub and Polygon (including through the proxies, where a key is part of the address). The WebSocket services keep a connection open while the app is open. Each third party acts as an independent controller of that data under its own privacy policy. None of them is our processor, and none receives your settings, alerts, watchlist or sign-in name.</p>
+<p><b>Fonts and icons:</b> no web fonts are loaded and there is no Google Fonts, so text uses your device\u2019s system fonts. Icons are inline SVG drawn for this app ${PH("confirm icon origin and licence")}.</p>
+<p><b>AI:</b> Vektor Terminal doesn\u2019t use artificial intelligence or machine learning. Scores, tiers and signals come from fixed, rule-based formulas, and nothing is sent to any AI service.</p>`;
 const LEGAL={
 terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
 <h2>1. About these terms</h2><p>These terms apply to your use of Vektor Terminal (the \u201cService\u201d) at ${PH("Website URL")}. By using the Service you accept them. If you don\u2019t agree, please don\u2019t use it.</p>
 <h2>2. What the Service is</h2><p>Vektor Terminal is a browser-based set of market screening, charting, journaling, calculation and back-testing tools. It runs in your browser. It does not execute trades, hold money, or connect to any brokerage account.</p>
 <h2>3. Not advice</h2><p>Nothing in the Service is investment, financial, tax or legal advice, or a recommendation to buy or sell anything. Scores, presets, tiers, heatmaps, back-tests and calculator results come from formulas applied to third-party data. They are information only. See the <a href="#/legal/risk">Risk Disclaimer</a>.</p>
-<h2>4. Who can use it</h2><p>You must be 18 or over and allowed to use services like this where you live.</p>
+<h2>4. Who can use it</h2><p>The Service is for people aged 18 and over. You must be allowed to use services like this where you live. We don\u2019t knowingly collect data from anyone under 18. If you think a child has used the Service, contact us and we\u2019ll delete anything we hold.</p>
+<h2>4a. Paid plans</h2><p>The Service is currently free. If a paid plan is offered, the <a href="#/legal/refunds">Refunds and Cancellation</a> terms apply.</p>
 <h2>5. Your account and sign-in</h2><p>The sign-in screen is currently a prototype. It does not check credentials against a server, and your password is neither stored nor sent anywhere. It only remembers your username or email on your device. Don\u2019t rely on it to protect your data on a shared device.</p>
 <h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. Some requests go through public proxies (see the <a href="#/legal/privacy">Privacy Policy</a>).</p>
 <h2>7. Acceptable use</h2><p>Don\u2019t misuse the Service. That includes trying to disrupt it, overloading data providers through it, scraping or redistributing third-party data in breach of their terms, or using it for anything unlawful.</p>
@@ -2581,21 +2610,37 @@ privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <h2>3. Sign-in</h2><p>The sign-in screen is a prototype. When you sign in, the username or email you type is saved on your device only (key <code>scr2a</code>). The password is not stored and is not sent anywhere. Logging out deletes the saved name. If a real account system is added, this policy will be updated before it goes live.</p>
 <h2>4. What\u2019s stored on your device</h2>${LG_STORE}<p>This data never leaves your device, except API keys, which your browser sends to the provider they belong to (section 5). You can delete all of it by logging out and clearing this site\u2019s data in your browser. Data \u2192 Reload data also empties the market data cache.</p>
 <h2>5. Third parties your browser contacts</h2>${LG_SOURCES}
-<p>Each of these services receives your IP address, your browser\u2019s standard request information and the symbols and timeframes requested. They handle that under their own privacy policies. Some are outside the UK (for example in the United States), so this involves a transfer of your IP address to them when your browser makes the request.</p>
-<p><b>Public proxies.</b> Yahoo Finance requests, and the Finnhub and Polygon market-list requests if the direct request fails, go through the public CORS proxies listed above. The Finnhub and Polygon list requests include your API key in the address, so the proxy operator can see it. Use keys you\u2019re comfortable sharing on that basis, or leave those fields empty.</p>
-<p>Links to TradingView.com open TradingView\u2019s own website, and its privacy policy applies there.</p>
-<h2>6. Website hosting</h2><p>The company or service hosting this website (${PH("Hosting provider")}) may keep standard server logs (IP address, time, page requested) for security and operation. ${PH("Describe hosting log retention")}.</p>
+<p><b>Public proxies.</b> Yahoo Finance requests, and the Finnhub and Polygon market-list requests when a direct request fails, go through the public CORS proxies listed above. The Finnhub and Polygon list requests include your API key in the address, so the proxy operator can see it. Use keys you\u2019re comfortable sharing on that basis, or leave those fields empty.</p>
+<h2>6. Website hosting</h2><p>The company or service hosting this website (${PH("Hosting provider")}) may keep standard server logs (IP address, time, page requested) for security and operation. It acts as our processor under ${PH("hosting data processing terms")}.</p>
 <h2>7. Notifications and sound</h2><p>When you add a price alert, your browser may ask permission to show notifications. Alerts are checked and shown on your device, and nothing is sent to us.</p>
-<h2>8. Lawful basis</h2><p>Storage on your device is strictly necessary to provide the features you ask for. Hosting logs are processed on the basis of our legitimate interests in running a secure website.</p>
-<h2>9. How long data is kept</h2><p>Data on your device stays until you delete it. Cached market data refreshes automatically: intraday data after about 15 minutes, daily and longer data after about 6 hours. Hosting logs: ${PH("Hosting log retention period")}.</p>
-<h2>10. Your rights</h2><p>Under UK GDPR you have rights to access, rectify, erase, restrict and object to the processing of your personal data, and to data portability. Because the app keeps your data on your own device, you can see and delete most of it yourself. For anything else, email ${PH("Contact email")}. You can also complain to the Information Commissioner\u2019s Office (ico.org.uk, 0303 123 1113).</p>
-<h2>11. Children</h2><p>The Service is not intended for anyone under 18.</p>
-<h2>12. Changes</h2><p>We\u2019ll update this page and its effective date if the way the app handles data changes.</p>`],
+<h2>8. Lawful bases</h2><table class="ftbl"><thead><tr><th>What</th><th>Lawful basis (UK GDPR Art. 6)</th></tr></thead><tbody>
+<tr><td>Strictly necessary storage on your device (settings, alerts, sign-in name)</td><td>Contract, Art. 6(1)(b): providing the service you asked for. PECR exempts it from consent because it is strictly necessary.</td></tr>
+<tr><td>Optional market-data cache (IndexedDB)</td><td>Consent, Art. 6(1)(a), and PECR reg. 6. Off until you accept it, and you can withdraw at any time.</td></tr>
+<tr><td>Consent record and log</td><td>Legal obligation, Art. 6(1)(c): showing that consent was given (Art. 7(1)).</td></tr>
+<tr><td>Your browser\u2019s requests to market-data providers (IP address)</td><td>Legitimate interests, Art. 6(1)(f): delivering the prices you ask for.</td></tr>
+<tr><td>Hosting logs</td><td>Legitimate interests, Art. 6(1)(f): keeping the website secure and working.</td></tr>
+<tr><td>Rights requests and emails you send us</td><td>Legal obligation, Art. 6(1)(c), and legitimate interests, Art. 6(1)(f).</td></tr></tbody></table>
+<p class="mut">${PH("Solicitor to confirm lawful bases")}</p>
+<h2>9. How long data is kept</h2><table class="ftbl"><thead><tr><th>Data</th><th>Kept for</th></tr></thead><tbody>
+<tr><td>Settings, watchlist, alerts, drawings, layouts, API keys</td><td>On your device until you delete them (<a href="#/legal/your-data">Your data</a> \u2192 Delete all my data, or by clearing site data).</td></tr>
+<tr><td>Sign-in name</td><td>Until you log out. If \u201cKeep me signed in\u201d is off, until you close the tab.</td></tr>
+<tr><td>Market-data cache</td><td>Refreshed automatically (intraday data after about 15 minutes, daily and longer data after about 6 hours). Deleted when you withdraw consent or delete your data.</td></tr>
+<tr><td>Consent record</td><td>12 months, then you\u2019re asked again (sooner if this notice changes). The log keeps your last 50 choices.</td></tr>
+<tr><td>Hosting logs</td><td>${PH("Hosting log retention period")}</td></tr>
+<tr><td>Rights requests and correspondence</td><td>${PH("Correspondence retention period")}</td></tr></tbody></table>
+<h2>10. International transfers</h2><p>Several of the third parties in section 5 are based, or run servers, outside the UK (for example in the United States). When your browser contacts them, your IP address and the request details go to those countries. These requests are made directly by your browser to show you prices, and each provider handles the data under its own terms. Where we transfer personal data ourselves (for example to our hosting provider), we rely on ${PH("transfer mechanism, e.g. UK adequacy regulations or the UK International Data Transfer Agreement / Addendum")}.</p>
+<h2>11. Your rights</h2><p>Under UK GDPR you have the right to: be informed; access your data; rectification; erasure; restriction of processing; data portability; object; and not to be subject to solely automated decisions with legal or similarly significant effects (we make none). Where we rely on consent, you can withdraw it at any time, and doing so doesn\u2019t affect what happened before. Use <a href="#/legal/your-data">Your data</a> to download or delete what\u2019s on this device, or email ${PH("Contact email")}. We\u2019ll reply within one month. You can complain to the Information Commissioner\u2019s Office: ico.org.uk/make-a-complaint, 0303 123 1113, Wycliffe House, Water Lane, Wilmslow, SK9 5AF.</p>
+<h2>12. Children</h2><p>The Service is for people aged 18 and over. We don\u2019t knowingly collect data from anyone under 18.</p>
+<h2>13. Automated decisions and AI</h2><p>No AI or machine learning is used, and no decisions about you are made automatically.</p>
+<h2>14. Changes</h2><p>We\u2019ll update this page and its effective date if the way the app handles data changes.</p>`],
 cookies:["Cookies \u0026 Local Storage",()=>`<h1>Cookies and Local Storage</h1>${LG_META()}
 <h2>Cookies</h2><p>Vektor Terminal does not set any cookies. It uses no analytics, advertising, social media or other tracking tools.</p>
-<h2>Local storage</h2><p>The app saves your settings, alerts and a market data cache in your browser\u2019s localStorage, sessionStorage and IndexedDB:</p>${LG_STORE}
-<p>This storage is strictly necessary to provide the features you use (keeping you signed in, remembering your settings and loading quickly), so under the Privacy and Electronic Communications Regulations it doesn\u2019t need consent. There is no consent banner because there is no non-essential storage or tracking. If that changes, we\u2019ll ask for your consent first.</p>
-<h2>Third-party requests</h2><p>Your browser loads the charting libraries from jsDelivr and market data from the providers listed under <a href="#/legal/data">Data Sources</a>. Those servers receive your IP address. The app doesn\u2019t ask them to set cookies.</p>
+<h2>Categories</h2><ul><li><b>Strictly necessary (always on):</b> settings, watchlist, alerts, drawings, layouts, saved API keys, sign-in name and your consent record. Under the Privacy and Electronic Communications Regulations (PECR), these don\u2019t need consent.</li>
+<li><b>Market-data cache (optional, off by default):</b> an IndexedDB cache of price data that makes the app faster. It\u2019s only created after you choose \u201cAccept all\u201d or turn it on under \u201cManage choices\u201d.</li>
+<li><b>Analytics and advertising:</b> not used.</li></ul>
+<h2>Your choice</h2><p>On your first visit, a banner offers \u201cReject all\u201d and \u201cAccept all\u201d as equal buttons, plus \u201cManage choices\u201d with a switch for each category. Until you choose, only strictly necessary storage is used. You can change or withdraw your choice at any time with <b>Cookie settings</b> in the footer, or on <a href="#/legal/your-data">Your data</a>. Withdrawing deletes the cache. Each choice is logged on your device with its date, time and policy version. We ask again after 12 months, or sooner if this notice changes.</p>
+<h2>Everything stored</h2>${LG_STORE}
+<h2>Third parties</h2><p>These services are contacted by your browser. None of them sets cookies through this app, and none is a tracker:</p>${LG_SOURCES}
 <h2>Clearing it</h2><p>Log out to remove the sign-in entry, use Data \u2192 Reload data to empty the market data cache, or clear this site\u2019s data in your browser settings to remove everything.</p>`],
 risk:["Risk Disclaimer",()=>`<h1>Risk Disclaimer and Not Financial Advice</h1>${LG_META()}
 <h2>High risk</h2><p>Trading contracts for difference (CFDs), foreign exchange (FX), futures, crypto-assets and other leveraged products carries a high risk of losing money quickly. Leverage magnifies losses as well as gains. You can lose more than you put in where your account terms allow it. Crypto-assets are largely unregulated in the UK, and you are unlikely to be protected if something goes wrong. Only trade with money you can afford to lose.</p>
@@ -2609,22 +2654,154 @@ data:["Data Sources",()=>`<h1>Data Sources and Attributions</h1>${LG_META()}
 <p>We are not affiliated with or endorsed by any of these providers, and their terms of use apply to their data. Trademarks belong to their owners.</p>
 <h2>Accuracy and delays</h2><ul><li>Data may be delayed, incomplete, adjusted differently between providers, or wrong. Free sources and proxies can be slow, rate-limited or unavailable.</li><li>When live sources are quiet, the app may show cached data. The status reads \u201cCACHED FAILOVER\u201d when it does. Forex and CFD \u201cvolume\u201d is tick volume, not traded volume.</li><li>In \u201cOffline sample data\u201d mode, all prices are simulated and are not real market data.</li></ul>
 <h2>Software</h2><ul><li>Charts: TradingView Lightweight Charts\u2122 4.1.3, \u00a9 TradingView, Inc., Apache License 2.0 (<a href="https://www.tradingview.com/" target="_blank" rel="noopener">tradingview.com</a>).</li><li>Snapshots: html2canvas 1.4.1 by Niklas von Hertzen, MIT License.</li></ul>`],
+refunds:["Refunds & Cancellation",()=>`<h1>Refunds and Cancellation</h1>${LG_META()}
+<p><b>The Service is currently free and nothing is charged.</b> These terms will apply if a paid plan (${PH("Plan name")}) is introduced.</p>
+<h2>Prices up front</h2><p>All prices are shown in pounds sterling, including VAT where it applies, before you pay. The billing period and renewal date are shown too. There are no hidden fees, set-up charges or extra charges added at checkout.</p>
+<h2>Cancel as easily as you signed up</h2><p>You can cancel online, in the same number of steps it took to sign up, from ${PH("Account \u2192 Billing page")}, without phoning or emailing anyone. Cancelling stops the next renewal, and you keep access until the end of the period you\u2019ve paid for. We\u2019ll confirm the cancellation by email.</p>
+<h2>14-day cooling-off period</h2><p>Under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013, you can cancel within 14 days of buying and get a full refund. If you ask us to start the service during those 14 days, we may deduct an amount for the service you\u2019ve already used. ${PH("Solicitor to confirm digital content / service wording")}</p>
+<h2>Renewals</h2><p>We\u2019ll remind you before a ${PH("annual")} plan renews, giving the price and how to cancel.</p>
+<h2>Refunds</h2><p>Approved refunds go back to your original payment method within 14 days. Contact ${PH("Contact email")}.</p>`],
+about:["About & Contact",()=>`<h1>About and Contact</h1>${LG_META()}
+<table class="ftbl"><tbody><tr><td>Operator</td><td>${PH("Company legal name")}</td></tr><tr><td>Registered in</td><td>England and Wales ${PH("confirm")}</td></tr><tr><td>Company number</td><td>${PH("Company number")}</td></tr>
+<tr><td>Registered address</td><td>${PH("Registered address")}</td></tr><tr><td>Email</td><td>${PH("Contact email")}</td></tr><tr><td>VAT number</td><td>${PH("VAT number, if registered")}</td></tr><tr><td>ICO registration</td><td>${PH("ICO registration number")}</td></tr></tbody></table>
+<p>${PH("Company legal name")} is not authorised or regulated by the Financial Conduct Authority. Vektor Terminal provides charting and screening tools only, not investment advice.</p>`],
+accessibility:["Accessibility",()=>`<h1>Accessibility statement</h1>${LG_META()}
+<p>We want Vektor Terminal to be usable by as many people as possible, and we aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA.</p>
+<h2>What you can do</h2><ul><li>Use the top navigation, tables, dialogs and the alert editor with a keyboard. Tab moves between controls, Enter or Space activates them, and Esc closes dialogs.</li><li>See a visible focus outline on every control.</li><li>Choose the dark or light theme, and zoom up to 200%.</li><li>Use the app with reduced motion when your system asks for it.</li></ul>
+<h2>Known limitations</h2><ul><li>Price charts are drawn on a canvas, so screen readers can\u2019t read individual candles. The Data Window shows the values under the crosshair as text.</li><li>Some drawing tools need a pointer.</li><li>Third-party data and linked sites aren\u2019t under our control.</li></ul>
+<h2>Feedback</h2><p>If something doesn\u2019t work for you, email ${PH("Contact email")}. We aim to reply within ${PH("5 working days")}.</p>
+<h2>How we checked</h2><p>This statement was prepared on ${PH("date")} from ${PH("self-assessment / third-party audit")}. ${PH("Accessibility audit pending")}</p>`],
 liability:["Disclaimer of Liability",()=>`<h1>Disclaimer of Liability</h1>${LG_META()}
 <p>Vektor Terminal is provided \u201cas is\u201d, with no warranty that it is accurate, complete, available or fit for any purpose. To the extent the law allows, ${PH("Company legal name")} is not liable for any trading losses, lost profits, or decisions made using the Service, its data, scores, alerts, calculators, journal or back-tests. Nor is it liable for an alert that fails to fire, data that is delayed or wrong, or loss of data stored in your browser.</p>
 <p>Nothing here excludes or limits liability that cannot be excluded under the law of England and Wales, including for death or personal injury caused by negligence, or for fraud, and nothing affects your statutory rights as a consumer.</p>`]};
-const LG_ORDER=["terms","privacy","cookies","risk","data","liability"];
-function legalDoc(){const m=/^#\/legal\/([a-z]+)/.exec(location.hash);return m&&LEGAL[m[1]]?m[1]:null}
+const LG_ORDER=["terms","privacy","cookies","your-data","risk","data","liability","refunds","about","accessibility"];
+function legalDoc(){const m=/^#\/legal\/([a-z-]+)/.exec(location.hash);return m&&LEGAL[m[1]]?m[1]:null}
 function legalRender(){let el=document.getElementById("pv-legal");if(!el)return;const d=legalDoc();
-const nav=`<nav aria-label="Legal">${LG_ORDER.map(k=>`<a href="#/legal/${k}" class="${k===d?"on":""}">${LEGAL[k][0]}</a>`).join("")}</nav>`;
-const body=d?LEGAL[d][1]():`<h1>Legal</h1>${LG_META()}<ul>${LG_ORDER.map(k=>`<li><a href="#/legal/${k}">${LEGAL[k][0]}</a></li>`).join("")}</ul>`;
+const nav=`<nav aria-label="Legal">${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<a href="#/legal/${k}" class="${k===d?"on":""}">${LEGAL[k][0]}</a>`).join("")}</nav>`;
+const body=d?LEGAL[d][1]():`<h1>Legal</h1>${LG_META()}<div class="riskbox"><b>Risk warning:</b> trading CFDs, FX and crypto carries a high risk of losing money. Nothing on this site is financial advice. <a href="#/legal/risk">Read the risk disclaimer</a>.</div><ul>${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<li><a href="#/legal/${k}">${LEGAL[k][0]}</a></li>`).join("")}</ul>`;
 el.innerHTML=`<div class="pgw"><div class="lgl">${nav}<article class="lgldoc vcard">${body}</article></div></div>`;
+if(d&&LEGAL[d][2]){try{LEGAL[d][2](el.querySelector("article"))}catch(e){console.error(e)}}
 if(d)document.title=LEGAL[d][0]+" \u00b7 Vektor Terminal";el.scrollTop=0}
 PAGE_HOOK.legal={enter:legalRender,sub:legalRender};
-(()=>{const w=document.querySelector(".wrap");if(!w)return;
+function vtFooterBuild(){const w=document.querySelector(".wrap");if(!w)return;
 if(!document.getElementById("pv-legal")){const pv=document.createElement("div");pv.className="pv";pv.id="pv-legal";const last=[...w.querySelectorAll(".pv")].pop();if(last)last.after(pv);else w.appendChild(pv)}
-const f=document.createElement("footer");f.className="vfoot";
-f.innerHTML=`<span class="risk">Trading CFDs, FX and crypto carries a high risk of losing money. Nothing here is financial advice. <a href="#/legal/risk">Risk disclaimer</a></span>`+LG_ORDER.filter(k=>k!=="risk").map(k=>`<a href="#/legal/${k}">${LEGAL[k][0]}</a>`).join("");
-w.appendChild(f)})();
+const old=w.querySelector("footer.vfoot");if(old)old.remove();const f=document.createElement("footer");f.className="vfoot";
+f.innerHTML=`<span class="risk"><b>Risk warning:</b> trading CFDs, FX and crypto carries a high risk of losing money. Nothing here is financial advice. <a href="#/legal/risk">Risk disclaimer</a></span>`+LG_ORDER.filter(k=>k!=="risk"&&LEGAL[k]).map(k=>`<a href="#/legal/${k}">${LEGAL[k][0]}</a>`).join("")+`<button type="button" class="lnk" id="vft_ck" onclick="vtBanner(true)">Cookie settings</button>`;
+w.appendChild(f)}
+// ---------- UK GDPR / PECR mechanisms: storage consent banner + log, privacy centre (export, delete, rights requests) ----------
+// Template only, not legal advice; have a solicitor review before publishing.
+const VT_POLICY_V="1.0";             // bump when the cookie/privacy notice changes materially: everyone is asked again
+const VT_CONSENT_MAX_AGE=365*864e5;  // and again after 12 months
+const VT_DSR_EMAIL="";               // [Contact email]: set the real address here to enable the request e-mail button
+const VT_CK="vt_consent",VT_CL="vt_consent_log";
+function vtLS(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+function vtConsent(){try{const c=JSON.parse(vtLS(VT_CK)||"null");if(c&&c.v===VT_POLICY_V&&Date.now()-c.ts<VT_CONSENT_MAX_AGE)return c}catch(e){}return null}
+function vtCacheOK(){const c=vtConsent();return !!(c&&c.cache)}
+function vtConsentLog(){try{const l=JSON.parse(vtLS(VT_CL)||"[]");return Array.isArray(l)?l:[]}catch(e){return[]}}
+function vtConsentSet(cache,method){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,method};
+vtLS(VT_CK,JSON.stringify(rec));const l=vtConsentLog();l.push(rec);vtLS(VT_CL,JSON.stringify(l.slice(-50)));
+vtBannerClose();vtCacheApply();if(document.documentElement.dataset.page==="legal"&&typeof legalRender==="function")legalRender();
+toast(cache?"Saved: market-data cache on":"Saved: only strictly necessary storage");return rec}
+// non-essential storage gate: the IndexedDB market-data cache is only opened (and so only created) with consent
+const _vtIdb=idb;idb=function(){return vtCacheOK()?_vtIdb():Promise.resolve(null)};
+function vtIdbDel(name){return new Promise(r=>{try{const q=indexedDB.deleteDatabase(name);q.onsuccess=q.onerror=q.onblocked=()=>r()}catch(e){r()}})}
+async function vtCacheApply(){if(vtCacheOK()){if(!IDB&&READY){IDB=await _vtIdb();if(IDB){for(const k in LIVE)DIRTY.add(k);DIRTY.add("@snap");if(BN.list&&BN.list.length)DIRTY.add("@bn");dirtySnap()}}}
+else{try{if(IDB)IDB.close()}catch(e){}IDB=null;await vtIdbDel("scr")}}
+// ---- banner: Reject and Accept are the same size and style on the first layer; Manage has per-category toggles, off by default
+function vtBannerClose(){const b=document.getElementById("vcb");if(b)b.remove()}
+function vtBanner(manage){vtBannerClose();const c=vtConsent(),el=document.createElement("div");el.className="vcb";el.id="vcb";
+el.setAttribute("role","dialog");el.setAttribute("aria-modal","false");el.setAttribute("aria-labelledby","vcb_t");
+el.innerHTML=`<h2 id="vcb_t">Storage on this device</h2>
+<p>Vektor Terminal keeps your settings, alerts and sign-in name in your browser because the app can\u2019t work without them. With your permission, it can also keep a <b>market-data cache</b> (IndexedDB) so charts load faster. There are no cookies, analytics, ads or trackers. You can change your mind at any time with \u201cCookie settings\u201d in the footer. <a href="#/legal/cookies">Cookie notice</a> \u00b7 <a href="#/legal/privacy">Privacy policy</a></p>
+${manage?`<div class="cats">
+<div class="cat"><input type="checkbox" checked disabled id="vcb_nec" aria-describedby="vcb_nec_d"><label for="vcb_nec"><b>Strictly necessary</b><span class="mut" id="vcb_nec_d">Settings, watchlist, alerts, layouts, sign-in name and this consent record. Needed for the app to work.</span></label><span class="st">Always on</span></div>
+<div class="cat"><input type="checkbox" id="vcb_cache" ${c&&c.cache?"checked":""} aria-describedby="vcb_cache_d"><label for="vcb_cache"><b>Market-data cache</b><span class="mut" id="vcb_cache_d">Keeps downloaded price candles and the market list in IndexedDB so the app starts faster and makes fewer requests. Off unless you turn it on.</span></label></div>
+<div class="cat"><input type="checkbox" disabled id="vcb_an"><label for="vcb_an"><b>Analytics and advertising</b><span class="mut">Not used. There are no analytics, advertising cookies or third-party trackers.</span></label><span class="st">Not used</span></div></div>`:""}
+<div class="btns"><button type="button" class="cbtn" id="vcb_rej">Reject all</button><button type="button" class="cbtn" id="vcb_acc">Accept all</button>${manage?`<button type="button" class="cbtn alt" id="vcb_save">Save my choices</button>`:`<button type="button" class="cbtn alt" id="vcb_man">Manage choices</button>`}</div>`;
+document.body.appendChild(el);
+el.querySelector("#vcb_rej").onclick=()=>vtConsentSet(false,"reject_all");el.querySelector("#vcb_acc").onclick=()=>vtConsentSet(true,"accept_all");
+if(manage){el.querySelector("#vcb_save").onclick=()=>vtConsentSet(el.querySelector("#vcb_cache").checked,"custom");el.querySelector("#vcb_cache").focus()}
+else el.querySelector("#vcb_man").onclick=()=>vtBanner(true);
+if(manage||!c)setTimeout(()=>{if(!manage){const b=el.querySelector("#vcb_rej");b&&b.focus({preventScroll:true})}},0)}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("vcb")&&vtConsent()){vtBannerClose()}});
+// ---- legal pages over the sign-in screen (the app is hidden until you sign in, but the notices must stay readable)
+function vtLegalModal(k){if(!LEGAL[k])return;vtLegalModalClose();const m=document.createElement("div");m.className="vlm";m.id="vlm";m.setAttribute("role","dialog");m.setAttribute("aria-modal","true");m.setAttribute("aria-label",LEGAL[k][0]);
+m.innerHTML=`<div class="box lgldoc"><button type="button" class="x" aria-label="Close" onclick="vtLegalModalClose()">\u2715</button>${LEGAL[k][1]()}</div>`;
+m.onclick=e=>{if(e.target===m)vtLegalModalClose()};document.body.appendChild(m);if(LEGAL[k][2])LEGAL[k][2](m.querySelector(".box"));m.querySelector(".x").focus()}
+function vtLegalModalClose(){const m=document.getElementById("vlm");if(m)m.remove()}
+document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest('a[href^="#/legal/"]');if(!a)return;
+const k=a.getAttribute("href").slice(8);if(document.documentElement.classList.contains("locked")||a.closest(".vlm")){if(LEGAL[k]){e.preventDefault();vtLegalModal(k)}}},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("vlm")){e.stopPropagation();vtLegalModalClose()}},true);
+// ---- privacy centre helpers
+function vtParse(v){try{return JSON.parse(v)}catch(e){return v}}
+async function vtIdbExists(){if(IDB)return true;try{if(indexedDB.databases)return(await indexedDB.databases()).some(d=>d.name==="scr")}catch(e){}return false}
+async function vtIdbDump(){if(!(await vtIdbExists()))return{};const db=IDB||await _vtIdb();if(!db)return{};
+return new Promise(r=>{const out={};try{const q=db.transaction("c").objectStore("c").openCursor();q.onsuccess=()=>{const c=q.result;if(!c){r(out);return}out[c.key]=c.value;c.continue()};q.onerror=()=>r(out)}catch(e){r(out)}})}
+async function vtInventory(){const ls=[],ss=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls.push([k,(localStorage.getItem(k)||"").length])}}catch(e){}
+try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);ss.push([k,(sessionStorage.getItem(k)||"").length])}}catch(e){}
+let idbN=null;if(await vtIdbExists()){const d=await vtIdbDump();idbN=Object.keys(d).length}let cs=0;try{if(window.caches)cs=(await caches.keys()).length}catch(e){}
+return{ls,ss,idbN,cs}}
+async function vtExportData(inclCache){const out={app:"Vektor Terminal",exported:new Date().toISOString(),policyVersion:VT_POLICY_V,
+note:"Everything Vektor Terminal stores in this browser. It may include API keys you saved, so keep this file safe.",localStorage:{},sessionStorage:{}};
+try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);out.localStorage[k]=vtParse(localStorage.getItem(k))}}catch(e){}
+try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);out.sessionStorage[k]=vtParse(sessionStorage.getItem(k))}}catch(e){}
+out.indexedDB=inclCache?{scr:await vtIdbDump()}:{note:(await vtIdbExists())?"Market-data cache present but not included (tick the box to include it).":"No IndexedDB data."};return out}
+function vtDownload(obj,name){const b=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+// erase everything this app keeps in the browser and disconnect live feeds; the caller reloads afterwards
+async function vtWipe(){window.__vtWiped=true;save=function(){};lsSet=function(){};ssSet=function(){};clearTimeout(fl);DIRTY.clear();
+for(const o of [BNWS,BNKL,FHWS]){try{if(o.ws){o.ws.onclose=o.ws.onerror=o.ws.onmessage=o.ws.onopen=null;o.ws.close()}o.ws=null;if(o.subs)o.subs.clear()}catch(e){}}
+try{if(window.__tbw)window.__tbw.terminate()}catch(e){}
+try{if(IDB)IDB.close()}catch(e){}IDB=null;
+try{localStorage.clear()}catch(e){}try{sessionStorage.clear()}catch(e){}
+let names=["scr"];try{if(indexedDB.databases)names=[...new Set(["scr",...(await indexedDB.databases()).map(d=>d.name).filter(Boolean)])]}catch(e){}
+for(const n of names)await vtIdbDel(n);
+try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}
+return true}
+function vtDeleteAsk(){const m=document.createElement("div");m.className="vlm";m.id="vlm";m.setAttribute("role","alertdialog");m.setAttribute("aria-modal","true");m.setAttribute("aria-labelledby","vdel_t");
+m.innerHTML=`<div class="box" style="max-width:480px"><h3 id="vdel_t">Delete all your data from this browser?</h3>
+<p>This removes your settings, watchlist, alerts, drawings, layouts, saved API keys, sign-in, consent record, the market-data cache and any cached files, and disconnects live prices. It can\u2019t be undone. Data held by third parties (data providers, your broker) isn\u2019t affected.</p>
+<label>Type DELETE to confirm<input id="vdel_in" autocomplete="off" aria-describedby="vdel_t"></label>
+<div class="row" style="margin-top:10px"><span class="sp"></span><button type="button" id="vdel_no">Cancel</button><button type="button" class="pcdanger" id="vdel_go" disabled>Delete everything</button></div></div>`;
+document.body.appendChild(m);const inp=m.querySelector("#vdel_in"),go=m.querySelector("#vdel_go");inp.oninput=()=>{go.disabled=inp.value.trim()!=="DELETE"};
+m.querySelector("#vdel_no").onclick=vtLegalModalClose;m.onclick=e=>{if(e.target===m)vtLegalModalClose()};
+go.onclick=async()=>{go.disabled=true;go.textContent="Deleting\u2026";await vtWipe();location.replace(location.pathname+location.search)};inp.focus()}
+// ---- "Your data" page (privacy centre)
+const DSR_TYPES=[["access","Access: a copy of the data you hold about me"],["rectification","Rectification: correct inaccurate data"],["erasure","Erasure: delete my data"],["restriction","Restriction: limit how my data is used"],["objection","Objection: stop processing based on legitimate interests"],["portability","Portability: my data in a machine-readable format"]];
+LEGAL["your-data"]=["Your data",()=>`<h1>Your data</h1>${LG_META()}
+<p>Most of what Vektor Terminal knows about you lives in this browser, so you can see it, download it and delete it here, straight away. For anything held elsewhere, see the last section.</p>
+<h2>What this browser holds</h2><div id="pc_inv" class="mut">Checking\u2026</div>
+<h2>Download a copy (access and portability)</h2><p>Downloads everything stored in this browser as one JSON file.</p>
+<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pc_inc"> Include the market-data cache (it can be large, and it\u2019s public price data rather than personal data)</label>
+<div class="pcact"><button type="button" class="pri" id="pc_exp">Download my data (JSON)</button></div>
+<p class="mut">The file includes any API keys you saved. Keep it somewhere safe.</p>
+<h2>Delete all my data</h2><p>Clears localStorage, sessionStorage, IndexedDB and Cache Storage for this site and disconnects live price feeds. You\u2019ll be asked to confirm first.</p>
+<div class="pcact"><button type="button" class="pcdanger" id="pc_del">Delete all my data\u2026</button></div>
+<h2>Storage consent</h2><p id="pc_cs"></p><div class="pcact"><button type="button" id="pc_cset">Change cookie settings</button><button type="button" id="pc_wd">Withdraw consent</button></div>
+<div id="pc_log"></div>
+<h2>Requests about data held elsewhere</h2>
+<p>This app keeps your data in your browser, not on our servers. Its sign-in is a device-only prototype, so there is no server account. We may still hold some data about you elsewhere, such as hosting logs, emails you\u2019ve sent us, or a server-side account if one is added later. For that data you have the right to <b>access</b>, <b>rectification</b>, <b>erasure</b>, <b>restriction</b>, <b>objection</b> and <b>portability</b>.</p>
+<p>Send your request to ${PH("Contact email")}. We\u2019ll reply without undue delay and <b>within one month</b> of receiving it. If a request is complex, or you send several, we can extend that by up to two further months, and we\u2019ll tell you within the first month if we need to. Requests are free in most cases. We may ask you to confirm your identity first. If you\u2019re unhappy with our answer, you can complain to the Information Commissioner\u2019s Office (ico.org.uk).</p>
+<div class="pcform"><label>Type of request<select id="dsr_t">${DSR_TYPES.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join("")}</select></label>
+<label>Your name<input id="dsr_n" autocomplete="name"></label><label>Your email<input id="dsr_e" type="email" autocomplete="email"></label>
+<label style="grid-column:1/-1">Details (optional)<textarea id="dsr_d" maxlength="2000"></textarea></label></div>
+<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="dsr_ok" style="margin-top:3px"> <span>I understand this opens my own email app to send the request to ${PH("Contact email")}, and that my name and email will be used only to handle it, as described in the <a href="#/legal/privacy">Privacy Policy</a>.</span></label>
+<div class="pcact"><button type="button" class="pri" id="dsr_go" disabled>Email this request</button><button type="button" id="dsr_cp">Copy request text</button><span class="mut" id="dsr_st"></span></div>`,
+async root=>{const $=s=>root.querySelector(s);
+const inv=await vtInventory(),row=(k,n)=>`<tr><td><code>${esc(k)}</code></td><td>${n.toLocaleString()} characters</td></tr>`;
+$("#pc_inv").innerHTML=`<table class="ftbl"><thead><tr><th>Item</th><th>Size</th></tr></thead><tbody>${inv.ls.map(x=>row("localStorage: "+x[0],x[1])).join("")}${inv.ss.map(x=>row("sessionStorage: "+x[0],x[1])).join("")}
+<tr><td>IndexedDB market-data cache</td><td>${inv.idbN==null?"none":inv.idbN+" entries"}</td></tr><tr><td>Cache Storage</td><td>${inv.cs?inv.cs+" caches":"none"}</td></tr></tbody></table>`;
+$("#pc_exp").onclick=async()=>{vtDownload(await vtExportData($("#pc_inc").checked),"vektor-terminal-data-"+new Date().toISOString().slice(0,10)+".json");toast("Downloaded your data")};
+$("#pc_del").onclick=vtDeleteAsk;$("#pc_cset").onclick=()=>vtBanner(true);$("#pc_wd").onclick=()=>vtConsentSet(false,"withdrawn");
+const c=vtConsent();$("#pc_cs").textContent=c?"Current choice: "+(c.cache?"market-data cache on":"strictly necessary storage only")+" (policy version "+c.v+", "+new Date(c.ts).toLocaleString()+").":"You haven\u2019t made a choice yet, so only strictly necessary storage is used.";
+const L=vtConsentLog();$("#pc_log").innerHTML=L.length?`<table class="ftbl" aria-label="Consent history"><thead><tr><th>When</th><th>Choice</th><th>How</th><th>Policy version</th></tr></thead><tbody>${L.slice().reverse().map(x=>`<tr><td>${esc(new Date(x.ts).toLocaleString())}</td><td>${x.cache?"Cache on":"Necessary only"}</td><td>${esc(String(x.method||"").replace(/_/g," "))}</td><td>${esc(x.v)}</td></tr>`).join("")}</tbody></table>`:"";
+const txt=()=>{const t=DSR_TYPES.find(x=>x[0]===$("#dsr_t").value);return"Data subject request: "+t[1]+"\nName: "+$("#dsr_n").value.trim()+"\nEmail: "+$("#dsr_e").value.trim()+"\nDetails: "+($("#dsr_d").value.trim()||"(none)")+"\nSent: "+new Date().toISOString()};
+const upd=()=>{$("#dsr_go").disabled=!($("#dsr_ok").checked&&$("#dsr_e").value.trim())};["#dsr_ok","#dsr_e"].forEach(s=>$(s).addEventListener("input",upd));$("#dsr_ok").addEventListener("change",upd);
+$("#dsr_go").onclick=()=>{if(!VT_DSR_EMAIL){$("#dsr_st").textContent="The contact address hasn\u2019t been set up yet. Copy the text and send it to the address above.";return}
+  location.href="mailto:"+VT_DSR_EMAIL+"?subject="+encodeURIComponent("Data subject request ("+$("#dsr_t").value+")")+"\u0026body="+encodeURIComponent(txt())};
+$("#dsr_cp").onclick=async()=>{try{await navigator.clipboard.writeText(txt());$("#dsr_st").textContent="Copied."}catch(e){$("#dsr_st").textContent="Couldn\u2019t copy. Select and copy it manually."}}}];
+// footer (built here so every page above is linked) and first-visit banner
+vtFooterBuild();
+if(!vtConsent())vtBanner(false);
 stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");

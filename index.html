@@ -353,6 +353,19 @@ html.locked .auth{display:flex}
 :root[data-page="screener"] th{white-space:normal;vertical-align:bottom;line-height:1.25;min-width:56px}
 :root[data-page="screener"] td{font-size:13px}
 :root[data-page="screener"] .pill{min-width:54px}
+/* Calculators */
+.cout{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-top:10px}
+.cnote{font-size:11.5px;color:var(--mut);margin:8px 0 0}
+.cbig{font-size:22px;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
+.vcard.wide{grid-column:1/-1}
+.macc input{width:100%;min-width:0;padding:4px 6px}
+.ftbl td input{text-align:right}
+.ftbl .l{text-align:left}
+.prog{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog>b{display:block;height:100%;background:var(--g);border-radius:4px}
+.prog.w>b{background:#e3a008}.prog.x>b{background:var(--r)}
+.ftbl th{white-space:normal;line-height:1.2}
+.ftbl td.l input{text-align:left}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -2272,10 +2285,136 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelec
 // the list search box was bound to a debounced copy of the original render; rebind it so Pro columns stay
 {const q=document.getElementById("q"),rd=deb(()=>render(),200);if(q)q.oninput=e=>{S.q=e.target.value;save();rd()}}
 PAGE_HOOK.screener={enter(){render()},leave(){sxClose();setTimeout(render,0)}};
+// <VTC> pure calculator / stats helpers (no DOM; unit-tested in tests/logic.js)
+const VTC=(()=>{
+const METALS={XAU:{contract:100,pip:0.1},XAG:{contract:5000,pip:0.01}};
+// FX / metals contract spec from a 6-letter symbol like EURUSD, USDJPY, XAUUSD
+function fxSpec(sym){const s=String(sym||"").toUpperCase().replace(/[^A-Z]/g,"");if(s.length<6)return null;const base=s.slice(0,3),quote=s.slice(3,6);
+const m=METALS[base];return{base,quote,contract:m?m.contract:100000,pip:m?m.pip:(quote==="JPY"?0.01:0.0001)}}
+// value of one pip for one standard lot, in the account currency (USD). quoteUsd = price of 1 unit of the quote currency in USD
+function pipValueUSD(spec,price,quoteUsd){if(!spec)return null;let q=quoteUsd;if(spec.quote==="USD")q=1;else if(spec.base==="USD"&&price>0)q=1/price;
+if(!(q>0))return null;return spec.contract*spec.pip*q}
+function riskAmount(acct,riskPct,riskUsd){return riskUsd>0?riskUsd:acct*(riskPct||0)/100}
+function fxLots(risk,stopPips,pipVal){if(!(risk>0&&stopPips>0&&pipVal>0))return 0;return risk/(stopPips*pipVal)}
+const FUT={ES:["E-mini S&P 500",0.25,12.5],MES:["Micro E-mini S&P",0.25,1.25],NQ:["E-mini Nasdaq-100",0.25,5],MNQ:["Micro E-mini Nasdaq",0.25,0.5],
+YM:["E-mini Dow",1,5],MYM:["Micro E-mini Dow",1,0.5],RTY:["E-mini Russell 2000",0.1,5],M2K:["Micro Russell 2000",0.1,0.5],
+CL:["Crude Oil",0.01,10],MCL:["Micro Crude Oil",0.01,1],NG:["Natural Gas",0.001,10],GC:["Gold",0.1,10],MGC:["Micro Gold",0.1,1],SI:["Silver",0.005,25],HG:["Copper",0.0005,12.5],
+ZN:["10-Year T-Note",0.015625,15.625],ZB:["30-Year T-Bond",0.03125,31.25],"6E":["Euro FX",0.00005,6.25],"6B":["British Pound",0.0001,6.25],"6J":["Japanese Yen",0.0000005,6.25],"6A":["Australian Dollar",0.00005,5]};
+function futSpec(k){const f=FUT[k];return f?{sym:k,name:f[0],tick:f[1],tickValue:f[2],pointValue:f[2]/f[1]}:null}
+// whole contracts you can trade without going over the risk budget
+function futContracts(risk,stopTicks,tickValue){if(!(risk>0&&stopTicks>0&&tickValue>0))return 0;return Math.floor(risk/(stopTicks*tickValue)+1e-9)}
+// gain needed to get back to break-even after a drawdown (fractions: 0.2 -> 0.25)
+function ddRecovery(dd){return dd>=1?Infinity:dd/(1-dd)}
+function expectancyR(winRate,rr){return winRate*rr-(1-winRate)}
+function rng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+// Monte Carlo prop challenge. Each trade risks riskPct of current equity (or of the start balance if fixed), wins rr*risk with prob winRate.
+// Fails on daily loss (vs. the day's starting equity) or max drawdown (static from start, or trailing from the equity peak).
+function simChallenge(o,seed){const N=o.runs||1000,r=rng(seed||12345);let pass=0,failDD=0,failDay=0,timeout=0;const days=[];
+for(let k=0;k<N;k++){let eq=o.acct,peak=o.acct,done=false;
+  for(let d=1;d<=o.maxDays&&!done;d++){const dayStart=eq;
+    for(let t=0;t<o.tradesPerDay;t++){const risk=(o.fixed?o.acct:eq)*o.riskPct/100;eq+=r()<o.winRate?risk*o.rr:-risk;if(eq>peak)peak=eq;
+      const floor=o.trailing?Math.min(peak-o.acct*o.maxDD/100,o.acct):o.acct*(1-o.maxDD/100);
+      if(eq<=floor){failDD++;done=true;break}
+      if(o.dailyDD>0&&dayStart-eq>=o.acct*o.dailyDD/100){failDay++;done=true;break}
+      if(eq>=o.acct*(1+o.target/100)){pass++;days.push(d);done=true;break}}}
+  if(!done)timeout++}
+days.sort((a,b)=>a-b);return{runs:N,pass:pass/N,failDD:failDD/N,failDay:failDay/N,timeout:timeout/N,medianDays:days.length?days[days.length>>1]:null}}
+// journal statistics from closed trades [{pnl, r, date}] in date order
+function tradeStats(trades,startBal){const T=trades.filter(t=>isFinite(t.pnl));const n=T.length;const wins=T.filter(t=>t.pnl>0),losses=T.filter(t=>t.pnl<0);
+const gw=wins.reduce((a,t)=>a+t.pnl,0),gl=-losses.reduce((a,t)=>a+t.pnl,0),net=gw-gl;
+const Rs=T.filter(t=>isFinite(t.r)).map(t=>t.r);let eq=startBal||0,peak=eq,maxDD=0,maxDDpct=0;const curve=[eq],rcurve=[0];let rc=0;
+T.forEach(t=>{eq+=t.pnl;curve.push(eq);if(eq>peak)peak=eq;const dd=peak-eq;if(dd>maxDD)maxDD=dd;if(peak>0&&dd/peak>maxDDpct)maxDDpct=dd/peak;rc+=isFinite(t.r)?t.r:0;rcurve.push(rc)});
+return{n,wins:wins.length,losses:losses.length,winRate:n?wins.length/n:0,net,grossWin:gw,grossLoss:gl,profitFactor:gl>0?gw/gl:(gw>0?Infinity:0),
+expectancy:n?net/n:0,avgWin:wins.length?gw/wins.length:0,avgLoss:losses.length?gl/losses.length:0,avgR:Rs.length?Rs.reduce((a,b)=>a+b,0)/Rs.length:0,
+maxDD,maxDDpct,equity:curve,rCurve:rcurve,balance:eq}}
+// prop-firm rule usage: today's loss vs daily limit, drawdown vs max (static or trailing from the highest closed balance)
+function propStatus(trades,o,today){const T=trades.filter(t=>isFinite(t.pnl));let bal=o.acct,peak=o.acct;T.forEach(t=>{bal+=t.pnl;if(bal>peak)peak=bal});
+const dayPnl=T.filter(t=>String(t.date||"").slice(0,10)===today).reduce((a,t)=>a+t.pnl,0);
+const dailyLimit=o.acct*o.dailyDD/100,maxLimit=o.acct*o.maxDD/100;
+const floor=o.trailing?Math.min(peak-maxLimit,o.acct):o.acct-maxLimit;
+return{balance:bal,peak,dayPnl,dailyUsed:dailyLimit>0?Math.max(0,-dayPnl)/dailyLimit:0,dailyLeft:dailyLimit+Math.min(0,dayPnl),
+floor,maxUsed:maxLimit>0?Math.min(1,Math.max(0,1-(bal-floor)/maxLimit)):0,
+toFloor:bal-floor,targetLeft:o.target>0?o.acct*(1+o.target/100)-bal:null}}
+return{fxSpec,pipValueUSD,riskAmount,fxLots,FUT,futSpec,futContracts,ddRecovery,expectancyR,rng,simChallenge,tradeStats,propStatus};
+})();
+// </VTC>
+// ---------- Calculators page ----------
+S.calc=Object.assign({acct:S.acct||100000,riskPct:0.5,riskUsd:0,fxSym:"EURUSD",stopPips:20,rate:"",fut:"ES",stopTicks:16,pvSym:"GBPJPY",pvLots:1,pvFut:"NQ",pvCts:1,
+accts:[{name:"Account A",size:100000,riskPct:0.5},{name:"Account B",size:50000,riskPct:0.5}],
+sim:{target:8,maxDD:10,dailyDD:5,riskPct:1,winRate:45,rr:2,tradesPerDay:2,maxDays:30,trailing:false,fixed:true,runs:2000}},S.calc||{});
+const usd=(v,d)=>v==null||!isFinite(v)?"\u2013":(v<0?"-":"")+"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:d==null?2:d,maximumFractionDigits:d==null?2:d});
+const pct=(v,d)=>v==null||!isFinite(v)?"\u2013":(v*100).toFixed(d==null?1:d)+"%";
+// latest known price for a symbol from the screener universe or the cache (no invented values)
+function vtPx(n){const s=SYMS.find(x=>x[0]===n);if(s&&s[2]!=null)return s[2];for(const tf of ["1m","1H","1D"]){const a=LIVE[n+"|"+tf];if(a&&a.length)return a[a.length-1].c}return null}
+function quoteUsdRate(spec){if(!spec)return null;if(spec.quote==="USD")return 1;const a=vtPx(spec.quote+"USD");if(a)return a;const b=vtPx("USD"+spec.quote);return b?1/b:null}
+function cget(path){return path.split(".").reduce((o,k)=>o==null?o:o[k],S.calc)}
+function cset(path,v){const ks=path.split("."),last=ks.pop();const o=ks.reduce((o,k)=>o[k],S.calc);o[last]=v}
+const calcSave=deb(save,400);
+function cin(path,label,o){o=o||{};const v=cget(path);
+if(o.type==="check")return`<label class="chk"><input type="checkbox" data-ck="${path}" ${v?"checked":""}>${label}</label>`;
+if(o.opts)return`<label>${label}<select data-ck="${path}">${o.opts.map(([k,n])=>`<option value="${esc(k)}" ${String(k)===String(v)?"selected":""}>${esc(n)}</option>`).join("")}</select></label>`;
+return`<label>${label}<input data-ck="${path}" ${o.text?`type="text"`:`type="number" step="${o.step||"any"}" min="${o.min==null?0:o.min}"`} value="${esc(v==null?"":v)}" ${o.list?`list="${o.list}"`:""} ${o.ph?`placeholder="${esc(o.ph)}"`:""}></label>`}
+function calcBuild(){const el=document.getElementById("pv-calc");if(!el)return;
+const futOpts=Object.keys(VTC.FUT).map(k=>[k,k+" \u00b7 "+VTC.FUT[k][0]]);
+const fxList=[...new Set([...FXW.map(w=>w.n),...SAMPLE.filter(s=>s[1]==="FX").map(s=>s[0])])];
+el.innerHTML=`<div class="pgw"><div class="pgh"><h2>Calculators</h2><span class="mut">Risk, position size and prop-challenge maths. Prices come from the live feed; nothing here places trades.</span></div>
+<datalist id="fxlist">${fxList.map(n=>`<option value="${n}">`).join("")}</datalist>
+<div class="vcard"><h3>Account</h3><div class="frm">${cin("acct","Account size ($)",{step:1000})}${cin("riskPct","Risk per trade (%)",{step:0.05})}${cin("riskUsd","Or fixed risk ($, overrides %)",{step:10})}</div><p class="cnote">Defaults to the screener's account size (${usd(S.acct,0)}). Risk budget: <b id="c_risk"></b></p></div>
+<div class="vgrid">
+<div class="vcard"><h3>Forex / metals position size</h3><div class="frm">${cin("fxSym","Pair",{text:1,list:"fxlist"})}${cin("stopPips","Stop loss (pips)",{step:0.1})}${cin("rate","Quote \u2192 USD rate",{ph:"auto"})}</div>
+<div class="cout"><div class="kpi"><div class="k">Lots</div><div class="v cbig" id="c_lots"></div></div><div class="kpi"><div class="k">Units</div><div class="v" id="c_units"></div></div><div class="kpi"><div class="k">Pip value / lot</div><div class="v" id="c_pv"></div></div><div class="kpi"><div class="k">Risk at stop</div><div class="v" id="c_rk"></div></div></div><p class="cnote" id="c_fxn"></p></div>
+<div class="vcard"><h3>Futures contracts</h3><div class="frm">${cin("fut","Contract",{opts:futOpts})}${cin("stopTicks","Stop loss (ticks)",{step:1})}</div>
+<div class="cout"><div class="kpi"><div class="k">Contracts</div><div class="v cbig" id="c_cts"></div></div><div class="kpi"><div class="k">Tick / point</div><div class="v" id="c_tk"></div></div><div class="kpi"><div class="k">Stop in points</div><div class="v" id="c_pts"></div></div><div class="kpi"><div class="k">Risk at stop</div><div class="v" id="c_frk"></div></div></div><p class="cnote" id="c_futn"></p></div>
+<div class="vcard"><h3>Pip \u0026 tick value</h3><div class="frm">${cin("pvSym","FX pair",{text:1,list:"fxlist"})}${cin("pvLots","Lots",{step:0.01})}${cin("pvFut","Futures",{opts:futOpts})}${cin("pvCts","Contracts",{step:1})}</div>
+<div class="cout"><div class="kpi"><div class="k">Per pip</div><div class="v" id="c_pp"></div></div><div class="kpi"><div class="k">Per 10 pips</div><div class="v" id="c_pp10"></div></div><div class="kpi"><div class="k">Per tick</div><div class="v" id="c_pt"></div></div><div class="kpi"><div class="k">Per point</div><div class="v" id="c_ppt"></div></div></div><p class="cnote" id="c_ppn"></p></div>
+<div class="vcard"><h3>Drawdown recovery</h3><div style="max-height:300px;overflow:auto"><table class="ftbl" id="c_rec"></table></div><p class="cnote">Wins needed assumes the challenge simulator's risk % and R:R below, compounding.</p></div>
+<div class="vcard wide"><h3>Multiple prop accounts</h3><table class="ftbl macc" id="c_macc"></table><div class="row" style="margin-top:8px"><button onclick="S.calc.accts.push({name:'Account '+String.fromCharCode(65+S.calc.accts.length),size:100000,riskPct:S.calc.riskPct});save();calcBuild()">+ Account</button><span class="mut">Uses the FX pair and stop, and the futures contract and stop, from the cards above.</span></div></div>
+<div class="vcard wide"><h3>Challenge phase simulator</h3><div class="frm">${cin("sim.target","Profit target (%)",{step:0.5})}${cin("sim.maxDD","Max drawdown (%)",{step:0.5})}${cin("sim.dailyDD","Daily loss limit (%)",{step:0.5})}${cin("sim.riskPct","Risk per trade (%)",{step:0.05})}${cin("sim.winRate","Win rate (%)",{step:1})}${cin("sim.rr","Avg reward : risk",{step:0.1})}${cin("sim.tradesPerDay","Trades per day",{step:1,min:1})}${cin("sim.maxDays","Days allowed",{step:1,min:1})}${cin("sim.runs","Simulations",{step:500,min:100})}</div>
+<div class="row" style="margin-top:8px;flex-wrap:wrap">${cin("sim.trailing","Trailing drawdown (from equity peak)",{type:"check"})}${cin("sim.fixed","Risk a fixed % of the starting balance",{type:"check"})}</div>
+<div class="cout" id="c_sim"></div><table class="ftbl" id="c_comp" style="margin-top:10px"></table><p class="cnote">Monte Carlo with a fixed seed, so the same inputs always give the same result. It's a model of your stats, not a forecast.</p></div>
+</div></div>`;
+el.querySelectorAll("[data-ck]").forEach(i=>{i.addEventListener(i.type==="checkbox"||i.tagName==="SELECT"?"change":"input",()=>{const p=i.dataset.ck;let v=i.type==="checkbox"?i.checked:i.value;
+  if(i.type==="number"||(p==="rate"))v=v===""?"":(+v);if(p==="fxSym"||p==="pvSym")v=String(v).toUpperCase();cset(p,v);calcSave();calcUpdate(p)})});
+calcUpdate()}
+function calcFx(sym,stop,risk){const spec=VTC.fxSpec(sym),px=spec?vtPx(spec.base+spec.quote):null,auto=quoteUsdRate(spec),rate=S.calc.rate!==""&&+S.calc.rate>0&&sym===S.calc.fxSym?+S.calc.rate:auto;
+const pv=VTC.pipValueUSD(spec,px,rate),lots=pv?VTC.fxLots(risk,stop,pv):0;return{spec,px,auto,rate,pv,lots}}
+function calcUpdate(changed){const C=S.calc,$=id=>document.getElementById(id),set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
+if(!$("c_risk"))return;
+const risk=VTC.riskAmount(+C.acct||0,+C.riskPct||0,+C.riskUsd||0);set("c_risk",usd(risk));
+const fx=calcFx(C.fxSym,+C.stopPips,risk);
+set("c_lots",fx.lots?fx.lots.toFixed(2):"\u2013");set("c_units",fx.spec&&fx.lots?Math.round(fx.lots*fx.spec.contract).toLocaleString("en-US"):"\u2013");set("c_pv",usd(fx.pv));
+set("c_rk",fx.pv&&fx.lots?usd(Math.floor(fx.lots*100)/100*fx.pv*C.stopPips):"\u2013");
+set("c_fxn",!fx.spec?"Type a 6-letter pair such as EURUSD or XAUUSD.":fx.pv==null?`No live ${fx.spec.quote}\u2192USD rate yet. Enter it in "Quote \u2192 USD rate".`:`Pip = ${fx.spec.pip}, contract = ${fx.spec.contract.toLocaleString("en-US")} units${fx.px?`, price ${fp(fx.px)}`:""}${fx.spec.quote!=="USD"&&fx.spec.base!=="USD"?`, ${fx.spec.quote}\u2192USD ${fx.rate.toFixed(5)}${S.calc.rate!==""&&+S.calc.rate>0?" (manual)":" (live)"}`:""}. Round lots down to your broker's step.`);
+const fs=VTC.futSpec(C.fut),cts=fs?VTC.futContracts(risk,+C.stopTicks,fs.tickValue):0;
+set("c_cts",fs?String(cts):"\u2013");set("c_tk",fs?usd(fs.tickValue)+" / "+usd(fs.pointValue,0):"\u2013");set("c_pts",fs?(+C.stopTicks*fs.tick).toFixed(4).replace(/\.?0+$/,""):"\u2013");
+set("c_frk",fs?usd(cts*(+C.stopTicks)*fs.tickValue):"\u2013");
+set("c_futn",fs?(cts===0&&risk>0?`One contract risks ${usd(+C.stopTicks*fs.tickValue)}, more than your budget. Try the micro contract or a tighter stop.`:`Tick size ${fs.tick}, tick value ${usd(fs.tickValue)}. Exchange specs. Check your broker's for CFDs.`):"");
+const pf=calcFx(C.pvSym,1,0),pp=pf.pv!=null?pf.pv*(+C.pvLots||0):null;set("c_pp",usd(pp));set("c_ppn",pf.spec&&pf.pv==null?`Needs a live ${pf.spec.quote}\u2192USD price (USD${pf.spec.quote} or ${pf.spec.quote}USD), which isn\u2019t loaded yet.`:"");set("c_pp10",pp==null?"\u2013":usd(pp*10));
+const pfs=VTC.futSpec(C.pvFut);set("c_pt",pfs?usd(pfs.tickValue*(+C.pvCts||0)):"\u2013");set("c_ppt",pfs?usd(pfs.pointValue*(+C.pvCts||0)):"\u2013");
+// drawdown recovery
+const sm=C.sim,g=(sm.riskPct/100)*sm.rr;
+$("c_rec").innerHTML=`<thead><tr><th class="l">Drawdown</th><th>Gain to recover</th><th>Wins needed</th></tr></thead><tbody>`+[5,10,15,20,25,30,40,50,60,75,90].map(d=>{const f=d/100,need=VTC.ddRecovery(f),w=g>0?Math.ceil(Math.log(1/(1-f))/Math.log(1+g)):null;
+return`<tr><td class="l">-${d}%</td><td class="${need>0.5?"dn":""}">+${(need*100).toFixed(1)}%</td><td>${w==null?"\u2013":w}</td></tr>`}).join("")+`</tbody>`;
+// multi-account
+const ma=$("c_macc");if(ma&&(changed==null||!/^accts/.test(changed))){ma.innerHTML=`<thead><tr><th class="l">Account</th><th>Size ($)</th><th>Risk %</th><th>Risk $</th><th>${esc(C.fxSym)} lots</th><th>${esc(C.fut)} contracts</th><th></th></tr></thead><tbody>`+C.accts.map((a,i)=>`<tr><td class="l"><input data-ma="${i}.name" value="${esc(a.name)}"></td><td><input type="number" data-ma="${i}.size" value="${a.size}"></td><td><input type="number" step="0.05" data-ma="${i}.riskPct" value="${a.riskPct}"></td><td id="ma_r${i}"></td><td id="ma_l${i}"></td><td id="ma_c${i}"></td><td><button class="ib x" style="opacity:1" title="Remove" onclick="S.calc.accts.splice(${i},1);save();calcBuild()">\u2715</button></td></tr>`).join("")+`<tr><td class="l"><b>Total</b></td><td id="ma_ts"></td><td></td><td id="ma_tr"></td><td id="ma_tl"></td><td id="ma_tc"></td><td></td></tr></tbody>`;
+  ma.querySelectorAll("[data-ma]").forEach(i=>i.addEventListener("input",()=>{const[k,f]=i.dataset.ma.split(".");C.accts[+k][f]=f==="name"?i.value:+i.value;calcSave();calcUpdate("accts")}))}
+let ts=0,tr=0,tl=0,tc=0;C.accts.forEach((a,i)=>{const r=VTC.riskAmount(+a.size||0,+a.riskPct||0,0),l=fx.pv?VTC.fxLots(r,+C.stopPips,fx.pv):0,c=fs?VTC.futContracts(r,+C.stopTicks,fs.tickValue):0;
+  ts+=+a.size||0;tr+=r;tl+=l;tc+=c;set("ma_r"+i,usd(r));set("ma_l"+i,fx.pv?l.toFixed(2):"\u2013");set("ma_c"+i,fs?String(c):"\u2013")});
+set("ma_ts",usd(ts,0));set("ma_tr",usd(tr));set("ma_tl",fx.pv?tl.toFixed(2):"\u2013");set("ma_tc",String(tc));
+// challenge simulator
+if(changed==null||/^sim|acct/.test(changed))calcSim()}
+const calcSim=deb(()=>{const C=S.calc,sm=C.sim,el=document.getElementById("c_sim");if(!el)return;
+const o={acct:+C.acct||100000,target:+sm.target,maxDD:+sm.maxDD,dailyDD:+sm.dailyDD,riskPct:+sm.riskPct,winRate:(+sm.winRate)/100,rr:+sm.rr,tradesPerDay:Math.max(1,Math.round(+sm.tradesPerDay)),maxDays:Math.max(1,Math.round(+sm.maxDays)),trailing:!!sm.trailing,fixed:!!sm.fixed,runs:Math.min(20000,Math.max(100,Math.round(+sm.runs)))};
+const r=VTC.simChallenge(o,1234),ex=VTC.expectancyR(o.winRate,o.rr);
+const k=(a,b,c)=>`<div class="kpi"><div class="k">${a}</div><div class="v ${c||""}">${b}</div></div>`;
+el.innerHTML=k("Pass rate",pct(r.pass),r.pass>=0.5?"up":"dn")+k("Fail: max DD",pct(r.failDD))+k("Fail: daily limit",pct(r.failDay))+k("Out of time",pct(r.timeout))+k("Median days to pass",r.medianDays==null?"\u2013":r.medianDays)+k("Expectancy / trade",(ex>=0?"+":"")+ex.toFixed(2)+"R",ex>=0?"up":"dn");
+// deterministic path at expectancy (no variance): balance after N trades
+const rows=[5,10,20,30,50,100].map(n=>{let b=o.acct;for(let i=0;i<n;i++)b+=(o.fixed?o.acct:b)*o.riskPct/100*ex;return`<tr><td class="l">${n} trades</td><td>${usd(b,0)}</td><td class="${b>=o.acct?"up":"dn"}">${((b/o.acct-1)*100).toFixed(2)}%</td><td>${b>=o.acct*(1+o.target/100)?"target reached":""}</td></tr>`});
+document.getElementById("c_comp").innerHTML=`<thead><tr><th class="l">At expectancy</th><th>Balance</th><th>Return</th><th></th></tr></thead><tbody>${rows.join("")}</tbody>`},250);
+PAGE_HOOK.calc={enter(){calcBuild()}};
 stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");
-stubPage("calc","Calculators","Risk and position calculators are coming in a later update.");
 stubPage("backtest","Backtest Lab","Backtesting and bar replay are coming in a later update.");
 // ==== VT PAGES END ====
 applyTheme();authInit();

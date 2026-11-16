@@ -3,6 +3,12 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Journal & Prop Tracker page (replaces the "coming later" placeholder).** A trade journal you fill in yourself. Nothing connects to a broker, and empty journals show empty states, not sample data.
+  - **Trades:** add, edit and delete with a form that checks the input. P&L = (exit − entry) × quantity × point value × direction − fees, or your broker's figure as an override. R-multiples are calculated when you give a stop. You can add a setup, tags, notes and an account. Open trades are listed but don't count in results.
+  - **Stats:** net P&L, win rate, profit factor, expectancy, average R, average win/loss, max drawdown and streaks. Also an equity curve, a monthly daily-P&L calendar, results by setup, weekday and side, and filters by account, period, side and setup.
+  - **Prop challenge tracker:** add accounts with their rules (profit target, max daily loss, static or trailing max drawdown, minimum trading days). Each shows its balance, progress bars, room left today and the drawdown floor, and flags the day a rule was broken. Only closed trades are used, and the page says so.
+  - **CSV:** export, then re-import or edit in a spreadsheet. Import validates every row, skips trades already in the journal, and guards against spreadsheet formula injection both ways.
+  - Saved with your other settings (`scr2`; the storage table now says so). Guests keep it in memory only. Works on phones (two-column KPIs, 44px targets, the form fits the screen).
 - **Custom indicator scripts (Vektor Script).** A "Scripts" button on the chart opens an editor where you can write your own indicators in a small, purpose-built language (for example `macd = ema(close, 12) - ema(close, 26)` and `plot(macd, "MACD", color=blue)`), then add them to the Workspace/Supercharts chart.
   - **Safety:** scripts run in the app's own interpreter (its own lexer, parser and evaluator). They can't call `eval`/`Function`, reach page objects or storage, use member access (`a.b`), or loop without limit. Source size, statement count, nesting, look-back and total work are all capped.
   - **Language:** series (`open`, `high`, `low`, `close`, `volume`, `hl2`, ...), `close[1]` for past values, arithmetic/comparison/logic and `?:`. Functions include sma/ema/rma/wma/rsi/stdev/atr/highest/lowest/roc/crossover. Declarations: `indicator()`, `input()`, `plot()` (line/histogram/area) and `hline()`. Colours can be names or hex.

@@ -32,7 +32,7 @@ assert.strictEqual(await P.evaluate(()=>vtConsent().method),"withdrawn");
 // 5) DSR form: unticked consent box gates the button; no address configured -> honest message, nothing sent
 assert.strictEqual(await P.isChecked("#dsr_ok"),false);assert(await P.isDisabled("#dsr_go"));
 await P.fill("#dsr_e","me@example.com");assert(await P.isDisabled("#dsr_go"));await P.check("#dsr_ok");assert(!(await P.isDisabled("#dsr_go")));
-await P.click("#dsr_go");assert(/hasn.t been set up/.test(await P.textContent("#dsr_st")));
+await P.evaluate(()=>{vtOpenMail=u=>{window.__mail=u}});await P.click("#dsr_go");const mu=await P.evaluate(()=>window.__mail);assert(mu.startsWith("mailto:vektorhq@proton.me?subject="),mu);assert(/me%40example\.com/.test(mu));assert(/vektorhq@proton\.me/.test(await P.textContent("#dsr_st")));
 // 6) delete-all: confirmation needed; wipes everything and disconnects feeds
 await P.click("#pc_del");await P.waitForSelector("#vdel_in");assert(await P.isDisabled("#vdel_go"));await P.fill("#vdel_in","delete");assert(await P.isDisabled("#vdel_go"));
 await P.click("#vdel_no");assert.strictEqual(await P.$("#vdel_in"),null);

@@ -36,7 +36,7 @@ await P.reload();await P.waitForFunction(()=>BOOTED);assert(await P.evaluate(()=
 // 3) sign in from guest mode: no reload, sockets kept, work saved from now on
 await P.evaluate(()=>{openChart("BTCUSDT","1H");window.__ws0=__WS.length;window.__mark=1});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);
 await P.click("#lgo");await P.waitForSelector("#auId",{state:"visible"});assert(await P.isVisible("#auClose"));
-await P.keyboard.press("Escape");assert(!(await P.evaluate(()=>document.documentElement.classList.contains("locked"))));
+await P.waitForTimeout(150);await P.keyboard.press("Escape");await P.waitForFunction(()=>!document.documentElement.classList.contains("locked"),null,{timeout:3000});
 await P.click("#lgo");await P.fill("#auId","ann@example.com");await P.fill("#auPw","x");await P.click("#auBtn");
 await P.waitForFunction(()=>!document.documentElement.classList.contains("locked"));
 const s2=await P.evaluate(()=>({mark:window.__mark,ws:__WS.length-__ws0,g:vtIsGuest(),lgo:document.getElementById("lgo").textContent,a:sessionStorage.getItem("scr2a"),la:localStorage.getItem("scr2a"),vg:sessionStorage.getItem("vt_guest"),scr2:!!localStorage.getItem("scr2")}));

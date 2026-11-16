@@ -700,6 +700,13 @@ const cs=symOf(sym);if(cs&&cs[8]==="bn")bnKlineStart(sym,S.chart.tf);else if(cs&
 const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
 if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
 if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
+function updateLiveBar(sym,tf){
+  if(!ch||!MS||S.chart.sym!==sym||S.chart.tf!==tf)return;
+  const a=candles(symOf(sym),tf);if(!a||!a.length)return;
+  const last=a[a.length-1];
+  const bar={time:last.t,open:last.o,high:last.h,low:last.l,close:last.c};
+  try{MS.update(bar)}catch(e){}
+}
 function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
 if(!SYMS.length){cp.innerHTML=`<p class="mut">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
@@ -1591,7 +1598,7 @@ function bnKlineStart(sym,tf){
       else if(!last||bar.t>last.t)arr.push(bar);
       if(arr.length>500)arr.splice(0,arr.length-500);
       const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=bar.c;
-      if(S.chart.sym===sym&&S.chart.tf===tf)drawChart();
+      if(S.chart.sym===sym&&S.chart.tf===tf)updateLiveBar(sym,tf);
     }catch(err){}
   };
   BNKL.ws.onclose=()=>{if(BNKL.sym===sym)setTimeout(()=>bnKlineStart(sym,tf),3000)};
@@ -1616,7 +1623,7 @@ function fhWsStart(){
         else arr.push({t:bucket,o:price,h:price,l:price,c:price,v:vol});
         if(arr.length>500)arr.splice(0,arr.length-500);
         const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=price;
-        if(S.chart.sym===sym)drawChart();
+        if(S.chart.sym===sym)updateLiveBar(sym,S.chart.tf);
       });
     }catch(err){}
   };

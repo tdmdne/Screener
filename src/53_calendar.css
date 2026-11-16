@@ -1,0 +1,20 @@
+/* Calendar & News */
+.calgrid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:12px;align-items:start}
+.calf{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:8px}.calf .chk{display:flex;align-items:center;gap:6px;margin:0}
+.calq input{min-width:200px}
+.calimp.on.i_high{color:var(--r)}.calimp.on.i_medium{color:var(--acc)}
+.calccy{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}.calccy .chip{min-height:0}
+.calb{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--line)}
+.calb.i_high{border-color:var(--r);color:var(--r)}.calb.i_medium{border-color:var(--acc);color:var(--acc)}.calb.i_low{color:var(--mut)}.calb.i_holiday{color:var(--mut);border-style:dashed}
+.calnext{border:1px solid var(--line);border-left:3px solid var(--r);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px;background:var(--card)}
+.calday h4{margin:12px 0 4px;font-size:13px}.calday.today h4{color:var(--acc)}
+.caltw{overflow-x:auto}.calt td,.calt th{white-space:nowrap}.calt td:nth-child(4){white-space:normal;min-width:180px}.calt tr.past td{color:var(--mut)}.calt tr.past td b{color:var(--mut)}
+.calerr,.calempty{padding:14px 4px}
+.newsadd{display:flex;gap:6px;margin-bottom:6px}.newsadd label{flex:1;margin:0}.newsadd input{width:100%}
+.newschip{display:inline-flex;align-items:center;gap:4px}.newsx{background:none;border:0;padding:0 2px;color:inherit;cursor:pointer;min-height:0}
+.newsl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}.newsl li{padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.4}
+.newsl a{color:var(--fg);text-decoration:none;font-weight:600}.newsl a:hover{color:var(--acc);text-decoration:underline}
+@media (max-width:900px){.calgrid{grid-template-columns:1fr}}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .calccy .chip,:root:is([data-ui="phone"],[data-ui="tablet"]) .newsx{min-height:44px;min-width:44px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .newsl a{display:inline-block;min-height:44px;padding:4px 0}
+:root[data-ui="phone"] .calq,:root[data-ui="phone"] .calq input{width:100%;min-width:0}

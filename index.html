@@ -554,7 +554,7 @@ const PG=R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map
 PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
 document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
-document.getElementById("tag").textContent=isLive()?"Live · auto-scan":"Offline sample data";renderWL();renderPresets();kick()}
+document.getElementById("tag").textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";renderWL();renderPresets();kick()}
 // ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
 const CUS={};
 const guessM=n=>/=X$/.test(n)?"FX":/=F$/.test(n)?"FUT":/^\^/.test(n)?"IDX":/-USD$/.test(n)?"CRY":"STK";
@@ -1453,12 +1453,33 @@ async function fetchFH(s,tf){
     return d.t.map((t,i)=>({t:t*1000,o:d.o[i],h:d.h[i],l:d.l[i],c:d.c[i],v:d.v[i]}));
   }catch(e){return null}finally{FH.busy=0}
 }
+// ---------- Upstream failover: if primary feed silent >3s, serve last good cache ----------
+let FAILOVER={on:false,since:0,lastOk:Date.now(),reason:""};
+function markOk(src){
+  FAILOVER.lastOk=Date.now();
+  if(FAILOVER.on){FAILOVER.on=false;FAILOVER.reason="";status();const tag=document.getElementById("tag");if(tag&&isLive())tag.textContent="Live · auto-scan";}
+}
+function checkFailover(){
+  if(!isLive())return;
+  const silent=Date.now()-FAILOVER.lastOk;
+  if(silent>3000&&!FAILOVER.on){
+    FAILOVER.on=true;FAILOVER.since=Date.now();
+    FAILOVER.reason=BNWS.ws&&BNWS.ws.readyState!==1?"websocket down":"upstream silent";
+    // last-good 1m (and other) series already restored into LIVE from IndexedDB on boot
+    status();
+    const tag=document.getElementById("tag");if(tag)tag.textContent="CACHED FAILOVER";
+    tick();
+  }
+}
+setInterval(checkFailover,1000);
+
 const BNWS={ws:null,subs:new Set()};
 function bnwsConnect(){
   if(BNWS.ws)return;
   BNWS.ws=new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr");
   BNWS.ws.onmessage=e=>{
     try{
+      markOk("ws");
       const data=JSON.parse(e.data);
       if(!Array.isArray(data))return;
       data.forEach(t=>{
@@ -1483,7 +1504,8 @@ function setLive(){if(snapOn()){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];i
 SYMS=[...BN.list,...FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)),...YFW.map(w=>mk2(w,"yf",w.td)),...(BN.err&&!BN.list.length?YCR.map(w=>mk2(w,"yf",w.td)):[])]}
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
-d.textContent=(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
+const fo=FAILOVER.on?"CACHED FAILOVER · ":" ";
+d.textContent=fo+(BN.busy?"Loading crypto list… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+"), using 24 major coins from Yahoo":"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
 function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10])return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
 err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
@@ -1497,7 +1519,7 @@ const w=async()=>{while(QB.length){
 while(Date.now()<BN.pause)await sleep(500);
 const[s,tf,k]=QB.shift();status();
 try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=250`);
-LIVE[k]=j.map(x=>({t:Math.floor(x[0]/1000),o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k)}
+LIVE[k]=j.map(x=>({t:Math.floor(x[0]/1000),o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k);markOk("bn")}
 catch(e){if(e.status===429||e.status===418){QB.unshift([s,tf,k]);BN.pause=Date.now()+Math.max((e.ra||0)*1000,e.status===418?120000:30000);status();continue}
 ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
@@ -1526,7 +1548,7 @@ const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
 // the free Twelve Data plan allows ~8 requests a minute, so it is only used as a backup for what is on screen
 const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
 if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
-try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k]}
+try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k];markOk("yf")}
 catch(e){if(e.soft){if(++YF.fails>=8)markDead();if(FH.key){const fh=await fetchFH(s,tf);if(fh){LIVE[k]=fh;LT[k]=Date.now();delete PEND[k];fin(s,tf);continue}}if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
 fin(s,tf);await sleep(100)}};
 await Promise.all([w(),w(),w(),w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
@@ -1538,7 +1560,7 @@ try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeU
 if(j.status==="error"||!j.values){const m=String(j.message||"No data");
 if(j.code===429&&!/day/i.test(m)){QT.unshift([s,tf,k]);again=true;wait=61000}
 else{ERR[k]=s[0]+": "+m.slice(0,90);if(/day/i.test(m)){QT.length=0}}}
-else{LIVE[k]=j.values.reverse().map(v=>({t:Math.floor(Date.parse(v.datetime.length>10?v.datetime.replace(" ","T")+"Z":v.datetime+"T00:00:00Z")/1000),o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+(v.volume||0)})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k);saveC()}
+else{LIVE[k]=j.values.reverse().map(v=>({t:Math.floor(Date.parse(v.datetime.length>10?v.datetime.replace(" ","T")+"Z":v.datetime+"T00:00:00Z")/1000),o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+(v.volume||0)})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k);saveC();markOk("td")}
 }catch(e){ERR[k]=s[0]+": network error"}
 if(!again)delete PEND[k];fin(s,tf);await sleep(wait)}
 bz.td=0}

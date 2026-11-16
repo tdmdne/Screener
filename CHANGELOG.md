@@ -3,6 +3,17 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Desktop chart fills its panel; smaller TradingView link.**
+  - While candles load, or after a load error, the chart area now fills the whole panel instead of a short box at the top. The loaded chart already filled it; this makes the loading and error states match.
+  - The chart keeps resizing with the window (Workspace and Supercharts).
+  - The large orange "TradingView ↗" button is now a small inline link at the end of the chart toolbar. It still opens the same symbol and interval on TradingView in a new tab.
+- **Screener list on desktop is one continuous list.**
+  - On desktop (Workspace and Screener Pro) every match is in one scrolling list with sticky column headers. There are no pages, and the Rows 20/50/100 pills are hidden there.
+  - Only the rows near the viewport are drawn, with spacer rows keeping the scroll height, so long lists stay smooth. Data loading still starts with the rows on screen.
+  - Sort, filters, search, the "N matches" count, clicking a row to chart it and Arrow Up/Down all work across the whole list. Arrow keys scroll the list to keep the selected row in view. A new filter or sort starts at the top.
+  - Phones and tablets keep pages.
+  - Mini-chart mode shows the list in batches of 48 with "Show more", instead of all of it at once.
+  - Scoring, preset and filter maths are unchanged: the list is the same rows in the same order; only how many are drawn at once changed.
 - **Each account's saved work is now kept separate on a shared device.**
   - Charts, drawings, the journal, templates, alerts, scripts, screener layouts and other settings are now saved per signed-in account, under `scr2~<code>` and `scr2p~<code>`. The code is made from the username, ignoring case and spaces.
   - Guests and the sign-in screen start from defaults and never read anyone's saved work. Logging out and signing in as someone else shows only that person's work.

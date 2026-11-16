@@ -941,6 +941,16 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 @media (hover:none){.vt-navb:not(.on),.vt-paneb:not(.on){display:none}}
 :root:is([data-ui="phone"],[data-ui="tablet"]) .vt-navb button,:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-paneb button{min-width:44px;min-height:44px}
 .vt-indrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+/* 98 layout: chart loading / error states fill the chart area; TradingView link is a small inline link */
+#cv>.vt-skel{position:absolute;inset:0;min-height:0;margin:0}
+#cv>.vt-cverr{position:absolute;inset:0;max-width:none;justify-content:center;align-items:center;text-align:center}
+#cv>.vt-cverr p{max-width:520px}
+.vt-tvl{display:inline-flex;align-items:center;font-size:12px;line-height:1;padding:4px 6px;border-radius:6px;color:var(--mut);text-decoration:none;white-space:nowrap;margin-left:auto}
+.vt-tvl:hover,.vt-tvl:focus-visible{color:var(--acc,#fb923c);background:rgba(251,146,60,.10);text-decoration:underline}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-tvl{min-height:44px;padding:0 10px}
+/* virtualised list spacers: no padding/border so their height is exact */
+#t tr.vt-vsp td{padding:0!important;border:0!important;background:none!important}
+.mcmore{display:block;margin:10px auto 14px}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -1297,10 +1307,11 @@ let h=`<tr><th><span class="h" onclick="srt('sym')">Symbol${ar("sym")}</span></t
 vis.forEach(c=>{h+=`<th><span class="h" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">⚙</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
 const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||20)));if(S.page>=pages)S.page=0;let b="";
-const PG=R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r.s[0]));
-PGL=PG.map(r=>r.s[0]);PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});
+const VW=typeof vtVirt==="function"?vtVirt(R.length):null; // desktop: one continuous, virtualised list (no pages)
+const PG=VW?R.slice(VW.a,VW.b):R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r.s[0]));
+PGL=(VW?R:PG).map(r=>r.s[0]);if(VW&&VW.top)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.top}px"></td></tr>`;PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});if(VW&&VW.bot)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.bot}px"></td></tr>`;
 document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
-document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
+document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1&&!VW?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>‹ Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ›</button>`:"";
 document.getElementById("tag").textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";renderWL();renderPresets();kick()}
 // ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
 const CUS={};
@@ -1434,7 +1445,7 @@ if(!SYMS.length){cp.innerHTML=`<p class="mut vt-skel" role="status">Loading mark
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b id="cpx">${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot">📷</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset to live">↺</button><a class="btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><b>${s[0]} <span class="mut">${MK[s[1]]}</span></b>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" style="background:none;border:none;cursor:pointer;font-size:16px">≈</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist">${wlAll().includes(s[0])?"★":"☆"}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot">📷</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset to live">↺</button><a class="vt-tvl" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}&interval=${INT[C.tf]}" target="_blank" rel="noopener" title="Open this symbol on TradingView (new tab)">TradingView ↗</a></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const TZ_OFF={"ny":-5,"utc":0,"lon":0,"par":1,"ber":1,"tok":9,"sha":8,"sgp":8,"hkg":8,"syd":10,"dub":4,"mos":3,"sao":-3,"chi":-6,"den":-7,"la":-8};
@@ -2622,7 +2633,7 @@ document.addEventListener("keydown",e=>{
   if(i<0)i=dir>0?0:PGL.length-1;
   else i=Math.max(0,Math.min(PGL.length-1,i+dir));
   const next=PGL[i];
-  if(next&&next!==S.chart.sym)openChart(next);
+  if(next&&next!==S.chart.sym){openChart(next);if(typeof vtVirtShow==="function")vtVirtShow(i)}
 },true);
 let BOOTED=false;
 // the app only starts (and only fetches market data) once someone is signed in
@@ -3313,7 +3324,7 @@ const mk=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k));
 const names=[...Object.keys(BI),...Object.keys(P)];
 b.innerHTML=`<span class="sxlbl">Market</span><span class="seg">${mk.map(k=>`<button class="${S.mkt===k?"on":""}" onclick="S.mkt='${k}';S.page=0;save();render()">${MK[k]}</button>`).join("")}</span>`+
 `<span class="sxlbl">Cycle</span><span class="seg">${SXF.map(([k,n])=>`<button class="${(S.sFilter||"all")===k?"on":""}" onclick="S.sFilter='${k}';S.page=0;save();render()">${n}</button>`).join("")}</span>`+
-`<span class="sxlbl">Rows</span><span class="seg">${[20,50,100].map(n=>`<button class="${(S.rows||20)===n?"on":""}" onclick="S.rows=${n};S.page=0;save();render()">${n}</button>`).join("")}</span>`+
+(typeof vtVirtOn==="function"&&vtVirtOn()?"":`<span class="sxlbl">Rows</span><span class="seg">${[20,50,100].map(n=>`<button class="${(S.rows||20)===n?"on":""}" onclick="S.rows=${n};S.page=0;save();render()">${n}</button>`).join("")}</span>`)+
 `<span class="sp"></span><select id="sxlay" title="Saved screener layouts" onchange="pick(this.value)"><option value="">Layout\u2026</option>${names.map(n=>`<option value="${esc(n)}" ${S.cur===n?"selected":""}>${esc(n)}</option>`).join("")}</select><button onclick="saveCur()" title="Save the current columns and filters">Save</button><button onclick="xfer()" title="Export or import saved layouts">Export</button><button onclick="openCols()">Columns</button>`}
 function sxSel(){document.querySelectorAll("#t tbody tr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===SX.sym&&!!document.querySelector("#sxd.open")))}
 function sxDrawer(sym){let d=document.getElementById("sxd");if(!d){d=document.createElement("aside");d.id="sxd";d.setAttribute("aria-label","Chart preview");document.body.appendChild(d)}
@@ -3712,7 +3723,7 @@ if(typeof vtFooterBuild==="function"){const _vtKbF=vtFooterBuild;vtFooterBuild=f
 // the table). Uses the existing candle store and live updates; missing candles are queued through need(), a few at a time.
 // Only redraws a card when its last bar or price changed. Click / Enter opens the full chart.
 const MINI_TFS=["15m","1H","4H","1D"],MINI_N=48;
-const MINI={sig:"",cards:new Map(),raf:0,dirty:new Set()};
+const MINI={sig:"",cards:new Map(),raf:0,dirty:new Set(),lim:48};
 function miniCfg(){if(!S.mini||typeof S.mini!=="object")S.mini={};if(typeof S.mini.on!=="boolean")S.mini.on=false;if(!MINI_TFS.includes(S.mini.tf))S.mini.tf="1H";return S.mini}
 function miniToggle(on){const C=miniCfg();C.on=on==null?!C.on:!!on;save();miniApply();if(C.on)miniSync(true)}
 function miniApply(){const C=miniCfg(),tw=document.querySelector(".side>.tw")||document.getElementById("t")&&document.getElementById("t").closest(".tw");
@@ -3722,15 +3733,18 @@ function miniApply(){const C=miniCfg(),tw=document.querySelector(".side>.tw")||d
 function miniCols(){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();return{g:v("--g")||"#46d38a",r:v("--r")||"#f87171",m:v("--mut")||"#8a8f98",l:v("--line")||"#27272a",acc:v("--acc")||"#fb923c"}}
 function miniBars(s,tf){const a=candles(s,tf);return a&&a.length?a.slice(-MINI_N):null}
 function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getElementById("vtmini");if(!g)return miniApply();
-  const syms=(typeof PGL!=="undefined"&&PGL?PGL:[]).slice(),sig=C.tf+"|"+syms.join(",");
+  /* the desktop list is one continuous list, so cards are shown in batches (Show more) rather than all at once */
+  const all=(typeof PGL!=="undefined"&&PGL?PGL:[]),syms=all.slice(0,MINI.lim),sig=C.tf+"|"+all.length+"|"+syms.join(",");
   /* same cards in a new order (e.g. a tick re-sorted the list): move them instead of rebuilding and redrawing every card */
   const prevTf=MINI.sig?MINI.sig.split("|")[0]:null,mg=g.querySelector(".minig");
   if(!force&&sig!==MINI.sig&&prevTf===C.tf&&mg&&syms.length===MINI.cards.size&&syms.every(n=>MINI.cards.has(n))){MINI.sig=sig;for(const n of syms)mg.appendChild(MINI.cards.get(n).el)}
   if(force||sig!==MINI.sig){MINI.sig=sig;MINI.cards.clear();
     g.innerHTML=`<div class="minih"><span class="mut">Mini charts \u00b7 last ${MINI_N} bars</span><span class="sp"></span><div class="minitf" role="group" aria-label="Mini chart interval">${MINI_TFS.map(t=>`<button type="button" data-tf="${t}" aria-pressed="${t===C.tf}" class="${t===C.tf?"on":""}">${t}</button>`).join("")}</div></div>`+
       `<div class="minig">${syms.map(n=>`<button type="button" class="mc" data-s="${esc(n)}"><span class="mch"><b class="mcn">${esc(String(n).replace(/USDT$/,""))}</b><span class="mcp"></span></span><canvas aria-hidden="true"></canvas><span class="mcf"><span class="mcc"></span><span class="mcw mut"></span></span></button>`).join("")}</div>`+
+      (all.length>syms.length?`<button type="button" class="mcmore">Show more (${syms.length} of ${all.length})</button>`:"")+
       (syms.length?"":`<p class="mut" style="padding:10px">No symbols match this list.</p>`);
     g.querySelectorAll(".minitf button").forEach(b=>b.onclick=()=>{miniCfg().tf=b.dataset.tf;save();miniSync(true)});
+    {const mm=g.querySelector(".mcmore");if(mm)mm.onclick=()=>{MINI.lim+=48;miniSync(true)}}
     g.querySelectorAll(".mc").forEach(b=>{b.onclick=()=>openChart(b.dataset.s);MINI.cards.set(b.dataset.s,{el:b,k:""})})}
   let asked=0;for(const [n,c] of MINI.cards){const s=symOf(n);if(!s)continue;const B=miniBars(s,C.tf);
     if(!B&&asked<8&&typeof need==="function"&&(typeof isLive!=="function"||isLive())){try{need(s,C.tf,false)}catch(e){}asked++}
@@ -5037,6 +5051,26 @@ function vtVolPill(s){const top=document.querySelector("#cp .cpb .row.top");if(!
   try{ch.subscribeCrosshairMove(p=>{if(!document.body.contains(el))return;if(p&&p.logical!=null&&p.logical>=0)set(Math.round(p.logical));else set(a.length-1)})}catch(e){}}
 function vtTimeCol(){const tb=document.getElementById("timebar");if(!tb)return;const c=S.chart.timeCol;tb.style.color=c&&/^#[0-9a-f]{6}$/i.test(c)&&c.toLowerCase()!=="#131722"?c:""}
 (function(){if(typeof vtAfterDraw!=="function")return;const base=vtAfterDraw;vtAfterDraw=function(s,a,T){base(s,a,T);for(const f of [vtNavBtns,vtPaneBtns,()=>vtVolPill(s),vtTimeCol]){try{f()}catch(e){console.error(e)}}}})();
+// ---------- 98 layout: continuous, virtualised screener list on desktop ----------
+// Desktop shows every match in one scrolling list (sticky headers) instead of pages. Only the rows near
+// the viewport are in the DOM; spacer rows keep the scroll height right. The list, filters, sort and
+// scoring are unchanged: this only decides which slice of the already-sorted rows is drawn.
+const VV={rh:36,a:-1,b:-1,n:0,sig:null,raf:0,bound:null};
+function vtVirtOn(){const d=document.documentElement.dataset;return d.ui==="pc"&&d.split==="1"&&S.virt!==false}
+function vtVirtHead(){const p=document.getElementById("presets"),t=document.querySelector("#t thead");return(p&&p.offsetParent?p.offsetHeight:0)+(t?t.offsetHeight:0)}
+function vtVirtRange(w,n){const st=Math.max(0,w.scrollTop-vtVirtHead()),vis=Math.ceil((w.clientHeight||600)/VV.rh)+1,C=20;
+const a=Math.min(Math.max(0,Math.floor(st/VV.rh/C)*C-C),Math.max(0,n-1)),b=Math.min(n,a+vis+3*C);return{a,b}}
+function vtVirt(n){if(!vtVirtOn())return null;const w=document.querySelector(".side>.tw")||document.querySelector(".tw");if(!w)return null;vtVirtBind(w);
+if(VV.sig!==S._sig){VV.sig=S._sig;w.scrollTop=0}
+const rs=[...document.querySelectorAll("#t tbody tr[data-s]")];if(rs.length){const h=rs.reduce((t,r)=>t+r.offsetHeight,0)/rs.length;if(h>8)VV.rh=h}
+const {a,b}=vtVirtRange(w,n);VV.a=a;VV.b=b;VV.n=n;return{a,b,top:Math.round(a*VV.rh),bot:Math.round((n-b)*VV.rh)}}
+function vtVirtBind(w){if(VV.bound===w)return;VV.bound=w;w.addEventListener("scroll",()=>{if(VV.raf)return;VV.raf=requestAnimationFrame(()=>{VV.raf=0;if(!vtVirtOn()||VV.a<0)return;const r=vtVirtRange(w,VV.n);if(r.a!==VV.a||r.b!==VV.b)render()})},{passive:true})}
+// keep the keyboard-selected row in view (rows under the sticky header count as hidden)
+function vtVirtShow(i){if(!vtVirtOn())return;const w=VV.bound;if(!w)return;const head=vtVirtHead(),th=(document.querySelector("#t thead")||{}).offsetHeight||0,top=head+i*VV.rh;
+if(top-th<w.scrollTop)w.scrollTop=Math.max(0,top-th);else if(top+VV.rh>w.scrollTop+w.clientHeight)w.scrollTop=top+VV.rh-w.clientHeight;
+const r=vtVirtRange(w,VV.n);if(r.a!==VV.a||r.b!==VV.b)render()}
+// switching between phone/tablet and desktop layouts swaps pages <-> continuous list
+window.addEventListener("resize",deb(()=>{const on=vtVirtOn();if(on!==VV.was){VV.was=on;if(typeof BOOTED!=="undefined"&&BOOTED)render()}},250));
 /* No placeholder pages remain; stubPage() is kept for future pages. */
 // ==== VT PAGES END ====
 applyTheme();authInit();

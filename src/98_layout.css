@@ -1,0 +1,10 @@
+/* 98 layout: chart loading / error states fill the chart area; TradingView link is a small inline link */
+#cv>.vt-skel{position:absolute;inset:0;min-height:0;margin:0}
+#cv>.vt-cverr{position:absolute;inset:0;max-width:none;justify-content:center;align-items:center;text-align:center}
+#cv>.vt-cverr p{max-width:520px}
+.vt-tvl{display:inline-flex;align-items:center;font-size:12px;line-height:1;padding:4px 6px;border-radius:6px;color:var(--mut);text-decoration:none;white-space:nowrap;margin-left:auto}
+.vt-tvl:hover,.vt-tvl:focus-visible{color:var(--acc,#fb923c);background:rgba(251,146,60,.10);text-decoration:underline}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-tvl{min-height:44px;padding:0 10px}
+/* virtualised list spacers: no padding/border so their height is exact */
+#t tr.vt-vsp td{padding:0!important;border:0!important;background:none!important}
+.mcmore{display:block;margin:10px auto 14px}

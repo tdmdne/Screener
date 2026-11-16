@@ -358,6 +358,31 @@ html.locked .auth{display:flex}
 .vpmenu .sep{height:1px;background:var(--line);margin:4px 0;padding:0;cursor:default}
 .vpmenu .sep:hover{background:var(--line)}
 #dsel .pbtn{min-width:34px}
+/* chart templates menu */
+.tplm{min-width:0}
+@media (min-width:641px){.box:has(>.tplm){max-width:520px;width:min(520px,92vw)}}
+.tplm h3{margin:0 0 4px}
+.tplm .tplhelp{margin:0 0 12px;font-size:12.5px;line-height:1.45}
+.tpll{list-style:none;margin:0 0 14px;padding:0;border:1px solid var(--line);border-radius:8px;max-height:min(46vh,340px);overflow:auto}
+.tplr{display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid var(--line)}
+.tplr:last-child{border-bottom:0}
+.tplr .tpl_ld{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;background:none;border:0;padding:8px 6px;color:var(--fg);cursor:pointer;border-radius:6px}
+.tplr .tpl_ld:hover{background:var(--acc-soft,rgba(251,146,60,.12))}
+.tpln{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.tpls,.tpld{font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--mut);flex:none}
+.tpld{color:var(--acc);border-color:var(--acc)}
+.tpla{display:flex;gap:4px;flex:none}
+.tpla button{min-width:32px;min-height:32px;padding:0 8px}
+.tpl_df.on{color:var(--acc);border-color:var(--acc)}
+.tplq{flex:1;font-size:13px}
+.tple{margin:0 0 14px;color:var(--mut);font-size:13px}
+.tplf{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.tplf>label:first-child{font-size:12.5px;color:var(--mut)}
+.tplrow{display:flex;gap:6px;flex:1}
+.tplrow input{flex:1;min-width:0}
+.tplio{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tplm :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (pointer:coarse){.tpla button{min-width:40px;min-height:40px}}
 /* Screener Pro */
 #sxbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
 :root[data-page="screener"] #sxbar{display:flex}
@@ -2659,9 +2684,87 @@ if(/^ps_/.test(id)){const p=document.querySelector(".pset");if(p)p.dispatchEvent
 if(SELD&&(id==="tb_c"||id==="ds_c")&&!isPos(SELD)){(S.toolDef[SELD.t]=S.toolDef[SELD.t]||{}).c=c;saveSoon()}
 if(SELD&&(id==="ds_tc"||id==="ds_sc"||id==="ds_txc"))saveSoon();return r};
 document.addEventListener("change",e=>{const t=e.target;if(!SELD||!t.closest||!t.closest("#dsel,.ov"))return;if(t.closest(".pset"))return;
-if(t.closest("#dsel")||t.id==="ds_s"||t.id==="ds_w"){const D=(S.toolDef[SELD.t]=S.toolDef[SELD.t]||{});if(SELD.s!=null)D.s=SELD.s;if(SELD.w!=null)D.w=SELD.w;if(SELD.c)D.c=SELD.c}saveSoon()},true);
+if(!isPos(SELD)&&(t.closest("#dsel")||t.id==="ds_s"||t.id==="ds_w")){const D=(S.toolDef[SELD.t]=S.toolDef[SELD.t]||{});if(SELD.s!=null)D.s=SELD.s;if(SELD.w!=null)D.w=SELD.w;if(SELD.c)D.c=SELD.c}saveSoon()});// bubble phase: runs after the control's own onchange has updated SELD
 document.addEventListener("input",e=>{const t=e.target;if(SELD&&t.closest&&t.closest(".ov")&&!t.closest(".pset")&&/^ds_/.test(t.id||""))saveSoon()},true);
 const _vtDFin=dFin;dFin=function(){const d=DRAFT;if(d&&!isPos(d)){const D=S.toolDef[d.t];if(D){if(D.c)d.c=D.c;if(D.w)d.w=D.w;if(D.s!=null)d.s=D.s}}return _vtDFin.apply(this,arguments)};
+// ---------- chart templates (Supercharts) ----------
+// A template is the full chart setup: style + indicators + timeframe (S.chart), panes (S.sc), drawings for the symbol,
+// drawing-tool and position-tool defaults, and optionally the symbol. Stored in S.tpl = {list:[...], def:id}.
+// The default template is applied once per page load when Supercharts is first opened (setup only: no drawings, no symbol change).
+// Guests can export/apply nothing they haven't saved; saving, importing, renaming and defaults need sign-in (vtGate).
+const TPL_FMT="vektor-chart-templates",TPL_V=1;
+function tplS(){S.tpl=S.tpl||{list:[],def:null};S.tpl.list=S.tpl.list||[];return S.tpl}
+const tplClone=o=>JSON.parse(JSON.stringify(o));
+function tplCapture(name,withSym){const ch=tplClone(S.chart);delete ch.sym;
+  return{id:"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:String(name).trim().slice(0,60),created:Date.now(),
+    sym:withSym?S.chart.sym:null,chart:ch,sc:{panes:S.sc.panes,tfB:S.sc.tfB,xsync:S.sc.xsync},dr:tplClone(DL()),toolDef:tplClone(S.toolDef||{}),posDef:tplClone(S.posDef||{})}}
+function tplUniq(n,skip){const L=tplS().list;let b=n||"Template",x=b,i=2;while(L.some(t=>t!==skip&&t.name.toLowerCase()===x.toLowerCase()))x=b+" ("+(i++)+")";return x}
+function tplSave(name,withSym){if(vtGate("chart templates"))return null;name=String(name||"").trim();if(!name){toast("Give the template a name");return null}
+  const t=tplCapture(tplUniq(name),withSym);tplS().list.push(t);save();toast("Template \u201c"+t.name+"\u201d saved");return t}
+function tplApply(t,opt){opt=opt||{};if(!t)return;const keep=S.chart.sym;
+  for(const k of Object.keys(S.chart))if(k!=="sym"&&!(k in t.chart))delete S.chart[k];
+  Object.assign(S.chart,tplClone(t.chart));S.chart.sym=(!opt.setupOnly&&t.sym)?t.sym:keep;
+  if(t.sc){S.sc.tfB=t.sc.tfB||S.sc.tfB;S.sc.xsync=t.sc.xsync!==false}
+  if(!opt.setupOnly){if(Array.isArray(t.dr)){S.dr=S.dr||{};S.dr[S.chart.sym]=tplClone(t.dr).map((d,i)=>Object.assign(d,{id:Date.now()+i}))}SELD=null;
+    if(t.toolDef)S.toolDef=tplClone(t.toolDef);if(t.posDef)S.posDef=tplClone(t.posDef)}
+  save();const n=t.sc&&t.sc.panes===2?2:1;
+  if(typeof scSetPanes==="function"&&S.sc.panes!==n){S.sc.panes=n;scSetPanes(n)}
+  drawChart();if(typeof markSel==="function")markSel();if(!opt.quiet)toast("Template \u201c"+t.name+"\u201d loaded")}
+function tplRename(id,name){if(vtGate("chart templates"))return;const t=tplS().list.find(x=>x.id===id);name=String(name||"").trim().slice(0,60);if(!t||!name)return;t.name=tplUniq(name,t);save()}
+function tplDelete(id){if(vtGate("chart templates"))return;const T=tplS();T.list=T.list.filter(x=>x.id!==id);if(T.def===id)T.def=null;save()}
+function tplSetDef(id){if(vtGate("chart templates"))return;const T=tplS();T.def=T.def===id?null:id;save()}
+// ---- JSON export / import (validated + sanitised; unknown keys dropped) ----
+function tplExport(ids){const L=tplS().list.filter(t=>!ids||ids.includes(t.id));return{format:TPL_FMT,v:TPL_V,exported:new Date().toISOString(),templates:tplClone(L)}}
+const TPL_DT=()=>typeof DT==="object"&&DT?Object.keys(DT):null;
+function tplClean(t){if(!t||typeof t!=="object"||typeof t.name!=="string"||!t.chart||typeof t.chart!=="object"||Array.isArray(t.chart))return null;
+  const ch={};for(const[k,v]of Object.entries(t.chart)){if(k==="sym")continue;const cur=S.chart[k];
+    if(k==="ind"){if(Array.isArray(v))ch.ind=v.filter(d=>d&&typeof d==="object"&&typeof d.t==="string").map(d=>{const o={};for(const[a,b]of Object.entries(d))if(["string","number","boolean"].includes(typeof b))o[a]=b;return o});continue}
+    if(["string","number","boolean"].includes(typeof v)&&(cur===undefined||typeof v===typeof cur))ch[k]=v}
+  const okT=TPL_DT(),num=x=>typeof x==="number"&&isFinite(x);
+  const dr=Array.isArray(t.dr)?t.dr.filter(d=>d&&typeof d.t==="string"&&(!okT||okT.includes(d.t))&&Array.isArray(d.p)&&d.p.every(p=>p&&num(p.t)&&num(p.y))).map(d=>{const o={};for(const[a,b]of Object.entries(d))if(a==="p")o.p=d.p.map(p=>({t:p.t,y:p.y}));else if(["string","number","boolean"].includes(typeof b))o[a]=b;return o}):[];
+  const sc=t.sc&&typeof t.sc==="object"?{panes:t.sc.panes===2?2:1,tfB:typeof t.sc.tfB==="string"?t.sc.tfB.slice(0,8):"1D",xsync:t.sc.xsync!==false}:{panes:1,tfB:"1D",xsync:true};
+  const flat=o=>{const r={};if(o&&typeof o==="object")for(const[k,v]of Object.entries(o)){if(v&&typeof v==="object"&&!Array.isArray(v)){r[k]={};for(const[a,b]of Object.entries(v))if(["string","number","boolean"].includes(typeof b))r[k][a]=b}else if(["string","number","boolean"].includes(typeof v))r[k]=v}return r};
+  return{id:"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:t.name.trim().slice(0,60)||"Imported",created:Date.now(),sym:typeof t.sym==="string"&&/^[A-Z0-9.:_\-]{1,20}$/.test(t.sym)?t.sym:null,chart:ch,sc,dr,toolDef:flat(t.toolDef),posDef:flat(t.posDef)}}
+function tplImport(text){if(vtGate("chart templates"))return -1;let j;try{j=JSON.parse(text)}catch(e){toast("That file isn\u2019t valid JSON");return 0}
+  const arr=j&&j.format===TPL_FMT&&Array.isArray(j.templates)?j.templates:null;if(!arr){toast("That file isn\u2019t a Vektor chart template export");return 0}
+  let n=0;for(const raw of arr.slice(0,100)){const t=tplClean(raw);if(!t)continue;t.name=tplUniq(t.name);tplS().list.push(t);n++}
+  save();toast(n?"Imported "+n+" template"+(n>1?"s":""):"No usable templates in that file");return n}
+// ---- default template: once per page load, on first Supercharts visit (setup only) ----
+let TPL_DEF_DONE=false;
+function tplMaybeDefault(){if(TPL_DEF_DONE||S.pageView!=="chart")return;TPL_DEF_DONE=true;const T=tplS(),t=T.def&&T.list.find(x=>x.id===T.def);if(t)tplApply(t,{setupOnly:true,quiet:true})}
+// ---- menu (modal; a bottom sheet on phones) ----
+function tplM(){const T=tplS(),L=T.list;
+  const row=t=>`<li class="tplr" data-id="${esc(t.id)}"><button type="button" class="tpl_ld" data-id="${esc(t.id)}" title="Load this template"><span class="tpln">${esc(t.name)}</span>${t.sym?`<span class="tpls">${esc(t.sym)}</span>`:""}${T.def===t.id?'<span class="tpld">Default</span>':""}</button>
+<span class="tpla"><button type="button" class="tpl_df${T.def===t.id?" on":""}" data-id="${esc(t.id)}" aria-pressed="${T.def===t.id}" aria-label="${T.def===t.id?"Remove as default":"Set as default"}: ${esc(t.name)}" title="${T.def===t.id?"Remove as default":"Set as default"}">\u2605</button><button type="button" class="tpl_rn" data-id="${esc(t.id)}" aria-label="Rename ${esc(t.name)}" title="Rename">\u270e</button><button type="button" class="tpl_ex" data-id="${esc(t.id)}" aria-label="Export ${esc(t.name)}" title="Export JSON">\u2913</button><button type="button" class="tpl_dl" data-id="${esc(t.id)}" aria-label="Delete ${esc(t.name)}" title="Delete">\u2715</button></span></li>`;
+  modal(`<div class="tplm" role="dialog" aria-modal="true" aria-labelledby="tpl_h"><h3 id="tpl_h">Chart templates</h3>
+<p class="mut tplhelp">A template saves this chart\u2019s style, indicators, timeframe, panes, drawings and tool defaults. The default (\u2605) sets up Supercharts each time you open the app.</p>
+${L.length?`<ul class="tpll" aria-label="Saved templates">${L.map(row).join("")}</ul>`:`<p class="tple">No templates yet. Save the current chart below.</p>`}
+<form class="tplf" id="tpl_form"><label for="tpl_name">Save current chart as</label><div class="tplrow"><input id="tpl_name" maxlength="60" placeholder="e.g. Clean candles + EMAs" autocomplete="off"><button type="submit" class="pri" id="tpl_save">Save</button></div>
+<label class="chk"><input type="checkbox" id="tpl_sym"> Include the symbol (${esc(S.chart.sym)})</label></form>
+<div class="tplio"><button type="button" id="tpl_exp" ${L.length?"":"disabled"}>Export all (JSON)</button><button type="button" id="tpl_imp">Import JSON\u2026</button><input type="file" id="tpl_file" accept="application/json,.json" hidden><button type="button" id="tpl_close">Close</button></div></div>`);
+  const box=MD.querySelector(".tplm"),q=s=>box.querySelector(s);
+  q("#tpl_form").onsubmit=e=>{e.preventDefault();if(tplSave(q("#tpl_name").value,q("#tpl_sym").checked))tplM()};
+  q("#tpl_close").onclick=closeM;q("#tpl_exp").onclick=()=>vtDownload(tplExport(),"vektor-chart-templates.json");
+  q("#tpl_imp").onclick=()=>{if(vtGate("chart templates"))return;q("#tpl_file").click()};
+  q("#tpl_file").onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>2e6){toast("That file is too big");return}if(tplImport(await f.text())>0)tplM()};
+  box.querySelectorAll(".tpl_ld").forEach(b=>b.onclick=()=>{tplApply(L.find(t=>t.id===b.dataset.id));closeM()});
+  box.querySelectorAll(".tpl_df").forEach(b=>b.onclick=()=>{tplSetDef(b.dataset.id);if(!vtIsGuest())tplM()});
+  box.querySelectorAll(".tpl_ex").forEach(b=>b.onclick=()=>{const t=L.find(x=>x.id===b.dataset.id);vtDownload(tplExport([t.id]),"vektor-template-"+t.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()+".json")});
+  box.querySelectorAll(".tpl_rn").forEach(b=>b.onclick=()=>{if(vtGate("chart templates"))return;const li=b.closest("li"),t=L.find(x=>x.id===b.dataset.id);
+    li.innerHTML=`<form class="tplrow tpl_rf"><input class="tpl_ri" maxlength="60" aria-label="New name for ${esc(t.name)}"><button type="submit" class="pri">Rename</button><button type="button" class="tpl_rc">Cancel</button></form>`;
+    const i=li.querySelector("input");i.value=t.name;i.focus();i.select();li.querySelector(".tpl_rc").onclick=()=>tplM();
+    li.querySelector("form").onsubmit=e=>{e.preventDefault();tplRename(t.id,i.value);tplM()}});
+  box.querySelectorAll(".tpl_dl").forEach(b=>b.onclick=()=>{if(vtGate("chart templates"))return;const li=b.closest("li"),t=L.find(x=>x.id===b.dataset.id);
+    li.innerHTML=`<span class="tplq">Delete \u201c${esc(t.name)}\u201d?</span><span class="tpla"><button type="button" class="tpl_dy danger">Delete</button><button type="button" class="tpl_dn">Keep</button></span>`;
+    li.querySelector(".tpl_dn").onclick=()=>tplM();li.querySelector(".tpl_dy").onclick=()=>{tplDelete(t.id);tplM()};li.querySelector(".tpl_dn").focus()});
+  MD.querySelector(".ov").addEventListener("keydown",e=>{if(e.key==="Escape"&&!e.target.closest(".tpl_rf")){e.preventDefault();closeM()}else if(e.key==="Escape"){e.preventDefault();tplM()}
+    if(e.key==="Tab"){const f=[...box.querySelectorAll("button:not([disabled]),input:not([type=file])")].filter(x=>x.offsetParent!==null);if(!f.length)return;const a=f[0],z=f[f.length-1];
+      if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}});
+  const first=box.querySelector(".tpl_ld")||q("#tpl_name");first.focus()}
+// ---- toolbar button next to Settings ----
+function tplBtn(){const s=document.querySelector('#cp .cpb .row.top button[onclick="setM()"]');if(!s||document.getElementById("tplb"))return;
+  const b=document.createElement("button");b.id="tplb";b.type="button";b.className=s.className;b.textContent="Templates";b.title="Chart templates";b.setAttribute("aria-haspopup","dialog");b.onclick=tplM;s.after(b)}
+const _vtAfterDrawT=vtAfterDraw;vtAfterDraw=function(){const r=_vtAfterDrawT.apply(this,arguments);try{tplBtn();tplMaybeDefault()}catch(e){console.error(e)}return r};
 // ---------- Screener Pro: full-width table, extra read-only columns, quick filter pills, slide-over chart ----------
 S.sx=Object.assign({tf:"1D"},S.sx||{});
 const SX={ch:null,sym:"",retry:0};

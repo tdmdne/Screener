@@ -3,6 +3,14 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Chart templates (Supercharts > Templates).**
+  - A template saves the full chart setup: chart type and colours, all chart settings, indicators, timeframe, panes (pane-2 timeframe and crosshair sync), drawings on the symbol, and drawing- and position-tool defaults. Including the symbol is optional and unticked by default.
+  - Load, rename, delete (with confirmation) and set as default (★). The default sets up Supercharts once each time the app is opened (setup only; it doesn't change your drawings or symbol).
+  - Export one or all templates as JSON, and import them back. Imports are validated and sanitised: unknown or non-simple values, invalid drawings and bad symbols are dropped, names show as plain text, files are limited to 2 MB and 100 templates, and duplicate names get " (2)".
+  - Keyboard: Esc closes the dialog (or cancels a rename), and Tab stays inside it. On phones it opens as a bottom sheet with 40px+ targets.
+  - Guests can open the menu, but saving, importing, renaming and choosing a default ask them to sign in.
+  - Tests: `tests/templates.js`. Screenshots: `shots/12_templates.png` and `shots/m/390_templates.png`.
+
 - **Sign-in screen redesign, guest mode and sign-in prompts.**
   - **Look:** a full-screen dark backdrop of flowing price lines and drifting particles drawn on our own canvas. It shows the headline "Every market. One terminal.", a short feature list and live ticker snippets for BTC, ETH, SOL, BNB and XRP from Binance's public 24h ticker. If that request fails, the snippets are hidden; prices are never made up. The card sits on the right on desktop and below the headline on phones.
   - **Reduced motion:** with `prefers-reduced-motion` on, one static frame is drawn and there's no animation loop. The loop also stops whenever the sign-in screen is hidden.

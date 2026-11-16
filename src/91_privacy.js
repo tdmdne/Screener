@@ -12,7 +12,7 @@ function vtCacheOK(){const c=vtConsent();return !!(c&&c.cache)}
 // this category existed have no "prefs" field and so count as "no"
 function vtPrefsOK(){const c=vtConsent();return !!(c&&c.prefs)}
 const VT_PREFS_KEY="vt_prefs";
-function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY);localStorage.removeItem("vt_aikey")}catch(e){}}
+function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY);const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^vt_(aikey|tdkey)(~|$)/.test(k))ks.push(k)}ks.forEach(k=>localStorage.removeItem(k))}catch(e){}}
 function vtConsentLog(){try{const l=JSON.parse(vtLS(VT_CL)||"[]");return Array.isArray(l)?l:[]}catch(e){return[]}}
 function vtConsentSet(cache,method,prefs){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,prefs:prefs==null?method==="accept_all":!!prefs,method};
 vtLS(VT_CK,JSON.stringify(rec));const l=vtConsentLog();l.push(rec);vtLS(VT_CL,JSON.stringify(l.slice(-50)));
@@ -32,7 +32,7 @@ el.innerHTML=`<h2 id="vcb_t">Storage on this device</h2>
 ${manage?`<div class="cats">
 <div class="cat"><input type="checkbox" checked disabled id="vcb_nec" aria-describedby="vcb_nec_d"><label for="vcb_nec"><b>Strictly necessary</b><span class="mut" id="vcb_nec_d">Settings, watchlist, alerts, layouts, sign-in name and this consent record. Needed for the app to work.</span></label><span class="st">Always on</span></div>
 <div class="cat"><input type="checkbox" id="vcb_cache" ${c&&c.cache?"checked":""} aria-describedby="vcb_cache_d"><label for="vcb_cache"><b>Market-data cache</b><span class="mut" id="vcb_cache_d">Keeps downloaded price candles and the market list in IndexedDB so the app starts faster and makes fewer requests. Off unless you turn it on.</span></label></div>
-<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>), and your Journal AI key if you tick \u201cRemember\u201d (<code>vt_aikey</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
+<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>), and your Journal AI key if you tick \u201cRemember\u201d (<code>vt_aikey~\u2026</code>) and your own Twelve Data key (<code>vt_tdkey~\u2026</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
 <div class="cat"><input type="checkbox" disabled id="vcb_an"><label for="vcb_an"><b>Analytics and advertising</b><span class="mut">Not used. There are no analytics, advertising cookies or third-party trackers.</span></label><span class="st">Not used</span></div></div>`:""}
 <div class="btns"><button type="button" class="cbtn" id="vcb_rej">Reject all</button><button type="button" class="cbtn" id="vcb_acc">Accept all</button>${manage?`<button type="button" class="cbtn alt" id="vcb_save">Save my choices</button>`:`<button type="button" class="cbtn alt" id="vcb_man">Manage choices</button>`}</div>`;
 document.body.appendChild(el);
@@ -54,13 +54,15 @@ function vtParse(v){try{return JSON.parse(v)}catch(e){return v}}
 async function vtIdbExists(){if(IDB)return true;try{if(indexedDB.databases)return(await indexedDB.databases()).some(d=>d.name==="scr")}catch(e){}return false}
 async function vtIdbDump(){if(!(await vtIdbExists()))return{};const db=IDB||await _vtIdb();if(!db)return{};
 return new Promise(r=>{const out={};try{const q=db.transaction("c").objectStore("c").openCursor();q.onsuccess=()=>{const c=q.result;if(!c){r(out);return}out[c.key]=c.value;c.continue()};q.onerror=()=>r(out)}catch(e){r(out)}})}
-async function vtInventory(){const ls=[],ss=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls.push([k,(localStorage.getItem(k)||"").length])}}catch(e){}
+/* keys scoped to a different signed-in user (name~<16 hex>) */
+function vtOtherAcct(k){const m=/~[0-9a-f]{16}$/.exec(k||"");return !!m&&(typeof VT_SCOPE==="undefined"||m[0]!==VT_SCOPE)}
+async function vtInventory(){const ls=[],ss=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls.push([vtOtherAcct(k)?k.replace(/~[0-9a-f]{16}$/,"~(another account)"):k,(localStorage.getItem(k)||"").length])}}catch(e){}
 try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);ss.push([k,(sessionStorage.getItem(k)||"").length])}}catch(e){}
 let idbN=null;if(await vtIdbExists()){const d=await vtIdbDump();idbN=Object.keys(d).length}let cs=0;try{if(window.caches)cs=(await caches.keys()).length}catch(e){}
 return{ls,ss,idbN,cs}}
 async function vtExportData(inclCache){const out={app:"Vektor Terminal",exported:new Date().toISOString(),policyVersion:VT_POLICY_V,
 note:"Everything Vektor Terminal stores in this browser. It may include API keys you saved, so keep this file safe.",localStorage:{},sessionStorage:{}};
-try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);out.localStorage[k]=vtParse(localStorage.getItem(k))}}catch(e){}
+try{let other=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(vtOtherAcct(k)){other++;continue}out.localStorage[k]=vtParse(localStorage.getItem(k))}if(other)out.otherAccounts=other+" entr"+(other===1?"y":"ies")+" saved by other accounts on this device were left out"}catch(e){}
 try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);out.sessionStorage[k]=vtParse(sessionStorage.getItem(k))}}catch(e){}
 out.indexedDB=inclCache?{scr:await vtIdbDump()}:{note:(await vtIdbExists())?"Market-data cache present but not included (tick the box to include it).":"No IndexedDB data."};return out}
 function vtDownload(obj,name){const b=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}

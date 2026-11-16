@@ -1053,9 +1053,18 @@ const BI={"Cheat sheet (candle change)":base([mk("price","price"),mk("dv","dv"),
 const clone=o=>JSON.parse(JSON.stringify(o));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const norm=cols=>cols.filter(c=>c&&TY[c.type]).map(c=>Object.assign({id:"c"+Math.random().toString(36).slice(2,8)},DF[c.type](),c));
+/* vt: per-user storage. Saved work (scr2, scr2p) lives under keys scoped to the signed-in user (scr2~<hash of the username>).
+   Guests and the sign-in screen start from defaults and never read anyone's saved work. */
+function vtUidHash(id){id=String(id||"").trim().toLowerCase();let a=0x811c9dc5,b=0x9e3779b9;for(let i=0;i<id.length;i++){const c=id.charCodeAt(i);a=Math.imul(a^c,16777619)>>>0;b=Math.imul(b^c,2246822519)>>>0;b=(b^(b>>>13))>>>0}return a.toString(16).padStart(8,"0")+b.toString(16).padStart(8,"0")}
+function vtAuthIdRaw(){for(const st of [LS,SS]){try{const r=st&&st.getItem("scr2a");if(r){const o=JSON.parse(r);if(o&&o.id)return String(o.id)}}catch(e){}}return null}
+let VT_UID=vtAuthIdRaw(),VT_SCOPE=VT_UID?"~"+vtUidHash(VT_UID):null;
+function vtSK(k,scope){const sc=scope===undefined?VT_SCOPE:scope;return sc?k+sc:null}
+/* data saved before accounts were separated (unscoped scr2/scr2p): it goes to whoever is signed in when this version first runs;
+   if nobody is, it is kept aside (marker vt_legacy) and never shown to guests; whoever signs in later is asked whether it is theirs. */
+(function(){try{if(lsGet("scr2")==null&&lsGet("scr2p")==null){lsRemove("vt_legacy");return}if(lsGet("vt_legacy")==null&&VT_SCOPE&&lsGet(vtSK("scr2"))==null){for(const k of ["scr2","scr2p"]){const v=lsGet(k);if(v!=null)lsSet(vtSK(k),v);lsRemove(k)}return}if(lsGet("vt_legacy")==null)lsSet("vt_legacy","1")}catch(e){}})();
 let P={},S=Object.assign({q:"",cur:""},clone(BI["Cheat sheet (candle change)"])),arm=false;
-try{P=JSON.parse(lsGet("scr2p")||"{}")}catch(e){}
-try{const x=JSON.parse(lsGet("scr2")||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}
+if(VT_SCOPE){try{P=JSON.parse(lsGet(vtSK("scr2p"))||"{}")}catch(e){}
+try{const x=JSON.parse(lsGet(vtSK("scr2"))||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}}
 const WL0=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["AAPL","STK","NASDAQ:AAPL"],["NVDA","STK","NASDAQ:NVDA"],["TSLA","STK","NASDAQ:TSLA"],["AMD","STK","NASDAQ:AMD"],["BTC/USD","CRY","BITSTAMP:BTCUSD"],["ETH/USD","CRY","BITSTAMP:ETHUSD"],["SPY","ETF","AMEX:SPY"],["QQQ","ETF","NASDAQ:QQQ"],["GLD","ETF","AMEX:GLD"],["USO","ETF","AMEX:USO"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 const CH0={type:"candle",tf:"1H",sym:"EURUSD",bg:"auto",bgCol:"#ffffff",
 upBody:"#0f9d58",dnBody:"#d93025",upBorder:"#0f9d58",dnBorder:"#d93025",upWick:"#0f9d58",dnWick:"#d93025",
@@ -1067,11 +1076,11 @@ scMode:0,scAuto:true,scInv:false,scBorder:true,scBorderCol:"",scTop:.1,scBot:.1,
 wm:false,wmCol:"",
 ind:[{id:"i1",t:"ema",len:10,col:"#f97316"},{id:"i2",t:"ema",len:20,col:"#71717a"}]};
 function chMig(c){if(c&&c.up&&c.upBody===undefined){c.upBody=c.upBorder=c.upWick=c.lineCol=c.up;c.dnBody=c.dnBorder=c.dnWick=c.dn;if(c.grid===false)c.showGridV=c.showGridH=false}}
-S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",key:"d01dddb94874405d9678aa4c509b2f67",fhKey:"",polyKey:""},S.data||{});S.page=S.page||0;S.tfFav=S.tfFav||["1m","5m","15m","30m","1H","4H","1D","1W","1M"];S.tfCustom=S.tfCustom||[];if(S.data.v!==3){S.data.mode="all";S.data.v=3;if(!S.data.key)S.data.key="d01dddb94874405d9678aa4c509b2f67";Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);S.alerts=Array.isArray(S.alerts)?S.alerts:[];
+S.cols=norm(S.cols);chMig(S.chart);S.chart=Object.assign(clone(CH0),S.chart||{});S.data=Object.assign({mode:"all",fhKey:"",polyKey:""},S.data||{});S.page=S.page||0;S.tfFav=S.tfFav||["1m","5m","15m","30m","1H","4H","1D","1W","1M"];S.tfCustom=S.tfCustom||[];if(S.data.v!==3){S.data.mode="all";S.data.v=3;Object.assign(S,clone(BI["Higher timeframe scan"]),{cur:"Higher timeframe scan"});S.cols=norm(S.cols)}S.wl=Array.isArray(S.wl)&&S.wl.length?S.wl:clone(WL0);S.alerts=Array.isArray(S.alerts)?S.alerts:[];
 const WLD=()=>({open:true,groups:[{id:"g1",name:"Traded",open:true,syms:[]},{id:"g2",name:"Section",open:true,syms:[]}]});
 S.wlx=S.wlx&&Array.isArray(S.wlx.groups)&&S.wlx.groups.length?S.wlx:WLD();
-function save(){try{lsSet("scr2",JSON.stringify(S))}catch(e){}}
-function saveP(){try{lsSet("scr2p",JSON.stringify(P))}catch(e){}}
+function save(){try{if(VT_SCOPE)lsSet(vtSK("scr2"),JSON.stringify(S))}catch(e){}}
+function saveP(){try{if(VT_SCOPE)lsSet(vtSK("scr2p"),JSON.stringify(P))}catch(e){}}
 const deb=(f,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms)}};
 
 function getEffTheme(){
@@ -2474,7 +2483,7 @@ async function pumpYF(){if(bz.yf)return;bz.yf=1;
 const toTD=(s,tf,k)=>{const s2=s.slice();s2[6]=s[9];QT.push([s2,tf,k]);pumpTD()};
 const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
 // the free Twelve Data plan allows ~8 requests a minute, so it is only used as a backup for what is on screen
-const tdOk=s[9]&&S.data.key&&(PRI.has(s[0])||S.chart.sym===s[0]);
+const tdOk=s[9]&&vtTdKey()&&(PRI.has(s[0])||S.chart.sym===s[0]);
 if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
 try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k];markOk("yf")}
 catch(e){if(e.soft){if(++YF.fails>=8)markDead();const fb=await tryFallbacks(s,tf);if(fb){LIVE[k]=fb;LT[k]=Date.now();dirty(k);delete PEND[k];markOk("fb");fin(s,tf);continue}if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
@@ -2482,9 +2491,9 @@ fin(s,tf);await sleep(100)}};
 await Promise.all([w(),w(),w(),w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
 async function pumpTD(){if(bz.td)return;bz.td=1;
 while(QT.length){const[s,tf,k]=QT.shift();status();
-if(!S.data.key){ERR[k]=s[0]+": no Twelve Data key";delete PEND[k];continue}
+if(!vtTdKey()){ERR[k]=s[0]+": no Twelve Data key (add yours in Settings › Data)";delete PEND[k];continue}
 let wait=7700,again=false;
-try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=250&timezone=UTC&apikey=${encodeURIComponent(S.data.key)}`),j=await r.json();
+try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=250&timezone=UTC&apikey=${encodeURIComponent(vtTdKey())}`),j=await r.json();
 if(j.status==="error"||!j.values){const m=String(j.message||"No data");
 if(j.code===429&&!/day/i.test(m)){QT.unshift([s,tf,k]);again=true;wait=61000}
 else{ERR[k]=s[0]+": "+m.slice(0,90);if(/day/i.test(m)){QT.length=0}}}
@@ -2564,11 +2573,11 @@ function favApply(){
   }
   save();closeM();renderWL();
 }
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key<input id="d_k" value="${esc(D.key)}" placeholder="optional"></label>
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup if you add your own key below), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key (your own)<input id="d_k" value="${esc(VT_TDK.mem||((typeof vtTdCanStore==="function"&&vtTdCanStore()&&localStorage.getItem(vtTdKeyName()))||""))}" placeholder="optional · twelvedata.com" autocomplete="off" spellcheck="false" aria-describedby="d_kn"></label><p class="mut" id="d_kn">${vtTdKeyNote()}</p>
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
-function dataSave(){const g=i=>document.getElementById(i);S.data.key=g("d_k").value.trim();S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart();
+function dataSave(){const g=i=>document.getElementById(i);vtTdKeySet(g("d_k").value);S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart();
 if(S.data.fhKey){FHU.loaded=false;loadFHU()}
 if(S.data.polyKey){PGU.loaded=false;loadPGU()}
 }
@@ -2659,7 +2668,7 @@ function authInit(){
     if(!pw)return authErr("Enter your password.","auPw");
     authErr("");btn.disabled=true;btn.textContent="Signing in…";
     try{const r=await authSignIn(id,pw);
-      if(r&&r.ok){authStore(r.user,document.getElementById("auRem").checked);authEnter(r.user)}
+      if(r&&r.ok){authStore(r.user,document.getElementById("auRem").checked);if(!BOOTED&&!VT_GUEST&&"~"+vtUidHash(r.user.id)!==VT_SCOPE){location.reload();return}authEnter(r.user)}
       else authErr((r&&r.error)||"Couldn’t sign you in. Check your details and try again.","auPw")}
     catch(e){authErr("Couldn’t reach the server. Try again in a moment.")}
     finally{btn.disabled=false;btn.textContent="Sign in"}};
@@ -3402,10 +3411,10 @@ function vtEnterGuest(){VT_GUEST=true;try{ssSet(VT_GUEST_KEY,"1")}catch(e){}
   authEnter({id:"Guest",guest:true})}
 function vtShowSignIn(){vtAuthDecor();document.documentElement.classList.add("locked");closeM();vtAuBgLoop();vtAuTicker();setTimeout(()=>{const i=document.getElementById("auId");if(i)i.focus()},30)}
 function vtHideSignIn(){if(!BOOTED)return;document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.focus()}
-// signing in from guest mode keeps the session's work and only now starts saving it
+// signing in from guest mode keeps the session's work and saves it under that account (asks first if the account already has saved work)
 const _vtAuthEnter=authEnter;authEnter=function(u){
   if(!(u&&u.guest)){const was=VT_GUEST;VT_GUEST=false;try{ssRemove(VT_GUEST_KEY)}catch(e){}vtGuestUI();
-    if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";if(was){save();toast("Signed in \u2014 your work is now saved on this device")}return}}
+    if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";VT_UID=String(u.id);VT_SCOPE="~"+vtUidHash(u.id);if(was){if(lsGet(vtSK("scr2"))!=null&&typeof vtAcctChoose==="function")vtAcctChoose();else{save();saveP();toast("Signed in \u2014 your work is now saved on this device")}}return}}
   const r=_vtAuthEnter.apply(this,arguments);vtGuestUI();return r};
 const _vtSaveG=save;save=function(){if(VT_GUEST)return;return _vtSaveG.apply(this,arguments)};
 const _vtAuthInit=authInit;authInit=function(){vtAuthDecor();
@@ -3714,6 +3723,9 @@ function miniCols(){const cs=getComputedStyle(document.documentElement),v=n=>cs.
 function miniBars(s,tf){const a=candles(s,tf);return a&&a.length?a.slice(-MINI_N):null}
 function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getElementById("vtmini");if(!g)return miniApply();
   const syms=(typeof PGL!=="undefined"&&PGL?PGL:[]).slice(),sig=C.tf+"|"+syms.join(",");
+  /* same cards in a new order (e.g. a tick re-sorted the list): move them instead of rebuilding and redrawing every card */
+  const prevTf=MINI.sig?MINI.sig.split("|")[0]:null,mg=g.querySelector(".minig");
+  if(!force&&sig!==MINI.sig&&prevTf===C.tf&&mg&&syms.length===MINI.cards.size&&syms.every(n=>MINI.cards.has(n))){MINI.sig=sig;for(const n of syms)mg.appendChild(MINI.cards.get(n).el)}
   if(force||sig!==MINI.sig){MINI.sig=sig;MINI.cards.clear();
     g.innerHTML=`<div class="minih"><span class="mut">Mini charts \u00b7 last ${MINI_N} bars</span><span class="sp"></span><div class="minitf" role="group" aria-label="Mini chart interval">${MINI_TFS.map(t=>`<button type="button" data-tf="${t}" aria-pressed="${t===C.tf}" class="${t===C.tf?"on":""}">${t}</button>`).join("")}</div></div>`+
       `<div class="minig">${syms.map(n=>`<button type="button" class="mc" data-s="${esc(n)}"><span class="mch"><b class="mcn">${esc(String(n).replace(/USDT$/,""))}</b><span class="mcp"></span></span><canvas aria-hidden="true"></canvas><span class="mcf"><span class="mcc"></span><span class="mcw mut"></span></span></button>`).join("")}</div>`+
@@ -4363,16 +4375,17 @@ addEventListener("resize",deb(()=>{if(document.documentElement.dataset.page==="j
    AI review (off until you use it): only when you press "Send to <provider>" after ticking the disclosure. The request goes straight
    from your browser to the provider you chose, with your key. Vektor has no server in the middle and never sees the key or the data.
    The key stays in memory for this tab unless you tick "Remember", which needs the Optional preferences choice (vt_aikey). */
-const JAI_KEY="vt_aikey";
+/* the remembered key is per signed-in user: vt_aikey~<user hash> */
+function jaiKeyName(){return(typeof vtSK==="function"&&vtSK("vt_aikey"))||"vt_aikey"}
 const JAI_PROV={openai:{name:"OpenAI",host:"api.openai.com",url:"https://api.openai.com/v1/chat/completions",model:"gpt-4o-mini",terms:"https://openai.com/policies/"},
   anthropic:{name:"Anthropic",host:"api.anthropic.com",url:"https://api.anthropic.com/v1/messages",model:"claude-3-5-haiku-latest",terms:"https://www.anthropic.com/legal"},
   custom:{name:"OpenAI-compatible endpoint",host:"",url:"",model:"",terms:""}};
 const JAI={key:"",busy:false,out:null,err:"",mode:"local",ack:false,ctl:null};
 function jaiCfg(){const J=jrCfg();if(!J.ai||typeof J.ai!=="object")J.ai={};const A=J.ai;if(!JAI_PROV[A.prov])A.prov="openai";if(typeof A.model!=="string")A.model="";if(typeof A.base!=="string")A.base="";A.notes=!!A.notes;return A}
-function jaiStoredKey(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest()))return null;try{const o=JSON.parse(localStorage.getItem(JAI_KEY)||"null");return o&&typeof o.k==="string"?o:null}catch(e){return null}}
-function jaiForget(){JAI.key="";try{localStorage.removeItem(JAI_KEY)}catch(e){}}
-function jaiRemember(on){if(!on){try{localStorage.removeItem(JAI_KEY)}catch(e){}return false}if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest())||!JAI.key)return false;
-  try{localStorage.setItem(JAI_KEY,JSON.stringify({p:jaiCfg().prov,k:JAI.key}));return true}catch(e){return false}}
+function jaiStoredKey(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest()))return null;try{const o=JSON.parse(localStorage.getItem(jaiKeyName())||"null");return o&&typeof o.k==="string"?o:null}catch(e){return null}}
+function jaiForget(){JAI.key="";try{localStorage.removeItem(jaiKeyName())}catch(e){}}
+function jaiRemember(on){if(!on){try{localStorage.removeItem(jaiKeyName())}catch(e){}return false}if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest())||!JAI.key)return false;
+  try{localStorage.setItem(jaiKeyName(),JSON.stringify({p:jaiCfg().prov,k:JAI.key}));return true}catch(e){return false}}
 /* the provider endpoint for the current settings, or an error message */
 function jaiEndpoint(){const A=jaiCfg(),P=JAI_PROV[A.prov];if(A.prov!=="custom")return{url:P.url,host:P.host};
   let u;try{u=new URL(A.base.trim())}catch(e){return{err:"Enter the endpoint\u2019s base URL, e.g. https://example.com/v1"}}
@@ -4442,7 +4455,7 @@ function jaiCardRender(){const el=document.getElementById("jr_aic");if(!el)retur
 ${A.prov==="custom"?`<label>Endpoint base URL<input id="jai_base" type="url" value="${esc(A.base)}" placeholder="https://\u2026/v1" autocomplete="off" spellcheck="false"></label>`:""}
 <label>Model<input id="jai_model" value="${esc(A.model)}" placeholder="${esc(P.model||"model name")}" autocomplete="off" spellcheck="false"></label>
 <label>API key<input id="jai_key" type="password" value="${esc(JAI.key)}" autocomplete="off" spellcheck="false" placeholder="paste your key"></label></div>
-<div class="jaiopts"><label class="chk"><input type="checkbox" id="jai_rem"${stored?" checked":""}${prefs&&!guest?"":" disabled"}> Remember the key on this device</label><span class="mut jaisub">${guest?"Not available in guest mode.":prefs?"Stored in this browser only (<code>vt_aikey</code>) until you untick this or withdraw Optional preferences.":"Needs \u201cOptional preferences\u201d in <button type=\"button\" class=\"lnk\" id=\"jai_ck\">Cookie settings</button>. Without it the key is kept only until you close this tab."}</span>
+<div class="jaiopts"><label class="chk"><input type="checkbox" id="jai_rem"${stored?" checked":""}${prefs&&!guest?"":" disabled"}> Remember the key on this device</label><span class="mut jaisub">${guest?"Not available in guest mode.":prefs?"Stored in this browser for your account only (<code>vt_aikey~…</code>) until you untick this or withdraw Optional preferences.":"Needs \u201cOptional preferences\u201d in <button type=\"button\" class=\"lnk\" id=\"jai_ck\">Cookie settings</button>. Without it the key is kept only until you close this tab."}</span>
 ${JAI.key?`<button type="button" class="lnk" id="jai_forget">Forget key</button>`:""}
 <label class="chk"><input type="checkbox" id="jai_notes"${A.notes?" checked":""}> Include my trade notes</label></div>
 <div class="jaidisc" id="jai_disc"><b>Before you send:</b> pressing Send sends ${inc} closed trade${inc===1?"":"s"} from this view (date, symbol, side, P\u0026L, R, setup and tags${A.notes?", and your notes":""}) plus summary statistics directly from your browser to <b>${esc(ep.host||"the endpoint you enter")}</b>, using your key. Account names aren\u2019t included. Vektor Terminal has no server in between and doesn\u2019t receive your key or this data. ${A.prov!=="custom"?`${esc(P.name)}\u2019s own terms and privacy policy apply (<a href="${esc(P.terms)}" target="_blank" rel="noopener noreferrer">${esc(P.name)} policies</a>), and you pay for the request on your account.`:"The endpoint owner\u2019s terms and privacy policy apply."} The reply is generated by AI: it can be wrong and is not financial advice.
@@ -4473,7 +4486,7 @@ function jaiOut(box){const o=JAI.out;box.innerHTML="";const h=document.createEle
   const body=document.createElement("div");body.className="jaitxt";o.text.split(/\n{1,}/).map(s=>s.trim()).filter(Boolean).forEach(line=>{const m=/^(#{1,4}\s*|[-*\u2022]\s+|\d+[.)]\s+)?(.*)$/.exec(line);const p=document.createElement(m[1]&&/^#/.test(m[1])?"h4":m[1]?"li":"p");p.textContent=m[2].replace(/\*\*(.+?)\*\*/g,"$1");body.appendChild(p)});
   box.appendChild(body);if(JAI_ADVICE.test(o.text)){const w=document.createElement("p");w.className="vsmsg err";w.textContent="Part of this reply reads like a trading instruction or prediction. Vektor asked the AI not to do that; treat it as a description only, not advice.";box.appendChild(w)}
   const cp=document.createElement("button");cp.type="button";cp.textContent="Copy text";cp.onclick=()=>{try{navigator.clipboard.writeText(h.textContent+"\n\n"+o.text);toast("Copied")}catch(e){}};box.appendChild(cp)}
-document.addEventListener("vt-consent",e=>{if(!(e.detail&&e.detail.prefs)){try{localStorage.removeItem(JAI_KEY)}catch(x){}}if(document.getElementById("jai_p"))jaiCardRender()});
+document.addEventListener("vt-consent",e=>{if(!(e.detail&&e.detail.prefs)){try{localStorage.removeItem(jaiKeyName())}catch(x){}}if(document.getElementById("jai_p"))jaiCardRender()});
 /* ---------- Calendar & News page ----------
    Economic calendar: the Forex Factory weekly feed (nfs.faireconomy.media/ff_calendar_thisweek.json). The feed sends no CORS headers,
    so the browser tries it directly and then through the same public proxies used for Yahoo (PX). Nothing is invented: if every route
@@ -4655,17 +4668,18 @@ const VT_CONTACT_EMAIL="vektorhq@proton.me";
 const VT_MAIL=()=>`<a href="mailto:${VT_CONTACT_EMAIL}">${VT_CONTACT_EMAIL}</a>`;
 const LG_META=()=>`<p class="meta">Effective date: ${PH("Effective date")} \u00b7 Operated by ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}. Contact: ${VT_MAIL()}.</p>`;
 const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th><th>What it holds</th></tr></thead><tbody>
-<tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts and a log of the alerts that triggered (the last 200), chart settings, drawings and the indicator scripts you write or import, your trade journal (trades, notes and prop-account rules you enter), Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
-<tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
+<tr><td>localStorage</td><td><code>scr2~\u2026</code> (one per account)</td><td>Saved per signed-in account (the key ends with a code made from your username), so someone else who signs in on the same browser, or a guest, does not see it. Your settings: screener columns and filters, watchlist, price alerts and a log of the alerts that triggered (the last 200), chart settings, drawings and the indicator scripts you write or import, your trade journal (trades, notes and prop-account rules you enter), Supercharts and calculator inputs, the current page, and the Finnhub or Polygon API keys you type into Data. (Your Twelve Data key is stored separately; see <code>vt_tdkey~\u2026</code>.)</td></tr>
+<tr><td>localStorage</td><td><code>vt_legacy</code></td><td>Only on devices that had work saved before accounts were separated and nobody was signed in when this version first ran: marks that older work (still under <code>scr2</code>/<code>scr2p</code>) as unclaimed. The next person to sign in is asked whether it is theirs; it is never shown to guests.</td></tr>
+<tr><td>localStorage</td><td><code>scr2p~\u2026</code> (one per account)</td><td>Screener layouts you save, per signed-in account.</td></tr>
 <tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
 <tr><td>sessionStorage</td><td><code>vt_guest</code></td><td>Only that you chose \u201cContinue without signing in\u201d, so a reload keeps you in guest mode. Cleared when the tab closes. Guests\u2019 charts, drawings and other work are kept in memory only and are not saved.</td></tr><tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
 <tr><td>localStorage</td><td><code>vt_consent</code>, <code>vt_consent_log</code></td><td>Your storage choices, plus a log of each choice with its date, time and policy version (the last 50), so we can show what you agreed to.</td></tr>
-<tr><td>localStorage (only if you allow it and tick \u201cRemember the key\u201d)</td><td><code>vt_aikey</code></td><td><b>Optional preferences:</b> the AI provider name and the API key you entered for the Journal AI review. It stays in this browser and is only ever sent to that provider. It is deleted when you untick \u201cRemember\u201d, press \u201cForget key\u201d or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
+<tr><td>localStorage (only if you allow it and tick \u201cRemember the key\u201d)</td><td><code>vt_aikey~\u2026</code> (one per account)</td><td><b>Optional preferences:</b> the AI provider name and the API key you entered for the Journal AI review. It stays in this browser and is only ever sent to that provider. It is deleted when you untick \u201cRemember\u201d, press \u201cForget key\u201d or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it; never for guests)</td><td><code>vt_tdkey~\u2026</code> (one per account)</td><td><b>Optional preferences:</b> your own Twelve Data API key from Settings \u203a Data. It is only ever sent to Twelve Data. Without this choice the key works until you close the tab. Deleted when you clear the field or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
 <tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
 const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
 <tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
 <tr><td>Yahoo Finance</td><td><code>query1.finance.yahoo.com</code>, reached through public CORS proxies <code>corsproxy.io</code>, <code>api.allorigins.win</code>, <code>api.codetabs.com</code></td><td>Candles for forex, metals, futures, indices, US stocks and ETFs, and for custom watchlist tickers.</td></tr>
-<tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. The app ships with a default key; you can enter your own under Data.</td></tr>
+<tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. Only used if you enter your own key under Settings \u203a Data; the app no longer ships with a key. Requests go directly from your browser to Twelve Data.</td></tr>
 <tr><td>Finnhub (only if you add a key)</td><td><code>finnhub.io</code>, WebSocket <code>ws.finnhub.io</code></td><td>Stock candles, the US stock list and live stock trades.</td></tr>
 <tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Stock candles and the stock and ETF list.</td></tr>
 <tr><td>Forex Factory (Fair Economy)</td><td><code>nfs.faireconomy.media</code>, directly or through the public CORS proxies above</td><td>This week\u2019s economic calendar on the Calendar \u0026 News page, fetched only while that page is open.</td></tr>
@@ -4727,7 +4741,7 @@ cookies:["Cookies \u0026 Local Storage",()=>`<h1>Cookies and Local Storage</h1>$
 <h2>Cookies</h2><p>Vektor Terminal does not set any cookies. It uses no analytics, advertising, social media or other tracking tools.</p>
 <h2>Categories</h2><ul><li><b>Strictly necessary (always on):</b> settings, watchlist, alerts, drawings, layouts, saved API keys, sign-in name and your consent record. Under the Privacy and Electronic Communications Regulations (PECR), these don\u2019t need consent.</li>
 <li><b>Market-data cache (optional, off by default):</b> an IndexedDB cache of price data that makes the app faster. It\u2019s only created after you choose \u201cAccept all\u201d or turn it on under \u201cManage choices\u201d.</li>
-<li><b>Optional preferences (optional, off by default):</b> extras you turn on, such as the alert sound, remembered in <code>vt_prefs</code>, and, only if you also tick \u201cRemember the key\u201d, your Journal AI key in <code>vt_aikey</code>. Without this choice they still work, but only until you close the tab.</li>
+<li><b>Optional preferences (optional, off by default):</b> extras you turn on, such as the alert sound, remembered in <code>vt_prefs</code>, and, only if you also tick \u201cRemember the key\u201d, your Journal AI key in <code>vt_aikey~\u2026</code>, and your own Twelve Data key in <code>vt_tdkey~\u2026</code>. Without this choice they still work, but only until you close the tab.</li>
 <li><b>Analytics and advertising:</b> not used.</li></ul>
 <h2>Your choice</h2><p>On your first visit, a banner offers \u201cReject all\u201d and \u201cAccept all\u201d as equal buttons, plus \u201cManage choices\u201d with a switch for each category. Until you choose, only strictly necessary storage is used. You can change or withdraw your choice at any time with <b>Cookie settings</b> in the footer, or on <a href="#/legal/your-data">Your data</a>. Withdrawing deletes the cache and any saved optional preferences. Each choice is logged on your device with its date, time and policy version. We ask again after 12 months, or sooner if this notice changes.</p>
 <h2>Everything stored</h2>${LG_STORE}
@@ -4793,7 +4807,7 @@ function vtCacheOK(){const c=vtConsent();return !!(c&&c.cache)}
 // this category existed have no "prefs" field and so count as "no"
 function vtPrefsOK(){const c=vtConsent();return !!(c&&c.prefs)}
 const VT_PREFS_KEY="vt_prefs";
-function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY);localStorage.removeItem("vt_aikey")}catch(e){}}
+function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY);const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^vt_(aikey|tdkey)(~|$)/.test(k))ks.push(k)}ks.forEach(k=>localStorage.removeItem(k))}catch(e){}}
 function vtConsentLog(){try{const l=JSON.parse(vtLS(VT_CL)||"[]");return Array.isArray(l)?l:[]}catch(e){return[]}}
 function vtConsentSet(cache,method,prefs){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,prefs:prefs==null?method==="accept_all":!!prefs,method};
 vtLS(VT_CK,JSON.stringify(rec));const l=vtConsentLog();l.push(rec);vtLS(VT_CL,JSON.stringify(l.slice(-50)));
@@ -4813,7 +4827,7 @@ el.innerHTML=`<h2 id="vcb_t">Storage on this device</h2>
 ${manage?`<div class="cats">
 <div class="cat"><input type="checkbox" checked disabled id="vcb_nec" aria-describedby="vcb_nec_d"><label for="vcb_nec"><b>Strictly necessary</b><span class="mut" id="vcb_nec_d">Settings, watchlist, alerts, layouts, sign-in name and this consent record. Needed for the app to work.</span></label><span class="st">Always on</span></div>
 <div class="cat"><input type="checkbox" id="vcb_cache" ${c&&c.cache?"checked":""} aria-describedby="vcb_cache_d"><label for="vcb_cache"><b>Market-data cache</b><span class="mut" id="vcb_cache_d">Keeps downloaded price candles and the market list in IndexedDB so the app starts faster and makes fewer requests. Off unless you turn it on.</span></label></div>
-<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>), and your Journal AI key if you tick \u201cRemember\u201d (<code>vt_aikey</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
+<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>), and your Journal AI key if you tick \u201cRemember\u201d (<code>vt_aikey~\u2026</code>) and your own Twelve Data key (<code>vt_tdkey~\u2026</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
 <div class="cat"><input type="checkbox" disabled id="vcb_an"><label for="vcb_an"><b>Analytics and advertising</b><span class="mut">Not used. There are no analytics, advertising cookies or third-party trackers.</span></label><span class="st">Not used</span></div></div>`:""}
 <div class="btns"><button type="button" class="cbtn" id="vcb_rej">Reject all</button><button type="button" class="cbtn" id="vcb_acc">Accept all</button>${manage?`<button type="button" class="cbtn alt" id="vcb_save">Save my choices</button>`:`<button type="button" class="cbtn alt" id="vcb_man">Manage choices</button>`}</div>`;
 document.body.appendChild(el);
@@ -4835,13 +4849,15 @@ function vtParse(v){try{return JSON.parse(v)}catch(e){return v}}
 async function vtIdbExists(){if(IDB)return true;try{if(indexedDB.databases)return(await indexedDB.databases()).some(d=>d.name==="scr")}catch(e){}return false}
 async function vtIdbDump(){if(!(await vtIdbExists()))return{};const db=IDB||await _vtIdb();if(!db)return{};
 return new Promise(r=>{const out={};try{const q=db.transaction("c").objectStore("c").openCursor();q.onsuccess=()=>{const c=q.result;if(!c){r(out);return}out[c.key]=c.value;c.continue()};q.onerror=()=>r(out)}catch(e){r(out)}})}
-async function vtInventory(){const ls=[],ss=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls.push([k,(localStorage.getItem(k)||"").length])}}catch(e){}
+/* keys scoped to a different signed-in user (name~<16 hex>) */
+function vtOtherAcct(k){const m=/~[0-9a-f]{16}$/.exec(k||"");return !!m&&(typeof VT_SCOPE==="undefined"||m[0]!==VT_SCOPE)}
+async function vtInventory(){const ls=[],ss=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls.push([vtOtherAcct(k)?k.replace(/~[0-9a-f]{16}$/,"~(another account)"):k,(localStorage.getItem(k)||"").length])}}catch(e){}
 try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);ss.push([k,(sessionStorage.getItem(k)||"").length])}}catch(e){}
 let idbN=null;if(await vtIdbExists()){const d=await vtIdbDump();idbN=Object.keys(d).length}let cs=0;try{if(window.caches)cs=(await caches.keys()).length}catch(e){}
 return{ls,ss,idbN,cs}}
 async function vtExportData(inclCache){const out={app:"Vektor Terminal",exported:new Date().toISOString(),policyVersion:VT_POLICY_V,
 note:"Everything Vektor Terminal stores in this browser. It may include API keys you saved, so keep this file safe.",localStorage:{},sessionStorage:{}};
-try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);out.localStorage[k]=vtParse(localStorage.getItem(k))}}catch(e){}
+try{let other=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(vtOtherAcct(k)){other++;continue}out.localStorage[k]=vtParse(localStorage.getItem(k))}if(other)out.otherAccounts=other+" entr"+(other===1?"y":"ies")+" saved by other accounts on this device were left out"}catch(e){}
 try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);out.sessionStorage[k]=vtParse(sessionStorage.getItem(k))}}catch(e){}
 out.indexedDB=inclCache?{scr:await vtIdbDump()}:{note:(await vtIdbExists())?"Market-data cache present but not included (tick the box to include it).":"No IndexedDB data."};return out}
 function vtDownload(obj,name){const b=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
@@ -4901,6 +4917,44 @@ $("#dsr_cp").onclick=async()=>{try{await navigator.clipboard.writeText(txt());$(
 // footer (built here so every page above is linked) and first-visit banner
 vtFooterBuild();
 if(!vtConsent())vtBanner(false);
+// ---------- accounts on a shared device + your own Twelve Data key ----------
+// Saved work is scoped per signed-in user (see vtSK/VT_SCOPE in the core). Note: sign-in is still a local prototype with no
+// password check, so this separates people who use the same browser; it is not security against someone typing your username.
+// Twelve Data: no key ships with the app any more. Your own key is kept in memory for this tab, and saved in this browser
+// (vt_tdkey~<your account>) only if you allow Optional preferences and aren't a guest. Without a key, forex and metals load
+// from Yahoo only and the Twelve Data backup is off. Binance and Finnhub feeds (and their WebSockets) don't use it.
+const VT_TDK={mem:"",old:"7d5c4c6544bf67a4"}; /* hash of the key that used to be built in, so a saved copy of it is dropped */
+function vtTdKeyName(){return typeof vtSK==="function"?vtSK("vt_tdkey"):null}
+function vtTdCanStore(){return !!vtTdKeyName()&&typeof vtPrefsOK==="function"&&vtPrefsOK()&&!(typeof vtIsGuest==="function"&&vtIsGuest())}
+/* optional owner config for local/self-hosted use: config.local.js (gitignored; see config.example.js) is only requested on
+   localhost/127.0.0.1/file:, defines window.VT_CONFIG, and its key is used in memory only, after your own key; it is never stored. */
+function vtCfgTdKey(){const c=window.VT_CONFIG;const k=c&&typeof c.twelveDataKey==="string"?c.twelveDataKey.trim():"";return /^[A-Za-z0-9_-]{8,128}$/.test(k)?k:""}
+(function(){try{if(!(location.protocol==="file:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)))return;const sc=document.createElement("script");sc.src="config.local.js";sc.async=true;sc.onerror=()=>sc.remove();document.head.appendChild(sc)}catch(e){}})();
+function vtTdKey(){if(VT_TDK.mem)return VT_TDK.mem;if(vtTdCanStore()){try{const k=localStorage.getItem(vtTdKeyName());if(k)return k}catch(e){}}return vtCfgTdKey()}
+function vtTdKeySet(k){k=String(k||"").trim().slice(0,128);if(k&&!/^[A-Za-z0-9_-]+$/.test(k)){toast("That key has characters a Twelve Data key doesn\u2019t use; it wasn\u2019t saved");return false}
+  const changed=k!==vtTdKey();VT_TDK.mem=k;const n=vtTdKeyName();
+  try{if(n){if(k&&vtTdCanStore())localStorage.setItem(n,k);else localStorage.removeItem(n)}}catch(e){}
+  if(changed&&typeof retryErr==="function")retryErr(/Twelve Data|Yahoo busy/);return true}
+function vtTdKeyNote(){const has=!!vtTdKey();const g=typeof vtIsGuest==="function"&&vtIsGuest();
+  const where=g?"As a guest, the key is kept only until you close the tab.":vtTdCanStore()?"Saved in this browser for your account only, and sent only to Twelve Data.":"Kept only until you close the tab. To remember it, allow Optional preferences in Cookie settings.";
+  const own=VT_TDK.mem||(vtTdCanStore()&&(()=>{try{return localStorage.getItem(vtTdKeyName())}catch(e){return""}})());
+  return (has?"":"No key set: forex and metals load from Yahoo only and the Twelve Data backup is off. ")+(!own&&vtCfgTdKey()?"Using the key from this computer\u2019s config.local.js (local use only, never stored). ":"")+where}
+// a key saved inside your settings by an older version: never keep the old built-in one; move your own key out of scr2
+(function(){const D=S.data;if(!D||!("key"in D))return;const k=String(D.key||"").trim();delete D.key;if(k&&vtUidHash(k)!==VT_TDK.old)VT_TDK.mem=k;VT_TDK.migrated=true})();
+document.addEventListener("vt-consent",e=>{if(e.detail&&e.detail.prefs&&VT_TDK.mem)vtTdKeySet(VT_TDK.mem)});
+// ---- guest who signs in while the app is running, and already has saved work under that account ----
+function vtAcctChoose(){modal(`<div role="dialog" aria-modal="true" aria-labelledby="ac_h"><h3 id="ac_h">You already have saved work</h3><p id="ac_p"></p><div class="row"><button type="button" id="ac_keep">Use this session instead</button><span class="sp"></span><button type="button" class="pri" id="ac_open">Open my saved work</button></div></div>`);
+  document.getElementById("ac_p").textContent="This device already has charts, drawings, a journal and other work saved for "+VT_UID+". Open it (this guest session\u2019s changes are dropped), or keep what you have open now and save it over your saved work.";
+  document.getElementById("ac_open").onclick=()=>{closeM();location.reload()};
+  document.getElementById("ac_keep").onclick=()=>{save();saveP();closeM();toast("Signed in \u2014 this session is now saved as your work")};
+  document.getElementById("ac_open").focus()}
+// ---- data saved before accounts were separated, found by someone who signs in later ----
+function vtLegacyCheck(){if(!VT_SCOPE||VT_GUEST||S.legacyNo||lsGet("vt_legacy")==null||lsGet("scr2")==null)return;if(document.getElementById("modal")&&document.querySelector("#modal .box"))return;
+  modal(`<div role="dialog" aria-modal="true" aria-labelledby="lg_h"><h3 id="lg_h">Earlier saved work found</h3><p>This device has charts, drawings, a journal and other work saved before each account got its own storage. It may belong to someone else who used this device.</p><p class="mut">Importing replaces the work saved for your account.</p><div class="row"><button type="button" id="lg_no">Not mine</button><span class="sp"></span><button type="button" class="pri" id="lg_yes">Import into my account</button></div></div>`);
+  document.getElementById("lg_no").onclick=()=>{S.legacyNo=true;save();closeM()};
+  document.getElementById("lg_yes").onclick=()=>{for(const k of ["scr2","scr2p"]){const v=lsGet(k);if(v!=null)lsSet(vtSK(k),v);else lsRemove(vtSK(k));lsRemove(k)}lsRemove("vt_legacy");closeM();location.reload()};
+  document.getElementById("lg_no").focus()}
+(function(){const b=boot;boot=function(){const r=b.apply(this,arguments);if(VT_TDK.migrated){VT_TDK.migrated=false;save();if(VT_TDK.mem&&!vtTdCanStore())setTimeout(()=>toast("Your Twelve Data key is kept only until you close the tab. Allow Optional preferences to remember it."),1500)}setTimeout(vtLegacyCheck,900);return r}})();
 // ---------- phones: bottom tab bar + "More" sheet, touch-friendly charts ----------
 const VT_COARSE=matchMedia("(pointer:coarse)").matches;
 const VT_MORE_PAGES=["heatmap","calendar","journal","backtest"];

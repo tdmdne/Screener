@@ -1,0 +1,6 @@
+# local-only config and secrets (see config.example.js)
+config.local.js
+*.local.js
+.env
+*.env
+vektor-private/

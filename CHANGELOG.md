@@ -3,6 +3,7 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Price-scale plus button (TradingView-style), as the owner asked.** Hovering a chart or its price axis shows a small "+" next to the axis at the crosshair's price. Clicking it opens a menu with "Add alert at <price>" and "Draw horizontal line at <price>". The alert goes through the existing alert engine: it's saved, shows in the Alerts dialog and the Supercharts dock, fires once on the cross, and its direction comes from the current price. It works on the Workspace chart and on both Supercharts panes; a line added from pane 2 is drawn on the main pane, where drawings live. The old static "+" (which only switched to the h-line tool) is replaced. The existing Settings → Scales → "Plus button" checkbox now turns this on or off (on by default). Tested headless: alert price matches the "+" level, it persists, it fires exactly once on a mocked cross, and the h-line lands at the same price.
 - **Calculators page (`#/calc`).** Account size defaults to the screener's `S.acct`, with risk per trade as % or a fixed $ amount. It covers:
   - Forex/metals position size: lots, units, pip value and risk at stop. Pip values for USD-quoted, USD-based and cross pairs use live prices, or a manual quote→USD rate when no live price is loaded.
   - Futures contracts, using exchange tick sizes and values for ES/MES, NQ/MNQ, YM/MYM, RTY/M2K, CL/MCL, NG, GC/MGC, SI, HG, ZN, ZB, 6E/6B/6J/6A, rounded down to stay within risk.

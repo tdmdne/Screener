@@ -331,6 +331,12 @@ html.locked .auth{display:flex}
 .ibtn{border:0;background:none;padding:4px 6px;color:var(--mut);border-radius:6px;min-height:0!important;line-height:1}
 .ibtn:hover{color:var(--fg);background:var(--card)}
 .ibtn.on{color:var(--acc)}
+/* price-scale plus button + menu */
+.vplus{position:absolute;z-index:9;width:18px;height:18px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:600 14px/16px system-ui,sans-serif;text-align:center;cursor:pointer;display:none;padding:0;min-height:0!important;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.vplus:hover{border-color:var(--acc);color:var(--acc)}
+.vpmenu{position:absolute;z-index:12;background:var(--bg);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:4px 0;min-width:220px;font-size:13px}
+.vpmenu div{padding:7px 12px;cursor:pointer;white-space:nowrap}
+.vpmenu div:hover{background:var(--card);color:var(--acc)}
 /* Screener Pro */
 #sxbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
 :root[data-page="screener"] #sxbar{display:flex}
@@ -899,12 +905,7 @@ if(C.prevClose==="line"||C.prevClose==="val"){
   const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
   if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}])}
 }
-// plus button on price scale
-if(C.plusBtn){
-  const pb=document.createElement("button");pb.textContent="+";pb.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:4px;border:1px solid var(--line);background:var(--bg);cursor:pointer;z-index:5;font-size:14px";
-  pb.onclick=()=>setTool("hline");
-  document.getElementById("cv").parentElement.appendChild(pb);
-}
+// plus button on price scale: TradingView-style hover "+" (see vtPlusAttach), attached in vtAfterDraw
 // buy/sell buttons
 if(C.showBuySell){
   const leftPad=C.scalePlace==="left"?90:8;
@@ -2177,7 +2178,7 @@ const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
 const cl=B.a.map(x=>x.c),pts=arr=>arr.map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean);
 S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts(d.t==="ema"?emaArr(cl,d.len):smaArr(cl,d.len)))});
 const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8});
-SC.chB=c;SC.serB=ser;SC.barsB=B;SC.keyB=s[0]+"|"+tf;
+SC.chB=c;SC.serB=ser;SC.barsB=B;SC.keyB=s[0]+"|"+tf;vtPlusAttach(c,ser,document.getElementById("cvB"),()=>S.chart.sym);
 c.subscribeCrosshairMove(p=>{if(SC.lock||!S.sc.xsync||!ch||!MS||!G)return;SC.lock=1;try{
   if(!p||p.time==null){ch.clearCrosshairPosition()}else{const i=barAt(G.tt,p.time),bar=p.seriesData&&p.seriesData.get(ser);if(i>=0&&bar)ch.setCrosshairPosition(bar.close,G.tt[i],MS)}}catch(e){}SC.lock=0});
 }
@@ -2186,7 +2187,7 @@ function scSetPanes(n){S.sc.panes=n;save();scApplyAttr();scDock();scPaneB()}
 function scTogDock(){S.sc.dock=!S.sc.dock;save();scDock()}
 function scTogSec(k){S.sc.secs[k]=!S.sc.secs[k];save();scDock()}
 // main chart -> data window + pane 2 crosshair
-function vtAfterDraw(s,a,T){scApplyAttr();
+function vtAfterDraw(s,a,T){scApplyAttr();vtPlusAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);
 const C=S.chart,cl=a.map(x=>x.c),inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):rsiArr(cl,d.len)}));
 const vol=vols(s,C.tf);
 SC.dw={s,a,T,inds,vol,i:a.length-1};scDW();
@@ -2223,6 +2224,36 @@ PAGE_HOOK.chart={enter(){scApplyAttr();scDock();scPaneB();clearInterval(SC.iv);
   SC.iv=setInterval(()=>{if(S.pageView!=="chart")return;scDockLive();
     if(SC.serB&&SC.barsB){const s=symOf(S.chart.sym),a=s&&candles(s,S.sc.tfB);if(a&&a.length){const x=a[a.length-1],t=SC.barsB.D[SC.barsB.D.length-1];if(t&&(x.t==null||x.t===t.time)){try{SC.serB.update({time:t.time,open:t.open,high:Math.max(t.high,x.h,x.c),low:Math.min(t.low,x.l,x.c),close:x.c})}catch(e){}}}}},1500)},
   leave(){clearInterval(SC.iv);scKillB();const d=document.getElementById("dock");if(d)d.innerHTML="";const b=document.getElementById("sc2");if(b)b.innerHTML="";document.documentElement.dataset.panes="1"}};
+// ---------- price-scale plus button (Workspace chart + both Supercharts panes) ----------
+// Hovering the chart or its price axis shows "+" at the crosshair's price, next to the axis.
+// Click it for "Add alert at <price>" (through the normal alert engine) and "Draw horizontal line at <price>".
+if(S.chart.plusBtn===undefined)S.chart.plusBtn=true;
+function vtRoundPx(s,p){const prec=s&&s[2]!=null&&s[2]<10?4:2;return +p.toFixed(prec)}
+function vtAddAlertAt(sym,price){const s=symOf(sym),cur=s&&s[2]!=null?s[2]:null;
+S.alerts=S.alerts||[];const a={id:Date.now(),sym,price,dir:cur!=null&&price<cur?"below":"above",on:true,fired:false};S.alerts.push(a);save();
+toast("Alert: "+sym+" crosses "+a.dir+" "+price);if(typeof scDockLive==="function")scDockLive();
+if(typeof Notification!=="undefined"&&Notification.permission==="default"){try{Notification.requestPermission()}catch(e){}}return a}
+function vtHlineAt(sym,price){if(S.chart.sym!==sym)return;pushUndo();const t=G&&G.tt&&G.tt.length?G.tt[G.tt.length-1]:Math.floor(Date.now()/1000);
+const d={id:Date.now(),t:"hline",p:[{t,y:price}],c:"#2962ff",w:2,s:0};DL().push(d);SELD=d;save();tbRef();toast("Horizontal line at "+price)}
+function vtPlusClose(){document.querySelectorAll(".vpmenu").forEach(m=>m.remove())}
+function vtPlusAttach(chart,series,host,symFn){if(!chart||!series||!host)return;
+if(getComputedStyle(host).position==="static")host.style.position="relative";
+const b=document.createElement("button");b.className="vplus";b.type="button";b.textContent="+";b.title="Add alert or line at this price";host.appendChild(b);
+let y=null;
+const geo=()=>{let pw=0,th=0;try{pw=chart.timeScale().width()}catch(e){}try{th=chart.timeScale().height()}catch(e){}return{pw:pw||host.clientWidth-60,ph:host.clientHeight-(th||26)}};
+host.addEventListener("mousemove",e=>{if(e.target===b||S.chart.plusBtn===false){if(S.chart.plusBtn===false)b.style.display="none";return}
+  const r=host.getBoundingClientRect(),x=e.clientX-r.left,yy=e.clientY-r.top,g=geo();
+  if(yy<0||yy>g.ph||x<0||x>host.clientWidth||series.coordinateToPrice(yy)==null){b.style.display="none";return}
+  y=yy;b.style.display="block";b.style.left=(g.pw-21)+"px";b.style.top=(yy-9)+"px"});
+host.addEventListener("mouseleave",e=>{if(!e.relatedTarget||!host.contains(e.relatedTarget))b.style.display="none"});
+b.addEventListener("mousedown",e=>e.stopPropagation());b.addEventListener("pointerdown",e=>e.stopPropagation());
+b.addEventListener("click",e=>{e.stopPropagation();vtPlusClose();if(y==null)return;const sym=symFn(),s=symOf(sym),raw=series.coordinateToPrice(y);if(raw==null||!s)return;
+  const price=vtRoundPx(s,raw),m=document.createElement("div");m.className="vpmenu";
+  const it=(txt,fn)=>{const d=document.createElement("div");d.textContent=txt;d.onclick=ev=>{ev.stopPropagation();vtPlusClose();fn()};m.appendChild(d)};
+  it("Add alert at "+fp(price),()=>vtAddAlertAt(sym,price));
+  if(DT.hline)it("Draw horizontal line at "+fp(price),()=>vtHlineAt(sym,price));
+  const g=geo();m.style.top=Math.min(y+12,Math.max(0,host.clientHeight-90))+"px";m.style.right=(host.clientWidth-g.pw+4)+"px";host.appendChild(m)});}
+document.addEventListener("click",e=>{if(!e.target.closest||!e.target.closest(".vpmenu,.vplus"))vtPlusClose()});
 // ---------- presets load what they score on ----------
 // scoreMarket/passesPreset read an entry + validation timeframe (H: 1H/1D, M: 15m/1H, L: 1m/15m).
 // kick() only queued the timeframes used by visible columns, so with a preset on, the entry timeframe was often

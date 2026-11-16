@@ -372,6 +372,30 @@ html.locked .auth{display:flex}
 .prog.w>b{background:#e3a008}.prog.x>b{background:var(--r)}
 .ftbl th{white-space:normal;line-height:1.2}
 .ftbl td.l input{text-align:left}
+/* legal pages + footer */
+:root[data-page="legal"] #pv-legal{display:block}
+:root[data-page="legal"] .ws{display:none}
+.lgl{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start}
+.lgl nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.lgl nav a{padding:7px 10px;border-radius:6px;color:var(--mut);text-decoration:none;font-size:13px;font-weight:600}
+.lgl nav a:hover{color:var(--fg);background:var(--card)}
+.lgl nav a.on{color:var(--acc);background:var(--card)}
+.lgldoc{max-width:820px;line-height:1.6;font-size:14px}
+.lgldoc h1{font-size:22px;margin:0 0 4px}
+.lgldoc h2{font-size:15px;margin:22px 0 6px}
+.lgldoc p,.lgldoc li{color:var(--fg)}
+.lgldoc .meta{color:var(--mut);font-size:12px;margin:0 0 14px}
+.lgldoc code{font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.lgldoc table{min-width:0;font-size:13px;margin:8px 0}
+.lgldoc th,.lgldoc td{text-align:left!important;white-space:normal;vertical-align:top;position:static}
+.ph{background:var(--acc-soft);color:var(--acc);border-radius:4px;padding:0 4px;font-weight:600}
+:root[data-ui="phone"] .lgl{grid-template-columns:1fr}
+:root[data-ui="phone"] .lgl nav{position:static;flex-direction:row;flex-wrap:wrap}
+.vfoot{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:11px;color:var(--mut);padding:6px 2px 0;border-top:1px solid var(--line);margin-top:6px}
+:root[data-split="1"] .vfoot{flex:none;margin-top:4px;padding-top:4px}
+.vfoot a{color:var(--mut);text-decoration:none}
+.vfoot a:hover{color:var(--acc)}
+.vfoot .risk{flex:1;min-width:240px}
 /* ==== VT PAGES CSS END ==== */
 </style></head><body>
 <div class="wrap">
@@ -2114,7 +2138,8 @@ const PAGES=[
 ["journal","Journal",'<path d="M6 3h11a2 2 0 012 2v16H8a2 2 0 01-2-2z"/><path d="M10 8h5M10 12h5"/>'],
 ["calc","Calculators",'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h1M12 12h1M16 12h0M8 16h1M12 16h1M15 15v3"/>'],
 ["backtest","Backtest",'<path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/>']];
-const PAGE_IDS=PAGES.map(p=>p[0]);
+const HIDDEN_PAGES={legal:"Legal"}; // routable, but not tabs in the nav
+const PAGE_IDS=[...PAGES.map(p=>p[0]),...Object.keys(HIDDEN_PAGES)];
 const PAGE_HOOK={}; // page id -> {enter(), leave()}; each page registers its own
 function chartOnPage(){const p=S.pageView||"workspace";return p==="workspace"||p==="chart"}
 function listOnPage(){const p=S.pageView||"workspace";return p==="workspace"||p==="chart"||p==="screener"}
@@ -2123,12 +2148,12 @@ function navHTML(){return PAGES.map(([id,n,ic])=>`<a href="#/${id}" data-p="${id
 function showPage(p,initial){
   if(!PAGE_IDS.includes(p))p="workspace";
   const root=document.documentElement,prev=root.dataset.page||"";
-  if(prev===p&&!initial)return;
+  if(prev===p&&!initial){const hs=PAGE_HOOK[p];if(hs&&hs.sub){try{hs.sub()}catch(e){console.error(e)}}return}
   const ph=PAGE_HOOK[prev];if(ph&&ph.leave){try{ph.leave(p)}catch(e){console.error(e)}}
-  S.pageView=p;lsSet("vt_page",p);save();
+  S.pageView=p;if(!HIDDEN_PAGES[p])lsSet("vt_page",p);save();
   root.dataset.page=p;
   document.querySelectorAll("#vnav a").forEach(a=>{const on=a.dataset.p===p;a.classList.toggle("on",on);if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
-  const t=PAGES.find(x=>x[0]===p);document.title=(p==="workspace"?"":t[1]+" \u00b7 ")+"Vektor Terminal";
+  const t=PAGES.find(x=>x[0]===p);document.title=(p==="workspace"?"":(t?t[1]:HIDDEN_PAGES[p])+" \u00b7 ")+"Vektor Terminal";
   // the chart panel was hidden on the other pages; rebuild it so it sizes to its new space
   const chartWas=prev==="workspace"||prev==="chart";
   if(!initial&&BOOTED&&chartOnPage()&&!chartWas)drawChart();
@@ -2139,7 +2164,7 @@ let ROUTER=false;
 function routerInit(){if(ROUTER)return;ROUTER=true;
   const nav=document.getElementById("vnav");if(nav)nav.innerHTML=navHTML();
   const saved=lsGet("vt_page")||S.pageView,p=pageOf(location.hash)||(PAGE_IDS.includes(saved)?saved:"workspace");
-  if(location.hash!=="#/"+p)history.replaceState(null,"","#/"+p);
+  if(pageOf(location.hash)!==p)history.replaceState(null,"","#/"+p);
   showPage(p,true);
   addEventListener("hashchange",()=>{const q=pageOf(location.hash);if(q)showPage(q);else history.replaceState(null,"","#/"+(S.pageView||"workspace"))});
 }
@@ -2443,6 +2468,91 @@ el.innerHTML=k("Pass rate",pct(r.pass),r.pass>=0.5?"up":"dn")+k("Fail: max DD",p
 const rows=[5,10,20,30,50,100].map(n=>{let b=o.acct;for(let i=0;i<n;i++)b+=(o.fixed?o.acct:b)*o.riskPct/100*ex;return`<tr><td class="l">${n} trades</td><td>${usd(b,0)}</td><td class="${b>=o.acct?"up":"dn"}">${((b/o.acct-1)*100).toFixed(2)}%</td><td>${b>=o.acct*(1+o.target/100)?"target reached":""}</td></tr>`});
 document.getElementById("c_comp").innerHTML=`<thead><tr><th class="l">At expectancy</th><th>Balance</th><th>Return</th><th></th></tr></thead><tbody>${rows.join("")}</tbody>`},250);
 PAGE_HOOK.calc={enter(){calcBuild()}};
+// ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
+// Template only, not legal advice; have a solicitor review before publishing.
+// Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.
+const PH=t=>`<span class="ph">[${t}]</span>`;
+const LG_META=()=>`<p class="meta">Effective date: ${PH("Effective date")} \u00b7 Operated by ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}. Contact: ${PH("Contact email")}.</p>`;
+const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th><th>What it holds</th></tr></thead><tbody>
+<tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts, chart settings and drawings, Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
+<tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
+<tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
+<tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
+<tr><td>IndexedDB</td><td>database <code>scr</code>, store <code>c</code></td><td>A cache of market data: price candles, the list of markets and a snapshot of the screener universe, so the app loads instantly next time.</td></tr></tbody></table>`;
+const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Provider</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
+<tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
+<tr><td>Yahoo Finance</td><td><code>query1.finance.yahoo.com</code>, reached through public CORS proxies <code>corsproxy.io</code>, <code>api.allorigins.win</code>, <code>api.codetabs.com</code></td><td>Candles for forex, metals, futures, indices, US stocks and ETFs, and for custom watchlist tickers.</td></tr>
+<tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. The app ships with a default key; you can enter your own under Data.</td></tr>
+<tr><td>Finnhub (only if you add a key)</td><td><code>finnhub.io</code>, WebSocket <code>ws.finnhub.io</code></td><td>Stock candles, the US stock list and live stock trades.</td></tr>
+<tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Stock candles and the stock and ETF list.</td></tr>
+<tr><td>CoinGecko</td><td><code>api.coingecko.com</code></td><td>Fallback daily crypto candles.</td></tr>
+<tr><td>jsDelivr CDN</td><td><code>cdn.jsdelivr.net</code></td><td>Loads the charting library (TradingView Lightweight Charts 4.1.3) and html2canvas 1.4.1 (chart snapshots).</td></tr>
+<tr><td>This website</td><td><code>data/manifest.json</code>, <code>data/c_*.json</code></td><td>An optional pre-built market data snapshot, if the site operator publishes one.</td></tr></tbody></table>`;
+const LEGAL={
+terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
+<h2>1. About these terms</h2><p>These terms apply to your use of Vektor Terminal (the \u201cService\u201d) at ${PH("Website URL")}. By using the Service you accept them. If you don\u2019t agree, please don\u2019t use it.</p>
+<h2>2. What the Service is</h2><p>Vektor Terminal is a browser-based set of market screening, charting, journaling, calculation and back-testing tools. It runs in your browser. It does not execute trades, hold money, or connect to any brokerage account.</p>
+<h2>3. Not advice</h2><p>Nothing in the Service is investment, financial, tax or legal advice, or a recommendation to buy or sell anything. Scores, presets, tiers, heatmaps, back-tests and calculator results come from formulas applied to third-party data. They are information only. See the <a href="#/legal/risk">Risk Disclaimer</a>.</p>
+<h2>4. Who can use it</h2><p>You must be 18 or over and allowed to use services like this where you live.</p>
+<h2>5. Your account and sign-in</h2><p>The sign-in screen is currently a prototype. It does not check credentials against a server, and your password is neither stored nor sent anywhere. It only remembers your username or email on your device. Don\u2019t rely on it to protect your data on a shared device.</p>
+<h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. Some requests go through public proxies (see the <a href="#/legal/privacy">Privacy Policy</a>).</p>
+<h2>7. Acceptable use</h2><p>Don\u2019t misuse the Service. That includes trying to disrupt it, overloading data providers through it, scraping or redistributing third-party data in breach of their terms, or using it for anything unlawful.</p>
+<h2>8. Intellectual property</h2><p>The Service, its design and code belong to ${PH("Company legal name")} or its licensors. Third-party libraries are used under their own licences (see <a href="#/legal/data">Data Sources and Attributions</a>). Your own notes, journal entries and settings stay yours.</p>
+<h2>9. Availability and changes</h2><p>The Service is provided \u201cas is\u201d and \u201cas available\u201d. Features, data sources and these terms may change. We\u2019ll update the effective date when the terms change.</p>
+<h2>10. Liability</h2><p>See the <a href="#/legal/liability">Disclaimer of Liability</a>. Nothing in these terms limits liability that cannot be limited under the law of England and Wales, including for death or personal injury caused by negligence, or for fraud, and nothing affects your statutory rights as a consumer.</p>
+<h2>11. Law</h2><p>These terms are governed by the law of England and Wales. The courts of England and Wales have jurisdiction, although if you live elsewhere in the UK you may also bring proceedings in your local courts.</p>
+<h2>12. Contact</h2><p>${PH("Company legal name")}, ${PH("Registered address")}. Email: ${PH("Contact email")}.</p>`],
+privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
+<p>This policy explains how personal data is handled when you use Vektor Terminal, under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
+<h2>1. Who is responsible</h2><p>The controller is ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}, ICO registration number ${PH("ICO registration number")}. Contact: ${PH("Contact email")}.</p>
+<h2>2. The short version</h2><ul><li>The app runs in your browser. It has no account server or database of ours that stores your settings, watchlists, alerts or trades. They stay on your device.</li><li>There are no analytics, advertising or tracking cookies, and we don\u2019t sell data.</li><li>To show prices, your browser contacts third-party market data services directly, and they can see your IP address and which markets you request.</li></ul>
+<h2>3. Sign-in</h2><p>The sign-in screen is a prototype. When you sign in, the username or email you type is saved on your device only (key <code>scr2a</code>). The password is not stored and is not sent anywhere. Logging out deletes the saved name. If a real account system is added, this policy will be updated before it goes live.</p>
+<h2>4. What\u2019s stored on your device</h2>${LG_STORE}<p>This data never leaves your device, except API keys, which your browser sends to the provider they belong to (section 5). You can delete all of it by logging out and clearing this site\u2019s data in your browser. Data \u2192 Reload data also empties the market data cache.</p>
+<h2>5. Third parties your browser contacts</h2>${LG_SOURCES}
+<p>Each of these services receives your IP address, your browser\u2019s standard request information and the symbols and timeframes requested. They handle that under their own privacy policies. Some are outside the UK (for example in the United States), so this involves a transfer of your IP address to them when your browser makes the request.</p>
+<p><b>Public proxies.</b> Yahoo Finance requests, and the Finnhub and Polygon market-list requests if the direct request fails, go through the public CORS proxies listed above. The Finnhub and Polygon list requests include your API key in the address, so the proxy operator can see it. Use keys you\u2019re comfortable sharing on that basis, or leave those fields empty.</p>
+<p>Links to TradingView.com open TradingView\u2019s own website, and its privacy policy applies there.</p>
+<h2>6. Website hosting</h2><p>The company or service hosting this website (${PH("Hosting provider")}) may keep standard server logs (IP address, time, page requested) for security and operation. ${PH("Describe hosting log retention")}.</p>
+<h2>7. Notifications and sound</h2><p>When you add a price alert, your browser may ask permission to show notifications. Alerts are checked and shown on your device, and nothing is sent to us.</p>
+<h2>8. Lawful basis</h2><p>Storage on your device is strictly necessary to provide the features you ask for. Hosting logs are processed on the basis of our legitimate interests in running a secure website.</p>
+<h2>9. How long data is kept</h2><p>Data on your device stays until you delete it. Cached market data refreshes automatically: intraday data after about 15 minutes, daily and longer data after about 6 hours. Hosting logs: ${PH("Hosting log retention period")}.</p>
+<h2>10. Your rights</h2><p>Under UK GDPR you have rights to access, rectify, erase, restrict and object to the processing of your personal data, and to data portability. Because the app keeps your data on your own device, you can see and delete most of it yourself. For anything else, email ${PH("Contact email")}. You can also complain to the Information Commissioner\u2019s Office (ico.org.uk, 0303 123 1113).</p>
+<h2>11. Children</h2><p>The Service is not intended for anyone under 18.</p>
+<h2>12. Changes</h2><p>We\u2019ll update this page and its effective date if the way the app handles data changes.</p>`],
+cookies:["Cookies \u0026 Local Storage",()=>`<h1>Cookies and Local Storage</h1>${LG_META()}
+<h2>Cookies</h2><p>Vektor Terminal does not set any cookies. It uses no analytics, advertising, social media or other tracking tools.</p>
+<h2>Local storage</h2><p>The app saves your settings, alerts and a market data cache in your browser\u2019s localStorage, sessionStorage and IndexedDB:</p>${LG_STORE}
+<p>This storage is strictly necessary to provide the features you use (keeping you signed in, remembering your settings and loading quickly), so under the Privacy and Electronic Communications Regulations it doesn\u2019t need consent. There is no consent banner because there is no non-essential storage or tracking. If that changes, we\u2019ll ask for your consent first.</p>
+<h2>Third-party requests</h2><p>Your browser loads the charting libraries from jsDelivr and market data from the providers listed under <a href="#/legal/data">Data Sources</a>. Those servers receive your IP address. The app doesn\u2019t ask them to set cookies.</p>
+<h2>Clearing it</h2><p>Log out to remove the sign-in entry, use Data \u2192 Reload data to empty the market data cache, or clear this site\u2019s data in your browser settings to remove everything.</p>`],
+risk:["Risk Disclaimer",()=>`<h1>Risk Disclaimer and Not Financial Advice</h1>${LG_META()}
+<h2>High risk</h2><p>Trading contracts for difference (CFDs), foreign exchange (FX), futures, crypto-assets and other leveraged products carries a high risk of losing money quickly. Leverage magnifies losses as well as gains. You can lose more than you put in where your account terms allow it. Crypto-assets are largely unregulated in the UK, and you are unlikely to be protected if something goes wrong. Only trade with money you can afford to lose.</p>
+<h2>Not financial advice</h2><p>Vektor Terminal provides tools and information only. Nothing in it is investment, financial, tax or legal advice, a personal recommendation, or an offer or solicitation to buy or sell anything. Screener results, Vektor scores, P1 to P5 tiers, S01 to S04 phases, heatmaps and alerts are formulas applied to data. They are not signals to trade. Think about your own circumstances, and get independent advice if you need it.</p>
+<h2>No FCA authorisation</h2><p>${PH("Company legal name")} is not authorised or regulated by the Financial Conduct Authority (FCA) to give investment advice or arrange deals in investments, and nothing on this site implies that it is.</p>
+<h2>Past performance and back-tests</h2><p>Past performance is not a reliable indicator of future results. Back-tests, bar replays and simulations are hypothetical. They benefit from hindsight, usually ignore costs such as spreads, commissions, swaps and slippage, and use data that may be incomplete. Real results will differ.</p>
+<h2>Prop-firm figures are illustrative</h2><p>Prop-firm drawdown meters, challenge simulations, pass rates and position-size results are illustrations based on the numbers you enter. Every prop firm has its own rules, and theirs are what count. Check them before you trade.</p>
+<h2>Data</h2><p>Prices may be delayed, incomplete or wrong (see <a href="#/legal/data">Data Sources</a>). Always check prices with your broker before acting.</p>`],
+data:["Data Sources",()=>`<h1>Data Sources and Attributions</h1>${LG_META()}
+<h2>Market data</h2><p>Vektor Terminal is not a data vendor. Your browser fetches prices directly from the following services:</p>${LG_SOURCES}
+<p>We are not affiliated with or endorsed by any of these providers, and their terms of use apply to their data. Trademarks belong to their owners.</p>
+<h2>Accuracy and delays</h2><ul><li>Data may be delayed, incomplete, adjusted differently between providers, or wrong. Free sources and proxies can be slow, rate-limited or unavailable.</li><li>When live sources are quiet, the app may show cached data. The status reads \u201cCACHED FAILOVER\u201d when it does. Forex and CFD \u201cvolume\u201d is tick volume, not traded volume.</li><li>In \u201cOffline sample data\u201d mode, all prices are simulated and are not real market data.</li></ul>
+<h2>Software</h2><ul><li>Charts: TradingView Lightweight Charts\u2122 4.1.3, \u00a9 TradingView, Inc., Apache License 2.0 (<a href="https://www.tradingview.com/" target="_blank" rel="noopener">tradingview.com</a>).</li><li>Snapshots: html2canvas 1.4.1 by Niklas von Hertzen, MIT License.</li></ul>`],
+liability:["Disclaimer of Liability",()=>`<h1>Disclaimer of Liability</h1>${LG_META()}
+<p>Vektor Terminal is provided \u201cas is\u201d, with no warranty that it is accurate, complete, available or fit for any purpose. To the extent the law allows, ${PH("Company legal name")} is not liable for any trading losses, lost profits, or decisions made using the Service, its data, scores, alerts, calculators, journal or back-tests. Nor is it liable for an alert that fails to fire, data that is delayed or wrong, or loss of data stored in your browser.</p>
+<p>Nothing here excludes or limits liability that cannot be excluded under the law of England and Wales, including for death or personal injury caused by negligence, or for fraud, and nothing affects your statutory rights as a consumer.</p>`]};
+const LG_ORDER=["terms","privacy","cookies","risk","data","liability"];
+function legalDoc(){const m=/^#\/legal\/([a-z]+)/.exec(location.hash);return m&&LEGAL[m[1]]?m[1]:null}
+function legalRender(){let el=document.getElementById("pv-legal");if(!el)return;const d=legalDoc();
+const nav=`<nav aria-label="Legal">${LG_ORDER.map(k=>`<a href="#/legal/${k}" class="${k===d?"on":""}">${LEGAL[k][0]}</a>`).join("")}</nav>`;
+const body=d?LEGAL[d][1]():`<h1>Legal</h1>${LG_META()}<ul>${LG_ORDER.map(k=>`<li><a href="#/legal/${k}">${LEGAL[k][0]}</a></li>`).join("")}</ul>`;
+el.innerHTML=`<div class="pgw"><div class="lgl">${nav}<article class="lgldoc vcard">${body}</article></div></div>`;
+if(d)document.title=LEGAL[d][0]+" \u00b7 Vektor Terminal";el.scrollTop=0}
+PAGE_HOOK.legal={enter:legalRender,sub:legalRender};
+(()=>{const w=document.querySelector(".wrap");if(!w)return;
+if(!document.getElementById("pv-legal")){const pv=document.createElement("div");pv.className="pv";pv.id="pv-legal";const last=[...w.querySelectorAll(".pv")].pop();if(last)last.after(pv);else w.appendChild(pv)}
+const f=document.createElement("footer");f.className="vfoot";
+f.innerHTML=`<span class="risk">Trading CFDs, FX and crypto carries a high risk of losing money. Nothing here is financial advice. <a href="#/legal/risk">Risk disclaimer</a></span>`+LG_ORDER.filter(k=>k!=="risk").map(k=>`<a href="#/legal/${k}">${LEGAL[k][0]}</a>`).join("");
+w.appendChild(f)})();
 stubPage("heatmap","Heatmaps","Treemap heatmap of the live universe is coming in a later update.");
 stubPage("calendar","Calendar \u0026 News","Economic calendar is coming in a later update.");
 stubPage("journal","Journal","Trade journal and prop tracker are coming in a later update.");

@@ -1,0 +1,18 @@
+/* full-app sweep: chart error state + indicators dialog layout */
+.vt-cverr{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px;max-width:520px}
+.vt-cverr p{margin:0}
+#modal .box.vt-indm{width:min(620px,94vw);max-width:94vw}
+#modal .box.vt-indm .li{gap:10px}
+#modal .box.vt-indm .li>span:first-child{flex:1;min-width:0}
+#modal .box.vt-indm .li>span:last-child{display:flex;align-items:center;gap:4px;flex:none}
+.vt-indbtns{display:flex;gap:6px;flex:none}
+.vt-indnew{padding:10px 0;border-bottom:1px solid var(--line)}
+.vt-navb{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);z-index:8;display:flex;gap:4px;padding:4px;border-radius:8px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .15s}
+#cv:hover .vt-navb,.vt-navb:focus-within,.vt-navb.on{opacity:1;pointer-events:auto}
+.vt-navb button,.vt-paneb button{min-width:30px;min-height:28px;padding:0 6px;font-size:15px;line-height:1}
+.vt-paneb{position:absolute;right:64px;top:4px;z-index:8;display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .15s}
+#cv2:hover .vt-paneb,.vt-paneb:focus-within,.vt-paneb.on{opacity:1;pointer-events:auto}
+.vt-vol{font-size:12.5px;white-space:nowrap}
+@media (hover:none){.vt-navb:not(.on),.vt-paneb:not(.on){display:none}}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-navb button,:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-paneb button{min-width:44px;min-height:44px}
+.vt-indrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}

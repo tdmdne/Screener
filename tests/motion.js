@@ -38,7 +38,7 @@ const hm=await P.evaluate(()=>{const t=[...document.querySelectorAll(".hmt")];re
 assert(hm.n>10&&hm.vin===hm.n&&hm.names.includes("vtTileIn")&&hm.delays>3,JSON.stringify(hm));
 await P.waitForTimeout(1200);assert.strictEqual(await P.evaluate(()=>document.querySelectorAll(".hmt.vt-in").length),0);
 // 5) skeleton shimmer on a loading placeholder
-const sk=await P.evaluate(()=>{const s=SYMS.find(s=>!candles(s,S.chart.tf)&&s[1]!=="CRY");if(!s)return null;go("workspace");openChart(s[0]);const p=document.querySelector("#cv .vt-skel");
+const sk=await P.evaluate(()=>{const s=SYMS.find(s=>!candles(s,S.chart.tf)&&s[1]!=="CRY");if(!s)return null;delete ERR[s[0]+"|"+S.chart.tf];/* a failed load now shows the error state; clear it so this one is loading */go("workspace");openChart(s[0]);const p=document.querySelector("#cv .vt-skel");
   return p?{role:p.getAttribute("role"),txt:p.textContent,anim:getComputedStyle(p,"::before").animationName}:"none"});
 assert(sk&&sk!=="none"&&sk.role==="status"&&/Loading/.test(sk.txt)&&sk.anim==="vtShim",JSON.stringify(sk));
 // 6) dialog entrance

@@ -3,6 +3,16 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Full-app sweep: fixed controls that looked finished but did nothing.**
+  - **Chart load errors:** if a symbol's candles fail to load, the chart now shows the real error with a Try again button. It used to say "Loading candles…" forever.
+  - **Indicators › My scripts:** this tab now lists your saved Vektor Script indicators, with Add/Remove (a script with an error isn't added) and Edit, plus New script. It used to show a fixed list. The icon-only buttons in the dialog (settings, remove, favourite) now have accessible names, and the rows no longer wrap.
+  - **Settings that were shown but ignored now work:**
+    - Canvas › Buttons › Navigation: zoom, scroll and reset buttons on the chart, shown on hover, always or hidden.
+    - Canvas › Buttons › Pane: settings, hide and remove buttons on the RSI pane.
+    - Status line › Volume: the bar volume next to the price, which follows the crosshair.
+    - Symbol › Time colour: colours the clock under the chart.
+  - Page names in the address are now case-insensitive (`#/Chart` opens Supercharts).
+  - Checked with no changes needed: Calculators (every input recalculates; JPY pip value says plainly when it has no live rate) and the Screener controls.
 - **Backtest Lab page (replaces the placeholder).**
   - **Rules:** EMA cross, RSI reversal, or N-bar breakout; long, short or both. Stop is an ATR(14) multiple or a % of entry, with an optional target in R and an optional exit on the opposite signal. Risk per trade is a % of the starting balance, and fees apply on both sides.
   - **No look-ahead:** a signal on a closed bar fills at the next bar's open. When a bar touches both the stop and the target, the stop counts first. Gaps past a level fill at the open. There is no new entry on the bar where a stop or target was hit. Open trades close at the last bar ("end of data").

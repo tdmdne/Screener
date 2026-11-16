@@ -3,6 +3,29 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Each account's saved work is now kept separate on a shared device.**
+  - Charts, drawings, the journal, templates, alerts, scripts, screener layouts and other settings are now saved per signed-in account, under `scr2~<code>` and `scr2p~<code>`. The code is made from the username, ignoring case and spaces.
+  - Guests and the sign-in screen start from defaults and never read anyone's saved work. Logging out and signing in as someone else shows only that person's work.
+  - If a guest signs in to an account that already has saved work, they choose: open the saved work, or keep the current session and save it over it.
+  - **Work saved before this change:**
+    - If someone is signed in when this version first runs, it becomes theirs.
+    - If nobody is, it is set aside and never shown to guests. The next people to sign in are asked "Import into my account" or "Not mine".
+  - Your data: the export now includes only your account's entries and says how many entries from other accounts were left out.
+  - The Journal AI key is per account (`vt_aikey~<code>`).
+  - Limit: sign-in is still a local prototype with no password check. This separates people who share a browser; it does not protect against someone typing your username.
+- **The Twelve Data key is no longer built in.**
+  - Add your own key under Settings › Data. It is kept for the tab and saved (`vt_tdkey~<code>`, per account) only if you allow Optional preferences. It is never saved for guests and is deleted when you clear it or withdraw that choice.
+  - A key saved by an older version is moved out of your settings, and the old built-in key is dropped.
+  - Without a key, forex and metals load from Yahoo only, nothing is sent to Twelve Data, and charts that need it say "no Twelve Data key (add yours in Settings › Data)".
+  - Binance and Finnhub feeds and their WebSockets are unchanged.
+  - For local or self-hosted use, an owner key can go in `config.local.js`, which is gitignored; `config.example.js` is the committed template. The app requests that file only on localhost, 127.0.0.1 or file:, and uses the key in memory after the user's own key; it is never stored.
+- **Repo audit: no keys or secrets remain in the current files of any branch on `main`.**
+  - The Twelve Data key that used to be built in has been removed.
+  - The cTrader (IC Markets) credentials existed only in Nov 11–12 history and are not in any current file.
+  - The removed values are kept off-repo by the owner.
+  - Git history was not rewritten, so those keys need rotating at the providers.
+  - The public contact address in the legal pages, the sample market symbol lists and the other app constants were reviewed and kept.
+- **Mini charts:** when a tick only re-sorts the list, the cards move instead of every card being redrawn.
 - **Full-app sweep: fixed controls that looked finished but did nothing.**
   - **Chart load errors:** if a symbol's candles fail to load, the chart now shows the real error with a Try again button. It used to say "Loading candles…" forever.
   - **Indicators › My scripts:** this tab now lists your saved Vektor Script indicators, with Add/Remove (a script with an error isn't added) and Edit, plus New script. It used to show a fixed list. The icon-only buttons in the dialog (settings, remove, favourite) now have accessible names, and the rows no longer wrap.

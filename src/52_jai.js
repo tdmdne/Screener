@@ -3,16 +3,17 @@
    AI review (off until you use it): only when you press "Send to <provider>" after ticking the disclosure. The request goes straight
    from your browser to the provider you chose, with your key. Vektor has no server in the middle and never sees the key or the data.
    The key stays in memory for this tab unless you tick "Remember", which needs the Optional preferences choice (vt_aikey). */
-const JAI_KEY="vt_aikey";
+/* the remembered key is per signed-in user: vt_aikey~<user hash> */
+function jaiKeyName(){return(typeof vtSK==="function"&&vtSK("vt_aikey"))||"vt_aikey"}
 const JAI_PROV={openai:{name:"OpenAI",host:"api.openai.com",url:"https://api.openai.com/v1/chat/completions",model:"gpt-4o-mini",terms:"https://openai.com/policies/"},
   anthropic:{name:"Anthropic",host:"api.anthropic.com",url:"https://api.anthropic.com/v1/messages",model:"claude-3-5-haiku-latest",terms:"https://www.anthropic.com/legal"},
   custom:{name:"OpenAI-compatible endpoint",host:"",url:"",model:"",terms:""}};
 const JAI={key:"",busy:false,out:null,err:"",mode:"local",ack:false,ctl:null};
 function jaiCfg(){const J=jrCfg();if(!J.ai||typeof J.ai!=="object")J.ai={};const A=J.ai;if(!JAI_PROV[A.prov])A.prov="openai";if(typeof A.model!=="string")A.model="";if(typeof A.base!=="string")A.base="";A.notes=!!A.notes;return A}
-function jaiStoredKey(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest()))return null;try{const o=JSON.parse(localStorage.getItem(JAI_KEY)||"null");return o&&typeof o.k==="string"?o:null}catch(e){return null}}
-function jaiForget(){JAI.key="";try{localStorage.removeItem(JAI_KEY)}catch(e){}}
-function jaiRemember(on){if(!on){try{localStorage.removeItem(JAI_KEY)}catch(e){}return false}if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest())||!JAI.key)return false;
-  try{localStorage.setItem(JAI_KEY,JSON.stringify({p:jaiCfg().prov,k:JAI.key}));return true}catch(e){return false}}
+function jaiStoredKey(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest()))return null;try{const o=JSON.parse(localStorage.getItem(jaiKeyName())||"null");return o&&typeof o.k==="string"?o:null}catch(e){return null}}
+function jaiForget(){JAI.key="";try{localStorage.removeItem(jaiKeyName())}catch(e){}}
+function jaiRemember(on){if(!on){try{localStorage.removeItem(jaiKeyName())}catch(e){}return false}if(typeof vtPrefsOK!=="function"||!vtPrefsOK()||(typeof vtIsGuest==="function"&&vtIsGuest())||!JAI.key)return false;
+  try{localStorage.setItem(jaiKeyName(),JSON.stringify({p:jaiCfg().prov,k:JAI.key}));return true}catch(e){return false}}
 /* the provider endpoint for the current settings, or an error message */
 function jaiEndpoint(){const A=jaiCfg(),P=JAI_PROV[A.prov];if(A.prov!=="custom")return{url:P.url,host:P.host};
   let u;try{u=new URL(A.base.trim())}catch(e){return{err:"Enter the endpoint\u2019s base URL, e.g. https://example.com/v1"}}
@@ -82,7 +83,7 @@ function jaiCardRender(){const el=document.getElementById("jr_aic");if(!el)retur
 ${A.prov==="custom"?`<label>Endpoint base URL<input id="jai_base" type="url" value="${esc(A.base)}" placeholder="https://\u2026/v1" autocomplete="off" spellcheck="false"></label>`:""}
 <label>Model<input id="jai_model" value="${esc(A.model)}" placeholder="${esc(P.model||"model name")}" autocomplete="off" spellcheck="false"></label>
 <label>API key<input id="jai_key" type="password" value="${esc(JAI.key)}" autocomplete="off" spellcheck="false" placeholder="paste your key"></label></div>
-<div class="jaiopts"><label class="chk"><input type="checkbox" id="jai_rem"${stored?" checked":""}${prefs&&!guest?"":" disabled"}> Remember the key on this device</label><span class="mut jaisub">${guest?"Not available in guest mode.":prefs?"Stored in this browser only (<code>vt_aikey</code>) until you untick this or withdraw Optional preferences.":"Needs \u201cOptional preferences\u201d in <button type=\"button\" class=\"lnk\" id=\"jai_ck\">Cookie settings</button>. Without it the key is kept only until you close this tab."}</span>
+<div class="jaiopts"><label class="chk"><input type="checkbox" id="jai_rem"${stored?" checked":""}${prefs&&!guest?"":" disabled"}> Remember the key on this device</label><span class="mut jaisub">${guest?"Not available in guest mode.":prefs?"Stored in this browser for your account only (<code>vt_aikey~…</code>) until you untick this or withdraw Optional preferences.":"Needs \u201cOptional preferences\u201d in <button type=\"button\" class=\"lnk\" id=\"jai_ck\">Cookie settings</button>. Without it the key is kept only until you close this tab."}</span>
 ${JAI.key?`<button type="button" class="lnk" id="jai_forget">Forget key</button>`:""}
 <label class="chk"><input type="checkbox" id="jai_notes"${A.notes?" checked":""}> Include my trade notes</label></div>
 <div class="jaidisc" id="jai_disc"><b>Before you send:</b> pressing Send sends ${inc} closed trade${inc===1?"":"s"} from this view (date, symbol, side, P\u0026L, R, setup and tags${A.notes?", and your notes":""}) plus summary statistics directly from your browser to <b>${esc(ep.host||"the endpoint you enter")}</b>, using your key. Account names aren\u2019t included. Vektor Terminal has no server in between and doesn\u2019t receive your key or this data. ${A.prov!=="custom"?`${esc(P.name)}\u2019s own terms and privacy policy apply (<a href="${esc(P.terms)}" target="_blank" rel="noopener noreferrer">${esc(P.name)} policies</a>), and you pay for the request on your account.`:"The endpoint owner\u2019s terms and privacy policy apply."} The reply is generated by AI: it can be wrong and is not financial advice.
@@ -113,4 +114,4 @@ function jaiOut(box){const o=JAI.out;box.innerHTML="";const h=document.createEle
   const body=document.createElement("div");body.className="jaitxt";o.text.split(/\n{1,}/).map(s=>s.trim()).filter(Boolean).forEach(line=>{const m=/^(#{1,4}\s*|[-*\u2022]\s+|\d+[.)]\s+)?(.*)$/.exec(line);const p=document.createElement(m[1]&&/^#/.test(m[1])?"h4":m[1]?"li":"p");p.textContent=m[2].replace(/\*\*(.+?)\*\*/g,"$1");body.appendChild(p)});
   box.appendChild(body);if(JAI_ADVICE.test(o.text)){const w=document.createElement("p");w.className="vsmsg err";w.textContent="Part of this reply reads like a trading instruction or prediction. Vektor asked the AI not to do that; treat it as a description only, not advice.";box.appendChild(w)}
   const cp=document.createElement("button");cp.type="button";cp.textContent="Copy text";cp.onclick=()=>{try{navigator.clipboard.writeText(h.textContent+"\n\n"+o.text);toast("Copied")}catch(e){}};box.appendChild(cp)}
-document.addEventListener("vt-consent",e=>{if(!(e.detail&&e.detail.prefs)){try{localStorage.removeItem(JAI_KEY)}catch(x){}}if(document.getElementById("jai_p"))jaiCardRender()});
+document.addEventListener("vt-consent",e=>{if(!(e.detail&&e.detail.prefs)){try{localStorage.removeItem(jaiKeyName())}catch(x){}}if(document.getElementById("jai_p"))jaiCardRender()});

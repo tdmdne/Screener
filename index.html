@@ -606,6 +606,13 @@ html:not(.vtguest) .auth-card .auclose{display:none}
 .mc.na canvas{background:linear-gradient(100deg,transparent 30%,rgba(251,146,60,.10) 50%,transparent 70%);background-size:220% 100%;animation:vtShim 1.6s linear infinite;border-radius:4px}
 :root[data-ui="phone"] .minig{grid-template-columns:repeat(2,minmax(0,1fr))}
 :root[data-ui="phone"] .mc{min-height:0}
+.sndrow{margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.sndh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sndrow .sw{display:inline-flex;flex-direction:row;align-items:center;gap:8px;margin:0 0 0 auto;font-size:13px;cursor:pointer;color:var(--fg)}
+.sndrow .sw input{width:16px;height:16px;margin:0;flex:0 0 auto;accent-color:var(--acc)}
+.sndc{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:13px}
+.sndc label{margin:0;display:inline;color:var(--mut)}.sndc select{width:auto}
+.sndn{margin:6px 0 0;font-size:12px}
 /* legal pages + footer */
 :root[data-page="legal"] #pv-legal{display:block}
 :root[data-page="legal"] .ws{display:none}
@@ -1352,13 +1359,8 @@ function fireAlert(a,price){
   const msg=a.msg?String(a.msg):a.sym+" crossed "+(a.dir==="cross"?"":a.dir+" ")+a.price+" ("+price+")";
   toast(msg);
   try{if(typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification("Vektor Alert",{body:msg})}catch(e){}
-  try{
-    const ctx=window.__actx||(window.__actx=new (window.AudioContext||window.webkitAudioContext)());if(ctx.state==="suspended")ctx.resume();
-    const o=ctx.createOscillator(),g=ctx.createGain();
-    o.connect(g);g.connect(ctx.destination);
-    o.frequency.value=880;g.gain.value=0.15;
-    o.start();o.stop(ctx.currentTime+0.18);
-  }catch(e){}
+  // sound cue: off by default, turned on in the Price Alerts dialog (45_sound.js)
+  try{if(typeof vtAlertSound==="function")vtAlertSound()}catch(e){}
 }
 // ---------- drawing tools (left toolbar like TradingView; drawings are saved per symbol) ----------
 let MS=null,TOOL="cross",MAG=false,LOCKD=false,HIDD=false,SELD=null,DRAFT=null,DRG=null,G=null,MX=null,MOD=[false,false]; // MOD = [shift held, ctrl/cmd held]
@@ -3529,6 +3531,41 @@ function miniEnsureBtn(){if(document.getElementById("minib"))return;const data=d
   b.onclick=()=>miniToggle();if(data)data.after(b);else ctl.appendChild(b);b.classList.toggle("on",miniCfg().on)}
 // redraw when the theme or size changes
 window.addEventListener("resize",()=>{if(S.mini&&S.mini.on)miniSync(true)});
+// ---------- Alert sound cue ----------
+// Off by default. Turning it on works straight away for this tab; it's only remembered on this device (localStorage
+// "vt_prefs") if "Optional preferences" is allowed in Cookie settings. Withdrawing that choice deletes the saved value.
+// The tone is generated with Web Audio (no audio files, nothing downloaded).
+const VT_SND_VOL={low:.06,medium:.12,high:.22};
+const VT_PREF={alertSound:false,alertVol:"medium"};
+function vtPrefsRead(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK())return null;try{const o=JSON.parse(localStorage.getItem(VT_PREFS_KEY)||"null");return o&&typeof o==="object"?o:null}catch(e){return null}}
+function vtPrefsWrite(){if(typeof vtPrefsOK!=="function"||!vtPrefsOK())return false;try{localStorage.setItem(VT_PREFS_KEY,JSON.stringify({alertSound:!!VT_PREF.alertSound,alertVol:VT_PREF.alertVol}));return true}catch(e){return false}}
+// read after every module has loaded (the consent helpers live in 91_privacy)
+setTimeout(()=>{const o=vtPrefsRead();if(o){VT_PREF.alertSound=o.alertSound===true;if(VT_SND_VOL[o.alertVol])VT_PREF.alertVol=o.alertVol}},0);
+// returns true when the choice was saved on the device, false when it only lasts for this tab
+function vtSoundSet(on,vol){VT_PREF.alertSound=!!on;if(vol&&VT_SND_VOL[vol])VT_PREF.alertVol=vol;return vtPrefsWrite()}
+document.addEventListener("vt-consent",e=>{if(e.detail&&e.detail.prefs&&VT_PREF.alertSound)vtPrefsWrite()});
+let VT_ACTX=null;
+// a soft two-note chime (E5 then A5) with a short fade, quieter than the old fixed beep
+function vtChime(vol){try{const C=VT_ACTX||(VT_ACTX=new (window.AudioContext||window.webkitAudioContext)());if(C.state==="suspended")C.resume();const t0=C.currentTime+.01,v=VT_SND_VOL[vol||VT_PREF.alertVol]||.12;
+  [[659.25,0],[880,.12]].forEach(([f,d])=>{const o=C.createOscillator(),g=C.createGain();o.type="sine";o.frequency.value=f;o.connect(g);g.connect(C.destination);
+    g.gain.setValueAtTime(0,t0+d);g.gain.linearRampToValueAtTime(v,t0+d+.015);g.gain.exponentialRampToValueAtTime(.0001,t0+d+.38);o.start(t0+d);o.stop(t0+d+.4)});
+  window.__vtChimes=(window.__vtChimes||0)+1;return true}catch(e){return false}}
+function vtAlertSound(){if(!VT_PREF.alertSound)return false;return vtChime()}
+// alert history for the session summary: every triggered alert with its time and price (kept with the alerts in scr2)
+function vtAlertLog(a,price){if(!Array.isArray(S.alog))S.alog=[];S.alog.push({sym:a.sym,dir:a.dir,level:+a.price,px:+price,at:Date.now(),msg:a.msg?String(a.msg).slice(0,140):""});if(S.alog.length>200)S.alog.splice(0,S.alog.length-200)}
+if(typeof fireAlert==="function"){const _vtFA=fireAlert;fireAlert=function(a,price){try{vtAlertLog(a,price);save()}catch(e){}return _vtFA.apply(this,arguments)}}
+// the settings row inside the Price Alerts dialog
+function vtSoundRow(){const saved=typeof vtPrefsOK==="function"&&vtPrefsOK();
+  return`<div class="sndrow" role="group" aria-labelledby="snd_l"><div class="sndh"><b id="snd_l">Alert sound</b><span class="sp"></span>
+<label class="sw"><input type="checkbox" id="snd_on" ${VT_PREF.alertSound?"checked":""}><span>Play a sound when an alert triggers</span></label></div>
+<div class="sndc"><label for="snd_vol">Volume</label><select id="snd_vol">${Object.keys(VT_SND_VOL).map(k=>`<option value="${k}" ${VT_PREF.alertVol===k?"selected":""}>${k[0].toUpperCase()+k.slice(1)}</option>`).join("")}</select>
+<button type="button" id="snd_test">Play test sound</button></div>
+<p class="mut sndn" id="snd_note" aria-live="polite">${vtSoundNote(saved)}</p></div>`}
+function vtSoundNote(saved){return VT_PREF.alertSound?(saved?"On. Remembered on this device (optional preferences allowed).":"On for this tab only. To remember it, allow \u201cOptional preferences\u201d in Cookie settings."):"Off. No sound plays when an alert triggers."}
+function vtSoundWire(){const on=document.getElementById("snd_on");if(!on)return;const vol=document.getElementById("snd_vol"),note=document.getElementById("snd_note");
+  const upd=()=>{const saved=vtSoundSet(on.checked,vol.value);note.textContent=vtSoundNote(saved)};
+  on.onchange=upd;vol.onchange=upd;document.getElementById("snd_test").onclick=()=>vtChime(vol.value)}
+if(typeof alertsM==="function"){const _vtAM=alertsM;alertsM=function(){const r=_vtAM.apply(this,arguments);try{const box=MD.querySelector(".box");if(box&&!box.querySelector(".sndrow")){const d=document.createElement("div");d.innerHTML=vtSoundRow();const row=box.querySelector(".row");(row?row.parentNode:box).insertBefore(d.firstElementChild,row?row.nextSibling:null);vtSoundWire()}}catch(e){console.error(e)}return r}}
 // ---------- Legal pages (#/legal, #/legal/<doc>) + footer ----------
 // Template only, not legal advice; have a solicitor review before publishing.
 // Everything below describes what this code actually does. Bracketed placeholders (shown highlighted) must be filled in.
@@ -3537,11 +3574,12 @@ const VT_CONTACT_EMAIL="vektorhq@proton.me";
 const VT_MAIL=()=>`<a href="mailto:${VT_CONTACT_EMAIL}">${VT_CONTACT_EMAIL}</a>`;
 const LG_META=()=>`<p class="meta">Effective date: ${PH("Effective date")} \u00b7 Operated by ${PH("Company legal name")}, ${PH("Registered address")}, company number ${PH("Company number")}. Contact: ${VT_MAIL()}.</p>`;
 const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th><th>What it holds</th></tr></thead><tbody>
-<tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts, chart settings and drawings, Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
+<tr><td>localStorage</td><td><code>scr2</code></td><td>Your settings: screener columns and filters, watchlist, price alerts and a log of the alerts that triggered (the last 200), chart settings and drawings, Supercharts and calculator inputs, the current page, and any data-provider API keys you type into Data (Twelve Data, Finnhub, Polygon).</td></tr>
 <tr><td>localStorage</td><td><code>scr2p</code></td><td>Screener layouts you save.</td></tr>
 <tr><td>localStorage</td><td><code>vt_page</code></td><td>The last page you had open.</td></tr>
 <tr><td>sessionStorage</td><td><code>vt_guest</code></td><td>Only that you chose \u201cContinue without signing in\u201d, so a reload keeps you in guest mode. Cleared when the tab closes. Guests\u2019 charts, drawings and other work are kept in memory only and are not saved.</td></tr><tr><td>localStorage or sessionStorage</td><td><code>scr2a</code></td><td>The username or email you signed in with. localStorage if you tick \u201cKeep me signed in\u201d, otherwise sessionStorage (cleared when the tab closes). Removed when you log out.</td></tr>
 <tr><td>localStorage</td><td><code>vt_consent</code>, <code>vt_consent_log</code></td><td>Your storage choices, plus a log of each choice with its date, time and policy version (the last 50), so we can show what you agreed to.</td></tr>
+<tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
 <tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
 const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
 <tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
@@ -3605,8 +3643,9 @@ cookies:["Cookies \u0026 Local Storage",()=>`<h1>Cookies and Local Storage</h1>$
 <h2>Cookies</h2><p>Vektor Terminal does not set any cookies. It uses no analytics, advertising, social media or other tracking tools.</p>
 <h2>Categories</h2><ul><li><b>Strictly necessary (always on):</b> settings, watchlist, alerts, drawings, layouts, saved API keys, sign-in name and your consent record. Under the Privacy and Electronic Communications Regulations (PECR), these don\u2019t need consent.</li>
 <li><b>Market-data cache (optional, off by default):</b> an IndexedDB cache of price data that makes the app faster. It\u2019s only created after you choose \u201cAccept all\u201d or turn it on under \u201cManage choices\u201d.</li>
+<li><b>Optional preferences (optional, off by default):</b> extras you turn on, such as the alert sound, remembered in <code>vt_prefs</code>. Without this choice they still work, but only until you close the tab.</li>
 <li><b>Analytics and advertising:</b> not used.</li></ul>
-<h2>Your choice</h2><p>On your first visit, a banner offers \u201cReject all\u201d and \u201cAccept all\u201d as equal buttons, plus \u201cManage choices\u201d with a switch for each category. Until you choose, only strictly necessary storage is used. You can change or withdraw your choice at any time with <b>Cookie settings</b> in the footer, or on <a href="#/legal/your-data">Your data</a>. Withdrawing deletes the cache. Each choice is logged on your device with its date, time and policy version. We ask again after 12 months, or sooner if this notice changes.</p>
+<h2>Your choice</h2><p>On your first visit, a banner offers \u201cReject all\u201d and \u201cAccept all\u201d as equal buttons, plus \u201cManage choices\u201d with a switch for each category. Until you choose, only strictly necessary storage is used. You can change or withdraw your choice at any time with <b>Cookie settings</b> in the footer, or on <a href="#/legal/your-data">Your data</a>. Withdrawing deletes the cache and any saved optional preferences. Each choice is logged on your device with its date, time and policy version. We ask again after 12 months, or sooner if this notice changes.</p>
 <h2>Everything stored</h2>${LG_STORE}
 <h2>Third parties</h2><p>These services are contacted by your browser. None of them sets cookies through this app, and none is a tracker:</p>${LG_SOURCES}
 <h2>Clearing it</h2><p>Log out to remove the sign-in entry, use Data \u2192 Reload data to empty the market data cache, or clear this site\u2019s data in your browser settings to remove everything.</p>`],
@@ -3666,11 +3705,16 @@ const VT_CK="vt_consent",VT_CL="vt_consent_log";
 function vtLS(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
 function vtConsent(){try{const c=JSON.parse(vtLS(VT_CK)||"null");if(c&&c.v===VT_POLICY_V&&Date.now()-c.ts<VT_CONSENT_MAX_AGE)return c}catch(e){}return null}
 function vtCacheOK(){const c=vtConsent();return !!(c&&c.cache)}
+// optional preferences (alert sound and similar extras): only remembered on this device with consent; records made before
+// this category existed have no "prefs" field and so count as "no"
+function vtPrefsOK(){const c=vtConsent();return !!(c&&c.prefs)}
+const VT_PREFS_KEY="vt_prefs";
+function vtPrefsClear(){try{localStorage.removeItem(VT_PREFS_KEY)}catch(e){}}
 function vtConsentLog(){try{const l=JSON.parse(vtLS(VT_CL)||"[]");return Array.isArray(l)?l:[]}catch(e){return[]}}
-function vtConsentSet(cache,method){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,method};
+function vtConsentSet(cache,method,prefs){const rec={v:VT_POLICY_V,ts:Date.now(),cache:!!cache,prefs:prefs==null?method==="accept_all":!!prefs,method};
 vtLS(VT_CK,JSON.stringify(rec));const l=vtConsentLog();l.push(rec);vtLS(VT_CL,JSON.stringify(l.slice(-50)));
-vtBannerClose();vtCacheApply();if(document.documentElement.dataset.page==="legal"&&typeof legalRender==="function")legalRender();
-toast(cache?"Saved: market-data cache on":"Saved: only strictly necessary storage");return rec}
+vtBannerClose();vtCacheApply();if(!rec.prefs)vtPrefsClear();try{document.dispatchEvent(new CustomEvent("vt-consent",{detail:rec}))}catch(e){}if(document.documentElement.dataset.page==="legal"&&typeof legalRender==="function")legalRender();
+toast(cache||rec.prefs?"Saved: "+[cache?"market-data cache":"",rec.prefs?"optional preferences":""].filter(Boolean).join(" and ")+" on":"Saved: only strictly necessary storage");return rec}
 // non-essential storage gate: the IndexedDB market-data cache is only opened (and so only created) with consent
 const _vtIdb=idb;idb=function(){return vtCacheOK()?_vtIdb():Promise.resolve(null)};
 function vtIdbDel(name){return new Promise(r=>{try{const q=indexedDB.deleteDatabase(name);q.onsuccess=q.onerror=q.onblocked=()=>r()}catch(e){r()}})}
@@ -3681,15 +3725,16 @@ function vtBannerClose(){const b=document.getElementById("vcb");if(b)b.remove()}
 function vtBanner(manage){vtBannerClose();const c=vtConsent(),el=document.createElement("div");el.className="vcb";el.id="vcb";
 el.setAttribute("role","dialog");el.setAttribute("aria-modal","false");el.setAttribute("aria-labelledby","vcb_t");
 el.innerHTML=`<h2 id="vcb_t">Storage on this device</h2>
-<p>Vektor Terminal keeps your settings, alerts and sign-in name in your browser because the app can\u2019t work without them. With your permission, it can also keep a <b>market-data cache</b> (IndexedDB) so charts load faster. There are no cookies, analytics, ads or trackers. You can change your mind at any time with \u201cCookie settings\u201d in the footer. <a href="#/legal/cookies">Cookie notice</a> \u00b7 <a href="#/legal/privacy">Privacy policy</a></p>
+<p>Vektor Terminal keeps your settings, alerts and sign-in name in your browser because the app can\u2019t work without them. With your permission, it can also keep a <b>market-data cache</b> (IndexedDB) so charts load faster, and remember <b>optional preferences</b> such as the alert sound. There are no cookies, analytics, ads or trackers. You can change your mind at any time with \u201cCookie settings\u201d in the footer. <a href="#/legal/cookies">Cookie notice</a> \u00b7 <a href="#/legal/privacy">Privacy policy</a></p>
 ${manage?`<div class="cats">
 <div class="cat"><input type="checkbox" checked disabled id="vcb_nec" aria-describedby="vcb_nec_d"><label for="vcb_nec"><b>Strictly necessary</b><span class="mut" id="vcb_nec_d">Settings, watchlist, alerts, layouts, sign-in name and this consent record. Needed for the app to work.</span></label><span class="st">Always on</span></div>
 <div class="cat"><input type="checkbox" id="vcb_cache" ${c&&c.cache?"checked":""} aria-describedby="vcb_cache_d"><label for="vcb_cache"><b>Market-data cache</b><span class="mut" id="vcb_cache_d">Keeps downloaded price candles and the market list in IndexedDB so the app starts faster and makes fewer requests. Off unless you turn it on.</span></label></div>
+<div class="cat"><input type="checkbox" id="vcb_prefs" ${c&&c.prefs?"checked":""} aria-describedby="vcb_prefs_d"><label for="vcb_prefs"><b>Optional preferences</b><span class="mut" id="vcb_prefs_d">Remembers extras you choose, such as the alert sound, in localStorage (<code>vt_prefs</code>). Without it they still work, but only until you close the tab. Off unless you turn it on.</span></label></div>
 <div class="cat"><input type="checkbox" disabled id="vcb_an"><label for="vcb_an"><b>Analytics and advertising</b><span class="mut">Not used. There are no analytics, advertising cookies or third-party trackers.</span></label><span class="st">Not used</span></div></div>`:""}
 <div class="btns"><button type="button" class="cbtn" id="vcb_rej">Reject all</button><button type="button" class="cbtn" id="vcb_acc">Accept all</button>${manage?`<button type="button" class="cbtn alt" id="vcb_save">Save my choices</button>`:`<button type="button" class="cbtn alt" id="vcb_man">Manage choices</button>`}</div>`;
 document.body.appendChild(el);
 el.querySelector("#vcb_rej").onclick=()=>vtConsentSet(false,"reject_all");el.querySelector("#vcb_acc").onclick=()=>vtConsentSet(true,"accept_all");
-if(manage){el.querySelector("#vcb_save").onclick=()=>vtConsentSet(el.querySelector("#vcb_cache").checked,"custom");el.querySelector("#vcb_cache").focus()}
+if(manage){el.querySelector("#vcb_save").onclick=()=>vtConsentSet(el.querySelector("#vcb_cache").checked,"custom",el.querySelector("#vcb_prefs").checked);el.querySelector("#vcb_cache").focus()}
 else el.querySelector("#vcb_man").onclick=()=>vtBanner(true);
 if(manage||!c)setTimeout(()=>{if(!manage){const b=el.querySelector("#vcb_rej");b&&b.focus({preventScroll:true})}},0)}
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("vcb")&&vtConsent()){vtBannerClose()}});

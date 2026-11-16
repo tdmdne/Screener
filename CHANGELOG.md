@@ -3,6 +3,13 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Alert sound cue (off by default).** Triggered alerts used to always play a fixed beep. Now they make no sound unless you turn it on in the Price Alerts dialog ("Alert sound": on/off, volume, test).
+  - The tone is a soft two-note chime made with Web Audio, with no files and nothing downloaded.
+  - **Consent:** turning it on works straight away for the current tab. It is only remembered on the device (localStorage `vt_prefs`) if you allow the new **Optional preferences** category in Cookie settings. That category is off by default, on with "Accept all", and off with "Reject all". Withdrawing it deletes `vt_prefs`. If you turn the sound on first and allow the category later, the setting is saved then. Consent records made before this category existed count as "no".
+  - The cookie notice, the storage table and the banner text describe the new category. The policy version is unchanged because the category is new, opt-in and off by default (flagged for solicitor review).
+  - **Alert log:** each triggered alert is now logged with its time, level and price (the last 200, kept with your alerts). The session summary uses this log.
+  - Tests: new `tests/sound.js`.
+
 - **Mini-chart mode.** A new grid button next to "Data" in the screener list toolbar switches the list to a compact grid of small candle charts.
   - **What it shows:** the symbols on the current page of the list, in the same filter, sort and page order as the table, on Workspace and Screener.
   - **Each card:** the live price, the change over the bars shown, the last 48 candles with a dotted last-price line, and the window (for example "48 × 1H · ~2d").

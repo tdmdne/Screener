@@ -3,6 +3,16 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Claims review and not-advice notes (checklist 5).**
+  - Preset copy now describes filters instead of ranking quality:
+    - Removed: "Best markets", "P1 is the best quality", "Higher presets = stronger market cycles" and "coming out of accumulation/manipulation".
+    - P1 to P5 are now described as strictest to broadest filters.
+  - The timeframe-level help said H = Weekly, Daily and Hourly. It now matches what the code actually uses: H = 1H validated on 1D, M = 15m on 1H, L = 1m on 15m.
+  - Long/Short tooltips no longer say "setups".
+  - The sign-in hero copy now says prices can be delayed, data coverage depends on the provider, and nothing is investment advice.
+  - A neutral note sits under the screener table (Workspace and Screener) and in the Screener detail panel: "Scores, tiers (P1-P5) and phases are rule-based calculations on past price data. They don't predict prices and aren't investment advice." It links to the risk disclaimer.
+  - No scoring maths changed: `tests/claims.js` checks that scoreMarket, passesPreset, scoreSymbol and applySFilter are byte-identical to the original baseline (commit 1c48048). BUY/SELL buttons are untouched (awaiting approval). The phase names (Expansion, Accumulation and so on) come from scoreMarket, so they were left as they are.
+
 - **Drawing templates and instant style persistence.**
   - The floating drawing toolbar has a templates button for trend lines, horizontal rays, Fib retracements and long/short positions. Built-in templates:
     - Trend line: Blue, Thin grey, Bold orange, Dashed.

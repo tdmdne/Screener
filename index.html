@@ -256,6 +256,8 @@ html.locked .auth{display:flex}
 #msg:empty{display:none}
 :root{--hover:var(--card)}
 /* ==== VT PAGES CSS BEGIN ==== */
+.vtna{margin:6px 8px 8px;font-size:11.5px;line-height:1.45;color:var(--mut)}
+.vtna a{color:inherit;text-decoration:underline}
 /* top navigation + page views (multi-page terminal) */
 .vnav{display:flex;gap:2px;align-items:center;overflow-x:auto;scrollbar-width:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px;min-width:0}
 .vnav::-webkit-scrollbar{display:none}
@@ -833,11 +835,11 @@ if(v==null)return`<span class="na">…</span>`;
 const bear=(t==="cc"&&c.mode==="exp"&&c.dir==="bear")||((t==="pct"||t==="mac")&&v<0);
 return`<span class="pill ${bear?"b":""}">${(t==="pct"||t==="mac")&&v>0?"+":""}${v.toFixed(2)}%</span>`}
 const PRESETS={
-  P1:{name:"P1",desc:"Best: strong alignment + expansion"},
-  P2:{name:"P2",desc:"Good: EMA alignment + positive change"},
-  P3:{name:"P3",desc:"Moderate: positive change + light EMA"},
-  P4:{name:"P4",desc:"Basic: any positive change"},
-  P5:{name:"P5",desc:"All markets"}
+  P1:{name:"P1",desc:"Strictest filter: full EMA alignment + expansion"},
+  P2:{name:"P2",desc:"Strict filter: EMA alignment + positive change"},
+  P3:{name:"P3",desc:"Moderate filter: positive change + partial EMA alignment"},
+  P4:{name:"P4",desc:"Loose filter: any positive change"},
+  P5:{name:"P5",desc:"No filter: all markets"}
 };
 function scoreMarket(s){
   try{
@@ -906,12 +908,12 @@ function passesPreset(s,preset){
 function renderPresets(){
   const el=document.getElementById("presets");if(!el)return;
   const tf=S.evcTf||"H";
-  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}<button onclick="evcInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:2px" title="What is H/M/L?">ⓘ</button></span><span style="margin-right:8px"><button class="preset-btn ${(S.dir||"long")==="long"?"on":""}" onclick="setDir('long')" title="Long setups">Long</button><button class="preset-btn ${(S.dir||"long")==="short"?"on":""}" onclick="setDir('short')" title="Short setups">Short</button></span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("")+`<button onclick="presetInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:4px" title="What are P1-P5?">ⓘ</button>`;
+  el.innerHTML=`<span style="margin-right:8px">${["H","M","L"].map(t=>`<button class="preset-btn ${tf===t?"on":""}" onclick="setEvcTf('${t}')">${t}</button>`).join("")}<button onclick="evcInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:2px" title="What is H/M/L?">ⓘ</button></span><span style="margin-right:8px"><button class="preset-btn ${(S.dir||"long")==="long"?"on":""}" onclick="setDir('long')" title="Long direction (rising-price conditions)">Long</button><button class="preset-btn ${(S.dir||"long")==="short"?"on":""}" onclick="setDir('short')" title="Short direction (falling-price conditions)">Short</button></span>`+Object.entries(PRESETS).map(([k,p])=>`<button class="preset-btn ${S.preset===k?"on":""}" onclick="applyPreset('${k}')" title="${p.desc}">${p.name}</button>`).join("")+`<button onclick="presetInfo()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--mut);margin-left:4px" title="What are P1-P5?">ⓘ</button>`;
 }
 function setEvcTf(t){S.evcTf=t;S.page=0;save();render()}
 function setDir(d){S.dir=d;S.page=0;save();render()}
-function presetInfo(){modal(`<h3>Preset Levels</h3><div style="line-height:1.6"><p><b>P1</b> - Best markets: strong expansion + full EMA alignment (coming out of accumulation/manipulation)</p><p><b>P2</b> - Good markets: solid expansion with EMA alignment</p><p><b>P3</b> - Decent markets: moderate expansion</p><p><b>P4</b> - Early stage: some momentum building</p><p><b>P5</b> - Watchlist: weaker signals, earlier in cycle</p><p class="mut" style="margin-top:12px">Higher presets = stronger market cycles. P1 is the best quality.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
-function evcInfo(){modal(`<h3>Timeframe Levels</h3><div style="line-height:1.6"><p><b>H</b> - Higher Timeframe: Weekly to Daily to Hourly</p><p><b>M</b> - Medium Timeframe: Daily to Hourly to 10m</p><p><b>L</b> - Lower Timeframe: Hourly to 10m to 1m</p><p class="mut" style="margin-top:12px">Each level uses Entry and Validation timeframes to score markets.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
+function presetInfo(){modal(`<h3>Preset levels</h3><div style="line-height:1.6"><p>Presets are filters, from the strictest (P1) to the broadest (P5). Each one checks fixed conditions on recent candles:</p><p><b>P1</b> \u2013 full EMA alignment and price expansion</p><p><b>P2</b> \u2013 EMA alignment and a positive change</p><p><b>P3</b> \u2013 a positive change and partial EMA alignment</p><p><b>P4</b> \u2013 any positive change</p><p><b>P5</b> \u2013 no filter (all markets)</p><p class="mut" style="margin-top:12px">A preset describes how price has moved, using formulas on past data. It doesn\u2019t rank quality, predict future prices or tell you to trade. Not investment advice.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
+function evcInfo(){modal(`<h3>Timeframe levels</h3><div style="line-height:1.6"><p><b>H</b> \u2013 entry timeframe 1H, validated on 1D</p><p><b>M</b> \u2013 entry timeframe 15m, validated on 1H</p><p><b>L</b> \u2013 entry timeframe 1m, validated on 15m</p><p class="mut" style="margin-top:12px">The level sets which candles the preset filters and scores are calculated on. Not investment advice.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
   function applyPreset(k){S.preset=k;S.page=0;save();render()}
 function render(){
 if(isLive()){bnwsStart();setLive()}else SYMS=SAMPLE;
@@ -2311,6 +2313,13 @@ function authInit(){
   const u=authUser();
   if(u)authEnter(u);else idEl.focus()}
 // ==== VT PAGES BEGIN ====
+// ---------- neutral "not investment advice" notes next to scores (checklist 5) ----------
+// Text only: no scoring maths is touched (scoreMarket / passesPreset / scoreSymbol / applySFilter are unchanged).
+const VT_NA_TXT="Scores, tiers (P1\u2013P5) and phases are rule-based calculations on past price data. They don\u2019t predict prices and aren\u2019t investment advice.";
+function vtNaNote(){const tw=document.querySelector(".side>.tw");if(!tw||document.getElementById("vtna"))return;
+  const p=document.createElement("p");p.id="vtna";p.className="vtna";p.append(VT_NA_TXT+" ");
+  const a=document.createElement("a");a.href="#/legal/risk";a.textContent="Risk disclaimer";p.append(a);tw.after(p)}
+const _vtRenderNA=render;render=function(){const r=_vtRenderNA.apply(this,arguments);try{vtNaNote()}catch(e){}return r};
 // ---------- pages + client-side router ----------
 // Every page lives in this one document. Switching pages only toggles what's visible (data-page on <html>),
 // so WebSockets (BNWS, BNKL, FHWS), LIVE candle caches and timers are never torn down.
@@ -2822,7 +2831,7 @@ const _vtDselDP=dsel;dsel=function(){const r=_vtDselDP.apply(this,arguments);con
 S.sx=Object.assign({tf:"1D"},S.sx||{});
 const SX={ch:null,sym:"",retry:0};
 const SXF=[["all","All"],["s01","S01 \u00b7 Score 80+"],["s02","S02 \u00b7 Expansion"],["s03","S03 \u00b7 Accumulation"],["s04","S04 \u00b7 Retracement"]];
-// strictest preset a market passes (P1 best ... P5 everything); uses passesPreset unchanged
+// strictest preset a market passes (P1 strictest ... P5 everything); uses passesPreset unchanged
 function sxTier(s){for(const p of ["P1","P2","P3","P4"])if(passesPreset(s,p))return p;return"P5"}
 function sxPct(s){const a=candles(s,"1D");return a&&a.length>1?(a[a.length-1].c/a[a.length-2].c-1)*100:null}
 function sxAdr(s){const a=candles(s,"1D");if(!a||a.length<2)return null;const w=a.slice(-14);return w.reduce((x,y)=>x+(y.h-y.l)/y.c,0)/w.length*100}
@@ -2851,7 +2860,7 @@ d.innerHTML=`<div class="sxdh"><b style="font-size:15px">${esc(sym)}</b><span cl
 <div class="sxdb"><div class="tfs">${["15m","1H","4H","1D","1W"].map(x=>`<button class="chip ${x===S.sx.tf?"on":""}" onclick="S.sx.tf='${x}';save();sxDrawer(SX.sym)">${x}</button>`).join("")}</div><div id="sxc"></div>
 <div class="sxst">${k("1D change",pc==null?"\u2013":(pc>0?"+":"")+pc.toFixed(2)+"%",pc==null?"":pc<0?"dn":"up")}${k("Vektor score",v)}${k("Tier",t)}${k("Expansion",Math.round(sc.score))}${k("Phase",esc(sc.phase))}${k("ADR 14d",adr==null?"\u2013":adr.toFixed(2)+"%")}</div>
 <div class="row" style="flex-wrap:wrap"><button class="pri" onclick="sxClose();_vtOpenChart(SX.sym);go('chart')">Open in Supercharts</button><button onclick="sxClose();_vtOpenChart(SX.sym);go('workspace')">Workspace</button><button onclick="sxWl()">${inWl?"\u2605 In watchlist":"\u2606 Watchlist"}</button><button onclick="alertsM()">Alert</button></div>
-<p class="mut" style="margin:0">Scores use the same scoring code as the presets. Tier is the strictest preset (P1 best, P5 broadest) this market passes for the current H/M/L level and Long/Short setting.</p></div>`;
+<p class="mut vtna" style="margin:0">Scores use the same formulas as the presets. Tier is the strictest preset (P1 strictest, P5 broadest) this market passes for the current H/M/L level and Long/Short setting. ${VT_NA_TXT} <a href="#/legal/risk">Risk disclaimer</a></p></div>`;
 d.classList.add("open");sxSel();sxMini()}
 function sxWl(){const g=S.wlx.groups[0];if(!wlAll().includes(SX.sym)){g.syms.push(SX.sym);save();renderWL();wlStarSync()}sxDrawer(SX.sym)}
 function sxMini(){clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}const el=document.getElementById("sxc"),s=symOf(SX.sym);if(!el||!s||!window.LightweightCharts)return;
@@ -2881,9 +2890,9 @@ const VT_RM=()=>!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduc
 function vtAuthDecor(){const A=document.getElementById("auth"),F=document.getElementById("auForm");if(!A||!F||A.querySelector(".auhero"))return;
   const cv=document.createElement("canvas");cv.id="aubg";cv.setAttribute("aria-hidden","true");A.prepend(cv);
   const H=document.createElement("section");H.className="auhero";H.setAttribute("aria-label","About Vektor Terminal");
-  H.innerHTML=`<div class="aukick">Live markets</div><h1>Every market.<br><em>One terminal.</em></h1>
-<p>Charts, a multi-market screener, alerts and position planning in one fast, dark workspace.</p>
-<ul><li>Crypto, FX and stocks side by side</li><li>Drawing tools, alerts and long/short planning</li><li>Your data stays on your device</li></ul>
+  H.innerHTML=`<div class="aukick">Market data terminal</div><h1>Every market.<br><em>One terminal.</em></h1>
+<p>Charts, a multi-market screener, alerts and position planning in one dark workspace. Prices can be delayed; nothing here is investment advice.</p>
+<ul><li>Crypto, forex and stocks side by side (coverage depends on the data provider)</li><li>Drawing tools, alerts and long/short planning</li><li>Your settings stay in this browser; no account server</li></ul>
 <div class="autick" id="autick" aria-live="off"></div>`;
   A.insertBefore(H,F);
   const sub=F.querySelector(".auth-sub");if(sub)sub.textContent="Sign in to save alerts, chart templates and settings";

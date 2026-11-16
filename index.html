@@ -787,12 +787,6 @@ if(C.plusBtn){
   pb.onclick=()=>setTool("hline");
   document.getElementById("cv").parentElement.appendChild(pb);
 }
-// plus button on price scale
-if(C.plusBtn){
-  const pb=document.createElement("button");pb.textContent="+";pb.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:4px;border:1px solid var(--line);background:var(--bg);cursor:pointer;z-index:5;font-size:14px";
-  pb.onclick=()=>setTool("hline");
-  document.getElementById("cv").parentElement.appendChild(pb);
-}
 // buy/sell buttons
 if(C.showBuySell){
   const leftPad=C.scalePlace==="left"?90:8;
@@ -837,21 +831,7 @@ if(C.ind.some(d=>d.t==="atr")){
     document.getElementById("cv").parentElement.appendChild(atrEl);
   }
 }
-function addTdmIndi(){
-  const inds=[
-    {t:"ema",len:5,col:"#9c27b0"},
-    {t:"ema",len:10,col:"#2196f3"},
-    {t:"ema",len:20,col:"#ff9800"},
-    {t:"sma",len:50,col:"#4caf50"},
-    {t:"sma",len:200,col:"#f44336"},
-    {t:"atr",len:14,col:"#787b86"}
-  ];
-  inds.forEach(d=>{
-    if(!S.chart.ind.find(x=>x.t===d.t&&x.len===d.len))
-      S.chart.ind.push({id:"i"+Date.now()+Math.random().toString(36).slice(2),...d});
-  });
-  save();closeM();drawChart();
-}
+
 const tb=document.getElementById("timebar");
 if(tb){
   const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
@@ -963,11 +943,26 @@ function showColorPop(id){
 }
 function closeColorPop(e){const p=document.getElementById("cpop");if(p&&!p.contains(e.target))p.remove()}
 function selectColor(id,c){const inp=document.getElementById(id);if(inp)inp.value=c;const sw=document.getElementById(id+"_sw");if(sw)sw.style.background=c;const pop=document.getElementById("cpop");if(pop)pop.remove();if(SELD){if(id==="ds_c"||id==="tb_c")SELD.c=c;if(id==="ds_tc")SELD.targetCol=c;if(id==="ds_sc")SELD.stopCol=c;if(id==="ds_txc")SELD.txtCol=c}if(id==="ed_col"){const ind=S.chart.ind.find(x=>x.id===document.getElementById("ed_id")?.value);if(ind){ind.col=c;save();drawChart()}}}
+function addVektorIndi(){
+  const inds=[
+    {t:"ema",len:5,col:"#9c27b0"},
+    {t:"ema",len:10,col:"#2196f3"},
+    {t:"ema",len:20,col:"#ff9800"},
+    {t:"sma",len:50,col:"#4caf50"},
+    {t:"sma",len:200,col:"#f44336"},
+    {t:"atr",len:14,col:"#787b86"}
+  ];
+  inds.forEach(d=>{
+    if(!S.chart.ind.find(x=>x.t===d.t&&x.len===d.len))
+      S.chart.ind.push({id:"i"+Date.now()+Math.random().toString(36).slice(2),...d});
+  });
+  save();closeM();drawChart();
+}
 function inputDialog(title,placeholder,cb){
   modal(`<h3>${title}</h3><input id="inp_val" placeholder="${placeholder||""}" style="width:100%;padding:8px;font-size:14px" autofocus><div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" id="inp_ok">OK</button></div>`);
   setTimeout(()=>{document.getElementById("inp_val").focus();document.getElementById("inp_ok").onclick=()=>{const v=document.getElementById("inp_val").value;closeM();if(cb)cb(v)}},50);
 }
-function addCustomColor(id){inputDialog("Custom color","#ff0000",`function(c){if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor('${id}',c)}}`)}
+function addCustomColor(id){inputDialog("Custom color","#ff0000",function(c){if(c&&/^#[0-9a-f]{6}$/i.test(c)){S.customColors.push(c);save();selectColor(id,c)}})}
 function snapMenu(){const d=document.getElementById("snapdrop");d.style.display=d.style.display==="none"?"block":"none"}
 function snapCanvas(){return new Promise(r=>{const cm=document.querySelector(".cm"),bs=document.getElementById("bs"),ind=document.getElementById("indbar");if(bs)bs.style.visibility="hidden";if(!S.chart.snapInd&&ind)ind.style.visibility="hidden";html2canvas(cm,{backgroundColor:null,scale:2}).then(c=>{if(bs)bs.style.visibility="";if(ind)ind.style.visibility="";r(c)})})}
 async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
@@ -1483,7 +1478,7 @@ let list="";
 if(tab==="fav"){
   list=fav.length?fav.map(k=>`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>${IND[k]||k}</span><span><button onclick="document.getElementById('in_t').value='${k}';addInd()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button><button onclick="togFav('${k}')" style="background:none;border:none;cursor:pointer;margin-left:4px">★</button></span></div>`).join(""):`<p class="mut">No favourites yet. Click ★ next to an indicator.</p>`;
 }else if(tab==="scripts"){
-  list=`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>TDM Indicator</span><button onclick="addTdmIndi();closeM()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button></div>`;
+  list=`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>Vektor Indicator</span><button onclick="addVektorIndi();closeM()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button></div>`;
   list+=scripts.length?scripts.map(s=>`<div class="li" style="padding:8px 0;border-bottom:1px solid var(--line)">${s.name}</div>`).join(""):"";
 }else{
   list=Object.keys(IND).map(k=>`<div class="li" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span>${IND[k]}</span><span><button onclick="document.getElementById('in_t').value='${k}';addInd()" style="background:#2962ff;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">Add</button><button onclick="togFav('${k}')" style="background:none;border:none;cursor:pointer;margin-left:4px">${fav.includes(k)?"★":"☆"}</button></span></div>`).join("");

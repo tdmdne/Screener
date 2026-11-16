@@ -3,6 +3,18 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Phones (tested at 375x812 and 390x844 with touch emulation).**
+  - **Layout:**
+    - A fixed bottom tab bar with Workspace, Supercharts, Screener, Calculators and More. More opens a bottom sheet with Heatmaps, Calendar, Journal, Backtest, legal and privacy links, Cookie settings, the layout switch and the data status.
+    - The header is compact, pages are single-column, and there's no horizontal page scroll on any page. The test checks this with the safety clip switched off.
+    - Tables (`.ftbl`) scroll inside their own box, and the main controls are at least 44px tall.
+  - **Fixed a baseline phone bug:** the phone card style for tables also restyled the chart library's internal layout table, which hid the price scale. It's now scoped out.
+  - **Charts:** the drawing toolbar becomes a horizontal touch strip above a taller chart.
+    - Gestures: one-finger horizontal pan, pinch to zoom, long-press for a crosshair that stays until the next tap, and vertical swipes scroll the page.
+    - The price-scale "+" follows the crosshair on touch, so you can tap it to add an alert or a line.
+    - Alert lines have bigger touch handles and can be dragged by finger. The alert editor and other dialogs open as bottom sheets above the tab bar.
+  - **Drawing tools** now run only on pointer events. Before, the separate touch handlers made one tap count twice, which finished drawings at zero length on touch.
+  - Reduced motion is respected app-wide. Tested in `tests/mobile.js` with Playwright `hasTouch`/`isMobile` and real CDP touch events. The test harness gained a `mobile` option.
 - **UK GDPR and PECR mechanisms: consent banner, privacy centre and fuller legal pages** (template, so a solicitor still needs to review it).
   - The **storage consent banner** puts "Reject all" and "Accept all" on its first layer as identical buttons (same size, colour and weight), plus "Manage choices" with a toggle per category. The only optional category is the IndexedDB market-data cache, and it's off by default. Strictly necessary storage is shown as always on, and analytics or advertising as not used.
   - **No optional storage before consent.** `idb()` is gated, so the cache database isn't created until it's accepted, and it's deleted when consent is withdrawn.

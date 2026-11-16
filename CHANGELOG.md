@@ -3,6 +3,16 @@
 Short dated log of changes to `index.html` (the whole app) and why.
 
 ## 2026-11-16
+- **Drawing templates and instant style persistence.**
+  - The floating drawing toolbar has a templates button for trend lines, horizontal rays, Fib retracements and long/short positions. Built-in templates:
+    - Trend line: Blue, Thin grey, Bold orange, Dashed.
+    - Horizontal ray: Support, Resistance, Dotted level.
+    - Fib retracement: Classic grey, Gold, Dashed blue.
+    - Long/short position: Conservative 1:1.5 (0.5% risk), Standard 1:2, Swing 1:3. Applying one moves the target to that R:R.
+  - Click a template to apply it, save the selected drawing's style as your own template, or press ★ to use a template for new drawings of that tool. Saving your own needs sign-in.
+  - Style changes (colour, width, line type) are saved straight away with a 250ms debounce, and the last-used style becomes that tool's default. Fixed: the line-type change was recorded before the control had updated, so the previous value was saved.
+  - Tests: `tests/drawpresets.js`. Screenshot: `shots/13_drawing_templates.png`.
+
 - **Chart templates (Supercharts > Templates).**
   - A template saves the full chart setup: chart type and colours, all chart settings, indicators, timeframe, panes (pane-2 timeframe and crosshair sync), drawings on the symbol, and drawing- and position-tool defaults. Including the symbol is optional and unticked by default.
   - Load, rename, delete (with confirmation) and set as default (★). The default sets up Supercharts once each time the app is opened (setup only; it doesn't change your drawings or symbol).

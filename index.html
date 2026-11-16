@@ -527,30 +527,34 @@ function scoreMarket(s){
 }
 function passesPreset(s,preset){
   try{
+    if(preset==="P5")return true;
     const tf=S.evcTf||"H";
     const evc={H:{e:"1H",v:"1D"},M:{e:"15m",v:"1H"},L:{e:"1m",v:"15m"}};
     const cfg=evc[tf]||evc.H;
-    const av=candles(s,cfg.v),ae=candles(s,cfg.e);
-    if(!av||av.length<10)return preset==="P5";
-    const clv=av.map(d=>d.c),cv=clv[clv.length-1];
-    const ema10v=emaArr(clv,10),ema20v=emaArr(clv,20);
-    const lv=clv.length-1;
-    const chgv=((cv/clv[Math.max(0,lv-20)])-1)*100;
+    const av=candles(s,cfg.v);
+    if(!av||av.length<5)return false;
+    const clv=av.map(d=>d.c),cv=clv[clv.length-1],lv=clv.length-1;
+    const look=Math.min(20,lv);
+    const chgv=((cv/clv[lv-look])-1)*100;
     const dir=S.dir||"long";
     const bull=dir==="long";
-    const chgOk=bull?chgv>0:chgv<0;
-    const emaOk=bull?(cv>ema10v[lv]&&cv>ema20v[lv]):(cv<ema10v[lv]&&cv<ema20v[lv]);
+    const chgOk=bull?chgv>0.3:chgv<-0.3;
+    let emaOk=true;
+    if(av.length>=20){
+      const ema10=emaArr(clv,10),ema20=emaArr(clv,20);
+      emaOk=bull?(cv>ema10[lv]&&cv>ema20[lv]):(cv<ema10[lv]&&cv<ema20[lv]);
+    }
     let exp=false;
+    const ae=candles(s,cfg.e);
     if(ae&&ae.length>=8){
       const cle=ae.map(d=>d.c),ce=cle[cle.length-1];
       const lo=Math.min(...cle.slice(-8)),hi=Math.max(...cle.slice(-8));
-      exp=bull?(ce-lo)/lo*100>1.5:(hi-ce)/hi*100>1.5;
+      exp=bull?(ce-lo)/Math.max(lo,1e-9)*100>1:(hi-ce)/Math.max(hi,1e-9)*100>1;
     }
-    if(preset==="P5")return true;
     if(preset==="P4")return chgOk;
     if(preset==="P3")return chgOk&&emaOk;
-    if(preset==="P2")return chgOk&&emaOk&&exp;
-    if(preset==="P1")return scoreMarket(s)>=45;
+    if(preset==="P2")return chgOk&&emaOk&&(exp||Math.abs(chgv)>2);
+    if(preset==="P1")return chgOk&&emaOk&&exp&&Math.abs(chgv)>3;
     return true;
   }catch(e){return false}
 }

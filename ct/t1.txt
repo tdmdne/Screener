@@ -1,0 +1,4 @@
+A &amp; B &lt; C &gt; D &quot; E &#39; F &#x27; G &nbsp; H
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+raw & < > " plain
+double &amp;amp; &amp;quot;

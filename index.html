@@ -1157,8 +1157,7 @@ if(t==="adr")return"ADR % · "+c.n+"d";
 if(t==="mac")return"MA close · "+c.ma+" "+c.len+" · "+c.tf;
 if(t==="mat")return"MA trend · "+c.ma+" "+c.len+" · "+c.tfs.join(" ");
 return TY[t]}
-// Mentfx-style S01-S04 filters
-S.sFilter=S.sFilter||"all";
+// Cycle score: used by the Expansion column, the chart preview panel and the heatmap momentum metric
 function scoreSymbol(s){
   try{
     const a=candles(s,"1D");if(!a||a.length<50)return{score:0,phase:"—",dir:0};
@@ -1182,16 +1181,6 @@ function scoreSymbol(s){
     return{score:Math.min(100,score),phase,dir,chg:chg20};
   }catch(e){return{score:0,phase:"—",dir:0}}
 }
-function applySFilter(r){
-  if(S.sFilter==="all")return r;
-  return r.map(o=>{const sc=scoreSymbol(o.s);o.score=sc.score;o.phase=sc.phase;o.dir=sc.dir;return o}).filter(o=>{
-    if(S.sFilter==="s01")return o.score>=80;
-    if(S.sFilter==="s02")return o.phase==="Expansion"||o.phase==="Distribution";
-    if(S.sFilter==="s03")return o.phase==="Accumulation"||o.phase==="Reaccumulation";
-    if(S.sFilter==="s04")return o.phase==="Retracement";
-    return true;
-  }).sort((a,b)=>b.score-a.score);
-}
 function rows(vis){
 const cut=S.acct*S.mult;
 let r=SYMS.filter(s=>(S.mkt==="ALL"||s[1]===S.mkt)&&s[0].toLowerCase().includes(S.q.toLowerCase()));
@@ -1203,7 +1192,7 @@ r.sort((a,b)=>{const x=g(a),y=g(b);if(x==null&&y==null)return 0;if(x==null)retur
 if(S.preset&&PRESETS[S.preset]){
   r=r.filter(o=>passesPreset(o.s,S.preset)).sort((a,b)=>scoreMarket(b.s)-scoreMarket(a.s));
 }
-return applySFilter(r)}
+return r}
 function cell(o,c){const v=o.v[c.id],t=c.type;
 if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
@@ -2687,7 +2676,7 @@ function authInit(){
   if(u)authEnter(u);else idEl.focus()}
 // ==== VT PAGES BEGIN ====
 // ---------- neutral "not investment advice" notes next to scores (checklist 5) ----------
-// Text only: no scoring maths is touched (scoreMarket / passesPreset / scoreSymbol / applySFilter are unchanged).
+// Text only: no scoring maths is touched (scoreMarket / passesPreset / scoreSymbol are unchanged).
 const VT_NA_TXT="Scores, tiers (P1\u2013P5) and phases are rule-based calculations on past price data. They don\u2019t predict prices and aren\u2019t investment advice.";
 function vtNaNote(){const tw=document.querySelector(".side>.tw");if(!tw||document.getElementById("vtna"))return;
   const p=document.createElement("p");p.id="vtna";p.className="vtna";p.append(VT_NA_TXT+" ");
@@ -3305,7 +3294,6 @@ const _vtDselDP=dsel;dsel=function(){const r=_vtDselDP.apply(this,arguments);con
 // ---------- Screener Pro: full-width table, extra read-only columns, quick filter pills, slide-over chart ----------
 S.sx=Object.assign({tf:"1D"},S.sx||{});
 const SX={ch:null,sym:"",retry:0};
-const SXF=[["all","All"],["s01","S01 \u00b7 Score 80+"],["s02","S02 \u00b7 Expansion"],["s03","S03 \u00b7 Accumulation"],["s04","S04 \u00b7 Retracement"]];
 // strictest preset a market passes (P1 strictest ... P5 everything); uses passesPreset unchanged
 function sxTier(s){for(const p of ["P1","P2","P3","P4"])if(passesPreset(s,p))return p;return"P5"}
 function sxPct(s){const a=candles(s,"1D");return a&&a.length>1?(a[a.length-1].c/a[a.length-2].c-1)*100:null}
@@ -3323,7 +3311,6 @@ function sxBar(){let b=document.getElementById("sxbar");if(!b){const tw=document
 const mk=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k));
 const names=[...Object.keys(BI),...Object.keys(P)];
 b.innerHTML=`<span class="sxlbl">Market</span><span class="seg">${mk.map(k=>`<button class="${S.mkt===k?"on":""}" onclick="S.mkt='${k}';S.page=0;save();render()">${MK[k]}</button>`).join("")}</span>`+
-`<span class="sxlbl">Cycle</span><span class="seg">${SXF.map(([k,n])=>`<button class="${(S.sFilter||"all")===k?"on":""}" onclick="S.sFilter='${k}';S.page=0;save();render()">${n}</button>`).join("")}</span>`+
 (typeof vtVirtOn==="function"&&vtVirtOn()?"":`<span class="sxlbl">Rows</span><span class="seg">${[20,50,100].map(n=>`<button class="${(S.rows||20)===n?"on":""}" onclick="S.rows=${n};S.page=0;save();render()">${n}</button>`).join("")}</span>`)+
 `<span class="sp"></span><select id="sxlay" title="Saved screener layouts" onchange="pick(this.value)"><option value="">Layout\u2026</option>${names.map(n=>`<option value="${esc(n)}" ${S.cur===n?"selected":""}>${esc(n)}</option>`).join("")}</select><button onclick="saveCur()" title="Save the current columns and filters">Save</button><button onclick="xfer()" title="Export or import saved layouts">Export</button><button onclick="openCols()">Columns</button>`}
 function sxSel(){document.querySelectorAll("#t tbody tr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===SX.sym&&!!document.querySelector("#sxd.open")))}

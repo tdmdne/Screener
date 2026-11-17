@@ -2,6 +2,9 @@
 
 Short dated log of changes to `index.html` (the whole app) and why.
 
+## 2026-11-17
+- **Removed the S01–S04 "Cycle" filter from the Screener page.** The Cycle button row, `applySFilter`, the `SXF` list and the `S.sFilter` state are gone, so the list is no longer re-sorted by cycle score. `scoreSymbol` stays because the Expansion column, the chart preview panel and the heatmap momentum metric use it. `tests/scorefns.js` and `tests/screener.js` no longer expect `applySFilter`.
+
 ## 2026-11-16
 - **Desktop chart fills its panel; smaller TradingView link.**
   - While candles load, or after a load error, the chart area now fills the whole panel instead of a short box at the top. The loaded chart already filled it; this makes the loading and error states match.

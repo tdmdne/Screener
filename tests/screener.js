@@ -3,13 +3,12 @@ const {launch}=require("./harness");const assert=require("assert");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.mkt="CRY";save();render()});await P.waitForTimeout(2500);
 // scoring functions are untouched: compare their source with the baseline file
 const fs=require("fs");const base=fs.readFileSync(__dirname+"/../baseline.html","utf8");
-for(const fn of ["scoreMarket","passesPreset","scoreSymbol","applySFilter"]){const src=await P.evaluate(n=>window[n].toString(),fn);assert(base.includes(src),fn+" changed");}
+for(const fn of ["scoreMarket","passesPreset","scoreSymbol"]){const src=await P.evaluate(n=>window[n].toString(),fn);assert(base.includes(src),fn+" changed");}
 await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(600);
 let st=await P.evaluate(()=>({th:document.querySelectorAll("#t thead th").length,rows:document.querySelectorAll("#t tbody tr[data-s]").length,pro:document.querySelectorAll("#t tbody td[data-l=Tier]").length,bar:!!document.querySelector("#sxbar").offsetParent,scroll:(()=>{const w=document.querySelector(".side>.tw");return w.scrollWidth-w.clientWidth})()}));
 console.log(JSON.stringify(st));assert(st.th>=12&&st.rows>0&&st.pro===st.rows&&st.bar&&st.scroll<=2);
-// pills: S02 cycle filter + rows
-await P.click('#sxbar button:has-text("S02")');await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>S.sFilter),"s02");
-await P.click('#sxbar button:has-text("All")>>nth=1');assert.strictEqual(await P.evaluate(()=>S.sFilter),"all");
+// the Cycle (S01-S04) pills are gone
+assert(await P.evaluate(()=>!/Cycle/.test(document.getElementById("sxbar").textContent)&&typeof applySFilter==="undefined"),"no cycle filter");
 // desktop: one continuous list, so no Rows-per-page pills and no pager
 assert(await P.evaluate(()=>!/Rows/.test(document.getElementById("sxbar").textContent)&&!document.getElementById("pg").textContent.trim()),"desktop list has no pages");
 // Pro columns survive the list search box (debounced render)

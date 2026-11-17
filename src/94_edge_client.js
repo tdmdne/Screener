@@ -143,25 +143,13 @@ function vtWsSubscribe(sym, tf) {
   } catch (_e) {}
 }
 
-const VT_SPIKE_TRACKER = new Map();
-
-function vtIsSpike(c, last, sym) {
+function vtIsSpike(c, last) {
   if (!last || !(last.c > 0)) return false;
-  const isFx = /^[A-Z]{6}$/.test(sym) || sym.includes("=X") || sym.includes("EUR") || sym.includes("GBP") || sym.includes("JPY");
-  const threshold = isFx ? 0.015 : 0.05; // 1.5% for FX, 5% for crypto/equities
   const ratio = Math.abs(c / last.c - 1);
-
-  if (ratio > threshold) {
-    const count = (VT_SPIKE_TRACKER.get(sym) || 0) + 1;
-    VT_SPIKE_TRACKER.set(sym, count);
-    if (count < 2) return true; // Ignore until confirmed by 2nd consecutive tick
-  } else {
-    VT_SPIKE_TRACKER.set(sym, 0);
-  }
-
+  if (ratio > 0.08) return true; // >8% single-tick jump
   if (last.h && last.l && last.h > last.l) {
     const barRange = last.h - last.l;
-    if (barRange > 0 && Math.abs(c - last.c) > 10 * barRange) return true;
+    if (barRange > 0 && Math.abs(c - last.c) > 12 * barRange) return true;
   }
   return false;
 }
@@ -177,28 +165,41 @@ function vtProcessTick(t) {
   checkAlerts(sym, c);
 
   const nowSec = Math.floor(Date.now() / 1000);
+  const tf = S && S.chart ? S.chart.tf : "1H";
+  const st = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+  const kChart = sym + "|" + tf;
+  const k1 = sym + "|1m";
 
-  // Single Source of Truth for Live Price: update ALL loaded timeframes for this symbol
-  for (const [key, arr] of Object.entries(LIVE)) {
-    if (!key.startsWith(sym + "|") || !Array.isArray(arr) || !arr.length) continue;
-    const tf = key.split("|")[1];
-    const st = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-    const lastBar = arr[arr.length - 1];
-    const bkt = Math.floor(nowSec / st) * st;
-    const clampedT = Math.max(t.t || bkt, lastBar.t);
+  // Check spike against 1m or chart bar
+  const refBar = (LIVE[k1] && LIVE[k1][LIVE[k1].length - 1]) || (LIVE[kChart] && LIVE[kChart][LIVE[kChart].length - 1]);
+  if (vtIsSpike(c, refBar)) return;
 
-    if (lastBar.t === clampedT || (clampedT - lastBar.t < st && lastBar.t === bkt)) {
-      lastBar.c = c;
-      lastBar.h = Math.max(lastBar.h, c);
-      lastBar.l = Math.min(lastBar.l, c);
-    } else if (clampedT > lastBar.t && clampedT >= bkt) {
-      arr.push({ t: clampedT, o: c, h: c, l: c, c, v: 1 });
-    }
+  // Update 1m candle with clamped timestamp
+  if (LIVE[k1] && LIVE[k1].length) {
+    const last1m = LIVE[k1][LIVE[k1].length - 1];
+    const clampedT = Math.max(t.t || nowSec, last1m.t);
+    last1m.t = clampedT;
+    last1m.c = c;
+    if (t.h) last1m.h = Math.max(last1m.h, +t.h, c);
+    else last1m.h = Math.max(last1m.h, c);
+    if (t.l) last1m.l = Math.min(last1m.l, +t.l, c);
+    else last1m.l = Math.min(last1m.l, c);
   }
 
-  const tf = S && S.chart ? S.chart.tf : "1H";
-
+  // Update active chart series if strictly matching symbol
   if (S && S.chart && S.chart.sym === sym) {
+    if (LIVE[kChart] && LIVE[kChart].length) {
+      const lastBar = LIVE[kChart][LIVE[kChart].length - 1];
+      const bkt = Math.floor(nowSec / st) * st;
+      const clampedT = Math.max(t.t || bkt, lastBar.t);
+      if (lastBar.t === clampedT || (clampedT - lastBar.t < st && lastBar.t === bkt)) {
+        lastBar.c = c;
+        lastBar.h = Math.max(lastBar.h, c);
+        lastBar.l = Math.min(lastBar.l, c);
+      } else if (clampedT > lastBar.t && clampedT >= bkt) {
+        LIVE[kChart].push({ t: clampedT, o: c, h: c, l: c, c, v: 1 });
+      }
+    }
     if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
       updateLiveBar(sym, tf);
     }
@@ -282,7 +283,7 @@ function vtWsConnect() {
           if (!LIVE[key]) LIVE[key] = [];
           const arr = LIVE[key];
           const last = arr[arr.length - 1];
-          if (vtIsSpike(bar.c, last, msg.symbol)) return;
+          if (vtIsSpike(bar.c, last)) return;
 
           const clampedT = last ? Math.max(bar.t, last.t) : bar.t;
           if (last && last.t === clampedT) {

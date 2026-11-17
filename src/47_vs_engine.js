@@ -52,7 +52,20 @@ function vsParse(src){if(typeof src!=="string")throw new VSError("Script must be
   function expr(){const c=bin(0);if(is("op","?")){const k=nx();const a=expr();want("op",":",null);const b=expr();return{k:"tern",c,a,b,line:k.line,col:k.col}}return c}
   const prog=[];while(!is("eof")){if(is("nl")){nx();continue}const k=pk();
     if(prog.length>=VS_LIM.stmts)throw new VSError("Too many statements ("+VS_LIM.stmts+" max)",k.line,k.col);
-    if(is("id")&&T[p+1].t==="op"&&T[p+1].v==="="){const nm=nx().v;nx();if(VS_SERIES.includes(nm)||vsOwn(VS_FN,nm)||["plot","hline","input","indicator"].includes(nm))throw new VSError("\u201c"+nm+"\u201d is a built-in name and can\u2019t be reassigned",k.line,k.col,"Pick another name, e.g. my_"+nm+".");
+    if(is("op","[")){
+      nx();const names=[];
+      while(!is("op","]")&&!is("eof")){
+        while(is("nl"))nx();
+        if(is("id")){const nm=nx().v;if(VS_SERIES.includes(nm)||vsOwn(VS_FN,nm)||["plot","hline","input","indicator"].includes(nm))throw new VSError("\u201c"+nm+"\u201d is a built-in name and can\u2019t be reassigned",k.line,k.col);names.push(nm)}
+        while(is("nl"))nx();
+        if(is("op",",")){nx();continue}
+        break;
+      }
+      want("op","]","Close bracket ] in destructuring assignment");
+      want("op","=","Expected = after [a, b, ...]");
+      prog.push({k:"destruct",names,e:expr(),line:k.line,col:k.col});
+    }
+    else if(is("id")&&T[p+1].t==="op"&&T[p+1].v==="="){const nm=nx().v;nx();if(VS_SERIES.includes(nm)||vsOwn(VS_FN,nm)||["plot","hline","input","indicator"].includes(nm))throw new VSError("\u201c"+nm+"\u201d is a built-in name and can\u2019t be reassigned",k.line,k.col,"Pick another name, e.g. my_"+nm+".");
       prog.push({k:"set",n:nm,e:expr(),line:k.line,col:k.col})}else prog.push({k:"do",e:expr(),line:k.line,col:k.col});
     if(!is("eof")&&!is("nl")){const q=pk();throw new VSError("Expected a new line after this statement but found \u201c"+q.v+"\u201d",q.line,q.col,"Put each statement on its own line.")}}
   return prog}
@@ -95,8 +108,26 @@ const VS_FN=Object.assign(Object.create(null),{
   max:{a:2,sig:"max(a, b)",f:(A,n)=>vsMap2(A[0],A[1],(a,b)=>isNaN(a)||isNaN(b)?NaN:Math.max(a,b),n)},
   avg:{a:2,sig:"avg(a, b)",f:(A,n)=>vsMap2(A[0],A[1],(a,b)=>(a+b)/2,n)},
   isna:{a:1,sig:"isna(x)",f:(A,n)=>vsMap1(A[0],v=>isNaN(v)?1:0,n)},
+  macd:{a:[1,4],sig:"macd(source, fast = 12, slow = 26, signal = 9)",f:(A,n,c)=>{
+    const src=vsSer(A[0],n),f=A.length>1?vsLen(A[1],"macd",c):12,s=A.length>2?vsLen(A[2],"macd",c):26,sig=A.length>3?vsLen(A[3],"macd",c):9;
+    const fE=vsEMA(src,f,n),sE=vsEMA(src,s,n),m=vsMap2(fE,sE,(a,b)=>a-b,n),sl=vsEMA(m,sig,n),h=vsMap2(m,sl,(a,b)=>a-b,n);
+    const r=[m,sl,h];r.macd=m;r.signal=sl;r.hist=h;return r}},
+  bb:{a:[1,3],sig:"bb(source, length = 20, mult = 2)",f:(A,n,c)=>{
+    const src=vsSer(A[0],n),k=A.length>1?vsLen(A[1],"bb",c):20,mult=A.length>2&&!vsIsS(A[2])?+A[2]:2;
+    const mid=vsSMA(src,k,n),dev=vsWin(src,k,n,w=>{const m=w.reduce((a,b)=>a+b,0)/k;return Math.sqrt(w.reduce((a,b)=>a+(b-m)*(b-m),0)/k)});
+    const up=vsMap2(mid,dev,(m,d)=>m+mult*d,n),lo=vsMap2(mid,dev,(m,d)=>m-mult*d,n);
+    const r=[mid,up,lo];r.mid=mid;r.upper=up;r.lower=lo;return r}},
+  vwap:{a:[0,1],sig:"vwap(source = hlc3)",f:(A,n,c,E)=>{
+    const src=A.length>0?vsSer(A[0],n):E.hlc3,v=E.volume,o=new Float64Array(n);
+    let sPv=0,sV=0;for(let i=0;i<n;i++){const vol=isNaN(v[i])?1:v[i],p=isNaN(src[i])?0:src[i];sPv+=p*vol;sV+=vol;o[i]=sV>0?sPv/sV:p}return o}},
+  stoch:{a:4,sig:"stoch(close, high, low, length)",f:(A,n,c)=>{
+    const cl=vsSer(A[0],n),hi=vsSer(A[1],n),lo=vsSer(A[2],n),k=vsLen(A[3],"stoch",c),o=new Float64Array(n).fill(NaN);
+    for(let i=k-1;i<n;i++){let minL=Infinity,maxH=-Infinity;for(let j=i-k+1;j<=i;j++){if(lo[j]<minL)minL=lo[j];if(hi[j]>maxH)maxH=hi[j]}const rng=maxH-minL;o[i]=rng===0?50:((cl[i]-minL)/rng)*100}return o}},
+  cci:{a:[1,2],sig:"cci(source = hlc3, length = 20)",f:(A,n,c,E)=>{
+    const src=A.length>0?vsSer(A[0],n):E.hlc3,k=A.length>1?vsLen(A[1],"cci",c):20,ma=vsSMA(src,k,n),o=new Float64Array(n).fill(NaN);
+    for(let i=k-1;i<n;i++){const m=ma[i];if(isNaN(m))continue;let md=0;for(let j=i-k+1;j<=i;j++)md+=Math.abs(src[j]-m);md/=k;o[i]=md===0?0:(src[i]-m)/(0.015*md)}return o}},
 });
-const VS_DECL=["indicator","input","plot","hline"];
+const VS_DECL=["indicator","input","plot","hline","input_bool","input_source","plotshape","bgcolor"];
 function vsLev(a,b){const m=[];for(let i=0;i<=b.length;i++)m[i]=[i];for(let j=0;j<=a.length;j++)m[0][j]=j;for(let i=1;i<=b.length;i++)for(let j=1;j<=a.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[j-1]===b[i-1]?0:1));return m[b.length][a.length]}
 function vsSuggest(w,pool){let best=null,bd=3;for(const p of pool){const d=vsLev(w.toLowerCase(),p);if(d<bd){bd=d;best=p}}return best}
 function vsColor(v,node){if(typeof v!=="string")throw vsErr(node,"Colours are text like #2962ff or a name like blue");const s=v.toLowerCase();if(vsOwn(VS_COLORS,s))return VS_COLORS[s];if(/^#([0-9a-f]{6}|[0-9a-f]{3})$/.test(s))return s;
@@ -108,7 +139,7 @@ function vsRun(src,bars,inputVals){const prog=typeof src==="string"?vsParse(src)
   for(let i=0;i<n;i++)if(isNaN(E.open[i]))E.open[i]=i?E.close[i-1]:E.close[i];
   E.hl2=vsMap2(E.high,E.low,(a,b)=>(a+b)/2,n);E.hlc3=new Float64Array(n);E.ohlc4=new Float64Array(n);E.bar_index=new Float64Array(n);
   for(let i=0;i<n;i++){E.hlc3[i]=(E.high[i]+E.low[i]+E.close[i])/3;E.ohlc4[i]=(E.open[i]+E.high[i]+E.low[i]+E.close[i])/4;E.bar_index[i]=i}
-  const out={name:"",overlay:true,plots:[],hlines:[],inputs:[]};let nodes=0;const iv=inputVals||{};
+  const out={name:"",overlay:true,plots:[],hlines:[],inputs:[],bgcolors:[]};let nodes=0;const iv=inputVals||{};
   const str=(node,what)=>{const v=ev(node);if(typeof v!=="string")throw vsErr(node,what+" must be text in quotes");return v};
   const scal=(node,what)=>{const v=ev(node);if(typeof v!=="number")throw vsErr(node,what+" must be a plain number");return v};
   function ev(x){if(++nodes>VS_LIM.nodes)throw vsErr(x,"The script is doing too much work","Use shorter lengths or fewer steps.");
@@ -129,6 +160,8 @@ function vsRun(src,bars,inputVals){const prog=typeof src==="string"?vsParse(src)
     if(f==="indicator"){if(x.args.length)out.name=str(x.args[0],"The indicator name").slice(0,60);if(x.kw.overlay)out.overlay=!!scal(x.kw.overlay,"overlay");for(const k in x.kw)if(k!=="overlay")throw vsErr(x,"indicator() has no option \u201c"+k+"\u201d","Options: overlay=true or overlay=false.");return 0}
     if(f==="input"){if(!x.args.length)throw vsErr(x,"input() needs a default value","e.g. len = input(14, \"Length\")");const d=scal(x.args[0],"The default value");const t=x.args[1]?str(x.args[1],"The input title"):"Input "+(out.inputs.length+1);
       const mn=x.kw.min?scal(x.kw.min,"min"):-1e12,mx=x.kw.max?scal(x.kw.max,"max"):1e12;let v=iv[t]!=null&&isFinite(+iv[t])?+iv[t]:d;v=Math.max(mn,Math.min(mx,v));out.inputs.push({title:t,def:d,min:mn,max:mx,v});return v}
+    if(f==="input_bool"||f==="input.bool"){const d=x.args.length?(ev(x.args[0])?1:0):1;const t=x.args[1]?str(x.args[1],"Title"):"Option "+(out.inputs.length+1);let v=iv[t]!=null?(iv[t]?1:0):d;out.inputs.push({title:t,type:"bool",def:d,v});return v}
+    if(f==="input_source"||f==="input.source"){const d=x.args.length?ev(x.args[0]):E.close;return vsSer(d,n)}
     if(f==="plot"){if(out.plots.length>=VS_LIM.plots)throw vsErr(x,"Too many plots ("+VS_LIM.plots+" max)");if(!x.args.length)throw vsErr(x,"plot() needs a series","e.g. plot(ema(close, 20), \"EMA\")");
       const v=vsSer(ev(x.args[0]),n),title=x.args[1]?str(x.args[1],"The plot title"):"Plot "+(out.plots.length+1);
       const color=vsColor(x.kw.color?ev(x.kw.color):x.args[2]?ev(x.args[2]):["#2962ff","#fb923c","#9c27b0","#089981","#f23645"][out.plots.length%5],x);
@@ -136,12 +169,76 @@ function vsRun(src,bars,inputVals){const prog=typeof src==="string"?vsParse(src)
       if(!["line","histogram","area"].includes(style))throw vsErr(x,"Unknown plot style \u201c"+style+"\u201d","Use \"line\", \"histogram\" or \"area\".");
       for(const k in x.kw)if(!["color","width","style"].includes(k))throw vsErr(x,"plot() has no option \u201c"+k+"\u201d","Options: color, width, style.");
       out.plots.push({title,color,width,style,v});return 0}
+    if(f==="plotshape"){const cond=vsSer(ev(x.args[0]),n);const title=x.args[1]?str(x.args[1],"Title"):"Shape "+(out.plots.length+1);const color=vsColor(x.kw.color?ev(x.kw.color):"blue",x);out.plots.push({title,color,width:2,style:"histogram",v:cond});return 0}
+    if(f==="bgcolor"){const col=vsColor(ev(x.args[0]),x);out.bgcolors=out.bgcolors||[];out.bgcolors.push({color:col,cond:x.args[1]?vsSer(ev(x.args[1]),n):null});return 0}
     if(f==="hline"){if(out.hlines.length>=VS_LIM.hlines)throw vsErr(x,"Too many hlines ("+VS_LIM.hlines+" max)");const v=scal(x.args[0]||{k:"num",v:NaN,line:x.line,col:x.col},"hline() value");
       out.hlines.push({v,title:x.args[1]?str(x.args[1],"The line title"):"",color:vsColor(x.kw.color?ev(x.kw.color):"gray",x)});return 0}
     const F=vsOwn(VS_FN,f)?VS_FN[f]:null;if(!F){const sg=vsSuggest(f,[...Object.keys(VS_FN),...VS_DECL]);throw vsErr(x,"Unknown function \u201c"+f+"()\u201d",sg?"Did you mean \u201c"+sg+"()\u201d?":"See the function list in the help panel.")}
     const want=Array.isArray(F.a)?F.a:[F.a,F.a];for(const k in x.kw)throw vsErr(x,f+"() doesn\u2019t take named options","Write it as "+F.sig+".");
     if(x.args.length<want[0]||x.args.length>want[1])throw vsErr(x,f+"() takes "+(want[0]===want[1]?want[0]:want[0]+" or "+want[1])+" value"+(want[1]===1?"":"s")+", got "+x.args.length,"Write it as "+F.sig+".");
     const A=x.args.map(a=>{const v=ev(a);if(typeof v==="string")throw vsErr(a,f+"() works on numbers and series, not text");return v});return F.f(A,n,x,E)}
-  for(const st of prog){if(st.k==="set")V[st.n]=ev(st.e);else ev(st.e)}
+  for(const st of prog){
+    if(st.k==="set")V[st.n]=ev(st.e);
+    else if(st.k==="destruct"){
+      const r=ev(st.e);
+      if(Array.isArray(r)){
+        for(let i=0;i<st.names.length;i++)V[st.names[i]]=r[i]!=null?r[i]:new Float64Array(n);
+      } else {
+        if(st.names[0])V[st.names[0]]=r;
+      }
+    }
+    else ev(st.e);
+  }
   if(!out.plots.length&&!out.hlines.length)throw new VSError("Nothing to show: add a plot(...) line",0,0,"e.g. plot(ema(close, 20), \"EMA 20\")");
   return out}
+
+function vsTranspilePine(src) {
+  if (typeof src !== "string") return "";
+  let s = src.replace(/\r\n/g, "\n");
+  s = s.replace(/\/\/\s*@version\s*=\s*[0-9]+/gi, "// Pine Script auto-translated to Vektor Script");
+  s = s.replace(/\b(?:var|varip)\s+(?:(?:series\s+)?(?:float|int|bool|color|string)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/g, "$1 =");
+  s = s.replace(/\b(?:series\s+)?(?:float|int|bool|color|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/g, "$1 =");
+  s = s.replace(/\bta\.sma\b/g, "sma");
+  s = s.replace(/\bta\.ema\b/g, "ema");
+  s = s.replace(/\bta\.rsi\b/g, "rsi");
+  s = s.replace(/\bta\.macd\b/g, "macd");
+  s = s.replace(/\bta\.bb\b/g, "bb");
+  s = s.replace(/\bta\.vwap\b/g, "vwap");
+  s = s.replace(/\bta\.stoch\b/g, "stoch");
+  s = s.replace(/\bta\.cci\b/g, "cci");
+  s = s.replace(/\bta\.atr\b/g, "atr");
+  s = s.replace(/\bta\.tr\b/g, "tr");
+  s = s.replace(/\bta\.highest\b/g, "highest");
+  s = s.replace(/\bta\.lowest\b/g, "lowest");
+  s = s.replace(/\bta\.crossover\b/g, "crossover");
+  s = s.replace(/\bta\.crossunder\b/g, "crossunder");
+  s = s.replace(/\bta\.change\b/g, "change");
+  s = s.replace(/\bta\.roc\b/g, "roc");
+  s = s.replace(/\bta\.stdev\b/g, "stdev");
+  s = s.replace(/\bta\.cum\b/g, "cum");
+  s = s.replace(/\bta\.wma\b/g, "wma");
+  s = s.replace(/\bta\.rma\b/g, "rma");
+  s = s.replace(/\bmath\.abs\b/g, "abs");
+  s = s.replace(/\bmath\.max\b/g, "max");
+  s = s.replace(/\bmath\.min\b/g, "min");
+  s = s.replace(/\bmath\.sqrt\b/g, "sqrt");
+  s = s.replace(/\bmath\.round\b/g, "round");
+  s = s.replace(/\bmath\.floor\b/g, "floor");
+  s = s.replace(/\bmath\.ceil\b/g, "ceil");
+  s = s.replace(/\bmath\.pow\b/g, "pow");
+  s = s.replace(/\bmath\.log\b/g, "log");
+  s = s.replace(/\bmath\.exp\b/g, "exp");
+  s = s.replace(/\binput\.int\b/g, "input");
+  s = s.replace(/\binput\.float\b/g, "input");
+  s = s.replace(/\binput\.price\b/g, "input");
+  s = s.replace(/\binput\.bool\b/g, "input_bool");
+  s = s.replace(/\binput\.source\b/g, "input_source");
+  s = s.replace(/\binput\.string\b/g, "input");
+  s = s.replace(/\bcolor\.new\(([^,)]+)[^)]*\)/g, "$1");
+  s = s.replace(/\bcolor\.([a-z]+)\b/gi, '"$1"');
+  s = s.replace(/\bplot\.style_histogram\b/g, '"histogram"');
+  s = s.replace(/\bplot\.style_area\b/g, '"area"');
+  s = s.replace(/\bplot\.style_line\b/g, '"line"');
+  s = s.replace(/\b(?:ta|math|color|input)\.([A-Za-z0-9_]+)/g, "$1");
+  return s;
+}

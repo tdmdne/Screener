@@ -143,6 +143,114 @@ function vtWsSubscribe(sym, tf) {
   } catch (_e) {}
 }
 
+function vtIsSpike(c, last) {
+  if (!last || !(last.c > 0)) return false;
+  const ratio = Math.abs(c / last.c - 1);
+  if (ratio > 0.08) return true; // >8% single-tick jump
+  if (last.h && last.l && last.h > last.l) {
+    const barRange = last.h - last.l;
+    if (barRange > 0 && Math.abs(c - last.c) > 12 * barRange) return true;
+  }
+  return false;
+}
+
+function vtProcessTick(t) {
+  if (!t || !t.s) return;
+  const sym = t.s;
+  const c = +t.c;
+  if (!(c > 0) || !isFinite(c)) return;
+
+  const row = SYMS.find((x) => x[0] === sym);
+  if (row) row[2] = c;
+  checkAlerts(sym, c);
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const tf = S && S.chart ? S.chart.tf : "1H";
+  const st = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+  const kChart = sym + "|" + tf;
+  const k1 = sym + "|1m";
+
+  // Check spike against 1m or chart bar
+  const refBar = (LIVE[k1] && LIVE[k1][LIVE[k1].length - 1]) || (LIVE[kChart] && LIVE[kChart][LIVE[kChart].length - 1]);
+  if (vtIsSpike(c, refBar)) return;
+
+  // Update 1m candle with clamped timestamp
+  if (LIVE[k1] && LIVE[k1].length) {
+    const last1m = LIVE[k1][LIVE[k1].length - 1];
+    const clampedT = Math.max(t.t || nowSec, last1m.t);
+    last1m.t = clampedT;
+    last1m.c = c;
+    if (t.h) last1m.h = Math.max(last1m.h, +t.h, c);
+    else last1m.h = Math.max(last1m.h, c);
+    if (t.l) last1m.l = Math.min(last1m.l, +t.l, c);
+    else last1m.l = Math.min(last1m.l, c);
+  }
+
+  // Update active chart series if strictly matching symbol
+  if (S && S.chart && S.chart.sym === sym) {
+    if (LIVE[kChart] && LIVE[kChart].length) {
+      const lastBar = LIVE[kChart][LIVE[kChart].length - 1];
+      const bkt = Math.floor(nowSec / st) * st;
+      const clampedT = Math.max(t.t || bkt, lastBar.t);
+      if (lastBar.t === clampedT || (clampedT - lastBar.t < st && lastBar.t === bkt)) {
+        lastBar.c = c;
+        lastBar.h = Math.max(lastBar.h, c);
+        lastBar.l = Math.min(lastBar.l, c);
+      } else if (clampedT > lastBar.t && clampedT >= bkt) {
+        LIVE[kChart].push({ t: clampedT, o: c, h: c, l: c, c, v: 1 });
+      }
+    }
+    if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+      updateLiveBar(sym, tf);
+    }
+    const cs = symOf(sym);
+    const q = document.getElementById("cpx");
+    if (q && cs && cs[2] != null) q.textContent = fp(cs[2]);
+  }
+
+  // Update secondary pane if active and strictly matching symbol
+  if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
+    const tfB = S.sc && S.sc.tfB ? S.sc.tfB : "1D";
+    const kB = sym + "|" + tfB;
+    if (LIVE[kB] && LIVE[kB].length) {
+      const lb = LIVE[kB][LIVE[kB].length - 1];
+      lb.c = c;
+      lb.h = Math.max(lb.h, c);
+      lb.l = Math.min(lb.l, c);
+      try {
+        SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c });
+      } catch (_e) {}
+    }
+  }
+}
+
+async function vtPollQuotes() {
+  if (VT_EDGE.ws && VT_EDGE.ws.readyState === 1) return;
+  if (!isLive() || !vtCanUseEdge()) return;
+  const activeSyms = new Set();
+  if (S && S.chart && S.chart.sym) activeSyms.add(S.chart.sym);
+  if (typeof SC !== "undefined" && SC && SC.keyB) activeSyms.add(SC.keyB.split("|")[0]);
+  if (typeof wlAll === "function") {
+    wlAll().slice(0, 10).forEach((s) => activeSyms.add(s));
+  }
+  if (!activeSyms.size) return;
+  try {
+    const list = [...activeSyms].join(",");
+    const r = await fetch(`/api/quote?symbols=${encodeURIComponent(list)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j || !j.ok || !j.quotes) return;
+    for (const [sym, q] of Object.entries(j.quotes)) {
+      if (!q || !(q.c > 0)) continue;
+      vtProcessTick({ s: sym, c: q.c, h: q.h, l: q.l, t: q.t });
+    }
+  } catch (_e) {}
+}
+
+if (!window.__vtQuotePollIv) {
+  window.__vtQuotePollIv = setInterval(vtPollQuotes, 2000);
+}
+
 function vtWsConnect() {
   if (!vtCanUseEdge()) {
     bnwsConnect();
@@ -166,28 +274,8 @@ function vtWsConnect() {
         const msg = JSON.parse(e.data);
         markOk("ws");
         if (msg.type === "ticks" && Array.isArray(msg.ticks)) {
-          let chartHit = false;
           for (const t of msg.ticks) {
-            const sym = t.s;
-            const c = +t.c;
-            if (!(c > 0)) continue;
-            const k1 = sym + "|1m";
-            if (LIVE[k1] && LIVE[k1].length) {
-              const last = LIVE[k1][LIVE[k1].length - 1];
-              last.c = c;
-              if (t.h) last.h = Math.max(last.h, +t.h);
-              if (t.l) last.l = Math.min(last.l, +t.l);
-            }
-            const row = SYMS.find((x) => x[0] === sym);
-            if (row) row[2] = c;
-            checkAlerts(sym, c);
-            if (S.chart.sym === sym) chartHit = true;
-          }
-          if (ch && chartHit) {
-            updateLiveBar(S.chart.sym, S.chart.tf);
-            const cs = symOf(S.chart.sym);
-            const q = document.getElementById("cpx");
-            if (q && cs && cs[2] != null) q.textContent = fp(cs[2]);
+            vtProcessTick(t);
           }
         } else if (msg.type === "kline" && msg.symbol && msg.interval && msg.bar) {
           const key = msg.symbol + "|" + msg.interval;
@@ -195,19 +283,23 @@ function vtWsConnect() {
           if (!LIVE[key]) LIVE[key] = [];
           const arr = LIVE[key];
           const last = arr[arr.length - 1];
-          if (last && last.t === bar.t) {
+          if (vtIsSpike(bar.c, last)) return;
+
+          const clampedT = last ? Math.max(bar.t, last.t) : bar.t;
+          if (last && last.t === clampedT) {
             last.c = bar.c;
             last.h = Math.max(last.h, bar.h);
             last.l = Math.min(last.l, bar.l);
             last.v = Math.max(last.v || 0, bar.v || 0);
-          } else if (!last || bar.t > last.t) {
+          } else if (!last || clampedT > last.t) {
+            bar.t = clampedT;
             arr.push(bar);
           }
           if (arr.length > 500) arr.splice(0, arr.length - 500);
           const row = SYMS.find((x) => x[0] === msg.symbol);
           if (row) row[2] = bar.c;
           checkAlerts(msg.symbol, bar.c);
-          if (S.chart.sym === msg.symbol && S.chart.tf === msg.interval) {
+          if (S && S.chart && S.chart.sym === msg.symbol && S.chart.tf === msg.interval) {
             updateLiveBar(msg.symbol, msg.interval);
             const q = document.getElementById("cpx");
             if (q) q.textContent = fp(bar.c);
@@ -231,3 +323,4 @@ function vtWsConnect() {
     bnwsConnect();
   }
 }
+

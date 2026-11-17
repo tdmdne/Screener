@@ -592,12 +592,13 @@ async function fetchDukascopyCandles(rawSym, interval, opts, refPrice) {
   } else if (step >= 3600 || spanDays > 16) {
     const d0 = new Date(fromSec * 1000);
     const d1 = new Date(toSec * 1000);
-    let y = d0.getUTCFullYear(), m = d0.getUTCMonth();
-    const endY = d1.getUTCFullYear(), endM = d1.getUTCMonth();
+    let y = Math.max(2007, d0.getUTCFullYear()), m = d0.getUTCMonth();
     const curY = new Date().getUTCFullYear(), curM = new Date().getUTCMonth();
+    const endY = Math.min(curY, d1.getUTCFullYear()), endM = d1.getUTCFullYear() > curY ? curM : d1.getUTCMonth();
     const jobs = [];
     let guard = 0;
-    while ((y < endY || (y === endY && m <= endM)) && guard++ < 36) {
+    const maxMonths = Math.min(360, Math.max(1, (endY - y) * 12 + (endM - m) + 1));
+    while ((y < endY || (y === endY && m <= endM)) && guard++ < maxMonths) {
       const mm = String(m).padStart(2, "0");
       const base = Math.floor(Date.UTC(y, m, 1) / 1000);
       const url = `https://datafeed.dukascopy.com/datafeed/${cfg.id}/${y}/${mm}/BID_candles_hour_1.bi5`;
@@ -608,7 +609,7 @@ async function fetchDukascopyCandles(rawSym, interval, opts, refPrice) {
     rawBars = (await Promise.all(jobs)).flat();
   } else {
     const dayJobs = [];
-    const maxDays = Math.min(18, Math.max(2, spanDays + 2));
+    const maxDays = Math.min(60, Math.max(2, spanDays + 2));
     const endDay = Math.floor(toSec / 86400) * 86400;
     const startDay = Math.max(endDay - (maxDays - 1) * 86400, Math.floor(fromSec / 86400) * 86400);
     for (let d = startDay; d <= endDay; d += 86400) {
@@ -627,6 +628,27 @@ async function fetchDukascopyCandles(rawSym, interval, opts, refPrice) {
   let out = step > 60 ? aggregateCandles(rawBars, step) : rawBars;
   if (opts.from > 0) out = out.filter((b) => b.t >= opts.from);
   if (opts.to > 0) out = out.filter((b) => b.t <= opts.to);
+
+  // Seamlessly stitch recent/live bar if fetching near live edge
+  if (out.length && (!opts.to || opts.to >= nowSec - step * 2) && refPrice > 0) {
+    const lastBar = out[out.length - 1];
+    const curBucket = Math.floor(nowSec / step) * step;
+    if (lastBar.t === curBucket) {
+      lastBar.c = refPrice;
+      lastBar.h = Math.max(lastBar.h, refPrice);
+      lastBar.l = Math.min(lastBar.l, refPrice);
+    } else if (lastBar.t < curBucket && curBucket - lastBar.t <= step * 8) {
+      out.push({
+        t: curBucket,
+        o: lastBar.c || refPrice,
+        h: Math.max(lastBar.c || refPrice, refPrice),
+        l: Math.min(lastBar.c || refPrice, refPrice),
+        c: refPrice,
+        v: 120
+      });
+    }
+  }
+
   if (out.length > limit) out = out.slice(-limit);
   return out.length ? out : null;
 }
@@ -634,12 +656,12 @@ async function fetchDukascopyCandles(rawSym, interval, opts, refPrice) {
 async function fetchBinanceCandles(apiSym, interval, opts = {}) {
   const bni = BNI[interval];
   if (!bni) return null;
-  const limit = Math.max(10, Math.min(5000, Number(opts.limit) || 250));
+  const limit = Math.max(10, Math.min(10000, Number(opts.limit) || 250));
   const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
   const step = STEPS[interval] || 3600;
   let endMs = opts.to > 0 ? Number(opts.to) * 1000 : Date.now();
   const startMs = opts.from > 0 ? Number(opts.from) * 1000 : 0;
-  const batches = Math.ceil(limit / 1000);
+  const batches = Math.max(1, Math.min(10, Math.ceil(limit / 1000)));
   const all = [];
 
   for (let b = 0; b < batches; b++) {
@@ -850,6 +872,24 @@ app.get("/api/screener", async (_req, res) => {
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message || "Screener error" });
   }
+});
+
+app.get("/api/quote", (req, res) => {
+  const raw = String(req.query.symbols || req.query.symbol || "").trim();
+  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean) : ["BTCUSDT"];
+  const quotes = {};
+  const now = Math.floor(Date.now() / 1000);
+  for (const s of list) {
+    const meta = inferMeta(s);
+    const p = livePrices.get(s) || meta.p || 1;
+    quotes[s] = {
+      s,
+      c: p,
+      t: now,
+      m: meta.m || "STK"
+    };
+  }
+  return res.json({ ok: true, ts: Date.now(), quotes });
 });
 
 app.get("/api/candles", async (req, res) => {

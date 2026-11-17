@@ -82,8 +82,8 @@ function vsM(id){const C=vsCfg();if(id&&vsGet(id))VSUI.sel=id;if(!VSUI.sel||!vsG
 <button type="button" id="vs_tog" class="${sc.on?"":"pri"}" aria-pressed="${!!sc.on}">${sc.on?"Remove from chart":"Add to chart"}</button></div>
 <div class="vsed"><pre class="vsgut" id="vs_gut" aria-hidden="true"></pre><textarea id="vs_src" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="Script source" aria-describedby="vs_msg">${esc(sc.src)}</textarea></div>
 <div id="vs_msg" class="vsmsg" role="status" aria-live="polite"></div><div id="vs_inp" class="vsinp"></div>
-<div class="vsrow"><button type="button" id="vs_chk">Check</button><button type="button" id="vs_save" class="pri">Save</button><span class="sp"></span><button type="button" id="vs_dup">Duplicate</button><button type="button" id="vs_exp">Export</button><button type="button" id="vs_del" class="vsdanger">Delete</button></div>`
-:`<div class="vsempty"><p>Write your own indicators in a small, safe language and draw them on the chart.</p><p class="mut">Pick an example on the left to get started, or create a blank script.</p></div>`}
+<div class="vsrow"><button type="button" id="vs_chk">Check</button><button type="button" id="vs_save" class="pri">Save</button><button type="button" id="vs_pine" title="Auto-translate Pine Script v5/v6 to Vektor Script">Translate Pine</button><span class="sp"></span><button type="button" id="vs_dup">Duplicate</button><button type="button" id="vs_exp">Export</button><button type="button" id="vs_del" class="vsdanger">Delete</button></div>`
+: `<div class="vsempty"><p>Write your own indicators in a small, safe language and draw them on the chart.</p><p class="mut">Pick an example on the left to get started, or create a blank script.</p></div>`}
 ${vsHelpHTML()}</section></div></div>`);
   const box=MD.querySelector(".box");if(box)box.setAttribute("aria-labelledby","vs_t");const q=s=>document.getElementById(s);
   MD.querySelectorAll(".vsli").forEach(b=>b.onclick=()=>{vsStash();vsM(b.dataset.id)});
@@ -102,6 +102,7 @@ ${vsHelpHTML()}</section></div></div>`);
     else if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();e.stopPropagation();vsSave()}
     else if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();vsCheck(true)}});
   q("vs_chk").onclick=()=>vsCheck(true);q("vs_save").onclick=()=>vsSave();
+  if(q("vs_pine"))q("vs_pine").onclick=()=>{if(ta){ta.value=vsTranspilePine(ta.value);lines();vsCheck(true);vsMsg("Translated Pine Script to Vektor Script.")}};
   q("vs_tog").onclick=()=>{vsSave(true);const c=vsCheck(true);if(!sc.on&&!c){vsMsg("Fix the error above before adding it to the chart.",true);return}sc.on=!sc.on;save();vsRedraw();vsM(sc.id);vsMsg(sc.on?"Added to the chart.":"Removed from the chart.")};
   q("vs_dup").onclick=()=>{vsSave(true);const n=vsNew(sc.name+" (copy)",sc.src);if(n){n.inp=Object.assign({},sc.inp);save();vsM(n.id)}};
   q("vs_exp").onclick=()=>{vsSave(true);vsExport([sc])};

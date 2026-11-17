@@ -51,7 +51,8 @@ function vsPts(v,T){const o=[];for(let i=0;i<v.length;i++){const y=v[i];if(isFin
 // small legend at the bottom-left of the chart: one chip per active script (errors shown there too)
 function vsLegend(on){const host=document.getElementById("cv");if(!host)return;let L=document.getElementById("vsleg");if(!on.length){if(L)L.remove();return}
   if(!L||!host.parentElement.contains(L)){L=document.createElement("div");L.id="vsleg";L.className="vsleg";host.parentElement.appendChild(L)}
-  L.innerHTML=on.map(sc=>{const e=VSUI.errs[sc.id];return`<button type="button" class="vschip${e?" err":""}" data-id="${esc(sc.id)}" title="${e?esc(vsFmtErr(e)):"Edit script"}">${e?"\u26a0 ":""}${esc(sc.name)}</button>`}).join("");
+  const warnSvg='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  L.innerHTML=on.map(sc=>{const e=VSUI.errs[sc.id];return`<button type="button" class="vschip${e?" err":""}" data-id="${esc(sc.id)}" title="${e?esc(vsFmtErr(e)):"Edit script"}">${e?warnSvg:""}${esc(sc.name)}</button>`}).join("");
   L.querySelectorAll(".vschip").forEach(b=>b.onclick=()=>vsM(b.dataset.id))}
 // live: recompute when the last bar changes and update only the last points
 setInterval(()=>{if(document.hidden||!VSUI.ser.length||typeof ch==="undefined"||!ch)return;const s=symOf(S.chart.sym);if(!s)return;const a=candles(s,S.chart.tf);if(!a||!a.length)return;const k=vsBarsKey(a);
@@ -72,7 +73,8 @@ function vsHelpHTML(){return`<details class="vshelp"><summary>Language help</sum
 <p class="mut">Scripts run inside the app\u2019s own interpreter. They can only read the chart\u2019s candles and draw lines; they can\u2019t open pages, send data or read storage. Results are calculations on past prices, not advice.</p></div></details>`}
 function vsM(id){const C=vsCfg();if(id&&vsGet(id))VSUI.sel=id;if(!VSUI.sel||!vsGet(VSUI.sel))VSUI.sel=C.list[0]?C.list[0].id:null;const sc=VSUI.sel?vsGet(VSUI.sel):null;
   const li=x=>`<li><button type="button" class="vsli${x.id===VSUI.sel?" on":""}" data-id="${esc(x.id)}" aria-current="${x.id===VSUI.sel}">${x.on?'<span class="vsdot" aria-hidden="true"></span>':""}${esc(x.name)}${x.on?'<span class="vh">(on chart)</span>':""}</button></li>`;
-  modal(`<div class="vsm"><div class="vshd"><h3 id="vs_t">Indicator scripts</h3><span class="mut">Vektor Script</span><span class="sp"></span><button type="button" class="ibtn" aria-label="Close" onclick="closeM()">\u2715</button></div>
+  const xSvg='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  modal(`<div class="vsm"><div class="vshd"><h3 id="vs_t">Indicator scripts</h3><span class="mut">Vektor Script</span><span class="sp"></span><button type="button" class="ibtn" aria-label="Close" onclick="closeM()">${xSvg}</button></div>
 <div class="vsbody"><aside class="vsside"><h4>My scripts</h4>${C.list.length?`<ul class="vsl">${C.list.map(li).join("")}</ul>`:`<p class="mut">None yet. Start from an example or a blank script.</p>`}
 <div class="vsbtns"><button type="button" id="vs_new">New</button><button type="button" id="vs_imp">Import\u2026</button><input type="file" id="vs_file" accept=".json,.vks,.txt,application/json,text/plain" hidden>${C.list.length?`<button type="button" id="vs_expall">Export all</button>`:""}</div>
 <h4>Examples</h4><ul class="vsl">${VS_EX.map((x,i)=>`<li><button type="button" class="vsex" data-i="${i}" title="Add a copy to My scripts">${esc(x.name)}</button></li>`).join("")}</ul></aside>

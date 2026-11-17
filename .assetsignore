@@ -1,0 +1,13 @@
+node_modules
+tests
+shots
+server.js
+worker.js
+wrangler.toml
+package.json
+package-lock.json
+SETUP.md
+CHANGELOG.md
+.git
+.gitignore
+config.local.js

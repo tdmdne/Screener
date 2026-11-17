@@ -43,7 +43,7 @@ if(manage||!c)setTimeout(()=>{if(!manage){const b=el.querySelector("#vcb_rej");b
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("vcb")&&vtConsent()){vtBannerClose()}});
 // ---- legal pages over the sign-in screen (the app is hidden until you sign in, but the notices must stay readable)
 function vtLegalModal(k){if(!LEGAL[k])return;vtLegalModalClose();const m=document.createElement("div");m.className="vlm";m.id="vlm";m.setAttribute("role","dialog");m.setAttribute("aria-modal","true");m.setAttribute("aria-label",LEGAL[k][0]);
-m.innerHTML=`<div class="box lgldoc"><button type="button" class="x" aria-label="Close" onclick="vtLegalModalClose()">\u2715</button>${LEGAL[k][1]()}</div>`;
+m.innerHTML=`<div class="box lgldoc"><button type="button" class="x" aria-label="Close" onclick="vtLegalModalClose()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>${LEGAL[k][1]()}</div>`;
 m.onclick=e=>{if(e.target===m)vtLegalModalClose()};document.body.appendChild(m);if(LEGAL[k][2])LEGAL[k][2](m.querySelector(".box"));m.querySelector(".x").focus()}
 function vtLegalModalClose(){const m=document.getElementById("vlm");if(m)m.remove()}
 document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest('a[href^="#/legal/"]');if(!a)return;

@@ -31,7 +31,8 @@ await P.evaluate(()=>document.activeElement.blur());
 if(theme==="light"){assert.deepStrictEqual(h.errors,[]);await h.close();continue}
 // 4) the listed shortcuts do what the list says
 const tool=async k=>{await P.keyboard.press(k);await P.waitForTimeout(40);return P.evaluate(()=>TOOL)};
-for(const [k,t] of [["Alt+t","trend"],["Alt+h","hline"],["Alt+v","vline"],["Alt+f","fib"],["Alt+r","rect"],["Alt+a","arrow"],["Alt+n","note"]]){assert.strictEqual(await tool(k),t,k);await P.keyboard.press("Escape");assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Esc back to cursor")}
+for(const [k,t] of [["Alt+t","trend"],["Alt+h","hline"],["Alt+v","vline"],["Alt+f","fib"],["Alt+g","rect"],["Alt+a","arrow"],["Alt+n","note"]]){assert.strictEqual(await tool(k),t,k);await P.keyboard.press("Escape");assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Esc back to cursor")}
+await P.keyboard.press("Alt+r");await P.waitForTimeout(60);assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Alt+R resets chart view without changing tool");
 const hid=await P.evaluate(()=>HIDD);await P.keyboard.press("Control+Alt+h");assert.strictEqual(await P.evaluate(()=>HIDD),!hid,"Ctrl+Alt+H hides drawings");await P.keyboard.press("Control+Alt+h");
 await P.keyboard.press("1");await P.waitForTimeout(60);assert(await P.evaluate(()=>{const e=document.getElementById("tfpop");return !!e&&e.style.display!=="none"&&TFBUF==="1"}),"digit opens interval box");
 await P.keyboard.press("Escape");await P.waitForTimeout(60);

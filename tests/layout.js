@@ -1,6 +1,6 @@
 // Desktop layout: the chart fills its panel (also while loading or after an error) and follows window resizes;
-// the TradingView link is a small inline link; the screener list on desktop is one continuous, virtualised
-// list with sticky headers (no pages), keeping sort, search, arrow-key navigation and the "N matches" count;
+// the screener list on desktop is one continuous, virtualised list with sticky headers (no pages),
+// keeping sort, search, arrow-key navigation and the "N matches" count;
 // phones keep pages. Scoring/filter maths are untouched (same rows, same order as the paged list).
 const assert=require("assert"),fs=require("fs"),path=require("path");const {launch}=require("./harness");
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
@@ -9,9 +9,7 @@ const ready=P=>P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&SYMS.s
 // 1) chart height on Workspace and Supercharts
 for(const r of ["workspace","chart"]){await P.evaluate(r=>{go(r);openChart("BTCUSDT","1H")},r);await P.waitForFunction(()=>document.querySelector("#cv canvas"),null,{timeout:30000});await P.waitForTimeout(300);
   const m=await P.evaluate(()=>{const c=document.querySelector("#cv").getBoundingClientRect(),p=document.querySelector(".cpb").getBoundingClientRect();return{cv:c.height,panel:p.height,gap:p.bottom-c.bottom}});
-  assert(m.cv>=0.6*m.panel&&m.cv>450,r+" chart fills the panel "+JSON.stringify(m));assert(m.gap<140,r+" no big gap under the chart "+JSON.stringify(m));
-  const tv=await P.evaluate(()=>{const a=document.querySelector("#cp a.vt-tvl");if(!a)return null;const b=a.getBoundingClientRect();return{h:b.height,btn:a.classList.contains("btn"),href:a.href,rel:a.rel,t:a.target}});
-  assert(tv&&tv.h<=26&&!tv.btn&&/tradingview\.com\/chart/.test(tv.href)&&/noopener/.test(tv.rel)&&tv.t==="_blank",r+" small TradingView link "+JSON.stringify(tv))}
+  assert(m.cv>=0.6*m.panel&&m.cv>450,r+" chart fills the panel "+JSON.stringify(m));assert(m.gap<140,r+" no big gap under the chart "+JSON.stringify(m))}
 // resize: the chart follows the window
 const h1=await P.evaluate(()=>document.querySelector("#cv").clientHeight);await P.setViewportSize({width:1600,height:1100});await P.waitForTimeout(500);
 const h2=await P.evaluate(()=>[document.querySelector("#cv").clientHeight,document.querySelector("#cv canvas").getBoundingClientRect().height]);

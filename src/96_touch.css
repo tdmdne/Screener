@@ -26,10 +26,29 @@
 :root:is([data-ui="phone"],[data-ui="tablet"]) .sm_sym{min-width:44px!important;min-height:44px!important}
 /* phone: chart header buttons start on the left when they wrap */
 :root[data-ui="phone"] .cpb .row.top>.sp{display:none}
-/* tablet: all nav pages visible (wrap instead of a hidden sideways scroll); chart fills the screen and the tool column scrolls */
-:root[data-ui="tablet"] .vnav{flex-wrap:wrap;overflow-x:visible}
-:root[data-ui="tablet"] #cv{height:min(62vh,680px)}
-:root[data-ui="tablet"] .tbar{max-height:min(62vh,680px);overflow-y:auto}
+/* tablet: all nav pages visible (wrap nicely), zero horizontal clipping across portrait (768px) and landscape (1024px) */
+:root[data-ui="tablet"] .wrap{max-width:100%;padding:12px 14px}
+:root[data-ui="tablet"] header{flex-wrap:wrap;gap:8px}
+:root[data-ui="tablet"] .srch{flex:1 1 200px;max-width:none;min-width:0}
+:root[data-ui="tablet"] #sr{max-width:calc(100vw - 28px)}
+:root[data-ui="tablet"] .vnav{flex-wrap:wrap;overflow-x:visible;gap:4px}
+:root[data-ui="tablet"][data-split="1"] .ws{grid-template-columns:clamp(270px,33vw,340px) minmax(0,1fr)}
+:root[data-ui="tablet"] #cv{height:min(58vh,620px)}
+:root[data-ui="tablet"] .tbar{max-height:min(58vh,620px);overflow-y:auto;scrollbar-width:none}
+:root[data-ui="tablet"] .cpb .row.top{flex-wrap:wrap;gap:6px;min-width:0}
+:root[data-ui="tablet"] .cpb .tfs{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;max-width:100%;gap:4px}
+:root[data-ui="tablet"] .cpb .tfs button{flex:none}
+:root[data-ui="tablet"][data-page="chart"] .sc2{grid-template-columns:minmax(0,1fr) 244px}
+:root[data-ui="tablet"][data-page="chart"][data-panes="2"] .sc2{grid-template-columns:minmax(0,1fr) 244px;grid-auto-rows:minmax(320px,auto)}
+:root[data-ui="tablet"][data-page="chart"][data-panes="2"] .sc2 .dock{grid-column:2;grid-row:1 / span 2}
+@media (max-width:860px){
+  :root[data-ui="tablet"][data-page="chart"] .sc2{grid-template-columns:minmax(0,1fr)}
+  :root[data-ui="tablet"][data-page="chart"] .dock{width:100%;grid-column:1;grid-row:auto;max-height:none}
+}
+:root[data-ui="tablet"] .pgw{max-width:100%;padding:12px 14px}
+:root[data-ui="tablet"] .jrgrid{grid-template-columns:1fr}
+:root[data-ui="tablet"] .jrbar{grid-template-columns:44px minmax(0,1fr) 76px 72px}
+:root[data-ui="tablet"] .box,:root[data-ui="tablet"] .vsm,:root[data-ui="tablet"] .jre,:root[data-ui="tablet"] .vt-indm{max-width:94vw}
 /* buttons that set min-height:0!important in their base style */
 :root:is([data-ui="phone"],[data-ui="tablet"]) :is(.mode-btn,.ibtn,.ib){min-height:44px!important;min-width:44px!important}
 :root:is([data-ui="phone"],[data-ui="tablet"]) .ib{padding:4px 10px!important}
@@ -51,3 +70,4 @@
 /* expandable help sections and script legend chips */
 :root:is([data-ui="phone"],[data-ui="tablet"]) details>summary{min-height:44px;display:flex;align-items:center}
 :root:is([data-ui="phone"],[data-ui="tablet"]) .vschip{min-height:44px!important;padding:0 12px}
+

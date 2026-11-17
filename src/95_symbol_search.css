@@ -1,0 +1,37 @@
+/* TradingView-style instant symbol search dropdown (#sr) and chart overlay (#sypop) */
+.srch{position:relative;margin-left:auto;flex:1;max-width:340px;min-width:170px}
+.srch input{width:100%}
+#sr{display:none;position:absolute;top:calc(100% + 6px);right:0;width:min(480px,94vw);background:var(--bg);border:1px solid var(--line);border-radius:10px;z-index:40;overflow:hidden;box-shadow:0 14px 36px rgba(0,0,0,.28)}
+.vt-sypop{position:fixed;top:min(12vh,88px);left:50%;transform:translateX(-50%);width:min(560px,95vw);max-height:80vh;background:var(--bg);border:1px solid var(--line);border-radius:12px;z-index:45;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.38);display:flex;flex-direction:column}
+.vt-syhd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card)}
+.vt-syhd svg{flex:none;color:var(--mut)}
+.vt-syhd input{flex:1;border:0!important;background:transparent!important;box-shadow:none!important;font-size:15px;font-weight:600;padding:4px 2px;text-transform:uppercase;min-width:0}
+.vt-syclose{background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--mut);cursor:pointer}
+.vt-sftabs{display:flex;align-items:center;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--bg);overflow-x:auto;scrollbar-width:none}
+.vt-sftab{border:1px solid transparent;background:transparent;color:var(--mut);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;flex:none}
+.vt-sftab:hover{color:var(--fg);background:var(--card)}
+.vt-sftab.on{color:var(--acc);background:var(--acc-soft);border-color:color-mix(in srgb,var(--acc) 35%,transparent)}
+.vt-srlist{max-height:min(48vh,360px);overflow-y:auto}
+.vt-srrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-size:13px}
+.vt-srrow:last-child{border-bottom:0}
+.vt-srrow:hover,.vt-srrow.on{background:var(--card)}
+.vt-srrow.on{box-shadow:inset 3px 0 0 var(--acc)}
+.vt-srl{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.vt-srtk{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;min-width:74px;color:var(--fg);white-space:nowrap}
+.vt-srm{color:var(--acc);text-decoration:none}
+.vt-srnm{color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt-srr{display:flex;align-items:center;gap:6px;flex:none}
+.vt-srbadge{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;border:1px solid var(--line);background:var(--card);color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+.vt-srbadge[data-m="STK"],.vt-srbadge[data-m="ETF"]{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 35%,transparent);background:var(--acc-soft)}
+.vt-srbadge[data-m="CRY"]{color:var(--g);border-color:color-mix(in srgb,var(--g) 35%,transparent);background:var(--gb)}
+.vt-srbadge[data-m="FX"]{color:#3b82f6;border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.1)}
+.vt-srex{font-size:11px;color:var(--mut);font-weight:600;min-width:56px;text-align:right;white-space:nowrap}
+.vt-srempty{padding:18px 14px;text-align:center;color:var(--mut);font-size:12.5px}
+.vt-srfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:var(--card);font-size:11px;color:var(--mut)}
+.vt-srfoot a{color:var(--acc);text-decoration:none;font-weight:600}
+.vt-srfoot a:hover{text-decoration:underline}
+.vt-symbtn{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--line);border-radius:7px;background:var(--card);font-weight:700;font-size:13.5px;cursor:pointer;color:var(--fg)}
+.vt-symbtn:hover{border-color:var(--acc);color:var(--acc)}
+.vt-symbtn svg{color:var(--mut);flex:none}
+:root[data-ui="phone"] #sr{left:0;right:0;width:auto}
+:root[data-ui="phone"] .vt-sypop{top:8px;width:96vw;max-height:84vh}

@@ -241,7 +241,7 @@ async function vtPollQuotes() {
     const j = await r.json();
     if (!j || !j.ok || !j.quotes) return;
     for (const [sym, q] of Object.entries(j.quotes)) {
-      if (!q || !(q.c > 0)) continue;
+      if (!q || !(q.c > 0) || q.src === "static") continue; // static = symbol-table reference price, not a live quote
       vtProcessTick({ s: sym, c: q.c, h: q.h, l: q.l, t: q.t });
     }
   } catch (_e) {}

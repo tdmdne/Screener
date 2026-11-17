@@ -886,11 +886,50 @@ app.get("/api/quote", (req, res) => {
       s,
       c: p,
       t: now,
-      m: meta.m || "STK"
+      m: meta.m || "STK",
+      src: livePrices.get(s) ? "live" : "static" // static = symbol-table reference price, NOT a live quote
     };
   }
   return res.json({ ok: true, ts: Date.now(), quotes });
 });
+
+// Removes isolated bad bars (session-rollover spread spikes, bad prints) from provider candles.
+// Rule: when a bar's two neighbours agree with each other, the bar may not leave the envelope of those neighbours
+// (plus a tolerance). A real news move is never touched, because the next bar continues from the new level, so the
+// neighbours disagree. The tolerance is tight during the 16:50-17:10 New York rollover (FX/CFD/FUT, where no
+// scheduled news lands) and wide elsewhere, so a genuine news wick that reverses is kept. First and last bars are left alone.
+function sanitizeBars(bars, mkt) {
+  if (!Array.isArray(bars) || bars.length < 5) return bars;
+  let fmt = null;
+  if (mkt === "FX" || mkt === "CFD" || mkt === "FUT") {
+    try { fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "numeric", hourCycle: "h23" }); } catch (_e) {}
+  }
+  const rolling = (sec) => {
+    if (!fmt) return false;
+    const p = fmt.formatToParts(sec * 1000);
+    const m = +p.find((x) => x.type === "hour").value * 60 + +p.find((x) => x.type === "minute").value;
+    return m >= 1010 && m <= 1030;
+  };
+  const rs = bars.map((b) => b.h - b.l).filter((x) => x >= 0).sort((a, b) => a - b);
+  const med = rs[Math.floor(rs.length / 2)] || 0;
+  const floor = mkt === "CRY" ? 0.03 : mkt === "FX" || mkt === "CFD" ? 0.006 : 0.02;
+  const out = bars.map((b) => ({ ...b }));
+  for (let i = 1; i < bars.length - 1; i++) {
+    const p = out[i - 1], b = out[i], x = bars[i + 1];
+    if (!(p.c > 0) || !(x.o > 0)) continue;
+    const lim = rolling(b.t) ? Math.max(2 * med, p.c * 0.0003) : Math.max(8 * med, p.c * floor);
+    if (Math.abs(x.o - p.c) > Math.max(3 * med, lim * 0.5)) continue;
+    const hi = Math.max(p.h, p.c, x.h, x.o) + lim;
+    const lo = Math.min(p.l, p.c, x.l, x.o) - lim;
+    if (b.h <= hi && b.l >= lo && b.o <= hi && b.o >= lo && b.c <= hi && b.c >= lo) continue;
+    const cl = (v) => Math.min(hi, Math.max(lo, v));
+    b.o = cl(b.o);
+    b.c = cl(b.c);
+    b.h = Math.max(cl(b.h), b.o, b.c);
+    b.l = Math.min(cl(b.l), b.o, b.c);
+  }
+  return out;
+}
 
 app.get("/api/candles", async (req, res) => {
   const t0 = Date.now();
@@ -953,6 +992,8 @@ app.get("/api/candles", async (req, res) => {
     if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
     source = "simulator";
   }
+
+  if (source !== "simulator") bars = sanitizeBars(bars, meta.m);
 
   const payload = {
     ok: true,
@@ -1275,6 +1316,7 @@ setInterval(() => {
 
   for (const item of BASE_INSTRUMENTS) {
     if (item.m === "CRY" && !bnSilent) continue;
+    if (TWELVEDATA_KEY && (item.m === "FX" || item.m === "STK" || item.m === "ETF")) continue;
     const prev = livePrices.get(item.s) || item.p;
     const stepPct = (Math.random() - 0.5) * (item.vf || 0.015) * 0.08;
     const dec = prev < 10 ? 5 : prev < 100 ? 3 : 2;
@@ -1306,12 +1348,15 @@ setInterval(() => {
   for (const [sym, ivs] of activeSubs) {
     const c = livePrices.get(sym);
     if (!c) continue;
+    const mm = (BY_SYM.get(sym) || {}).m;
+    if (TWELVEDATA_KEY && (mm === "FX" || mm === "STK" || mm === "ETF")) continue;
     for (const iv of ivs) {
       const step = STEPS[iv] || 3600;
       const bucket = Math.floor(nowSec / step) * step;
       const spread = c * 0.0008;
       broadcastWs({
         type: "kline",
+        source: "simulator",
         symbol: sym,
         interval: iv,
         bar: {

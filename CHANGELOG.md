@@ -2,6 +2,17 @@
 
 Short dated log of changes to `index.html` (the whole app) and why.
 
+## 2026-11-17 (b)
+- **Fixed the phantom 1m candles (e.g. GBPUSD 1.3207 down to 1.2706 at the 17:00 New York rollover).** Causes found in the code that actually runs:
+  - The page's live handler wrote every tick straight into the 1m candle with no filter at all. The spike checks in `src/94_edge_client.js` are not loaded by `index.html`, so they never ran.
+  - The server simulator (`worker.js` Durable Object and `server.js`) kept sending simulated FX/stock ticks and klines that random-walk from the hard-coded seed prices (GBPUSD seed 1.271), and the page merged them into the real chart. The phantom low (1.2706) is that seed. `/api/quote` also returned the seed as if it were live.
+  - Binance ticks carry 24h high/low, and the page copied those onto the live 1m bar.
+- **New tick guard in `index.html` (`vtTgFilter`).** A single-tick move beyond the limit (FX 0.15%, 0.07% during the 16:50-17:10 New York rollover; crypto 2%; others 1%) is held until 3 ticks (4 at rollover) confirm the new level. An isolated print that price leaves again is never applied. A real news move is delayed by a few ticks, then applied in full with its high/low path.
+- Simulated ticks and klines are ignored for any symbol whose candles came from a real provider. Tick high/low are no longer applied to the 1m bar.
+- **New `sanitizeBars` in `worker.js` and `server.js`.** Before candles are cached or sent, a bar whose two neighbours agree with each other may not leave their envelope. Tight during the NY rollover on FX/CFD/Futures, wide elsewhere, so a news candle that the next bar continues from is never touched.
+- The simulator no longer emits FX/stock/ETF ticks or klines once a Twelve Data key is set; simulated klines are tagged `source:"simulator"`; `/api/quote` marks static prices `src:"static"`.
+- `tests/tickguard.js` covers the rules (phantom print, interleaved feed, news jump, rollover in winter and summer time, news wick, gross print).
+
 ## 2026-11-17
 - **Removed the S01–S04 "Cycle" filter from the Screener page.** The Cycle button row, `applySFilter`, the `SXF` list and the `S.sFilter` state are gone, so the list is no longer re-sorted by cycle score. `scoreSymbol` stays because the Expansion column, the chart preview panel and the heatmap momentum metric use it. `tests/scorefns.js` and `tests/screener.js` no longer expect `applySFilter`.
 

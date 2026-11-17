@@ -73,6 +73,8 @@ async function edgeFetchCandles(s, tf, opts) {
     if (!r.ok) return null;
     const j = await r.json();
     if (!j || !j.ok || !Array.isArray(j.bars) || !j.bars.length) return null;
+    if (j.source && j.source !== "simulator") VT_CSRC[s[0]] = "real";
+    else if (!VT_CSRC[s[0]]) VT_CSRC[s[0]] = "simulator";
     return j.bars;
   } catch (_e) {
     return null;
@@ -143,63 +145,66 @@ function vtWsSubscribe(sym, tf) {
   } catch (_e) {}
 }
 
-function vtIsSpike(c, last) {
-  if (!last || !(last.c > 0)) return false;
-  const ratio = Math.abs(c / last.c - 1);
-  if (ratio > 0.08) return true; // >8% single-tick jump
-  if (last.h && last.l && last.h > last.l) {
-    const barRange = last.h - last.l;
-    if (barRange > 0 && Math.abs(c - last.c) > 12 * barRange) return true;
-  }
-  return false;
-}
+// ---- Live tick guard: zero tolerance. A corrupted tick is dropped, never clamped, and never touches open/high/low/close ----
+// VT_CSRC: where each symbol's candles came from ("real" provider or "simulator"). Simulated ticks/klines are only
+// allowed to touch simulated candles, never a real chart (they random-walk from a static seed price, e.g. GBPUSD 1.271).
+const VT_CSRC=Object.create(null);
+const VT_TG={ref:Object.create(null),q:Object.create(null)};
+// true during the New York 17:00 FX rollover (16:50-17:10 NY time, DST-safe) when spreads blow out
+function vtTgRoll(ms){try{const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"numeric",hourCycle:"h23"}).formatToParts(ms),m=+p.find(x=>x.type==="hour").value*60+ +p.find(x=>x.type==="minute").value;return m>=1010&&m<=1030}catch(e){return false}}
+// A tick is invalid if its symbol or price is missing, NaN, Infinity or <= 0, or if bid/ask are invalid or crossed (bid > ask).
+function vtTickOk(t){
+  if(!t||!t.s)return false;
+  const c=+t.c;if(!(c>0)||!isFinite(c))return false;
+  const hb=t.bid!=null&&t.bid!=="",ha=t.ask!=null&&t.ask!=="",b=+t.bid,a=+t.ask;
+  if(hb&&!(b>0&&isFinite(b)))return false;
+  if(ha&&!(a>0&&isFinite(a)))return false;
+  if(hb&&ha&&b>a)return false;
+  return true}
+// Returns the prices to apply, in order: [c] for a normal tick, [] while a jump is unconfirmed (the tick is dropped),
+// or the held ticks plus c once the new level is confirmed by consecutive ticks (a true repricing must not freeze the feed).
+// Jumps above the hard limit (FX/indices/futures/CFDs 1.5%, crypto/stocks/ETFs 5%) need 8 confirming ticks within 2 minutes,
+// smaller ones 3 (4 at the FX rollover) within 1 minute. An isolated print that price leaves again is never applied.
+function vtTgFilter(sym,c,mk,ms,seed){
+  const R=VT_TG.ref,Q=VT_TG.q;let ref=R[sym];if(!(ref>0))ref=seed>0?seed:0;
+  if(!(ref>0)){R[sym]=c;return[c]}
+  const roll=mk==="FX"&&vtTgRoll(ms),vol=mk==="CRY"||mk==="STK"||mk==="ETF";
+  const lim=mk==="CRY"?0.02:mk==="FX"?(roll?0.0007:0.0015):0.01,hard=vol?0.05:0.015,jump=Math.abs(c/ref-1);
+  if(jump<=lim){delete Q[sym];R[sym]=c;return[c]}
+  const big=jump>hard,tol=Math.max(lim,jump*0.25);let q=Q[sym];
+  if(q&&ms-q.t0<q.w&&Math.abs(c/q.a[0]-1)<=tol)q.a.push(c);else Q[sym]=q={t0:ms,a:[c],w:big?120000:60000,n:big?8:roll?4:3};
+  if(q.a.length>=q.n){delete Q[sym];R[sym]=c;return q.a.slice()}
+  return[]}
+// Candle builder: a tick only updates the bar it falls in, or opens the next bar AT the previous close (no gap spike at
+// session rollover). A stale tick never rewrites history. High/low come only from accepted ticks. Bars on the last bar's own grid.
+function vtBarApply(sym,tf,c,ts){
+  const a=LIVE[sym+"|"+tf],st=STEP[tf];if(!a||!a.length||!st)return false;
+  const last=a[a.length-1];if(!(last.c>0)||ts<last.t)return false;
+  if(ts<last.t+st){last.c=c;if(c>last.h)last.h=c;if(c<last.l)last.l=c;return true}
+  if(st>86400)return false;
+  const o=last.c;a.push({t:last.t+Math.floor((ts-last.t)/st)*st,o,h:Math.max(o,c),l:Math.min(o,c),c,v:0});
+  if(a.length>500)a.splice(0,a.length-500);return true}
 
 function vtProcessTick(t) {
-  if (!t || !t.s) return;
-  const sym = t.s;
-  const c = +t.c;
-  if (!(c > 0) || !isFinite(c)) return;
-
+  if (!vtTickOk(t)) return; // missing / NaN / <= 0 price, bad or crossed bid/ask: dropped
+  const sym = t.s, c0 = +t.c;
   const row = SYMS.find((x) => x[0] === sym);
-  if (row) row[2] = c;
-  checkAlerts(sym, c);
-
-  const nowSec = Math.floor(Date.now() / 1000);
+  const nowMs = Date.now(), ts = Math.floor(nowMs / 1000);
+  const l1 = LIVE[sym + "|1m"];
+  const seed = (l1 && l1.length ? l1[l1.length - 1].c : 0) || (row && row[2]) || 0;
+  const accepted = vtTgFilter(sym, c0, row ? row[1] : "", nowMs, seed);
+  if (!accepted.length) return; // unconfirmed jump: ignored entirely
   const tf = S && S.chart ? S.chart.tf : "1H";
-  const st = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-  const kChart = sym + "|" + tf;
-  const k1 = sym + "|1m";
-
-  // Check spike against 1m or chart bar
-  const refBar = (LIVE[k1] && LIVE[k1][LIVE[k1].length - 1]) || (LIVE[kChart] && LIVE[kChart][LIVE[kChart].length - 1]);
-  if (vtIsSpike(c, refBar)) return;
-
-  // Update 1m candle with clamped timestamp
-  if (LIVE[k1] && LIVE[k1].length) {
-    const last1m = LIVE[k1][LIVE[k1].length - 1];
-    const clampedT = Math.max(t.t || nowSec, last1m.t);
-    last1m.t = clampedT;
-    last1m.c = c;
-    if (t.h) last1m.h = Math.max(last1m.h, +t.h, c);
-    else last1m.h = Math.max(last1m.h, c);
-    if (t.l) last1m.l = Math.min(last1m.l, +t.l, c);
-    else last1m.l = Math.min(last1m.l, c);
+  for (const c of accepted) {
+    vtBarApply(sym, "1m", c, ts);
+    if (S && S.chart && S.chart.sym === sym && tf !== "1m") vtBarApply(sym, tf, c, ts);
+    if (row) row[2] = c;
+    checkAlerts(sym, c);
   }
+  const c = accepted[accepted.length - 1];
 
   // Update active chart series if strictly matching symbol
   if (S && S.chart && S.chart.sym === sym) {
-    if (LIVE[kChart] && LIVE[kChart].length) {
-      const lastBar = LIVE[kChart][LIVE[kChart].length - 1];
-      const bkt = Math.floor(nowSec / st) * st;
-      const clampedT = Math.max(t.t || bkt, lastBar.t);
-      if (lastBar.t === clampedT || (clampedT - lastBar.t < st && lastBar.t === bkt)) {
-        lastBar.c = c;
-        lastBar.h = Math.max(lastBar.h, c);
-        lastBar.l = Math.min(lastBar.l, c);
-      } else if (clampedT > lastBar.t && clampedT >= bkt) {
-        LIVE[kChart].push({ t: clampedT, o: c, h: c, l: c, c, v: 1 });
-      }
-    }
     if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
       updateLiveBar(sym, tf);
     }
@@ -211,12 +216,9 @@ function vtProcessTick(t) {
   // Update secondary pane if active and strictly matching symbol
   if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
     const tfB = S.sc && S.sc.tfB ? S.sc.tfB : "1D";
-    const kB = sym + "|" + tfB;
-    if (LIVE[kB] && LIVE[kB].length) {
-      const lb = LIVE[kB][LIVE[kB].length - 1];
-      lb.c = c;
-      lb.h = Math.max(lb.h, c);
-      lb.l = Math.min(lb.l, c);
+    vtBarApply(sym, tfB, c, ts);
+    const lb = LIVE[sym + "|" + tfB] && LIVE[sym + "|" + tfB][LIVE[sym + "|" + tfB].length - 1];
+    if (lb) {
       try {
         SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c });
       } catch (_e) {}
@@ -275,6 +277,7 @@ function vtWsConnect() {
         markOk("ws");
         if (msg.type === "ticks" && Array.isArray(msg.ticks)) {
           for (const t of msg.ticks) {
+            if (msg.source === "simulator" && t && VT_CSRC[t.s] !== "simulator") continue;
             vtProcessTick(t);
           }
         } else if (msg.type === "kline" && msg.symbol && msg.interval && msg.bar) {
@@ -283,7 +286,8 @@ function vtWsConnect() {
           if (!LIVE[key]) LIVE[key] = [];
           const arr = LIVE[key];
           const last = arr[arr.length - 1];
-          if (vtIsSpike(bar.c, last)) return;
+          if ((msg.source || "simulator") === "simulator" && VT_CSRC[msg.symbol] !== "simulator") return;
+          if (![bar.o, bar.h, bar.l, bar.c].every((x) => x > 0 && isFinite(x)) || bar.h < bar.l) return;
 
           const clampedT = last ? Math.max(bar.t, last.t) : bar.t;
           if (last && last.t === clampedT) {

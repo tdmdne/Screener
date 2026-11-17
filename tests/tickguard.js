@@ -14,8 +14,12 @@ function grab(src, start) { // text of a function (or const) starting at `start`
 
 // ---- client tick guard (from index.html)
 const html = read("index.html");
-const clientCode = "const VT_TG={ref:Object.create(null),q:Object.create(null)};\n" + grab(html, "function vtTgRoll(") + "\n" + grab(html, "function vtTgFilter(") + "\nthis.f=vtTgFilter;this.R=VT_TG;";
-function newGuard() { const ctx = {}; new Function(clientCode).call(ctx); return ctx; }
+const clientCode = "const VT_TG={ref:Object.create(null),q:Object.create(null)};\n" + grab(html, "function vtTgRoll(") + "\n" + grab(html, "function vtTickOk(") + "\n" + grab(html, "function vtTgFilter(") + "\n" + grab(html, "function vtBarApply(") + "\nthis.f=vtTgFilter;this.R=VT_TG;this.ok=vtTickOk;this.bar=vtBarApply;";
+const STEP = { "1m": 60, "1H": 3600, "1D": 86400, "1W": 604800 };
+function newGuard() { const ctx = { LIVE: {} }; new Function("LIVE", "STEP", clientCode).call(ctx, ctx.LIVE, STEP); return ctx; }
+// src/94_edge_client.js must carry the identical guard (so regenerating index.html from src can't bring the bug back)
+const blockOf = (t) => { const end = "if(a.length>500)a.splice(0,a.length-500);return true}\n", i = t.indexOf("// ---- Live tick guard:"), j = t.indexOf(end, i); assert(i >= 0 && j > i, "guard block missing"); return t.slice(i, j + end.length); };
+assert.strictEqual(blockOf(read("src/94_edge_client.js")), blockOf(html), "src/94_edge_client.js guard differs from index.html");
 
 // ---- server bar sanitizer (worker.js, and server.js must carry the identical function)
 const wsrc = read("worker.js"), ssrc = read("server.js");
@@ -54,13 +58,47 @@ const T = (iso) => Date.parse(iso);
   assert.deepStrictEqual(g.f("GBPUSD", 1.3265, "FX", t0 + 3000, 1.32), [1.3265]);
   ok("real macro-news jump is confirmed after 3 ticks and applied with its full high/low path");
 }
-{ // 5. inside the NY rollover window the bar is higher: 3 steady wrong ticks are still held, the 4th confirms
-  const g = newGuard(); g.f("GBPUSD", 1.3207, "FX", T("2026-11-17T21:59:00Z"), 1.3207); const t0 = T("2026-11-17T22:00:00Z");
-  assert.deepStrictEqual(g.f("GBPUSD", 1.2706, "FX", t0, 1.32), []);
-  assert.deepStrictEqual(g.f("GBPUSD", 1.2707, "FX", t0 + 1000, 1.32), []);
-  assert.deepStrictEqual(g.f("GBPUSD", 1.2705, "FX", t0 + 2000, 1.32), []);
-  assert.strictEqual(g.f("GBPUSD", 1.2706, "FX", t0 + 3000, 1.32).length, 4);
+{ // 5. inside the NY rollover window a +0.3% step needs 4 confirming ticks instead of 3
+  const g = newGuard(); g.f("GBPUSD", 1.3200, "FX", T("2026-11-17T21:59:00Z"), 1.3200); const t0 = T("2026-11-17T22:00:00Z");
+  for (let i = 0; i < 3; i++) assert.deepStrictEqual(g.f("GBPUSD", 1.3240 + i * 1e-5, "FX", t0 + i * 1000, 1.32), []);
+  assert.strictEqual(g.f("GBPUSD", 1.3240, "FX", t0 + 3000, 1.32).length, 4);
   ok("rollover window needs 4 confirming ticks (EST: 22:00 UTC)");
+}
+{ // 5b. a jump above the hard limit (FX 1.5%) is dropped: 7 steady wrong ticks change nothing, the 8th is a confirmed repricing
+  const g = newGuard(); g.f("GBPUSD", 1.3207, "FX", T("2026-11-17T21:59:00Z"), 1.3207); const t0 = T("2026-11-17T22:00:00Z");
+  for (let i = 0; i < 7; i++) assert.deepStrictEqual(g.f("GBPUSD", 1.2706 + i * 1e-5, "FX", t0 + i * 1000, 1.32), []);
+  assert.strictEqual(g.R.ref.GBPUSD, 1.3207, "reference untouched while dropping");
+  assert.strictEqual(g.f("GBPUSD", 1.2706, "FX", t0 + 7000, 1.32).length, 8);
+  ok("3.9% jump: dropped for 7 ticks, only a sustained 8-tick repricing gets through (no permanent freeze)");
+}
+{ // 5c. hard limits per class: crypto 4% needs 3 ticks, 6% needs 8; indices 1.2% needs 3, 2% needs 8
+  const run = (mk, base, mv) => { const g = newGuard(); g.f("X", base, mk, 0, base); let n = 0; for (; n < 12; n++) if (g.f("X", base * (1 + mv), mk, 1000 + n * 1000, base).length) return n + 1; return -1; };
+  assert.strictEqual(run("CRY", 100, 0.04), 3); assert.strictEqual(run("CRY", 100, 0.06), 8);
+  assert.strictEqual(run("IDX", 5000, 0.012), 3); assert.strictEqual(run("IDX", 5000, 0.02), 8);
+  assert.strictEqual(run("STK", 100, 0.04), 3); assert.strictEqual(run("STK", 100, 0.06), 8);
+  ok("hard limits: FX/indices 1.5%, crypto/stocks 5%");
+}
+{ // 5d. invalid ticks: zero, negative, NaN, undefined, non-numeric, Infinity, missing symbol, invalid or crossed bid/ask
+  const g = newGuard(), bad = [{ s: "A", c: 0 }, { s: "A", c: -1 }, { s: "A", c: NaN }, { s: "A" }, { s: "A", c: undefined }, { s: "A", c: "x" }, { s: "A", c: Infinity },
+    { s: "", c: 1 }, { c: 1 }, null, undefined, { s: "A", c: 1, bid: 1.2, ask: 1.1 }, { s: "A", c: 1, bid: 0, ask: 1 }, { s: "A", c: 1, bid: NaN, ask: 1 }, { s: "A", c: 1, bid: 1, ask: -2 }];
+  bad.forEach((t, i) => assert.strictEqual(g.ok(t), false, "should reject #" + i + " " + JSON.stringify(t)));
+  [{ s: "A", c: 1 }, { s: "A", c: "1.5" }, { s: "A", c: 1, bid: 0.99, ask: 1.01 }, { s: "A", c: 1, bid: 1, ask: 1 }].forEach((t, i) => assert.strictEqual(g.ok(t), true, "should accept #" + i));
+  ok("zero/NaN/undefined prices and crossed or invalid bid/ask are rejected, good ticks accepted");
+}
+{ // 5e. strict candle initialisation: a new bar opens at the previous close, never at the tick; stale ticks never rewrite history
+  const g = newGuard(); g.LIVE["X|1m"] = [{ t: 60, o: 1.30, h: 1.31, l: 1.29, c: 1.305, v: 1 }, { t: 120, o: 1.305, h: 1.308, l: 1.30, c: 1.307, v: 1 }];
+  assert.strictEqual(g.bar("X", "1m", 1.309, 125), true);
+  assert.deepStrictEqual(g.LIVE["X|1m"][1], { t: 120, o: 1.305, h: 1.309, l: 1.30, c: 1.309, v: 1 });
+  assert.strictEqual(g.bar("X", "1m", 1.312, 190), true);
+  assert.deepStrictEqual(g.LIVE["X|1m"][2], { t: 180, o: 1.309, h: 1.312, l: 1.309, c: 1.312, v: 0 }, "opens at previous close 1.309, not at the tick");
+  assert.strictEqual(g.bar("X", "1m", 1.20, 100), false, "stale tick ignored");
+  assert.strictEqual(g.LIVE["X|1m"].length, 3);
+  assert.strictEqual(g.bar("X", "1m", 1.315, 440), true); // quiet gap of several minutes: one bar on the same grid, still opening at the previous close
+  assert.deepStrictEqual(g.LIVE["X|1m"][3], { t: 420, o: 1.312, h: 1.315, l: 1.312, c: 1.315, v: 0 });
+  g.LIVE["X|1W"] = [{ t: 0, o: 1, h: 1.1, l: 0.9, c: 1.05, v: 0 }]; assert.strictEqual(g.bar("X", "1W", 1.07, 1000), true); assert.strictEqual(g.LIVE["X|1W"].length, 1);
+  assert.strictEqual(g.bar("X", "1W", 1.07, 700000), false, "no calendar guessing for weekly bars"); assert.strictEqual(g.LIVE["X|1W"].length, 1);
+  assert.strictEqual(g.bar("X", "9x", 1, 1), false); assert.strictEqual(g.bar("NOPE", "1m", 1, 1), false);
+  ok("new candle opens at the previous close, stale ticks ignored, weekly bars never invented");
 }
 { // 6. rollover window follows New York time, so it moves with US daylight saving
   const g = newGuard(); const probe = (iso) => { const gg = newGuard(); gg.f("X", 1.3207, "FX", 0, 1.3207); return gg.f("X", 1.3260, "FX", T(iso), 1.3207); };

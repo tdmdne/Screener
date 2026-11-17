@@ -2,6 +2,15 @@
 
 Short dated log of changes to `index.html` (the whole app) and why.
 
+## 2026-11-17 (c)
+- **Zero-tolerance tick rules (drop, never clamp), on every live path in `index.html`:** edge WebSocket ticks, the direct Binance ticker fallback, Finnhub stock trades and Binance klines (malformed bars rejected).
+  - **Invalid ticks are ignored:** price missing, NaN, Infinity, 0 or negative; missing symbol; bid or ask invalid; bid above ask.
+  - **Jump limits:** a tick beyond the limit never touches open, high, low or close. Above 1.5% (FX/indices/futures/CFDs) or 5% (crypto/stocks/ETFs) it is dropped until 8 consecutive ticks confirm the new level within 2 minutes, so a true repricing can't freeze the feed.
+  - **Strict candle open (`vtBarApply`):** a new live candle opens at the previous candle's close, bars stay on the last bar's own time grid, stale ticks never rewrite history, and high/low come only from accepted ticks. Before this the page never started a new 1m candle from edge ticks, so one bar absorbed every tick. Chart-timeframe bars are now built from real ticks too, since the simulated klines that used to move them are ignored.
+  - The Binance 24h high/low is no longer copied onto the direct-ticker 1m bar either.
+- The guard block in `src/94_edge_client.js` is now identical to the one in `index.html` (checked by `tests/tickguard.js`). `src/47_vs_engine.js` is the Vektor Script indicator engine and has no tick handling.
+- New `tests/tickpath.js` pushes a fake feed through the page's real WebSocket handler.
+
 ## 2026-11-17 (b)
 - **Fixed the phantom 1m candles (e.g. GBPUSD 1.3207 down to 1.2706 at the 17:00 New York rollover).** Causes found in the code that actually runs:
   - The page's live handler wrote every tick straight into the 1m candle with no filter at all. The spike checks in `src/94_edge_client.js` are not loaded by `index.html`, so they never ran.

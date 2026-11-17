@@ -23,11 +23,17 @@ function calNum(v){const s=String(v||"").replace(/,/g,"").trim();const m=/^([+-]
   let x=parseFloat(m[1]);if(!isFinite(x))return null;const u=(m[2]||"").toUpperCase();if(u==="K")x*=1e3;else if(u==="M")x*=1e6;else if(u==="B")x*=1e9;else if(u==="T")x*=1e12;return x}
 function calActCls(e){if(!e.act||!e.fc)return"";const a=calNum(e.act),f=calNum(e.fc);if(a==null||f==null)return"act-flat";if(Math.abs(a-f)<1e-9)return"act-flat";
   const inv=/unemployment|claimant|jobless|deficit/i.test(e.title);const better=inv?(a<f):(a>f);return better?"act-beat":"act-miss"}
-async function calFetchJSON(u,ms){const routes=[u,...(typeof PX!=="undefined"?PX:[]).map(f=>f(u))];let last="";
-  for(const r of routes){const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||10000);
-    try{const res=await fetch(r,{signal:ac.signal,cache:"no-store",credentials:"omit",referrerPolicy:"no-referrer"});if(!res.ok){last="HTTP "+res.status;continue}
-      const txt=await res.text();clearTimeout(t);return{txt,via:r===u?"direct":new URL(r).host}}
-    catch(e){last=e.name==="AbortError"?"timed out":"blocked or offline"}finally{clearTimeout(t)}}throw new Error(last||"unavailable")}
+async function calFetchJSON(u,ms){
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||10000);
+  try{
+    const res=await fetch(u,{signal:ac.signal,cache:"no-store",credentials:"omit",referrerPolicy:"no-referrer"});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const txt=await res.text();
+    return{txt,via:"direct"};
+  }catch(e){
+    throw new Error(e.name==="AbortError"?"timed out":"unavailable");
+  }finally{clearTimeout(t)}
+}
 function calParse(txt){let j;try{j=JSON.parse(txt)}catch(e){throw new Error("the feed wasn\u2019t valid JSON")}if(!Array.isArray(j))throw new Error("unexpected feed format");
   const out=[];for(const e of j){if(!e||typeof e.title!=="string"||typeof e.date!=="string")continue;const t=Date.parse(e.date);if(!isFinite(t))continue;
     const hasTime=/T\d{2}:\d{2}/.test(e.date)&&!(e.time&&/all\s*day|tentative/i.test(String(e.time)))&&e.impact!=="Holiday";

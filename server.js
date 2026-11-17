@@ -545,6 +545,21 @@ function aggregateCandles(bars, targetStep) {
   return [...buckets.values()].sort((a, b) => a.t - b.t);
 }
 
+function sanitizeCandles(bars) {
+  if (!Array.isArray(bars) || !bars.length) return [];
+  const valid = [];
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    if (!b || !(b.c > 0) || !(b.o > 0) || !(b.h > 0) || !(b.l > 0) || !isFinite(b.c) || !isFinite(b.o) || !isFinite(b.h) || !isFinite(b.l)) continue;
+    let o = +b.o, h = +b.h, l = +b.l, c = +b.c, v = +b.v || 0;
+    if (h < Math.max(o, c)) h = Math.max(o, c);
+    if (l > Math.min(o, c)) l = Math.min(o, c);
+    if (h < l) { const tmp = h; h = l; l = tmp; }
+    valid.push({ t: Number(b.t), o, h, l, c, v });
+  }
+  return valid;
+}
+
 async function fetchDukascopyBi5Block(url, baseEpochSec, scale, refPrice, cacheKey, isImmutable) {
   if (isImmutable && dukaBlockCache.has(cacheKey)) {
     return dukaBlockCache.get(cacheKey);
@@ -953,6 +968,8 @@ app.get("/api/candles", async (req, res) => {
     if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
     source = "simulator";
   }
+
+  bars = sanitizeCandles(bars);
 
   const payload = {
     ok: true,

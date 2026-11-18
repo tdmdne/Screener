@@ -45,7 +45,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **PRESERVE STORAGE KEYS:** Never rename, wipe, or alter the schema of `scr2~<account_hash>~*` LocalStorage keys. Guest isolation and existing user watchlists/journals/scripts must remain intact.
 - **NO ARTIFICIAL CANDLE CLAMPING:** Never clamp, smooth, or alter OHLC candle wicks/spikes in UI code. Fix bad ticks at the ingestion/normalization layer or switch feed providers.
 - **XSS SAFETY:** Do not introduce raw `innerHTML` string concatenation with dynamic/user data in new modules; use `document.createElement` and `textContent`.
-- **NO PAYWALLS / DARK PATTERNS:** Core multi-asset charting, custom Vektor scripting, bar-replay backtesting, and P1–P5 tiering must remain unrestricted.
+- **NO PAYWALLS / DARK PATTERNS:** Custom Vektor scripting and P1–P5 tiering must remain unrestricted. Backtesting and bar replay must never be paywalled or limited. The approved Free limits — 1 chart, 3 indicators, 3 alerts, and 25 journal trades — are allowed.
 
 **NEVER BREAK:**
 - Chart rendering
@@ -226,7 +226,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Live URL: **https://screener-cso.pages.dev**
 - Target public launch: **1 March 2027**. The bot must not promise this date (see Bot rules).
 - Pricing: today the app is free and nothing can be bought. Paid plans cannot be purchased until launch on **1 March 2027**. All prices include VAT.
-  - **Free:** live crypto, delayed stocks/FX, 1 chart, 3 indicators, 3 alerts, a limited backtester, 25 journal trades.
+  - **Free:** live crypto, delayed stocks/FX, 1 chart, 3 indicators, 3 alerts, full unrestricted backtesting and bar replay, 25 journal trades.
   - **Pro:** £11.99/mo or £109/yr ($14.99 / $135).
   - **Elite:** £24.99/mo or £219/yr ($29.99 / $269).
 - The word "Plus" in the code is the chart's price-scale **"+" button**. It is not a pricing tier.

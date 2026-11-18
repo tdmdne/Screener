@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Vektor Terminal">
+  <rect width="256" height="256" rx="52" fill="#0e0f12"/>
+  <g fill="#f97316" transform="translate(128 128) scale(0.48) translate(-200 -118)">
+    <path d="M2 2 L66 2 L132 120 L161 70 L223 70 L132 234 Z"/>
+    <path d="M198 2 L398 2 L371 50 L306 51 L306 233 L253 233 L253 74 L266 51 L172 50 Z"/>
+  </g>
+</svg>

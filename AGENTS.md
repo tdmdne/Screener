@@ -1,6 +1,45 @@
 # VEKTOR TERMINAL (`tdmdne/Screener`) — AGENT DIRECTIVES & TASK BACKLOG
 
-## 1. HARD ARCHITECTURAL BOUNDARIES (NON-NEGOTIABLE)
+## 1. PROJECT OVERVIEW
+Vektor Terminal is a browser-based professional multi-asset trading platform.
+
+**Primary Features:**
+- TradingView-style charting
+- Stock / Forex / Crypto screener
+- Watchlists
+- Journal
+- Backtesting
+- Replay
+- Custom scripting language
+- Cloudflare Worker backend
+- Binance + Twelve Data integration
+
+**Primary Goal:** Deliver a fast, professional trading terminal while maintaining backwards compatibility with existing user data.
+
+---
+
+## 2. TECH STACK & REPOSITORY STRUCTURE
+**Tech Stack:**
+- **Frontend:** Vanilla JavaScript (ES Modules), HTML, CSS
+- **Backend:** Cloudflare Workers, Node (`server.js`)
+- **Deployment:** Cloudflare Pages (`screener-cso.pages.dev`)
+- **Package Manager:** Bun
+- **Testing:** Playwright
+- **Storage:** LocalStorage (`scr2~*`)
+
+**Repository Structure:**
+- `src/` — Modularized ES code (active migration target)
+- `client/` — Client-side helpers and extensions
+- `functions/` — Cloudflare Pages / API functions
+- `shared/` — Cross-environment shared logic (normalizers, catalogs)
+- `docs/` — Architecture notes & master specs
+- `index.html` — Legacy production monolith shell (~7,160 lines)
+- `server.js` — Local Node development backend
+- `worker.js` — Cloudflare Worker proxy & caching layer
+
+---
+
+## 3. HARD ARCHITECTURAL BOUNDARIES & "NEVER BREAK"
 - **FREEZE THE MONOLITH:** `index.html` (~7,160 lines / 676 KB) is legacy production. **DO NOT** add new features, API fetchers, scoring rules, or inline CSS to `index.html`. All changes must extract logic *out* of `index.html` into `src/` and `shared/`.
 - **SINGLE SOURCE OF TRUTH (`shared/`):** Never duplicate instrument catalogs, interval maps, or symbol normalizers between `server.js` and `worker.js`. Import them from `shared/`.
 - **PRESERVE STORAGE KEYS:** Never rename, wipe, or alter the schema of `scr2~<account_hash>~*` LocalStorage keys. Guest isolation and existing user watchlists/journals/scripts must remain intact.
@@ -8,16 +47,84 @@
 - **XSS SAFETY:** Do not introduce raw `innerHTML` string concatenation with dynamic/user data in new modules; use `document.createElement` and `textContent`.
 - **NO PAYWALLS / DARK PATTERNS:** Core multi-asset charting, custom Vektor scripting, bar-replay backtesting, and P1–P5 tiering must remain unrestricted.
 
-## 2. DATA ROUTING & API QUOTA RULES
+**NEVER BREAK:**
+- Chart rendering
+- Replay / Backtesting
+- Watchlists
+- Journal
+- Drawing tools
+- Keyboard shortcuts
+- Theme switching
+- LocalStorage compatibility (`scr2~*`)
+
+---
+
+## 4. CODING STANDARDS, PERFORMANCE & UI PRINCIPLES
+**Prefer:** Pure functions, reusable modules, `async/await`, early returns, descriptive variable names.
+**Avoid:** Nested callbacks, duplicated code, global state, inline styles, magic numbers.
+
+**Performance Rules:**
+- Never block the UI thread.
+- Never introduce polling when WebSockets already exist.
+- Avoid DOM re-renders; batch DOM updates.
+- Avoid unnecessary allocations inside animation loops.
+
+**UI Principles:**
+- TradingView inspired, professional, dense information, no unnecessary whitespace.
+- Desktop first, mobile functional (`data-ui="phone"`).
+- No flashy animations; dark mode is primary.
+
+**Forbidden Libraries:** Do not introduce jQuery, Bootstrap, Tailwind, React, Vue, or Angular unless explicitly requested.
+
+---
+
+## 5. DATA ROUTING & API QUOTA RULES
 - **Crypto (Direct Browser → Binance):** Route all crypto spot/perp quotes, klines, and streams directly from the client browser to `api.binance.com` / `data-api.binance.vision` and `wss://stream.binance.com:9443`. Never route crypto through Cloudflare Workers (triggers HTTP `451`/`403` blocks) or Twelve Data (burns paid credits).
 - **Symbol Normalization:** Normalize tickers prior to network calls (`BTCUSD`, `BTC/USD`, `BTC-USD` → `BTCUSDT` for Binance; standardize FX `EUR/USD` ↔ `EURUSD`).
 - **Twelve Data Credit Guardrails:**
   - Batch multi-symbol requests via `/time_series?symbol=SYM1,SYM2...` instead of single-ticker loops.
   - Enforce Cloudflare Worker Cache TTLs (`1m` bars = `15–30s`; `1h`/`1d` bars = `5–15m`).
   - **Fallback Order:** `1. Live/Cached Twelve Data` → `2. Stale Worker/LocalStorage Cache (tag DELAYED)` → `3. Dukascopy Static / Sample Mode (tag SAMPLE)`. Never leave charts blank or throw unhandled rejections on HTTP `429`.
-- **Resolution:** Prefer second-by-second aggregated updates over raw tick-by-tick streams for chart stability during high-volatility events (CPI, FOMC, NFP).
 
-## 3. EXECUTABLE TASK BACKLOG
+---
+
+## 6. DEPLOYMENT, TESTING & GIT WORKFLOW
+**Deploy Targets:** Cloudflare Pages & Cloudflare Workers. Never introduce dependencies incompatible with Cloudflare Workers.
+
+**Before committing, run:**
+- `bun install`
+- `bun test`
+- `bun run dev`
+- `bun run build`
+
+**Commit Message Prefixes:**
+- `feat:` (New features or modular extractions)
+- `fix:` (Bug fixes or fallback corrections)
+- `refactor:` (Code cleanup without behavior changes)
+- `docs:` (Documentation & `.md` updates)
+- `test:` (Playwright test additions/fixes)
+
+---
+
+## 7. AGENT WORKFLOW & UNCERTAINTY PROTOCOL
+**Before making changes:**
+1. Read relevant files completely.
+2. Search for existing implementations.
+3. Reuse existing utilities.
+4. Avoid duplicate functionality.
+5. Make the smallest possible change.
+6. Verify no existing behavior changed.
+7. Run tests.
+8. Update documentation if behavior changed.
+
+**When uncertain:**
+- Prefer refactoring over rewriting.
+- Prefer extracting modules over modifying legacy code.
+- Ask for clarification before deleting functionality.
+
+---
+
+## 8. EXECUTABLE TASK BACKLOG
 
 ### Phase 1: Backend Deduplication & Data Pipeline
 - [ ] **TASK-01: Extract Shared Catalogs & Normalizer (`shared/`)**
@@ -26,7 +133,7 @@
   - **Done When:** Zero duplicate catalog/interval blocks remain in `server.js` or `worker.js`, and unit checks confirm `BTCUSD`, `BTC/USD`, and `BTCUSDT` resolve cleanly.
 
 - [ ] **TASK-02: Complete `dataService.js` Migration**
-  - **Target:** `index.html`, `src/services/dataService.js` (or `client/dataService.js`)
+  - **Target:** `index.html`, `src/services/dataService.js`
   - **Action:** Remove direct legacy `fetch` / WebSocket data calls inside `index.html` and route all market data requests exclusively through `dataService.js`. Ensure crypto routes directly to Binance from the browser, and equities/FX/indices route through the Worker batch proxy with TTL caching and `429` cache fallback.
   - **Done When:** Network tab shows zero direct Twelve Data or worker-proxied Binance calls from `index.html`; all feeds flow through `dataService.js`.
 
@@ -62,7 +169,7 @@
   - **Action:** Incrementally extract Custom Script Interpreter, Screener Table Renderer (replacing unsafe `innerHTML`), Journal/Prop Tracker, and Bar-Replay engine into ES modules under `src/`. Update Playwright test targets from `index.html` monolith selectors to modular build entrypoints.
   - **Done When:** `index.html` acts solely as a lightweight HTML shell (<300 lines) loading modular ES bundles, and all Playwright suites pass.
 
-## 4. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
+## 9. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
 1. Confirm `scr2~*` LocalStorage keys read/write identically for both Guest and signed-in hash accounts.
 2. Verify mobile layout (`data-ui="phone"`) has zero horizontal overflow.
 3. Verify Playwright test suite passes with zero console errors or uncaught promise rejections.

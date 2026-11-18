@@ -12,7 +12,8 @@
 // it counts toward the Workers Free plan's 100,000 requests/day. _routes.json
 // excludes (by exact path, never wildcards) the files a page load fetches
 // (/, /index.html, favicons, robots.txt, sitemap.xml and the three JS modules
-// index.html imports) so those are served directly and do not count. Only /api/* and non-allowlisted paths run this code. To remove the
+// index.html imports) so those are served directly and do not count. /api/*,
+// other src/ files and everything that 404s still run this code. To remove the
 // middleware entirely later, switch to a build step that copies the allowlisted
 // files into a public/ output directory (needs a Pages build-settings change).
 

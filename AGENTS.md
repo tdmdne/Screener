@@ -225,10 +225,11 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Vektor Terminal is a free charting and research tool that runs in the browser. It covers crypto, forex, stocks, ETFs, futures, indices and CFDs, with a screener, charts, drawing tools, alerts, watchlists, a trade journal, a backtester with bar replay, calculators, a heatmap, an economic calendar and a custom indicator language (Vektor Script). It does **not** place trades, hold money or connect to a broker. Its own Terms describe it as "a browser-based set of market screening, charting, journaling, calculation and back-testing tools."
 - Live URL: **https://screener-cso.pages.dev**
 - Target public launch: **1 March 2027**. The bot must not promise this date (see Bot rules).
-- Pricing: the in-app Terms (§4a) and the Refunds page both say **"The Service is currently free and nothing is charged."**
-- The Refunds & Cancellation page is a **template for a possible future paid plan**. It contains placeholders: `[Plan name]`, `[Account → Billing page]` and `[annual]`. No paid plan exists.
+- Pricing: today the app is free and nothing can be bought. Paid plans cannot be purchased until launch on **1 March 2027**. All prices include VAT.
+  - **Free:** live crypto, delayed stocks/FX, 1 chart, 3 indicators, 3 alerts, a limited backtester, 25 journal trades.
+  - **Pro:** £11.99/mo or £109/yr ($14.99 / $135).
+  - **Elite:** £24.99/mo or £219/yr ($29.99 / $269).
 - The word "Plus" in the code is the chart's price-scale **"+" button**. It is not a pricing tier.
-- `TODO (needs Tyler):` Is any paid plan planned before or at launch? If so, what are its name, price and features? Until you answer, the bot says "it's free right now" and nothing more.
 
 ### Navigation (where things are)
 - **Desktop top nav:** Workspace · Supercharts · Screener · Heatmaps · Calendar · Journal · Calculators · Backtest. Addresses are `#/workspace`, `#/chart`, `#/screener`, `#/heatmap`, `#/calendar`, `#/journal`, `#/calc` and `#/backtest`. They aren't case-sensitive, and the app reopens on the last page you used.

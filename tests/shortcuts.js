@@ -1,6 +1,7 @@
 // Keyboard shortcut overlay: "?" opens/closes it (not while typing, not over another dialog, not on the sign-in screen),
 // it is an accessible dialog (axe clean, focus in, Esc, focus return), the current page's section comes first, the footer
 // button opens it, and every listed chart / list / heatmap shortcut really does what the list says.
+// Rectangle is Alt+R (setTool map.r = "rect", overlay lists Alt+R). Reset-chart-view is the resetLive() button only — no Alt binding.
 const {launch}=require("./harness");const assert=require("assert");const fs=require("fs");const path=require("path");
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
@@ -29,10 +30,9 @@ await P.focus("#vft_kb");await P.keyboard.press("Enter");await P.waitForTimeout(
 await P.keyboard.press("Escape");await P.waitForTimeout(150);assert.strictEqual(await P.evaluate(()=>document.activeElement&&document.activeElement.id),"vft_kb","focus returns");
 await P.evaluate(()=>document.activeElement.blur());
 if(theme==="light"){assert.deepStrictEqual(h.errors,[]);await h.close();continue}
-// 4) the listed shortcuts do what the list says
+// 4) the listed shortcuts do what the list says (map: t trend, h hline, v vline, f fib, r rect, a arrow, n note)
 const tool=async k=>{await P.keyboard.press(k);await P.waitForTimeout(40);return P.evaluate(()=>TOOL)};
-for(const [k,t] of [["Alt+t","trend"],["Alt+h","hline"],["Alt+v","vline"],["Alt+f","fib"],["Alt+g","rect"],["Alt+a","arrow"],["Alt+n","note"]]){assert.strictEqual(await tool(k),t,k);await P.keyboard.press("Escape");assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Esc back to cursor")}
-await P.keyboard.press("Alt+r");await P.waitForTimeout(60);assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Alt+R resets chart view without changing tool");
+for(const [k,t] of [["Alt+t","trend"],["Alt+h","hline"],["Alt+v","vline"],["Alt+f","fib"],["Alt+r","rect"],["Alt+a","arrow"],["Alt+n","note"]]){assert.strictEqual(await tool(k),t,k);await P.keyboard.press("Escape");assert.strictEqual(await P.evaluate(()=>TOOL),"cross","Esc back to cursor")}
 const hid=await P.evaluate(()=>HIDD);await P.keyboard.press("Control+Alt+h");assert.strictEqual(await P.evaluate(()=>HIDD),!hid,"Ctrl+Alt+H hides drawings");await P.keyboard.press("Control+Alt+h");
 await P.keyboard.press("1");await P.waitForTimeout(60);assert(await P.evaluate(()=>{const e=document.getElementById("tfpop");return !!e&&e.style.display!=="none"&&TFBUF==="1"}),"digit opens interval box");
 await P.keyboard.press("Escape");await P.waitForTimeout(60);

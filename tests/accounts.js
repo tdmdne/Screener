@@ -60,46 +60,31 @@ assert(e.all.includes("LEGACY-WORK")&&!e.ks.includes("scr2")&&!e.ks.includes("vt
 assert.strictEqual(e.td,"myOwnTdKey9");assert(!e.dk&&!e.saved.includes("myOwnTdKey9")&&!e.ks.some(k=>/^vt_tdkey/.test(k)),"key moved out of scr2");
 await h.close();
 
-// D) Twelve Data key
-h=await launch({auth:false});P=h.page;const td=[];await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());const now=Math.floor(Date.now()/3600e3)*3600;
-  r.fulfill({contentType:"application/json",body:JSON.stringify({status:"ok",values:Array.from({length:120},(_,i)=>{const t=new Date((now-i*3600)*1000).toISOString().slice(0,19).replace("T"," ");return{datetime:t,open:"1.08",high:"1.09",low:"1.07",close:"1.085",volume:"0"}})})})});
+// D) Twelve Data: no built-in or per-user key; the client talks to vektor-market, not api.twelvedata.com
+h=await launch({auth:false});P=h.page;const td=[],proxy=[];
+await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.abort()});
+await P.route(/vektor-market\./,r=>{proxy.push(r.request().url());r.fulfill({contentType:"application/json",body:JSON.stringify({status:"error",message:"feed unavailable"})})});
 await P.goto(h.base);await signIn(P,"tester");
 // no key ships with the app: no 32-hex string in the page hashes to the old built-in key
 const hk=await P.evaluate(()=>{const m=document.documentElement.outerHTML.match(/[0-9a-f]{32}/g)||[];return m.filter(x=>vtUidHash(x)===VT_TDK.old).length});assert.strictEqual(hk,0,"no built-in key");
-const ws0=await P.evaluate(()=>{window.__w0=BNWS.ws;return __WS.length});
-const pump=()=>P.evaluate(()=>{const s=symOf("EURUSD"),k="EURUSD|1H";delete ERR[k];delete PEND[k];delete LIVE[k];PEND[k]=1;QT.push([s,"1H",k]);pumpTD()});
-assert.strictEqual(await P.evaluate(()=>vtTdKey()),"");await pump();await P.waitForFunction(()=>/no Twelve Data key/.test(ERR["EURUSD|1H"]||""));assert.strictEqual(td.length,0,"nothing sent without a key");
-await P.evaluate(()=>dataM());await P.waitForSelector("#d_k");assert.strictEqual(await P.inputValue("#d_k"),"");let note=await P.textContent("#d_kn");
-assert(/No key set/.test(note)&&/until you close the tab/.test(note),note);
-// without Optional preferences: works for the tab, not stored
-await P.fill("#d_k","tabOnlyKey1");await P.evaluate(()=>dataSave());
-assert.deepStrictEqual(await P.evaluate(()=>[vtTdKey(),Object.keys(localStorage).filter(k=>/^vt_tdkey/.test(k)),localStorage.getItem(vtSK("scr2")).includes("tabOnlyKey1")]),["tabOnlyKey1",[],false]);
-await pump();await P.waitForFunction(()=>(LIVE["EURUSD|1H"]||[]).length>=100);assert(/apikey=tabOnlyKey1/.test(td[td.length-1]),"key used");
-// with Optional preferences: stored for this account only, and deleted on withdrawal
-await P.evaluate(()=>vtConsentSet(true,"custom",true));await P.waitForFunction(()=>localStorage.getItem(vtSK("vt_tdkey"))==="tabOnlyKey1");
-await P.evaluate(()=>dataM());await P.waitForSelector("#d_kn");assert(/for your account only/.test(await P.textContent("#d_kn")));await P.fill("#d_k","bad key!");await P.evaluate(()=>dataSave());
-assert.strictEqual(await P.evaluate(()=>vtTdKey()),"tabOnlyKey1","invalid key refused");
-await P.evaluate(()=>{dataM()});await P.fill("#d_k","prefsKey22");await P.evaluate(()=>dataSave());
-await P.reload();await booted(P);assert.strictEqual(await P.evaluate(()=>vtTdKey()),"prefsKey22","remembered with consent");
-await P.evaluate(()=>vtConsentSet(true,"custom",false));await P.waitForTimeout(100);assert.deepStrictEqual(await P.evaluate(()=>Object.keys(localStorage).filter(k=>/^vt_(td|ai)key/.test(k))),[],"withdrawal deletes it");
-await P.reload();await booted(P);assert.strictEqual(await P.evaluate(()=>vtTdKey()),"");
+assert.strictEqual(await P.evaluate(()=>vtTdKey()),"");
+assert.strictEqual(td.length,0,"nothing sent to api.twelvedata.com");
+assert(proxy.length>0,"FX path uses vektor-market without a per-user key");
+assert(proxy.every(u=>!/[?&]apikey=/.test(u)),"no per-user apikey on the market-data URL");
 const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance socket up");
-// another user doesn't get this user's key
-await P.evaluate(()=>vtConsentSet(true,"custom",true));await P.evaluate(()=>{dataM()});await P.fill("#d_k","testerKey3");await P.evaluate(()=>dataSave());
-await Promise.all([P.waitForNavigation(),P.click("#lgo")]);await signIn(P,"erin");assert.strictEqual(await P.evaluate(()=>vtTdKey()),"","erin has no key");
-// guest: never stored
-await Promise.all([P.waitForNavigation(),P.click("#lgo")]);await P.click("#auGuest");await booted(P);await P.evaluate(()=>{dataM()});await P.fill("#d_k","guestKey4");await P.evaluate(()=>dataSave());
-assert.deepStrictEqual(await P.evaluate(()=>[vtTdKey(),Object.values(localStorage).filter(v=>v.includes("guestKey4")).length]),["guestKey4",0]);
+// Settings > Data no longer has a Twelve Data key field (#d_k / #d_kn were removed in TASK-02).
+// Do not assert the old per-user key UI (tab-only key, consent storage, other user, guest).
+// TODO: cover the server-side market-data copy in the Data dialog once that UI is settled.
 console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
-// F) owner's local config (config.local.js, gitignored): used in memory only, after the user's own key, never stored
+// F) owner's local config (config.local.js, gitignored): used in memory only, never stored.
+// The Data dialog no longer has #d_k to show or override this key.
+// TODO: if the Data dialog later describes config.local.js, assert that copy.
 h=await launch({config:{twelveDataKey:"cfgKey12345"}});P=h.page;await P.goto(h.base);await booted(P);await P.waitForFunction(()=>!!window.VT_CONFIG);
-assert.strictEqual(await P.evaluate(()=>vtTdKey()),"cfgKey12345");await P.evaluate(()=>dataM());await P.waitForSelector("#d_k");
-assert.strictEqual(await P.inputValue("#d_k"),"","config key not shown");assert(/config\.local\.js/.test(await P.textContent("#d_kn")));
-await P.fill("#d_k","ownKey6789");await P.evaluate(()=>dataSave());assert.strictEqual(await P.evaluate(()=>vtTdKey()),"ownKey6789","own key wins");
+assert.strictEqual(await P.evaluate(()=>vtTdKey()),"cfgKey12345");
 assert.strictEqual(await P.evaluate(()=>Object.values(localStorage).concat(Object.values(sessionStorage)).filter(v=>v.includes("cfgKey12345")).length),0,"config key never stored");
 console.log("F errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // E) legal pages describe it
 h=await launch({});P=h.page;await P.goto(h.base);await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
-const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","no longer ships with a key"])assert(lg.includes(s),"legal mentions "+s);
+const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data key"])assert(lg.includes(s),"legal mentions "+s);
 await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

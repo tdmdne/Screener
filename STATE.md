@@ -14,6 +14,7 @@
 - PR #13 test fixes merged as `c2bea20` (37/42 passing).
 - PR #14 Elite trial eligibility in the legal pages + btRun notes (`fb0d608`).
 - Backend-mandate audit + backend-first task list + compact AGENTS.md (this PR).
+- PR #17: leftover client Twelve Data key helpers (`vtTdKey` / `vt_tdkey~`) removed; a one-time cleanup deletes leftover keys and never sends them; keys stay on the vektor-market Worker only.
 
 - 18 Nov: AGENTS.md §6 Institutional UI/UX standard + recurring UI Audit phase (TradingView/Tradovate/FX Replay benchmark).
 

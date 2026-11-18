@@ -176,10 +176,8 @@
   - Live check (18 Nov 2026, 21:2x GMT): `/api/screener` reported `source:"edge+sim"` with fixed-looking non-crypto prices (e.g. EURUSD 1.085), and `/api/candles` for EURUSD 1H returned `source:"simulator"`. **Treat non-crypto prices on the live site as simulated until Tyler confirms otherwise.**
   - `TODO (needs Tyler):` Should non-crypto (forex/stocks/indices/futures) prices on the live site be real? Right now they are simulated server-side. Until fixed, the bot must not tell users non-crypto prices are real-time.
 - **User's own keys:** go to **Settings › Data** (the "Data" dialog).
-  - **Twelve Data key (your own)** is optional. It is used for browser requests to Twelve Data (the live price stream for the open chart, and candles when the app isn't using the backend).
   - **Finnhub key** and **Polygon key** are optional stock fallbacks.
-  - The Twelve Data key lasts for the tab only. It is saved, per account, only if the user allows "Optional preferences", and is never saved for guests.
-  - Error shown when no Twelve Data key is set: "no Twelve Data key (add yours in Settings › Data)".
+  - Twelve Data keys are not entered in the browser. They live only on the server (the `vektor-market` Worker).
 - **Offline sample data:** a checkbox in the Data dialog. All prices are simulated. The status reads "Offline sample data" and the chart footer says "Sample data."
 - **Dukascopy:** historical candles used only for Backtest replay of FX, metals, indices and commodities, fetched by the backend.
 - **Yahoo Finance:** in the current code, used only for **news headlines** (RSS via `/api/news`). Older docs that say "Yahoo for forex prices" are out of date.
@@ -214,7 +212,7 @@
   - `vt_page`, `scr2a` (sign-in name), `vt_consent` and `vt_consent_log`.
   - `vt_legacy`, when older data hasn't been claimed.
   - sessionStorage `vt_guest`.
-  - With Optional preferences only: `vt_prefs` (sound), `vt_tdkey~…` and `vt_aikey~…`.
+  - With Optional preferences only: `vt_prefs` (sound) and `vt_aikey~…`.
   - IndexedDB database `scr`: the **optional** market-data cache, created only after consent.
 - **No cookies, analytics, ads or trackers.** System fonts only, and icons are inline SVG.
 - **Consent banner:** "Reject all" and "Accept all" have equal weight, plus "Manage choices". The optional categories are the market-data cache and Optional preferences, both off by default. Users can reopen it any time from **Cookie settings** in the footer. Users are asked again after 12 months.
@@ -228,7 +226,7 @@
 
 ### Common issues and fixes
 - **Chart stuck on "Loading candles…" or showing an error box:** the chart shows the real error with a **Try again** button. Check the status line.
-  - For forex/stocks with "no Twelve Data key", tell the user to add their own key in Settings › Data.
+  - For forex/stocks, do not tell the user to add a Twelve Data key in the browser; those keys live only on the server.
   - Otherwise, open Data → **Retry failed**, or **Reload data**, which also empties the cache.
 - **"Historical gap — waiting for fresh feed" badge:** press **Retry** on the badge. If it keeps coming back, escalate with the symbol and timeframe.
 - **"The chart library didn't load.":** the jsDelivr CDN is blocked. This can be caused by an ad blocker, a corporate network or no internet. Allow cdn.jsdelivr.net and reload.

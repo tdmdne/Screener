@@ -1,9 +1,8 @@
 // Shared device: saved work (charts, drawings, journal, templates, alerts, scripts, layouts) is scoped to the signed-in user;
 // guests and other users never see it; the same user gets it back; guest -> sign-in with existing saved work asks first;
 // data saved before accounts were separated is claimed by whoever was signed in, or offered (never shown to guests).
-// Twelve Data: no built-in key; your own key from Settings > Data is stored only with Optional preferences (never for guests),
-// is used for requests, is deleted on withdrawal; without a key nothing is requested and the app degrades with clear errors;
-// Binance WebSockets untouched. An owner key in config.local.js (local only) is used in memory, after the user's own key.
+// Leftover client Twelve Data keys (vt_tdkey~ and a key saved in settings) are deleted on load and never used.
+// The browser does not hold or send a Twelve Data key. Binance WebSockets are untouched.
 const assert=require("assert");const {launch}=require("./harness");
 const booted=P=>P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"),null,{timeout:30000});
 const signIn=async(P,id)=>{await P.waitForSelector("#auId",{state:"visible"});await P.waitForTimeout(80);await P.fill("#auId",id);await P.fill("#auPw","pw");
@@ -54,37 +53,34 @@ console.log("B errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.clo
 
 // C) older data while someone is signed in: it becomes theirs automatically
 h=await launch({state:Object.assign({},legacy,{data:{key:"myOwnTdKey9",mode:"all",v:3}})});P=h.page;await P.goto(h.base);await booted(P);
-let e=await P.evaluate(()=>({all:JSON.stringify(S),ks:Object.keys(localStorage),td:vtTdKey(),dk:"key" in S.data,saved:localStorage.getItem(vtSK("scr2"))}));
+let e=await P.evaluate(()=>({all:JSON.stringify(S),ks:Object.keys(localStorage),dk:"key" in S.data,saved:localStorage.getItem(vtSK("scr2"))}));
 assert(e.all.includes("LEGACY-WORK")&&!e.ks.includes("scr2")&&!e.ks.includes("vt_legacy")&&e.ks.some(k=>/^scr2~/.test(k)),"auto-claimed "+e.ks);
-// a Twelve Data key saved inside settings by an older version moves out of scr2 and, without Optional preferences, stays in memory only
-assert.strictEqual(e.td,"myOwnTdKey9");assert(!e.dk&&!e.saved.includes("myOwnTdKey9")&&!e.ks.some(k=>/^vt_tdkey/.test(k)),"key moved out of scr2");
+// a Twelve Data key saved inside settings by an older version is deleted, not kept in memory or storage
+assert(!e.dk&&!e.all.includes("myOwnTdKey9")&&!e.saved.includes("myOwnTdKey9")&&!e.ks.some(k=>/^vt_tdkey/.test(k)),"legacy Twelve Data key dropped");
 await h.close();
 
-// D) Twelve Data: no built-in or per-user key; the client talks to vektor-market, not api.twelvedata.com
+// D) leftover client Twelve Data keys are deleted; the browser never holds or sends one
 h=await launch({auth:false});P=h.page;const td=[],proxy=[];
-await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.abort()});
+await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.fulfill({status:404,body:""})});
 await P.route(/vektor-market\./,r=>{proxy.push(r.request().url());r.fulfill({contentType:"application/json",body:JSON.stringify({status:"error",message:"feed unavailable"})})});
 await P.goto(h.base);await signIn(P,"tester");
-// no key ships with the app: no 32-hex string in the page hashes to the old built-in key
-const hk=await P.evaluate(()=>{const m=document.documentElement.outerHTML.match(/[0-9a-f]{32}/g)||[];return m.filter(x=>vtUidHash(x)===VT_TDK.old).length});assert.strictEqual(hk,0,"no built-in key");
-assert.strictEqual(await P.evaluate(()=>vtTdKey()),"");
-assert.strictEqual(td.length,0,"nothing sent to api.twelvedata.com");
-assert(proxy.length>0,"FX path uses vektor-market without a per-user key");
+await P.evaluate(()=>{const n=typeof vtSK==="function"&&vtSK("vt_tdkey")||"vt_tdkey~tester";
+  localStorage.setItem(n,"leftoverTdKey1");localStorage.setItem("vt_tdkey~other","leftoverTdKey2");sessionStorage.setItem("vt_tdkey~sess","leftoverTdKey3");
+  const raw=localStorage.getItem(vtSK("scr2"));const st=raw?JSON.parse(raw):{};st.data=Object.assign({},st.data,{key:"leftoverTdKey4"});localStorage.setItem(vtSK("scr2"),JSON.stringify(st))});
+await P.reload();await booted(P);
+const wiped=await P.evaluate(()=>({ks:[...Object.keys(localStorage),...Object.keys(sessionStorage)].filter(k=>/^vt_tdkey/.test(k)),
+  vals:[...Object.values(localStorage),...Object.values(sessionStorage),JSON.stringify(S)].some(v=>String(v).includes("leftoverTdKey")),
+  dk:!!(S.data&&("key"in S.data)),td:typeof vtTdKey,tdk:typeof VT_TDK,set:typeof vtTdKeySet,cfg:typeof vtCfgTdKey,note:typeof vtTdKeyNote}));
+assert.deepStrictEqual(wiped.ks,[],"leftover vt_tdkey keys deleted");
+assert(!wiped.vals&&!wiped.dk,"leftover key values not kept");
+assert.strictEqual(wiped.td,"undefined");assert.strictEqual(wiped.tdk,"undefined");
+assert.strictEqual(wiped.set,"undefined");assert.strictEqual(wiped.cfg,"undefined");assert.strictEqual(wiped.note,"undefined");
+assert.strictEqual(td.length,0,"nothing sent to Twelve Data");
 assert(proxy.every(u=>!/[?&]apikey=/.test(u)),"no per-user apikey on the market-data URL");
 const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance socket up");
-// Settings > Data no longer has a Twelve Data key field (#d_k / #d_kn were removed in TASK-02).
-// Do not assert the old per-user key UI (tab-only key, consent storage, other user, guest).
-// TODO: cover the server-side market-data copy in the Data dialog once that UI is settled.
 console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
-// F) owner's local config (config.local.js, gitignored): used in memory only, never stored.
-// The Data dialog no longer has #d_k to show or override this key.
-// TODO: if the Data dialog later describes config.local.js, assert that copy.
-h=await launch({config:{twelveDataKey:"cfgKey12345"}});P=h.page;await P.goto(h.base);await booted(P);await P.waitForFunction(()=>!!window.VT_CONFIG);
-assert.strictEqual(await P.evaluate(()=>vtTdKey()),"cfgKey12345");
-assert.strictEqual(await P.evaluate(()=>Object.values(localStorage).concat(Object.values(sessionStorage)).filter(v=>v.includes("cfgKey12345")).length),0,"config key never stored");
-console.log("F errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // E) legal pages describe it
 h=await launch({});P=h.page;await P.goto(h.base);await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
-const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data key"])assert(lg.includes(s),"legal mentions "+s);
+const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data API key"])assert(lg.includes(s),"legal mentions "+s);
 await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

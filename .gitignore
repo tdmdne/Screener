@@ -7,3 +7,6 @@ vektor-private/
 .dev.vars
 node_modules/
 .wrangler/
+
+# test screenshots
+shots/

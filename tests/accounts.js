@@ -81,6 +81,6 @@ const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance soc
 console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // E) legal pages describe it
 h=await launch({});P=h.page;await P.goto(h.base);await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
-const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data key"])assert(lg.includes(s),"legal mentions "+s);
+const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data API key"])assert(lg.includes(s),"legal mentions "+s);
 await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

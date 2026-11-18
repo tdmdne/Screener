@@ -559,6 +559,17 @@ function getTdKey(env) {
   return String((env && (env.TWELVEDATA_KEY || env.TWELVE_DATA_API_KEY)) || "").trim();
 }
 
+// TASK-02: REST candles go through the vektor-market Worker, which holds the key, caches and rate-limits.
+const TD_PROXY_DEFAULT = "https://vektor-market.tdmltd2026.workers.dev";
+function tdProxyBase(env) {
+  const v = String((env && env.TD_PROXY_URL) || TD_PROXY_DEFAULT).trim().replace(/\/+$/, "");
+  return v === "off" ? "" : v;
+}
+// Truthy when candles can be fetched from Twelve Data (via the proxy, or a direct key for local dev).
+function tdSource(env) {
+  return tdProxyBase(env) ? "proxy" : getTdKey(env);
+}
+
 async function fetchBinanceCandles(apiSym, interval, opts = {}) {
   const bni = BNI[interval];
   const step = STEPS[interval] || 3600;
@@ -650,14 +661,15 @@ async function fetchTwelveDataCandles(tdSym, interval, apiKey, opts = {}) {
         interval: tdi,
         outputsize: String(limit),
         timezone: "UTC",
-        apikey: apiKey,
       });
+      const viaProxy = apiKey === "proxy";
+      if (!viaProxy) qs.set("apikey", apiKey);
       if (beforeSec > 0) {
         qs.set("end_date", new Date((beforeSec - 1) * 1000).toISOString().slice(0, 19).replace("T", " "));
       } else if (opts.to > 0) {
         qs.set("end_date", new Date(opts.to * 1000).toISOString().slice(0, 19).replace("T", " "));
       }
-      const r = await fetch(`https://api.twelvedata.com/time_series?${qs}`);
+      const r = await fetch(viaProxy ? `${tdProxyBase(opts.env)}/td/time_series?${qs}` : `https://api.twelvedata.com/time_series?${qs}`);
       if (!r.ok) {
         if (beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
         return null;
@@ -770,7 +782,7 @@ async function handleCandles(request, env, ctx) {
   }
 
   const meta = inferMeta(rawSym, mktHint, apiHint);
-  const tdKey = getTdKey(env);
+  const tdKey = tdSource(env);
   const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT") || rawSym.endsWith("BUSD") || rawSym.endsWith("BTC");
   const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
   const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
@@ -818,7 +830,7 @@ async function handleCandles(request, env, ctx) {
     }
   }
 
-  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh };
+  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh, env };
   const flightKey = kvKey;
   let resultPromise = CANDLE_IN_FLIGHT.get(flightKey);
   if (!resultPromise) {
@@ -1162,8 +1174,8 @@ async function handleNews(request, env, ctx) {
 }
 
 async function handleWsConfig(request, env, _ctx) {
-  const tdKey = getTdKey(env);
-  return new Response(JSON.stringify({ ok: true, tdKey }), {
+  // TASK-02: never send a Twelve Data key to the browser.
+  return new Response(JSON.stringify({ ok: true, tdKey: "" }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",

@@ -749,7 +749,7 @@ app.get("/api/quote", (req, res) => {
 
 app.get("/api/ws-config", (_req, res) => {
   res.set({ "Cache-Control": "no-store" });
-  return res.json({ ok: true, tdKey: TWELVEDATA_KEY });
+  return res.json({ ok: true, tdKey: "" }); // TASK-02: never expose the key
 });
 
 app.get("/api/candles", async (req, res) => {

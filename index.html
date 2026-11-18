@@ -2765,13 +2765,15 @@ ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
 await Promise.all([w(),w(),w(),w(),w()]);bz.bn=0;if(QB.length)pumpBN()}
 function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];render()}
+// TASK-02: all Twelve Data requests go through our vektor-market Worker, which holds the key. Users never need their own.
+const VT_TD_PROXY="https://vektor-market.tdmltd2026.workers.dev";
 async function pumpTD(){if(bz.td)return;bz.td=1;
 while(QT.length){const[s,tf,k]=QT.shift();status();
-if(!vtTdKey()){ERR[k]=s[0]+": no Twelve Data key (add yours in Settings › Data)";delete PEND[k];continue}
 let wait=7700,again=false;
-try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=5000&timezone=UTC&apikey=${encodeURIComponent(vtTdKey())}`),j=await r.json();
+try{const r=await fetch(`${VT_TD_PROXY}/td/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=5000&timezone=UTC`),j=await r.json();
 if(j.status==="error"||!j.values){const m=String(j.message||"No data");
-if(j.code===429&&!/day/i.test(m)){QT.unshift([s,tf,k]);again=true;wait=61000}
+if(j.code==="quota"){const ra=Math.max(1,+j.retryAfter||60);if(ra<=120){QT.unshift([s,tf,k]);again=true;wait=ra*1000}else{ERR[k]=s[0]+": market data limit reached for today, try again later";QT.length=0}}
+else if(j.code===429&&!/day/i.test(m)){QT.unshift([s,tf,k]);again=true;wait=61000}
 else{ERR[k]=s[0]+": "+m.slice(0,90);if(/day/i.test(m)){QT.length=0}}}
 else{LIVE[k]=j.values.reverse().map(v=>({t:Math.floor(Date.parse(v.datetime.length>10?v.datetime.replace(" ","T")+"Z":v.datetime+"T00:00:00Z")/1000),o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+(v.volume||0)})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k);saveC();markOk("td")}
 }catch(e){ERR[k]=s[0]+": network error"}
@@ -2849,11 +2851,11 @@ function favApply(){
   }
   save();closeM();renderWL();
 }
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Single-source chart routing: Crypto loads exclusively from Binance Spot (REST &amp; WebSocket); Forex, Stocks, Indices, ETFs and Futures load via the backend edge router from Twelve Data (60s edge cache + single-symbol WebSocket stream). Dukascopy historical archives are isolated strictly to offline Backtest Replay.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key (your own)<input id="d_k" value="${esc(VT_TDK.mem||((typeof vtTdCanStore==="function"&&vtTdCanStore()&&localStorage.getItem(vtTdKeyName()))||""))}" placeholder="optional · twelvedata.com" autocomplete="off" spellcheck="false" aria-describedby="d_kn"></label><p class="mut" id="d_kn">${vtTdKeyNote()}</p>
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Single-source chart routing: Crypto loads exclusively from Binance Spot (REST &amp; WebSocket); Forex, Stocks, Indices, ETFs and Futures load via the backend edge router from Twelve Data (60s edge cache + single-symbol WebSocket stream). Dukascopy historical archives are isolated strictly to offline Backtest Replay.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p>
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
-function dataSave(){const g=i=>document.getElementById(i);vtTdKeySet(g("d_k").value);S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart();
+function dataSave(){const g=i=>document.getElementById(i);S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode=document.getElementById("d_s").checked?"sample":"all";save();closeM();render();drawChart();
 if(S.data.fhKey){FHU.loaded=false;loadFHU()}
 if(S.data.polyKey){PGU.loaded=false;loadPGU()}
 }
@@ -6283,22 +6285,7 @@ function vtClearFeedGap(sym, tf) {
 }
 
 async function vtResolveTdKey() {
-  if (typeof vtTdKey === "function") {
-    const k = vtTdKey();
-    if (k) return k;
-  }
-  if (VT_EDGE.tdKey) return VT_EDGE.tdKey;
-  if (VT_EDGE.tdKeyFetched) return "";
-  VT_EDGE.tdKeyFetched = true;
-  try {
-    const r = await fetch("/api/ws-config", { cache: "no-store" });
-    if (!r.ok) return "";
-    const j = await r.json();
-    if (j && j.ok && j.tdKey) {
-      VT_EDGE.tdKey = String(j.tdKey).trim();
-      return VT_EDGE.tdKey;
-    }
-  } catch (_e) {}
+  // TASK-02: the browser never holds a Twelve Data key any more; the vektor-market Worker adds it server-side.
   return "";
 }
 
@@ -6912,63 +6899,22 @@ async function vtTdWsConnect(sym) {
   }
   if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 0) return;
 
-  const key = await vtResolveTdKey();
-  if (!key || VT_EDGE.tdActiveSym !== sym || !isLive()) return;
-  if (VT_EDGE.tdWs && (VT_EDGE.tdWs.readyState === 0 || VT_EDGE.tdWs.readyState === 1)) return;
-
-  try {
-    const ws = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(key)}`);
-    VT_EDGE.tdWs = ws;
-    ws.onopen = () => {
-      VT_EDGE.tdRetry = 0;
+  // TASK-02: no browser WebSocket to Twelve Data (that needed the key). Poll the latest price
+  // through our vektor-market Worker instead; it caches each symbol and enforces the plan limits.
+  if (VT_EDGE.tdActiveSym !== sym || !isLive()) return;
+  clearInterval(VT_EDGE.tdHb);
+  const vtTdPoll = async () => {
+    if (VT_EDGE.tdActiveSym !== sym || !isLive() || document.hidden) return;
+    try {
+      const r = await fetch(`${VT_TD_PROXY}/td/price?symbol=${encodeURIComponent(tdSym)}`);
+      const d = await r.json();
+      if (VT_EDGE.tdActiveSym !== sym || !d || !(Number(d.price) > 0)) return;
       markOk("tdws");
-      const targetTd = VT_EDGE.tdActiveTdSym || tdSym;
-      try {
-        ws.send(JSON.stringify({ action: "subscribe", params: { symbols: targetTd } }));
-        VT_EDGE.tdSubTdSym = targetTd;
-      } catch (_e) {}
-      clearInterval(VT_EDGE.tdHb);
-      VT_EDGE.tdHb = setInterval(() => {
-        if (ws.readyState === 1) {
-          try { ws.send(JSON.stringify({ action: "heartbeat" })); } catch (_e) {}
-        }
-      }, 10000);
-    };
-    ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (!d || d.event !== "price" || !(Number(d.price) > 0)) return;
-        const evSym = String(d.symbol || "").trim().toUpperCase();
-        const activeTd = String(VT_EDGE.tdActiveTdSym || "").trim().toUpperCase();
-        if (!evSym || !activeTd || (evSym !== activeTd && evSym.replace("/", "") !== VT_EDGE.tdActiveSym)) {
-          return;
-        }
-        markOk("tdws");
-        vtApplyTwelveDataTick(VT_EDGE.tdActiveSym, Number(d.price), Number(d.timestamp));
-      } catch (_err) {}
-    };
-    ws.onclose = () => {
-      clearInterval(VT_EDGE.tdHb);
-      VT_EDGE.tdHb = 0;
-      if (VT_EDGE.tdWs === ws) {
-        VT_EDGE.tdWs = null;
-        VT_EDGE.tdSubTdSym = "";
-      }
-      const cur = S && S.chart && S.chart.sym;
-      if (cur && !vtIsCryptoSym(cur) && isLive() && VT_EDGE.tdActiveSym === cur) {
-        const delay = vtNextBackoff(VT_EDGE.tdRetry++);
-        clearTimeout(VT_EDGE.tdTimer);
-        VT_EDGE.tdTimer = setTimeout(() => {
-          if (S && S.chart && S.chart.sym === cur && !vtIsCryptoSym(cur)) {
-            vtTdWsConnect(cur);
-          }
-        }, delay);
-      }
-    };
-    ws.onerror = () => {
-      try { ws.close(); } catch (_e) {}
-    };
-  } catch (_e) {}
+      vtApplyTwelveDataTick(sym, Number(d.price), Math.floor(Date.now() / 1000));
+    } catch (_e) {}
+  };
+  vtTdPoll();
+  VT_EDGE.tdHb = setInterval(vtTdPoll, 60000);
 }
 
 function vtSyncChartFeed(sym, tf) {

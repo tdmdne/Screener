@@ -74,6 +74,10 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
   2. **Loading States** (skeleton loaders / spinners during async resolution).
   3. **Error States** (actionable, human-readable error banners).
   4. **Text Truncation & Wrapping** (`text-overflow: ellipsis` or strict multi-line wrapping to prevent layout breakage).
+- **Design Inspiration Benchmarks:** Emulate industry-best design references for craft and experience:
+  - **UI Design & Speed:** Model the precision, typography, responsiveness, and dark-mode elegance after **Linear**.
+  - **Animations & Micro-interactions:** Model the buttery-smooth, purposeful transitions and feel after **Apple**.
+  - **Onboarding & Friction Reduction:** Model the streamlined, zero-bloat, direct-to-value progression after **Duolingo**.
 - **Forbidden Libraries:** Do not introduce jQuery, Bootstrap, Tailwind, React, Vue, or Angular unless explicitly requested.
 
 ---
@@ -168,7 +172,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 ### Phase 2: Authentication & Onboarding
 - [ ] **TASK-04: Implement Secure Registration Form & Validation**
   - **Target:** Sign-up modal and auth handlers
-  - **Action:** Build clean registration UI collecting strictly **Email**, **Username**, **Password**, and a mandatory **Terms & Conditions / Privacy Consent Checkbox** (explicitly disclosing AI data processing). Exclude first/last name and phone number to eliminate onboarding friction.
+  - **Action:** Build clean registration UI collecting strictly **Email**, **Username**, **Password**, and a mandatory **Terms & Conditions / Privacy Consent Checkbox** (explicitly disclosing AI data processing). Exclude first/last name and phone number to eliminate onboarding friction (following Duolingo-style frictionless entry).
   - **Done When:** Registration form accepts only these fields with mandatory T&C consent required before submission.
 
 - [ ] **TASK-05: Enforce Strict Email Sanitization & Character Validation**
@@ -195,7 +199,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 ### Phase 4: Monolith Decomposition (`index.html` → `src/`)
 - [ ] **TASK-09: Extract Inline Styles (`index.html` → `src/styles/main.css`)**
   - **Target:** ~1,000 lines of inline `<style>` in `index.html`
-  - **Action:** Move all inline CSS into `src/styles/` without altering `data-ui="phone"` responsive rules or CSS custom properties. Clean up nested card structures and enforce proper inner/outer radius mathematics.
+  - **Action:** Move all inline CSS into `src/styles/` without altering `data-ui="phone"` responsive rules or CSS custom properties. Clean up nested card structures and enforce proper inner/outer radius mathematics (Linear-inspired clean layout hierarchy).
   - **Done When:** `index.html` contains zero `<style>` blocks and mobile/desktop Playwright layout checks pass.
 
 - [ ] **TASK-10: Extract Feature Modules Out of `index.html`**

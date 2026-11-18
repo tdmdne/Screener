@@ -63,32 +63,34 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 **Prefer:** Pure functions, reusable modules, `async/await`, early returns, descriptive variable names.
 **Avoid:** Nested callbacks, duplicated code, global state, inline styles, magic numbers.
 
-**Performance Rules:**
-- Never block the UI thread.
-- Never introduce polling when WebSockets already exist.
-- Avoid DOM re-renders; batch DOM updates.
-- Avoid unnecessary allocations inside animation loops.
-
-**UI Principles:**
-- TradingView inspired, professional, dense information, no unnecessary whitespace.
-- Desktop first, mobile functional (`data-ui="phone"`).
-- No flashy animations; dark mode is primary.
-
-**Forbidden Libraries:** Do not introduce jQuery, Bootstrap, Tailwind, React, Vue, or Angular unless explicitly requested.
+**Performance & UI Polish Standards:**
+- **Never block the UI thread:** Avoid polling when WebSockets exist; batch DOM updates and avoid allocations inside animation loops.
+- **Geometry & Hierarchy:** Flatten nested cards stuck inside cards. Ensure mathematical container alignment: **Inner Corner Radius = Outer Corner Radius - Padding**.
+- **Data Display:** Enforce tabular numbers (`font-variant-numeric: tabular-nums`) across all financial tables, screeners, and chart legends. Always provide explicit loading states for asynchronous data fetches.
+- **Anti-Glitz Rule:** Kill meaningless gradients, glowing blurs, forever-looping animations, and decorative filler badges that convey no real operational status. Keep animations strictly tied to useful feedback.
+- **Forbidden Libraries:** Do not introduce jQuery, Bootstrap, Tailwind, React, Vue, or Angular unless explicitly requested.
 
 ---
 
 ## 5. DATA ROUTING & API QUOTA RULES
 - **Crypto (Direct Browser → Binance):** Route all crypto spot/perp quotes, klines, and streams directly from the client browser to `api.binance.com` / `data-api.binance.vision` and `wss://stream.binance.com:9443`. Never route crypto through Cloudflare Workers (triggers HTTP `451`/`403` blocks) or Twelve Data (burns paid credits).
 - **Symbol Normalization:** Normalize tickers prior to network calls (`BTCUSD`, `BTC/USD`, `BTC-USD` → `BTCUSDT` for Binance; standardize FX `EUR/USD` ↔ `EURUSD`).
-- **Twelve Data Credit Guardrails:**
-  - Batch multi-symbol requests via `/time_series?symbol=SYM1,SYM2...` instead of single-ticker loops.
+- **Twelve Data Credit & Rate-Limit Guardrails:**
+  - **Bulk Batch Limit:** Never exceed 8–10 symbols per single `/time_series` batch request string to prevent silent HTTP `400` truncation errors. Chunk larger watchlists into parallel arrays.
   - Enforce Cloudflare Worker Cache TTLs (`1m` bars = `15–30s`; `1h`/`1d` bars = `5–15m`).
-  - **Fallback Order:** `1. Live/Cached Twelve Data` → `2. Stale Worker/LocalStorage Cache (tag DELAYED)` → `3. Dukascopy Static / Sample Mode (tag SAMPLE)`. Never leave charts blank or throw unhandled rejections on HTTP `429`.
+  - **HTTP 429 Circuit Breaker:** When a `429` rate limit is encountered, immediately trip a 60-second circuit breaker, fall back to LocalStorage cached candles, and display a visible `RATE LIMITED — SERVING CACHE` badge without throwing unhandled promise rejections.
+  - **Fallback Order:** `1. Live/Cached Twelve Data` → `2. Stale Worker/LocalStorage Cache (tag DELAYED)` → `3. Dukascopy Static / Sample Mode (tag SAMPLE)`. Never leave charts blank.
 
 ---
 
-## 6. DEPLOYMENT, TESTING & GIT WORKFLOW
+## 6. SECURITY, PRIVACY & COMPLIANCE HARDENING
+- **Secrets & Storage Security:** Never expose API keys or credentials in client bundles. Ensure storage buckets are strictly private (never public) and all user uploads are promptly purged when deleted. Check Git history to ensure no secrets were ever leaked.
+- **Route Protection & Sanitization:** Enforce strict authentication on sensitive backend handlers, validate CORS headers, and sanitize all form inputs against XSS.
+- **Compliance Disclosures:** The platform documentation and privacy terms must explicitly state that user data is collected and processed through AI third-party integrations to prevent regulatory liability.
+
+---
+
+## 7. DEPLOYMENT, TESTING & GIT WORKFLOW
 **Deploy Targets:** Cloudflare Pages & Cloudflare Workers. Never introduce dependencies incompatible with Cloudflare Workers.
 
 **Before committing, run:**
@@ -106,7 +108,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ---
 
-## 7. AGENT WORKFLOW & UNCERTAINTY PROTOCOL
+## 8. AGENT WORKFLOW & UNCERTAINTY PROTOCOL
 **Before making changes:**
 1. Read relevant files completely.
 2. Search for existing implementations.
@@ -117,6 +119,8 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 7. Run tests.
 8. Update documentation if behavior changed.
 
+**Cross-Agent Validation:** Never rely solely on self-review; cross-verify critical security changes and data pipelines using multi-agent code checks before merging.
+
 **When uncertain:**
 - Prefer refactoring over rewriting.
 - Prefer extracting modules over modifying legacy code.
@@ -124,7 +128,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ---
 
-## 8. EXECUTABLE TASK BACKLOG
+## 9. EXECUTABLE TASK BACKLOG
 
 ### Phase 1: Backend Deduplication & Data Pipeline
 - [ ] **TASK-01: Extract Shared Catalogs & Normalizer (`shared/`)**
@@ -134,12 +138,12 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 - [ ] **TASK-02: Complete `dataService.js` Migration**
   - **Target:** `index.html`, `src/services/dataService.js`
-  - **Action:** Remove direct legacy `fetch` / WebSocket data calls inside `index.html` and route all market data requests exclusively through `dataService.js`. Ensure crypto routes directly to Binance from the browser, and equities/FX/indices route through the Worker batch proxy with TTL caching and `429` cache fallback.
+  - **Action:** Remove direct legacy `fetch` / WebSocket data calls inside `index.html` and route all market data requests exclusively through `dataService.js`. Ensure crypto routes directly to Binance from the browser, and equities/FX/indices route through the Worker batch proxy (max 8-10 symbols per request) with TTL caching and `429` circuit-breaker cache fallback.
   - **Done When:** Network tab shows zero direct Twelve Data or worker-proxied Binance calls from `index.html`; all feeds flow through `dataService.js`.
 
 - [ ] **TASK-03: Enforce Unified Data Provenance Badges**
   - **Target:** Supercharts header, Screener status bar, Watchlist quotes
-  - **Action:** Replace conflicting status labels (`"Live · auto-scan"`, `"Data just now"`, `"DELAYED"`) with a single deterministic provenance badge driven by `dataService.js` metadata: `LIVE (Binance WS)`, `REAL-TIME`, `DELAYED (15m)`, `CACHED (HH:MM)`, or `SAMPLE`.
+  - **Action:** Replace conflicting status labels with a single deterministic provenance badge driven by `dataService.js` metadata: `LIVE (Binance WS)`, `REAL-TIME`, `DELAYED (15m)`, `CACHED (HH:MM)`, or `SAMPLE`.
   - **Done When:** Simulated/sample data and delayed feeds cannot render without an explicit matching badge visible on both chart and screener views.
 
 ### Phase 2: UX & Onboarding Fixes (Solving High-Bounce & Density Issues)
@@ -150,8 +154,8 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 - [ ] **TASK-05: Trim Default Screener Columns to 6-Column Core View**
   - **Target:** Screener column configuration & preset switcher
-  - **Action:** Set the default desktop screener column preset to 6 core columns: `Symbol`, `Price`, `1D %`, `Dollar Vol`, `Vektor Tier (P1–P5)`, and `Expansion`. Move the existing 12+ column layout into a `"Power User (All Metrics)"` preset in the preset selector.
-  - **Done When:** First-time desktop load renders the 6-column view without horizontal table clutter, while switching to `"Power User"` restores all metrics.
+  - **Action:** Set the default desktop screener column preset to 6 core columns: `Symbol`, `Price`, `1D %`, `Dollar Vol`, `Vektor Tier (P1–P5)`, and `Expansion`. Ensure tabular-nums formatting on all numerical columns. Move the existing 12+ column layout into a `"Power User (All Metrics)"` preset in the preset selector.
+  - **Done When:** First-time desktop load renders the clean 6-column view without horizontal table clutter, while switching to `"Power User"` restores all metrics.
 
 - [ ] **TASK-06: Telegraph Bar-Replay Candle Window Limits**
   - **Target:** Bar-Replay / Backtest toolbar
@@ -161,7 +165,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 ### Phase 3: Monolith Decomposition (`index.html` → `src/`)
 - [ ] **TASK-07: Extract Inline Styles (`index.html` → `src/styles/main.css`)**
   - **Target:** ~1,000 lines of inline `<style>` in `index.html`
-  - **Action:** Move all inline CSS into `src/styles/` without altering `data-ui="phone"` responsive rules or CSS custom properties.
+  - **Action:** Move all inline CSS into `src/styles/` without altering `data-ui="phone"` responsive rules or CSS custom properties. Clean up nested card structures and enforce proper inner/outer radius mathematics.
   - **Done When:** `index.html` contains zero `<style>` blocks and mobile/desktop Playwright layout checks pass.
 
 - [ ] **TASK-08: Extract Feature Modules Out of `index.html`**
@@ -169,7 +173,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
   - **Action:** Incrementally extract Custom Script Interpreter, Screener Table Renderer (replacing unsafe `innerHTML`), Journal/Prop Tracker, and Bar-Replay engine into ES modules under `src/`. Update Playwright test targets from `index.html` monolith selectors to modular build entrypoints.
   - **Done When:** `index.html` acts solely as a lightweight HTML shell (<300 lines) loading modular ES bundles, and all Playwright suites pass.
 
-## 9. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
+## 10. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
 1. Confirm `scr2~*` LocalStorage keys read/write identically for both Guest and signed-in hash accounts.
 2. Verify mobile layout (`data-ui="phone"`) has zero horizontal overflow.
 3. Verify Playwright test suite passes with zero console errors or uncaught promise rejections.

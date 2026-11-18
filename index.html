@@ -6341,6 +6341,21 @@ function vtMergeBars(k, incoming) {
   return LIVE[k];
 }
 
+async function vtBnDirectCandles(s, tf, limit, beforeSec) {
+  try {
+    if (typeof bnGet !== "function" || typeof BNI === "undefined" || !BNI[tf]) return null;
+    const sym = String(s[6] || s[0] || "").toUpperCase();
+    if (!/^[A-Z0-9]{2,20}$/.test(sym)) return null;
+    let p = `/api/v3/klines?symbol=${sym}&interval=${BNI[tf]}&limit=${Math.max(10, Math.min(1000, limit || 1000))}`;
+    if (beforeSec > 0) p += `&endTime=${beforeSec * 1000 - 1}`;
+    const raw = await bnGet(p);
+    if (!Array.isArray(raw)) return null;
+    return raw.map((x) => ({ t: Math.floor(x[0] / 1000), o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] })).filter((x) => x.c > 0);
+  } catch (_e) {
+    return null;
+  }
+}
+
 async function edgeFetchCandles(s, tf, opts) {
   if (!vtCanUseEdge() || !s) return null;
   const o = opts || {};
@@ -6376,12 +6391,22 @@ async function edgeFetchCandles(s, tf, opts) {
       if (limit > 0) u += `&limit=${limit}`;
       if (replay) u += `&replay=1`;
       if (refresh) u += `&refresh=1`;
-      const r = await fetch(u);
-      if (!r.ok) {
-        if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
-        return null;
+      let j = null;
+      const crypto = vtIsCryptoSym(s);
+      // After one failed server attempt for crypto, go straight to Binance for 10 minutes.
+      if (!(crypto && !replay && VT_EDGE.bnServerDownUntil > Date.now())) {
+        try {
+          const r = await fetch(u);
+          if (r.ok) j = await r.json();
+        } catch (_e) {}
+        if (crypto && !replay && (!j || !j.ok)) VT_EDGE.bnServerDownUntil = Date.now() + 600000;
       }
-      const j = await r.json();
+      // Binance blocks some Cloudflare egress locations (HTTP 451/403), so if our server can't reach it,
+      // load crypto candles straight from Binance in the browser (public data, no key involved).
+      if (!replay && crypto && (!j || !j.ok || !Array.isArray(j.bars) || (!j.bars.length && !beforeSec))) {
+        const direct = await vtBnDirectCandles(s, tf, limit, beforeSec);
+        if (direct) j = { ok: true, bars: direct, source: "binance", hasMore: direct.length > 0 };
+      }
       if (!j || !j.ok || !Array.isArray(j.bars)) {
         if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
         return null;

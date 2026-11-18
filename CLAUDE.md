@@ -1,8 +1,9 @@
 @AGENTS.md
+@STATE.md
 
 # CLAUDE.md — Vektor Terminal (`tdmdne/Screener`)
 
-AGENTS.md (imported above) holds the full directives and the task backlog. This file adds what the repo actually contains and points out where AGENTS.md has drifted from it.
+AGENTS.md (imported above) is the short directives index and STATE.md is the current status. Task detail is in `docs/architecture/TASKS.md`; read only the task you're given (token discipline, AGENTS.md §1). **Zero Frontend Logic (AGENTS.md §0) overrides anything below that describes browser-side data logic as the target.** This file adds what the repo actually contains and points out where AGENTS.md has drifted from it.
 
 ## Stack
 - **Frontend:** vanilla JS and CSS with no framework or bundler. `index.html` (~691 KB) is the frozen legacy monolith. Extracted modules live in `src/` as numbered, load-ordered files such as `10_router.js`, `47_vs_engine.js`, `54_backtest.js`, `94_edge_client.js` and `99_stubs.js`, with a sibling `.css` file where needed.
@@ -61,7 +62,7 @@ Pages (`screener-cso.pages.dev`) also serves `functions/api/[[path]].js`. Before
 | `wrangler dev` / `deploy`, KV ids, DO migrations, cron triggers, choosing between the two configs | `wrangler` |
 | Load time of the 691 KB `index.html`, CWV, render cost in screener and heatmap | `web-perf` |
 | axe failures, focus traps, 44px targets, keyboard paths (`tests/a11y.js`, `shortcuts.js`) | `accessibility` |
-| Meta, OG, canonical, `sitemap.xml`, `robots.txt`, 404 page (AGENTS.md §7) | `seo` |
+| Meta, OG, canonical, `sitemap.xml`, `robots.txt`, 404 page (`docs/agents/STANDARDS.md` §7) | `seo` |
 | Any failing test, bad tick, feed gap or blank chart, before proposing a fix | `systematic-debugging` |
 | Any feature or bugfix, especially extractions out of `index.html` and `shared/` normalizers | `test-driven-development` |
 | Before saying something is done, committing or opening a PR: run the relevant `node tests/*.js` and show the output | `verification-before-completion` |

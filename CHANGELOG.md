@@ -7,7 +7,7 @@ Short dated log of changes to `index.html` (the whole app) and why.
   - `index.html` `<head>` now has a generated `<!-- vt:seo-start -->` block: a clearer title and meta description, canonical, Open Graph and Twitter tags, favicon / apple-touch-icon links, theme-color, and a simple WebApplication JSON-LD. There is no `og:image` yet (needs a 1200×630 image).
   - New static `robots.txt` and `sitemap.xml` so those URLs stop falling through to the HTML app. The sitemap lists only `/`.
   - Favicon files (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) use the existing VT lettermark.
-  - Public URL and SEO copy live in `site.config.js` as `https://vektorterminal.com`. Those tags only match the live site once the domain is attached in Cloudflare Pages. Then 301-redirect `screener-cso.pages.dev` to it and keep pages.dev out of search results (redirect, or noindex on that host only).
+  - Public URL and SEO copy live in `site.config.js`. `useCustomDomain` is `false` until `vektorterminal.com` is live, so canonical / OG / JSON-LD / sitemap / robots currently use `https://screener-cso.pages.dev`. Cutover is: flip the flag, run `npm run sync-seo`, attach the domain in Cloudflare Pages, and 301-redirect pages.dev to it (keep pages.dev out of search results).
 
 
 ## 2026-11-17

@@ -12,6 +12,13 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
 const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
 
+assert.strictEqual(typeof site.useCustomDomain, "boolean", "useCustomDomain must be a boolean");
+assert.match(site.customDomain, /^https:\/\/[^/\s]+$/, "customDomain must be an https origin");
+assert.match(site.pagesDevUrl, /^https:\/\/[^/\s]+$/, "pagesDevUrl must be an https origin");
+assert.doesNotMatch(site.customDomain, /\/$/, "customDomain must have no trailing slash");
+assert.doesNotMatch(site.pagesDevUrl, /\/$/, "pagesDevUrl must have no trailing slash");
+const expectedUrl = (site.useCustomDomain ? site.customDomain : site.pagesDevUrl).replace(/\/+$/, "");
+assert.equal(site.siteUrl, expectedUrl, "siteUrl must follow the useCustomDomain flag");
 assert.match(site.siteUrl, /^https:\/\//, "siteUrl must be https");
 assert.doesNotMatch(site.siteUrl, /\/$/, "siteUrl must have no trailing slash");
 assert.ok(site.title && site.description && site.name, "title, description, name required");
@@ -37,6 +44,12 @@ assert.ok(block.includes(`property="og:title"`));
 assert.ok(block.includes(`property="og:url" content="${origin}"`));
 assert.ok(block.includes(`name="twitter:card" content="summary"`));
 assert.ok(block.includes('type="application/ld+json"'));
+
+const unusedHost = new URL(site.useCustomDomain ? site.pagesDevUrl : site.customDomain).host;
+for (const [label, text] of [["robots.txt", robots], ["sitemap.xml", sitemap], ["index.html SEO block", block]]) {
+  assert.doesNotMatch(text, new RegExp(unusedHost.replace(/\./g, "\\.")), `${label} must not contain the unused host ${unusedHost}`);
+}
+assert.ok(block.includes(`"url":"${origin}"`) || block.includes(`"url": "${origin}"`), "JSON-LD url must be the active origin");
 assert.ok(!/property="og:image"/.test(block), "do not reference an og:image until one exists");
 assert.ok((html.match(/<title>/gi) || []).length === 1, "exactly one <title> tag");
 

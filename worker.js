@@ -251,39 +251,36 @@ function corsHeaders(origin = "*") {
 }
 
 async function fetchBinanceTickers() {
-  const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
-  for (const h of hosts) {
-    try {
-      const r = await fetch(`${h}/api/v3/ticker/24hr`, {
-        cf: { cacheTtl: 30, cacheEverything: false },
+  try {
+    const r = await fetch("https://data-api.binance.vision/api/v3/ticker/24hr", {
+      cf: { cacheTtl: 30, cacheEverything: false },
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!Array.isArray(j)) return null;
+    return j
+      .filter((x) => x.symbol && x.symbol.endsWith("USDT") && !STABLE_RE.test(x.symbol) && +x.quoteVolume > 0)
+      .sort((a, b) => +b.quoteVolume - +a.quoteVolume)
+      .slice(0, 120)
+      .map((x) => {
+        const known = BY_SYM.get(x.symbol);
+        return [
+          x.symbol,
+          "CRY",
+          +x.lastPrice,
+          +x.volume,
+          1,
+          0.02,
+          x.symbol,
+          "BINANCE:" + x.symbol,
+          "bn",
+          x.symbol.replace("USDT", "/USD"),
+          known ? known.name : x.symbol.replace("USDT", "") + " / Tether",
+          "BINANCE",
+          +x.priceChangePercent || 0,
+        ];
       });
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (!Array.isArray(j)) continue;
-      return j
-        .filter((x) => x.symbol && x.symbol.endsWith("USDT") && !STABLE_RE.test(x.symbol) && +x.quoteVolume > 0)
-        .sort((a, b) => +b.quoteVolume - +a.quoteVolume)
-        .slice(0, 120)
-        .map((x) => {
-          const known = BY_SYM.get(x.symbol);
-          return [
-            x.symbol,
-            "CRY",
-            +x.lastPrice,
-            +x.volume,
-            1,
-            0.02,
-            x.symbol,
-            "BINANCE:" + x.symbol,
-            "bn",
-            x.symbol.replace("USDT", "/USD"),
-            known ? known.name : x.symbol.replace("USDT", "") + " / Tether",
-            "BINANCE",
-            +x.priceChangePercent || 0,
-          ];
-        });
-    } catch (_e) {}
-  }
+  } catch (_e) {}
   return null;
 }
 
@@ -717,36 +714,58 @@ async function fetchDukascopyCandles(rawSym, interval, opts, env, refPrice) {
   return out.length ? out : null;
 }
 
+const TD_MEM_CACHE = new Map();
+const TD_IN_FLIGHT = new Map();
+const CANDLE_IN_FLIGHT = new Map();
+const TD_CACHE_TTL_MS = 60000;
+
+function getTdKey(env) {
+  return String((env && (env.TWELVEDATA_KEY || env.TWELVE_DATA_API_KEY)) || "").trim();
+}
+
 async function fetchBinanceCandles(apiSym, interval, opts = {}) {
   const bni = BNI[interval];
-  if (!bni) return null;
-  const limit = Math.max(10, Math.min(10000, Number(opts.limit) || 250));
-  const hosts = ["https://data-api.binance.vision", "https://api.binance.com"];
   const step = STEPS[interval] || 3600;
-  let endMs = opts.to > 0 ? Number(opts.to) * 1000 : Date.now();
+  if (!bni) return null;
+  let bnSym = String(apiSym || "").trim().toUpperCase();
+  if (!bnSym.endsWith("USDT")) {
+    bnSym = bnSym.endsWith("USD") ? bnSym + "T" : bnSym + "USDT";
+  }
+  const maxLimit = opts.replay ? 10000 : 1000;
+  const limit = Math.max(10, Math.min(maxLimit, Number(opts.limit) || 1000));
+  const beforeSec = opts.before > 0 ? Math.floor(opts.before) : 0;
+  let endMs = beforeSec > 0 ? beforeSec * 1000 - 1 : (opts.to > 0 ? Number(opts.to) * 1000 : Date.now());
   const startMs = opts.from > 0 ? Number(opts.from) * 1000 : 0;
   const batches = Math.max(1, Math.min(10, Math.ceil(limit / 1000)));
   const all = [];
+  let hadUpstreamOk = false;
+  let hadUpstreamErr = false;
 
   for (let b = 0; b < batches; b++) {
     const chunkLim = Math.min(1000, limit - all.length);
     if (chunkLim <= 0) break;
     let chunk = null;
-    for (const h of hosts) {
-      try {
-        const qs = new URLSearchParams({ symbol: apiSym, interval: bni, limit: String(chunkLim) });
-        if (opts.to > 0 || b > 0) qs.set("endTime", String(Math.floor(endMs)));
-        if (startMs > 0) qs.set("startTime", String(Math.floor(startMs)));
-        const r = await fetch(`${h}/api/v3/klines?${qs}`);
-        if (!r.ok) continue;
+    try {
+      const qs = new URLSearchParams({ symbol: bnSym, interval: bni, limit: String(chunkLim) });
+      if (beforeSec > 0 || opts.to > 0 || b > 0) qs.set("endTime", String(Math.floor(endMs)));
+      if (startMs > 0) qs.set("startTime", String(Math.floor(startMs)));
+      const r = await fetch(`https://data-api.binance.vision/api/v3/klines?${qs}`);
+      if (r.ok) {
+        hadUpstreamOk = true;
         const j = await r.json();
         if (Array.isArray(j) && j.length) {
           chunk = j
-            .map((x) => ({ t: Math.floor(x[0] / 1000), o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] }))
-            .filter((x) => x.c > 0);
-          break;
+            .map((x) => {
+              const t = Math.floor(Math.floor(x[0] / 1000) / step) * step;
+              return { t, o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] };
+            })
+            .filter((x) => x.o > 0 && x.h > 0 && x.l > 0 && x.c > 0);
         }
-      } catch (_e) {}
+      } else if (r.status !== 400) {
+        hadUpstreamErr = true;
+      }
+    } catch (_e) {
+      hadUpstreamErr = true;
     }
     if (!chunk || !chunk.length) break;
     all.unshift(...chunk);
@@ -754,100 +773,98 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
     if (chunk.length < chunkLim || (startMs > 0 && endMs < startMs)) break;
   }
 
-  if (!all.length) return null;
+  if (!all.length) {
+    return beforeSec > 0 && hadUpstreamOk && !hadUpstreamErr ? [] : null;
+  }
   const uniq = new Map();
   for (const bar of all) uniq.set(bar.t, bar);
   let res = [...uniq.values()].sort((a, b) => a.t - b.t);
+  if (beforeSec > 0) res = res.filter((x) => x.t < beforeSec);
   if (opts.from > 0) res = res.filter((x) => x.t >= opts.from);
   if (opts.to > 0) res = res.filter((x) => x.t <= opts.to);
-  return res.length ? res.slice(-limit) : null;
+  if (!res.length) {
+    return beforeSec > 0 && hadUpstreamOk && !hadUpstreamErr ? [] : null;
+  }
+  return res.slice(-limit);
 }
 
 async function fetchTwelveDataCandles(tdSym, interval, apiKey, opts = {}) {
   const tdi = TDI[interval];
+  const step = STEPS[interval] || 3600;
   if (!tdi || !apiKey) return null;
-  const limit = Math.max(10, Math.min(5000, Number(opts.limit) || 250));
-  try {
-    const qs = new URLSearchParams({
-      symbol: tdSym,
-      interval: tdi,
-      outputsize: String(limit),
-      timezone: "UTC",
-      apikey: apiKey,
-    });
-    if (opts.to > 0) {
-      qs.set("end_date", new Date(opts.to * 1000).toISOString().slice(0, 19).replace("T", " "));
-    }
-    const r = await fetch(`https://api.twelvedata.com/time_series?${qs}`);
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (j.status === "error" || !Array.isArray(j.values) || !j.values.length) return null;
-    let res = j.values
-      .slice()
-      .reverse()
-      .map((v) => ({
-        t: Math.floor(
-          Date.parse(v.datetime.length > 10 ? v.datetime.replace(" ", "T") + "Z" : v.datetime + "T00:00:00Z") / 1000
-        ),
-        o: +v.open,
-        h: +v.high,
-        l: +v.low,
-        c: +v.close,
-        v: +(v.volume || 0),
-      }))
-      .filter((b) => b.c > 0);
-    if (opts.from > 0) res = res.filter((b) => b.t >= opts.from);
-    if (opts.to > 0) res = res.filter((b) => b.t <= opts.to);
-    return res.length ? res.slice(-limit) : null;
-  } catch (_e) {
-    return null;
-  }
-}
+  const limit = Math.max(10, Math.min(5000, Number(opts.limit) || 5000));
+  const beforeSec = opts.before > 0 ? Math.floor(opts.before) : 0;
+  const cacheKey = `${tdSym}|${interval}|${opts.from || 0}|${opts.to || 0}|${beforeSec}|${limit}`;
+  const memTtlMs = beforeSec > 0 ? 86400 * 1000 : TD_CACHE_TTL_MS;
 
-async function fetchYahooCandles(apiSym, interval, opts = {}) {
-  const spec = YI[interval];
-  if (!spec) return null;
-  const [iv, defaultRg] = spec;
-  const limit = Math.max(10, Math.min(5000, Number(opts.limit) || 250));
-  const rg =
-    limit > 300 && interval === "1D" ? "5y" :
-    limit > 300 && (interval === "1H" || interval === "4H") ? "2y" :
-    limit > 300 && interval !== "1m" ? "60d" :
-    defaultRg;
-  try {
-    const url =
-      opts.from > 0 && opts.to > 0
-        ? `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(apiSym)}?interval=${iv}&period1=${Math.floor(opts.from)}&period2=${Math.floor(opts.to)}`
-        : `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(apiSym)}?interval=${iv}&range=${rg}`;
-    const r = await fetch(url, { headers: { "user-agent": "VektorTerminal/1.0" } });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const res = j && j.chart && j.chart.result && j.chart.result[0];
-    if (!res || !Array.isArray(res.timestamp) || !res.indicators || !res.indicators.quote || !res.indicators.quote[0]) {
-      return null;
+  if (!opts.refresh) {
+    const memHit = TD_MEM_CACHE.get(cacheKey);
+    if (memHit && Date.now() - memHit.ts < memTtlMs) {
+      return memHit.bars;
     }
-    const q = res.indicators.quote[0];
-    const t = res.timestamp;
-    let bars = [];
-    for (let i = 0; i < t.length; i++) {
-      if (q.close[i] != null && q.open[i] != null) {
-        bars.push({
-          t: t[i],
-          o: q.open[i],
-          h: q.high[i],
-          l: q.low[i],
-          c: q.close[i],
-          v: q.volume[i] || 0,
-        });
-      }
-    }
-    if (interval === "4H") bars = aggregateCandles(bars, 14400);
-    if (opts.from > 0) bars = bars.filter((b) => b.t >= opts.from);
-    if (opts.to > 0) bars = bars.filter((b) => b.t <= opts.to);
-    return bars.length ? bars.slice(-limit) : null;
-  } catch (_e) {
-    return null;
   }
+  if (TD_IN_FLIGHT.has(cacheKey)) {
+    return TD_IN_FLIGHT.get(cacheKey);
+  }
+
+  const job = (async () => {
+    try {
+      const qs = new URLSearchParams({
+        symbol: tdSym,
+        interval: tdi,
+        outputsize: String(limit),
+        timezone: "UTC",
+        apikey: apiKey,
+      });
+      if (beforeSec > 0) {
+        qs.set("end_date", new Date((beforeSec - 1) * 1000).toISOString().slice(0, 19).replace("T", " "));
+      } else if (opts.to > 0) {
+        qs.set("end_date", new Date(opts.to * 1000).toISOString().slice(0, 19).replace("T", " "));
+      }
+      const r = await fetch(`https://api.twelvedata.com/time_series?${qs}`);
+      if (!r.ok) {
+        if (beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
+        return null;
+      }
+      const j = await r.json();
+      if (j.status === "error" || !Array.isArray(j.values) || !j.values.length) {
+        const msg = String((j && j.message) || "");
+        if (beforeSec > 0 && j && j.code !== 429 && !/credit|limit|quota|429/i.test(msg)) {
+          if (/no data|specified dates|not found|empty/i.test(msg) || !msg) return [];
+        }
+        return null;
+      }
+      const byBucket = new Map();
+      for (const v of j.values.slice().reverse()) {
+        const rawMs = Date.parse(
+          v.datetime.length > 10 ? v.datetime.replace(" ", "T") + "Z" : v.datetime + "T00:00:00Z"
+        );
+        if (!isFinite(rawMs)) continue;
+        const t = Math.floor(Math.floor(rawMs / 1000) / step) * step;
+        const o = +v.open, h = +v.high, l = +v.low, c = +v.close, vol = +(v.volume || 0);
+        if (!(o > 0 && h > 0 && l > 0 && c > 0)) continue;
+        byBucket.set(t, { t, o, h: Math.max(h, o, c), l: Math.min(l, o, c), c, v: vol });
+      }
+      let res = [...byBucket.values()].sort((a, b) => a.t - b.t);
+      if (beforeSec > 0) res = res.filter((b) => b.t < beforeSec);
+      if (opts.from > 0) res = res.filter((b) => b.t >= opts.from);
+      if (opts.to > 0) res = res.filter((b) => b.t <= opts.to);
+      if (res.length > limit) res = res.slice(-limit);
+      if (res.length) {
+        if (TD_MEM_CACHE.size > 300) TD_MEM_CACHE.clear();
+        TD_MEM_CACHE.set(cacheKey, { ts: Date.now(), bars: res });
+        return res;
+      }
+      return beforeSec > 0 ? [] : null;
+    } catch (_e) {
+      return null;
+    } finally {
+      TD_IN_FLIGHT.delete(cacheKey);
+    }
+  })();
+
+  TD_IN_FLIGHT.set(cacheKey, job);
+  return job;
 }
 
 async function handleScreener(request, env, ctx) {
@@ -904,8 +921,10 @@ async function handleCandles(request, env, ctx) {
   const apiHint = (url.searchParams.get("apiSym") || "").trim();
   const fromSec = Math.max(0, Math.floor(Number(url.searchParams.get("from")) || 0));
   const toSec = Math.max(0, Math.floor(Number(url.searchParams.get("to")) || 0));
-  const limit = Math.max(10, Math.min(5000, Math.floor(Number(url.searchParams.get("limit")) || (fromSec || toSec ? 1500 : 250))));
+  const rawBefore = Number(url.searchParams.get("before")) || 0;
+  const beforeSec = rawBefore > 0 ? Math.floor(rawBefore > 1e11 ? rawBefore / 1000 : rawBefore) : 0;
   const replay = url.searchParams.get("replay") === "1";
+  const refresh = url.searchParams.get("refresh") === "1";
 
   if (!rawSym || !STEPS[interval]) {
     return new Response(JSON.stringify({ ok: false, error: "Invalid symbol or interval" }), {
@@ -914,26 +933,41 @@ async function handleCandles(request, env, ctx) {
     });
   }
 
+  const meta = inferMeta(rawSym, mktHint, apiHint);
+  const tdKey = getTdKey(env);
+  const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT");
+  const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
+  const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
+  const limit = Math.max(10, Math.min(5000, rawLimit || defaultLimit));
+
   const nowSec = Math.floor(Date.now() / 1000);
   const step = STEPS[interval];
-  const isHistoricalWindow = (toSec > 0 && toSec < nowSec - step * 4) || (fromSec > 0 && !toSec && limit > 250);
-  const ttl = isHistoricalWindow && toSec > 0 ? HISTORICAL_KV_TTL : interval === "1m" || interval === "5m" ? 60 : 300;
-  const cache = caches.default;
-  const normUrl = `${url.origin}/api/candles?symbol=${encodeURIComponent(rawSym)}&interval=${encodeURIComponent(interval)}&from=${fromSec}&to=${toSec}&limit=${limit}&replay=${replay ? 1 : 0}`;
+  const isHistoricalChunk = beforeSec > 0;
+  const isHistoricalReplay = replay && ((toSec > 0 && toSec < nowSec - step * 4) || (fromSec > 0 && !toSec && limit > 250));
+  const ttl = isHistoricalChunk ? 86400 : isHistoricalReplay ? HISTORICAL_KV_TTL : 60;
+  const cache = typeof caches !== "undefined" && caches.default ? caches.default : null;
+  const normUrl = `${url.origin}/api/candles?symbol=${encodeURIComponent(rawSym)}&interval=${encodeURIComponent(interval)}&from=${fromSec}&to=${toSec}&before=${beforeSec}&limit=${limit}&replay=${replay ? 1 : 0}`;
   const cacheKey = new Request(normUrl, { method: "GET" });
 
-  const edgeHit = await cache.match(cacheKey);
-  if (edgeHit) {
-    const res = new Response(edgeHit.body, edgeHit);
-    res.headers.set("x-cache", "HIT-EDGE");
-    res.headers.set("server-timing", `edge;dur=${Date.now() - t0}`);
-    return res;
+  if (!refresh && cache) {
+    const edgeHit = await cache.match(cacheKey);
+    if (edgeHit) {
+      const res = new Response(edgeHit.body, edgeHit);
+      res.headers.set("x-cache", "HIT-EDGE");
+      res.headers.set("server-timing", `edge;dur=${Date.now() - t0}`);
+      return res;
+    }
   }
 
-  const kvKey = `candles:${rawSym}:${interval}:${fromSec}:${toSec}:${limit}`;
-  if (env.SCREENER_KV) {
+  const kvKey = `candles:${rawSym}:${interval}:${fromSec}:${toSec}:${beforeSec}:${limit}:${replay ? 1 : 0}`;
+  if (!refresh && env.SCREENER_KV) {
     const kvCached = await env.SCREENER_KV.get(kvKey, "json");
-    if (kvCached && Array.isArray(kvCached.bars) && kvCached.bars.length && (isHistoricalWindow || Date.now() - kvCached.ts < ttl * 1000)) {
+    if (
+      kvCached &&
+      Array.isArray(kvCached.bars) &&
+      (kvCached.bars.length || isHistoricalChunk) &&
+      (isHistoricalChunk || isHistoricalReplay || Date.now() - kvCached.ts < ttl * 1000)
+    ) {
       const res = new Response(JSON.stringify(kvCached), {
         headers: {
           "content-type": "application/json; charset=utf-8",
@@ -943,40 +977,72 @@ async function handleCandles(request, env, ctx) {
           ...corsHeaders(),
         },
       });
-      ctx.waitUntil(cache.put(cacheKey, res.clone()));
+      if (cache && ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(cache.put(cacheKey, res.clone()));
       return res;
     }
   }
 
-  const meta = inferMeta(rawSym, mktHint, apiHint);
-  const opts = { from: fromSec, to: toSec, limit, replay };
-  let bars = null;
-  let source = "simulator";
+  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh };
+  const flightKey = kvKey;
+  let resultPromise = CANDLE_IN_FLIGHT.get(flightKey);
+  if (!resultPromise) {
+    resultPromise = (async () => {
+      let bars = null;
+      let source = "none";
 
-  if (meta.pr === "bn" || meta.m === "CRY") {
-    bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
-    if (bars) source = "binance";
+      if (replay) {
+        // Offline Backtest Replay mode ONLY (Dukascopy strictly isolated here)
+        if (isCrypto) {
+          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          if (bars) source = "binance";
+        } else if (DUKASCOPY_MAP[rawSym]) {
+          bars = await fetchDukascopyCandles(rawSym, interval, opts, env, meta.p);
+          if (bars) source = "dukascopy";
+        }
+        if (!bars && !isCrypto && tdKey) {
+          bars = await fetchTwelveDataCandles(meta.td || rawSym, interval, tdKey, opts);
+          if (bars) source = "twelvedata";
+        }
+      } else {
+        // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing)
+        if (isCrypto) {
+          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          if (bars !== null) source = "binance";
+        } else if (tdKey) {
+          bars = await fetchTwelveDataCandles(meta.td || rawSym, interval, tdKey, opts);
+          if (bars !== null) source = "twelvedata";
+        }
+      }
+
+      if (bars === null && !tdKey && !isCrypto) {
+        const endAnchor = beforeSec > 0
+          ? Math.floor((beforeSec - step) / step) * step
+          : (toSec > 0 ? Math.floor(toSec / step) * step : Math.floor(nowSec / step) * step);
+        const rawSim = generateSyntheticCandles(rawSym, interval, limit, meta.p);
+        const shift = endAnchor - rawSim[rawSim.length - 1].t;
+        bars = shift !== 0 ? rawSim.map((b) => ({ ...b, t: b.t + shift })) : rawSim;
+        if (beforeSec > 0) bars = bars.filter((b) => b.t < beforeSec);
+        if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
+        if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
+        source = "simulator";
+      }
+
+      return { bars, source };
+    })().finally(() => {
+      CANDLE_IN_FLIGHT.delete(flightKey);
+    });
+    CANDLE_IN_FLIGHT.set(flightKey, resultPromise);
   }
-  if (!bars && DUKASCOPY_MAP[rawSym] && (replay || fromSec > 0 || toSec > 0 || limit > 250 || meta.m === "FX" || meta.m === "CFD")) {
-    bars = await fetchDukascopyCandles(rawSym, interval, opts, env, meta.p);
-    if (bars) source = "dukascopy";
-  }
-  if (!bars && env.TWELVEDATA_KEY) {
-    bars = await fetchTwelveDataCandles(meta.td || rawSym, interval, env.TWELVEDATA_KEY, opts);
-    if (bars) source = "twelvedata";
-  }
-  if (!bars) {
-    bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
-    if (bars) source = "yahoo";
-  }
-  if (!bars) {
-    const endAnchor = toSec > 0 ? Math.floor(toSec / step) * step : Math.floor(nowSec / step) * step;
-    const rawSim = generateSyntheticCandles(rawSym, interval, limit, meta.p);
-    const shift = endAnchor - rawSim[rawSim.length - 1].t;
-    bars = shift !== 0 ? rawSim.map((b) => ({ ...b, t: b.t + shift })) : rawSim;
-    if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
-    if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
-    source = "simulator";
+
+  const { bars, source } = await resultPromise;
+  if (bars === null || (!bars.length && !isHistoricalChunk)) {
+    return new Response(
+      JSON.stringify({ ok: false, symbol: rawSym, interval, source, error: "Upstream candle feed unavailable" }),
+      {
+        status: 502,
+        headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...corsHeaders() },
+      }
+    );
   }
 
   const payload = {
@@ -986,25 +1052,28 @@ async function handleCandles(request, env, ctx) {
     ttl,
     ts: Date.now(),
     source,
+    hasMore: isHistoricalChunk ? bars.length > 0 : true,
     bars,
   };
   const body = JSON.stringify(payload);
   const res = new Response(body, {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": `public, max-age=${ttl}, s-maxage=${ttl}`,
+      "cache-control": source === "simulator" ? "no-store" : `public, max-age=${ttl}, s-maxage=${ttl}`,
       "x-cache": "MISS",
       "server-timing": `origin;dur=${Date.now() - t0}`,
       ...corsHeaders(),
     },
   });
 
-  ctx.waitUntil(
-    Promise.all([
-      cache.put(cacheKey, res.clone()),
-      env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(60, ttl) }) : Promise.resolve(),
-    ])
-  );
+  if (source !== "simulator" && ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(
+      Promise.all([
+        cache ? cache.put(cacheKey, res.clone()) : Promise.resolve(),
+        env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(60, ttl) }) : Promise.resolve(),
+      ])
+    );
+  }
   return res;
 }
 
@@ -1250,6 +1319,17 @@ async function handleNews(request, env, ctx) {
   return res;
 }
 
+async function handleWsConfig(request, env, _ctx) {
+  const tdKey = getTdKey(env);
+  return new Response(JSON.stringify({ ok: true, tdKey }), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      ...corsHeaders(),
+    },
+  });
+}
+
 async function handleQuote(request, env, _ctx) {
   const url = new URL(request.url);
   const raw = (url.searchParams.get("symbols") || url.searchParams.get("symbol") || "").trim();
@@ -1305,7 +1385,7 @@ export class MarketRelayDO {
         type: "hello",
         relay: "MarketRelayDO",
         hibernation: true,
-        mode: this.env.TWELVEDATA_KEY ? "live+twelvedata" : "live+simulator",
+        mode: getTdKey(this.env) ? "live+twelvedata" : "live+simulator",
         ts: Date.now(),
       })
     );
@@ -1415,9 +1495,10 @@ export class MarketRelayDO {
       } catch (_e) {}
     }
 
-    if (this.env.TWELVEDATA_KEY && !this.tdWs) {
+    const tdKey = getTdKey(this.env);
+    if (tdKey && !this.tdWs) {
       try {
-        fetch(`https://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(this.env.TWELVEDATA_KEY)}`, {
+        fetch(`https://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(tdKey)}`, {
           headers: { Upgrade: "websocket" },
         })
           .then((resp) => {
@@ -1425,7 +1506,6 @@ export class MarketRelayDO {
             if (!ws) return;
             ws.accept();
             this.tdWs = ws;
-            ws.send(JSON.stringify({ action: "subscribe", params: { symbols: "EUR/USD,GBP/USD,USD/JPY,AAPL,NVDA,QQQ,SPY" } }));
             ws.addEventListener("message", (ev) => {
               try {
                 const d = JSON.parse(ev.data);
@@ -1480,7 +1560,7 @@ export class MarketRelayDO {
     const ticks = [];
     for (const item of BASE_INSTRUMENTS) {
       if (item.m === "CRY" && !bnSilent) continue;
-      if (this.env.TWELVEDATA_KEY && (item.m === "FX" || item.m === "STK" || item.m === "ETF") && this.tdWs) continue;
+      if (getTdKey(this.env) && (item.m === "FX" || item.m === "STK" || item.m === "ETF") && this.tdWs) continue;
       const prev = this.prices.get(item.s) || item.p;
       const stepPct = (Math.random() - 0.5) * (item.vf || 0.015) * 0.08;
       const dec = prev < 10 ? 5 : prev < 100 ? 3 : 2;
@@ -1545,6 +1625,10 @@ export default {
 
     if (url.pathname === "/api/candles") {
       return handleCandles(request, env, ctx);
+    }
+
+    if (url.pathname === "/api/ws-config") {
+      return handleWsConfig(request, env, ctx);
     }
 
     if (url.pathname === "/api/quote") {

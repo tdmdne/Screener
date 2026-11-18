@@ -32,6 +32,7 @@ export async function onRequest(context) {
     newHeaders.set("access-control-allow-origin", "*");
     newHeaders.set("access-control-allow-methods", "GET, POST, OPTIONS");
     newHeaders.set("access-control-allow-headers", "Content-Type");
+    newHeaders.set("access-control-expose-headers", "x-cache, server-timing, cache-control");
     return new Response(res.body, {
       status: res.status,
       statusText: res.statusText,

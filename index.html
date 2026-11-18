@@ -1288,7 +1288,7 @@ if(t==="adr"){const a=candles(s,"1D").slice(-c.n);return a.reduce((x,y)=>x+(y.h-
 if(t==="mac"){const m=ma(s,c.tf,c.ma,c.len),a=candles(s,c.tf);return(a[a.length-1].c-m)/m*100}
 return null}
 const fm=x=>x==null?"n/a":x>=1e9?(x/1e9).toFixed(1)+"B":x>=1e6?(x/1e6).toFixed(1)+"M":(x/1e3).toFixed(0)+"K";
-const fp=p=>p.toFixed(p<5?4:p<1000?2:1);
+const fp=p=>{if(p===null||p===undefined||p==="")return"–";const n=Number(p);return isFinite(n)?n.toFixed(n<5?4:n<1000?2:1):"–"};
 function label(c){const t=c.type;
 if(t==="vol"||t==="dv")return(t==="vol"?"Volume":"Dollar vol")+(isLive()?"":" · "+c.per.toUpperCase());
 if(t==="pct")return"% change · "+c.tf;
@@ -1422,13 +1422,15 @@ function presetInfo(){modal(`<h3>Preset levels</h3><div style="line-height:1.6">
 function evcInfo(){modal(`<h3>Timeframe levels</h3><div style="line-height:1.6"><p><b>H</b> \u2013 entry timeframe 1H, validated on 1D</p><p><b>M</b> \u2013 entry timeframe 15m, validated on 1H</p><p><b>L</b> \u2013 entry timeframe 1m, validated on 15m</p><p class="mut" style="margin-top:12px">The level sets which candles the preset filters and scores are calculated on. Not investment advice.</p></div><div class="row"><span class="sp"></span><button onclick="closeM()">Close</button></div>`)}
   function applyPreset(k){S.preset=k;S.page=0;save();render()}
 function render(){
-if(isLive()){bnwsStart();setLive()}else SYMS=SAMPLE;
+try{
+if(isLive()){try{bnwsStart()}catch(e){console.error("bnwsStart error:",e)}try{setLive()}catch(e){console.error("setLive error:",e)}}else SYMS=SAMPLE;
+if(!Array.isArray(SYMS)||!SYMS.length)SYMS=SAMPLE;
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};
 
 const ss=document.getElementById("srtsel");if(ss){ss.innerHTML=`<option value="sym">Sort: Symbol</option>`+vis.map(c=>`<option value="${c.id}">Sort: ${esc(label(c))}</option>`).join("");ss.value=S.sort.id}
-const mks=document.getElementById("mkts"),mkl=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)||S.mkt===k);
-mks.innerHTML=mkl.map(k=>`<option value="${k}">${MK[k]}</option>`).join("");mks.value=S.mkt;
+const mks=document.getElementById("mkts");if(mks){const mkl=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k)||S.mkt===k);
+mks.innerHTML=mkl.map(k=>`<option value="${k}">${MK[k]}</option>`).join("");mks.value=S.mkt}
 const o=k=>`<option value="${esc(k)}" ${S.cur===k?"selected":""}>${esc(k)}</option>`;
 
 const ar=id=>S.sort.id===id?(S.sort.dir<0?VT_IC.dn:VT_IC.up):"";
@@ -1436,13 +1438,22 @@ const dirOf=id=>S.sort.id===id?(S.sort.dir<0?"desc":"asc"):"";
 let h=`<tr><th><span class="h" data-dir="${dirOf("sym")}" onclick="srt('sym')">Symbol${ar("sym")}</span></th>`;
 vis.forEach(c=>{h+=`<th><span class="h" data-dir="${dirOf(c.id)}" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">${VT_IC.gear}</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
-const R=rows(vis),pages=Math.max(1,Math.ceil(R.length/(S.rows||20)));if(S.page>=pages)S.page=0;let b="";
-const VW=typeof vtVirt==="function"?vtVirt(R.length):null; // desktop: one continuous, virtualised list (no pages)
-const PG=VW?R.slice(VW.a,VW.b):R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r.s[0]));
-PGL=(VW?R:PG).map(r=>r.s[0]);if(VW&&VW.top)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.top}px"></td></tr>`;PG.forEach(r=>{b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"});if(VW&&VW.bot)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.bot}px"></td></tr>`;
-document.getElementById("t").innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
-document.getElementById("cnt").textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";document.getElementById("pg").innerHTML=pages>1&&!VW?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>${VT_IC.chevLeft} Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ${VT_IC.chevRight}</button>`:"";
-document.getElementById("tag").textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";renderWL();renderPresets();kick()}
+let R=[];try{R=rows(vis)}catch(e){console.error("rows error:",e);R=[]}
+const pages=Math.max(1,Math.ceil(R.length/(S.rows||20)));if(S.page>=pages)S.page=0;let b="";
+let VW=null;try{VW=typeof vtVirt==="function"?vtVirt(R.length):null}catch(e){console.error("vtVirt error:",e)}
+const PG=VW?R.slice(VW.a,VW.b):R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r&&r.s&&r.s[0]).filter(Boolean));
+PGL=(VW?R:PG).map(r=>r&&r.s&&r.s[0]).filter(Boolean);if(VW&&VW.top)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.top}px"></td></tr>`;
+PG.forEach(r=>{try{if(!r||!r.s||!r.s[0])return;b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"}catch(e){console.error("row cell error:",e)}});
+if(VW&&VW.bot)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.bot}px"></td></tr>`;
+const tblEl=document.getElementById("t");if(tblEl)tblEl.innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
+const cntEl=document.getElementById("cnt");if(cntEl)cntEl.textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";
+const pgEl=document.getElementById("pg");if(pgEl)pgEl.innerHTML=pages>1&&!VW?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>${VT_IC.chevLeft} Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ${VT_IC.chevRight}</button>`:"";
+const tagEl=document.getElementById("tag");if(tagEl)tagEl.textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";
+try{renderWL()}catch(e){console.error("renderWL error:",e)}
+try{renderPresets()}catch(e){console.error("renderPresets error:",e)}
+try{kick()}catch(e){console.error("kick error:",e)}
+}catch(e){console.error("render error:",e)}
+}
 // ---------- watchlist (your own symbols, separate from the screener list and from presets) ----------
 const CUS={};
 const guessM=n=>/=X$/.test(n)?"FX":/=F$/.test(n)?"FUT":/^\^/.test(n)?"IDX":/-USD$/.test(n)?"CRY":"STK";
@@ -1549,7 +1560,7 @@ function rsiArr(a,n){const o=a.map(()=>null);let g=0,l=0;for(let i=1;i<a.length;
 if(i<=n){g+=u/n;l+=w/n}else{g=(g*(n-1)+u)/n;l=(l*(n-1)+w)/n}
 if(i>=n)o[i]=l===0?100:100-100/(1+g/l)}return o}
 function vols(s,tf){if(isLive())return candles(s,tf).map(x=>x.v||0);const a=candles(s,tf),r=rng(seed(s[0]+tf+"V"));return a.map((x,i)=>{const p=i?a[i-1].c:x.c;return(.5+r())*(1+Math.abs(x.c/p-1)/(s[5]*TS[tf]))*1000})}
-function killCharts(){[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
+function killCharts(){vtChartMeta=null;[ch,ch2].forEach(c=>{if(c)c.remove()});ch=ch2=null}
 function wcagLum(hex){const c=hex.replace("#","");const lin=x=>{const v=parseInt(x,16)/255;return v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4)};return 0.2126*lin(c.slice(0,2))+0.7152*lin(c.slice(2,4))+0.0722*lin(c.slice(4,6))}
 function wcagContrast(fg,bg){const l1=wcagLum(fg),l2=wcagLum(bg);return (Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05)}
 function contrastText(bg){const black="#131722",white="#f4f4f5";return wcagContrast(black,bg)>=wcagContrast(white,bg)?black:white}
@@ -1558,26 +1569,129 @@ const dk=h=>{const n=parseInt(String(h).slice(1),16);return((n>>16&255)*.299+(n>
 const D={bg:"#121316",tx:"#a1a1aa",gr:"#27272a"},Lt={bg:"#ffffff",tx:"#71717a",gr:"#e4e4e7"};
 return b==="dark"?D:b==="light"?Lt:b==="custom"?Object.assign({},dk(C.bgCol)?D:Lt,{bg:C.bgCol}):{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
-function openChart(sym,tf){if(typeof vtEnsureSym==="function")vtEnsureSym(sym,true);S.chart.sym=sym;if(tf)S.chart.tf=tf;save();drawChart();markSel();
-if(typeof vtWsSubscribe==="function")vtWsSubscribe(sym,S.chart.tf);
-const cs=symOf(sym);if((typeof vtCanUseEdge!=="function"||!vtCanUseEdge()||(typeof VT_EDGE!=="undefined"&&VT_EDGE.wsDown))){if(cs&&cs[8]==="bn")bnKlineStart(sym,S.chart.tf);else if(cs&&(cs[1]==="STK"||cs[1]==="ETF"))fhSubscribe(sym)}
+function openChart(sym,tf){if(typeof vtEnsureSym==="function")vtEnsureSym(sym,true);S.chart.sym=sym;if(tf)S.chart.tf=tf;save();
+const _ok=sym+"|"+S.chart.tf;if(typeof isLive==="function"&&isLive()&&typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&LIVE[_ok]&&LIVE[_ok].length&&Date.now()-(LT[_ok]||0)>60000&&typeof vtBackfillChart==="function"){if(typeof vtSetChartGap==="function")vtSetChartGap(sym,S.chart.tf,true);vtBackfillChart(sym,S.chart.tf)}
+drawChart();markSel();
+if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&typeof vtSyncChartFeed==="function"){vtSyncChartFeed(sym,S.chart.tf)}else{const cs=symOf(sym);if(cs&&cs[8]==="bn")bnKlineStart(sym,S.chart.tf);else if(cs&&(cs[1]==="STK"||cs[1]==="ETF"))fhSubscribe(sym)}
 const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
 if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
 if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
-function updateLiveBar(sym,tf){
+let vtLastPlotT={};
+function updateLiveBar(sym,tf,incomingBucket){
   if(!ch||!MS||S.chart.sym!==sym||S.chart.tf!==tf)return;
+  if(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,tf))return;
   const a=candles(symOf(sym),tf);if(!a||!a.length)return;
   const last=a[a.length-1];
-  const bar={time:last.t,open:last.o,high:last.h,low:last.l,close:last.c};
+  if(!last||!(last.c>0)||!isFinite(last.t))return;
+  const step=(typeof STEP!=="undefined"&&STEP[tf])||3600;
+  if(incomingBucket!=null&&isFinite(incomingBucket)&&(Math.floor(incomingBucket)-last.t)>step*2){
+    if(typeof vtSetChartGap==="function")vtSetChartGap(sym,tf,true);
+    if(typeof vtBackfillChart==="function")vtBackfillChart(sym,tf);
+    return;
+  }
+  const k=sym+"|"+tf;
+  if(vtLastPlotT[k]&&last.t<vtLastPlotT[k])return;
+  vtLastPlotT[k]=last.t;
+  const o=last.o!=null?last.o:last.c;
+  const bar={time:last.t,open:o,high:Math.max(last.h||o,o,last.c),low:Math.min(last.l||o,o,last.c),close:last.c};
   try{MS.update(bar)}catch(e){}
 }
-function drawChart(){killCharts();const C=S.chart,cp=document.getElementById("cp");
+let vtChartMeta=null,vtHistGuard=0;
+function vtBuildChartData(s,tf,C,d1,a){
+  const st=STEP[tf]||3600,now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
+  const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
+  const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(tf);
+  const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
+  if(C.colorPrev&&D.length>1){
+    const prevC=d1&&d1.length>1?d1[d1.length-2].c:D[0].close;
+    D.forEach(d=>{if(d.close>=prevC){d.color=C.upBody}else{d.color=C.dnBody}});
+  }
+  return{a,st,T,cl,pts,D};
+}
+function vtApplyHistoryPrepend(sym,tf,added){
+  try{
+    if(!(added>0)||!sym||!tf)return;
+    const s=symOf(sym);if(!s)return;
+    const a=candles(s,tf);if(!a||!a.length)return;
+    if(S&&S.chart&&S.chart.sym===sym&&S.chart.tf===tf&&ch&&document.getElementById("cv")){
+      if(typeof VSUI!=="undefined"&&VSUI&&VSUI.ser&&VSUI.ser.length){
+        let prevRg=null;try{prevRg=ch.timeScale().getVisibleLogicalRange()}catch(_e){}
+        const preserveRange=prevRg&&isFinite(prevRg.from)&&isFinite(prevRg.to)?{from:prevRg.from+added,to:prevRg.to+added}:null;
+        drawChart(preserveRange?{preserveRange}:undefined);
+      }else if(vtChartMeta&&vtChartMeta.sym===sym&&vtChartMeta.tf===tf&&(vtChartMeta.candleSer||MS)){
+        let prevRg=null;try{prevRg=ch.timeScale().getVisibleLogicalRange()}catch(_e){}
+        const C=S.chart,d1=candles(s,"1D"),B=vtBuildChartData(s,tf,C,d1,a);
+        vtHistGuard=1;
+        try{
+          if(vtChartMeta.overlaySer){
+            if(vtChartMeta.overlayType==="bars")vtChartMeta.overlaySer.setData(B.D);
+            else vtChartMeta.overlaySer.setData(B.D.map(x=>({time:x.time,value:x.close})));
+          }
+          if(vtChartMeta.candleSer)vtChartMeta.candleSer.setData(B.D);
+          if(vtChartMeta.prevLine){
+            const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
+            if(pc)vtChartMeta.prevLine.setData([{time:B.T(0),value:pc},{time:B.T(B.a.length-1),value:pc}]);
+          }
+          for(const item of vtChartMeta.indSeries){
+            if(item.kind==="ema")item.ser.setData(B.pts(emaArr(B.cl,item.d.len)));
+            else if(item.kind==="sma")item.ser.setData(B.pts(smaArr(B.cl,item.d.len)));
+            else if(item.kind==="bb"){
+              const m=smaArr(B.cl,item.d.len),sd=B.cl.map((_,i)=>i<item.d.len-1?null:Math.sqrt(B.cl.slice(i-item.d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/item.d.len));
+              [1,-1].forEach((g,idx)=>{if(item.sers[idx])item.sers[idx].setData(B.pts(m.map((x,i)=>x==null?null:x+g*2*sd[i])))});
+            }else if(item.kind==="vol"){
+              item.ser.setData(vols(s,tf).map((x,i)=>({time:B.T(i),value:x,color:(B.D[i].close>=B.D[i].open?C.upBody:C.dnBody)+"66"})));
+            }
+          }
+          if(vtChartMeta.rsiSer){
+            const r=C.ind.find(d=>d.t==="rsi");
+            if(r)vtChartMeta.rsiSer.setData(B.pts(rsiArr(B.cl,r.len)));
+          }
+          if(typeof G!=="undefined"&&G){G={a:B.a,st:B.st,tt:B.a.map((_,i)=>B.T(i))}}
+          if(typeof SC!=="undefined"&&SC&&SC.dw&&SC.dw.s&&SC.dw.s[0]===sym){
+            const inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(B.cl,d.len):d.t==="sma"?smaArr(B.cl,d.len):rsiArr(B.cl,d.len)}));
+            SC.dw={s,a:B.a,T:B.T,inds,vol:vols(s,tf),i:Math.min(B.a.length-1,(SC.dw.i||0)+added)};
+            if(typeof scDW==="function")scDW();
+          }
+          if(prevRg&&isFinite(prevRg.from)&&isFinite(prevRg.to)){
+            const nextRg={from:prevRg.from+added,to:prevRg.to+added};
+            if(ch&&typeof ch.timeScale==="function")ch.timeScale().setVisibleLogicalRange(nextRg);
+            if(ch2&&typeof ch2.timeScale==="function")ch2.timeScale().setVisibleLogicalRange(nextRg);
+          }
+        }catch(e){console.error("vtApplyHistoryPrepend main error:",e)}
+        finally{vtHistGuard=0}
+      }
+    }
+    if(typeof SC!=="undefined"&&SC&&SC.chB&&SC.serB&&SC.keyB===sym+"|"+tf&&document.getElementById("cvB")){
+      const B2=vtBars(s,tf);
+      if(B2){
+        let prevRgB=null;try{prevRgB=SC.chB.timeScale().getVisibleLogicalRange()}catch(_e){}
+        SC._histGuard=1;
+        try{
+          SC.serB.setData(B2.D);
+          const cl2=B2.a.map(x=>x.c),pts2=arr=>arr.map((y,i)=>y==null?null:{time:B2.T(i),value:y}).filter(Boolean);
+          if(Array.isArray(SC.indSeries)){
+            for(const it of SC.indSeries){
+              it.ser.setData(pts2(it.d.t==="ema"?emaArr(cl2,it.d.len):smaArr(cl2,it.d.len)));
+            }
+          }
+          SC.barsB=B2;
+          if(prevRgB&&isFinite(prevRgB.from)&&isFinite(prevRgB.to)){
+            SC.chB.timeScale().setVisibleLogicalRange({from:prevRgB.from+added,to:prevRgB.to+added});
+          }
+        }catch(e){console.error("vtApplyHistoryPrepend paneB error:",e)}
+        finally{SC._histGuard=0}
+      }
+    }
+  }catch(e){console.error("vtApplyHistoryPrepend error:",e);vtHistGuard=0;if(typeof SC!=="undefined"&&SC)SC._histGuard=0}
+}
+function drawChart(opts){try{const _opts=opts||{};killCharts();const C=S.chart,cp=document.getElementById("cp");if(!cp)return;
 if(!SYMS.length){cp.innerHTML=`<p class="mut vt-skel" role="status">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b id="cpx">${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
 cp.innerHTML=`<div class="cpb"><div class="row top"><button type="button" class="vt-symbtn" onclick="syOpen()" title="Search symbol (start typing or Ctrl+K)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>${esc(s[0])}</span><span class="mut" style="font-weight:500">${esc(MK[s[1]]||s[1])}</span></button>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" aria-label="Market status" style="background:none;border:none;cursor:pointer">${VT_IC.pulse}</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist" aria-label="Toggle watchlist">${wlAll().includes(s[0])?VT_IC.starOn:VT_IC.starOff}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot" aria-label="Snapshot">${VT_IC.cam}</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset chart view" aria-label="Reset chart view">${VT_IC.refresh}</button></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
-if(!window.LightweightCharts){document.getElementById("cv").innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
+const cvEl=document.getElementById("cv");if(!cvEl)return;
+if(!window.LightweightCharts){cvEl.innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
 const TZ_OFF={"ny":-5,"utc":0,"lon":0,"par":1,"ber":1,"tok":9,"sha":8,"sgp":8,"hkg":8,"syd":10,"dub":4,"mos":3,"sao":-3,"chi":-6,"den":-7,"la":-8};
 const tzOff=(C.tz&&TZ_OFF[C.tz]!=null)?TZ_OFF[C.tz]:0;
@@ -1603,96 +1717,121 @@ timeScale:{timeVisible:C.tf!=="1D",secondsVisible:false,borderVisible:true,borde
 rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:0.3,bottom:0.1}}:{}),
 leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
 watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
-if(!candles(s,C.tf)){const ek=ERR[s[0]+"|"+C.tf];if(ek&&typeof vtChartErr==="function"){vtChartErr(document.getElementById("cv"),ek);return}document.getElementById("cv").innerHTML=`<p class="mut vt-skel" role="status">Loading candles…</p>`;need(s,C.tf,true);return}
-ch=L.createChart(document.getElementById("cv"),op(true));
-const a=candles(s,C.tf),st=STEP[C.tf],now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st,cl=a.map(x=>x.c);
-const pts=arr=>arr.map((y,i)=>y==null?null:{time:T(i),value:y}).filter(Boolean);
-const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(C.tf); // forex trades 24h: open = previous close
-const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
+const rawCandles=candles(s,C.tf);
+if(!rawCandles||!rawCandles.length){const ek=ERR[s[0]+"|"+C.tf];if(ek&&typeof vtChartErr==="function"){vtChartErr(cvEl,ek);return}cvEl.innerHTML=`<p class="mut vt-skel" role="status">Loading candles…</p>`;try{need(s,C.tf,true)}catch(_e){}return}
+ch=L.createChart(cvEl,op(true));
+const a=rawCandles,{st,T,cl,pts,D}=vtBuildChartData(s,C.tf,C,d1,a);
+const meta={sym:s[0],tf:C.tf,overlaySer:null,overlayType:C.type,candleSer:null,prevLine:null,indSeries:[],rsiSer:null};
 const prec=s[2]<10?4:2,pF={type:"price",precision:prec,minMove:s[2]<10?0.0001:0.01};
 const so={priceLineVisible:C.pLine,lastValueVisible:C.pLabel,priceLineColor:C.pLineCol||"",priceFormat:pF};
-if(C.type==="line")ms(ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so))).setData(D.map(x=>({time:x.time,value:x.close})));
-else if(C.type==="area")ms(ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so))).setData(D.map(x=>({time:x.time,value:x.close})));
-else if(C.type==="bars")ms(ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so))).setData(D);
-// color bars based on previous close
-if(C.colorPrev&&D.length>1){
-  const prevC=d1&&d1.length>1?d1[d1.length-2].c:D[0].close;
-  D.forEach(d=>{if(d.close>=prevC){d.color=C.upBody}else{d.color=C.dnBody}});
-}
-const h=C.type==="hollow";ms(ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so))).setData(D);
+if(C.type==="line"){const os=ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os}
+else if(C.type==="area"){const os=ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os}
+else if(C.type==="bars"){const os=ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so));os.setData(D);ms(os);meta.overlaySer=os}
+const h=C.type==="hollow";const cser=ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(D);ms(cser);meta.candleSer=cser;
 // previous day close line
 if(C.prevClose==="line"||C.prevClose==="val"){
   const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
-  if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}])}
+  if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}]);meta.prevLine=pl}
 }
 // plus button on price scale: TradingView-style hover "+" (see vtPlusAttach), attached in vtAfterDraw
 // buy/sell buttons
-if(C.showBuySell){
+if(C.showBuySell&&cvEl.parentElement){
   const leftPad=C.scalePlace==="left"?90:8;
   const bs=document.createElement("div");bs.style.cssText=`position:absolute;top:8px;left:${leftPad}px;display:flex;gap:4px;z-index:5`;
   bs.innerHTML=`<button style="background:#f23645;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">SELL</button><button style="background:#089981;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">BUY</button>`;
-  document.getElementById("cv").parentElement.appendChild(bs);
+  cvEl.parentElement.appendChild(bs);
 }
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
-C.ind.filter(d=>!d.hidden&&d.t!=="atr").forEach(d=>{
-if(d.t==="ema")ls(d.col,d.w||2).setData(pts(emaArr(cl,d.len)));
-else if(d.t==="sma")ls(d.col,d.w||2).setData(pts(smaArr(cl,d.len)));
+C.ind.filter(d=>!d.hidden&&d.t!=="atr").forEach(d=>{try{
+if(d.t==="ema"){const sr=ls(d.col,d.w||2);sr.setData(pts(emaArr(cl,d.len)));meta.indSeries.push({d,kind:"ema",ser:sr})}
+else if(d.t==="sma"){const sr=ls(d.col,d.w||2);sr.setData(pts(smaArr(cl,d.len)));meta.indSeries.push({d,kind:"sma",ser:sr})}
 else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
-[1,-1].forEach(g=>ls(d.col,1).setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i]))))}
-else if(d.t==="vol"){const h=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});h.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});
-h.setData(vols(s,C.tf).map((x,i)=>({time:T(i),value:x,color:(D[i].close>=D[i].open?C.upBody:C.dnBody)+"66"})))}});
-if(hasR){ch2=L.createChart(document.getElementById("cv2"),op(false));const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});rs.setData(pts(rsiArr(cl,r.len)));
+const bbs=[1,-1].map(g=>{const sr=ls(d.col,1);sr.setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i])));return sr});meta.indSeries.push({d,kind:"bb",sers:bbs})}
+else if(d.t==="vol"){const vh=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});vh.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});
+vh.setData(vols(s,C.tf).map((x,i)=>({time:T(i),value:x,color:(D[i].close>=D[i].open?C.upBody:C.dnBody)+"66"})));meta.indSeries.push({d,kind:"vol",ser:vh})}}catch(e){console.error("ind error:",e)}});
+const cv2El=hasR?document.getElementById("cv2"):null;
+if(hasR&&cv2El){try{ch2=L.createChart(cv2El,op(false));const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});rs.setData(pts(rsiArr(cl,r.len)));meta.rsiSer=rs;
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
-let busy=0;const sy=(x,y)=>x.timeScale().subscribeVisibleLogicalRangeChange(rg=>{if(rg&&!busy){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}});sy(ch,ch2);sy(ch2,ch)}
-const cw=document.getElementById("cv").clientWidth,nb=cw?Math.max(60,Math.min(a.length-1,Math.round(cw/7))):110;
-ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
-ch.priceScale("right").applyOptions({autoScale:true});
-initDraw(a,T,st);
+let busy=0;const sy=(x,y)=>{try{if(!x||!y||typeof x.timeScale!=="function"||typeof y.timeScale!=="function"||!rs||!document.getElementById("cv2"))return;const xts=x.timeScale();if(!xts||typeof xts.subscribeVisibleLogicalRangeChange!=="function")return;xts.subscribeVisibleLogicalRangeChange(rg=>{try{if(rg&&!busy&&typeof y.timeScale==="function"){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}}catch(_e){busy=0}})}catch(_e){}};sy(ch,ch2);sy(ch2,ch)}catch(e){console.error("rsi pane error:",e)}}
+vtChartMeta=meta;
+const cw=cvEl.clientWidth,nb=cw?Math.max(60,Math.min(Math.max(1,a.length-1),Math.round(cw/7))):110;
+const initRange=_opts.preserveRange&&isFinite(_opts.preserveRange.from)&&isFinite(_opts.preserveRange.to)?_opts.preserveRange:{from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)};
+vtHistGuard=1;
+try{
+  if(ch&&typeof ch.timeScale==="function")ch.timeScale().setVisibleLogicalRange(initRange);
+  if(ch2&&typeof ch2.timeScale==="function")ch2.timeScale().setVisibleLogicalRange(initRange);
+}catch(e){console.error("setVisibleLogicalRange error:",e)}
+finally{vtHistGuard=0}
+try{
+  const tsMain=ch&&typeof ch.timeScale==="function"?ch.timeScale():null;
+  const cvHost=document.getElementById("cv");
+  const activeSer=meta.candleSer||MS;
+  if(tsMain&&typeof tsMain.subscribeVisibleLogicalRangeChange==="function"&&activeSer&&cvHost){
+    tsMain.subscribeVisibleLogicalRangeChange(rg=>{
+      try{
+        if(!rg||vtHistGuard)return;
+        if(!ch||!(meta.candleSer||MS)||!document.getElementById("cv"))return;
+        if(typeof vtCheckHistoryScroll==="function")vtCheckHistoryScroll(s[0],C.tf,rg);
+      }catch(_e){}
+    });
+  }
+}catch(e){console.error("subscribeVisibleLogicalRangeChange error:",e)}
+try{if(ch&&typeof ch.priceScale==="function")ch.priceScale("right").applyOptions({autoScale:true})}catch(_e){}
+vtLastPlotT[s[0]+"|"+C.tf]=D.length?D[D.length-1].time:0;
+try{initDraw(a,T,st)}catch(e){console.error("initDraw error:",e)}
 if(typeof vtAfterDraw==="function"){try{vtAfterDraw(s,a,T)}catch(e){console.error(e)}}
-if(typeof vtPrefetchAdjacent==="function")vtPrefetchAdjacent(s,C.tf);
+if(typeof vtRenderGapBadge==="function"){try{vtRenderGapBadge()}catch(e){}}
+if(typeof vtPrefetchAdjacent==="function"){try{vtPrefetchAdjacent(s,C.tf)}catch(e){}}
 // redesigned active indicator legend (floating top-left with blur and hover action buttons)
-if(C.indTitles!==false&&C.ind.length){
-  const topPos=C.showBuySell?"46px":"8px";
-  const leftPad=C.scalePlace==="left"?"72px":"8px";
-  const idv=document.createElement("div");
-  idv.id="vt_ind_legend";
-  idv.className="vt-ind-legend";
-  idv.style.cssText=`position:absolute;top:${topPos};left:${leftPad};z-index:6;background:rgba(19,23,34,0.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:4px 8px;font-size:11.5px;color:#d1d4dc;user-select:none;display:flex;flex-direction:column;gap:3px;max-width:320px;pointer-events:auto`;
-  idv.innerHTML=C.ind.map(d=>{
-    let valStr="";
-    try{
-      const vals=d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):d.t==="rsi"?rsiArr(cl,d.len):null;
-      if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv)}
-    }catch(_e){}
-    return `<div class="vt-ind-row" style="display:flex;align-items:center;gap:6px;padding:1px 4px;border-radius:4px" onmouseenter="this.querySelector('.vt-ind-acts').style.opacity='1'" onmouseleave="this.querySelector('.vt-ind-acts').style.opacity='0'"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.hidden?"#555":d.col};flex-shrink:0"></span><span style="${d.hidden?"opacity:.5":""};font-weight:500">${IND[d.t]||d.t} ${d.len||""}</span>${valStr?`<b style="margin-left:4px;font-weight:600;color:${d.col}">${valStr}</b>`:""}<span class="vt-ind-acts" style="margin-left:auto;opacity:0;transition:opacity .15s ease;display:inline-flex;align-items:center;gap:2px"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" aria-label="${d.hidden?"Show":"Hide"} ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${d.hidden?VT_IC.eyeOff:VT_IC.eyeOn}</button><button onclick="editInd('${d.id}')" title="Settings" aria-label="${IND[d.t]||d.t} settings" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${VT_IC.gear}</button><button onclick="rmInd('${d.id}')" title="Remove" aria-label="Remove ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#f23645;display:inline-flex;align-items:center">${VT_IC.x}</button></span></div>`;
-  }).join("");
-  document.getElementById("cv").parentElement.appendChild(idv);
+if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
+  try{
+    const topPos=C.showBuySell?"46px":"8px";
+    const leftPad=C.scalePlace==="left"?"72px":"8px";
+    const idv=document.createElement("div");
+    idv.id="vt_ind_legend";
+    idv.className="vt-ind-legend";
+    idv.style.cssText=`position:absolute;top:${topPos};left:${leftPad};z-index:6;background:rgba(19,23,34,0.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:4px 8px;font-size:11.5px;color:#d1d4dc;user-select:none;display:flex;flex-direction:column;gap:3px;max-width:320px;pointer-events:auto`;
+    idv.innerHTML=C.ind.map(d=>{
+      let valStr="";
+      try{
+        const vals=d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):d.t==="rsi"?rsiArr(cl,d.len):null;
+        if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv)}
+      }catch(_e){}
+      return `<div class="vt-ind-row" style="display:flex;align-items:center;gap:6px;padding:1px 4px;border-radius:4px" onmouseenter="this.querySelector('.vt-ind-acts').style.opacity='1'" onmouseleave="this.querySelector('.vt-ind-acts').style.opacity='0'"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.hidden?"#555":d.col};flex-shrink:0"></span><span style="${d.hidden?"opacity:.5":""};font-weight:500">${IND[d.t]||d.t} ${d.len||""}</span>${valStr?`<b style="margin-left:4px;font-weight:600;color:${d.col}">${valStr}</b>`:""}<span class="vt-ind-acts" style="margin-left:auto;opacity:0;transition:opacity .15s ease;display:inline-flex;align-items:center;gap:2px"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" aria-label="${d.hidden?"Show":"Hide"} ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${d.hidden?VT_IC.eyeOff:VT_IC.eyeOn}</button><button onclick="editInd('${d.id}')" title="Settings" aria-label="${IND[d.t]||d.t} settings" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${VT_IC.gear}</button><button onclick="rmInd('${d.id}')" title="Remove" aria-label="Remove ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#f23645;display:inline-flex;align-items:center">${VT_IC.x}</button></span></div>`;
+    }).join("");
+    cvEl.parentElement.appendChild(idv);
+  }catch(e){console.error("ind legend error:",e)}
 }
 // ATR display in bottom right
-if(C.ind.some(d=>d.t==="atr")){
-  const atrInd=C.ind.find(d=>d.t==="atr");
-  const atrVal=atrArr(a,atrInd.len||14);
-  const lastAtr=atrVal[atrVal.length-1];
-  if(lastAtr!=null){
-    const atrEl=document.createElement("div");
-    atrEl.style.cssText="position:absolute;bottom:80px;right:60px;background:#000;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;z-index:5;display:flex;gap:8px";
-    atrEl.innerHTML=`<span>ATR</span><b>${lastAtr.toFixed(1)}</b>`;
-    document.getElementById("cv").parentElement.appendChild(atrEl);
-  }
+if(C.ind.some(d=>d.t==="atr")&&cvEl.parentElement){
+  try{
+    const atrInd=C.ind.find(d=>d.t==="atr");
+    const atrVal=atrArr(a,atrInd.len||14);
+    const lastAtr=atrVal[atrVal.length-1];
+    if(lastAtr!=null&&isFinite(lastAtr)){
+      const atrEl=document.createElement("div");
+      atrEl.style.cssText="position:absolute;bottom:80px;right:60px;background:#000;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;z-index:5;display:flex;gap:8px";
+      atrEl.innerHTML=`<span>ATR</span><b>${lastAtr.toFixed(1)}</b>`;
+      cvEl.parentElement.appendChild(atrEl);
+    }
+  }catch(e){console.error("atr display error:",e)}
 }
 
 const tb=document.getElementById("timebar");
 if(tb){
-  const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
-  const workerCode=`self.onmessage=e=>{const{tz,fmt}=e.data;setInterval(()=>{const now=new Date();const t=now.toLocaleTimeString("en-GB",{hour12:fmt==="12",timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit"});self.postMessage(t)},1000)}`;
-  const blob=new Blob([workerCode],{type:"application/javascript"});
-  if(window.__tbw){try{window.__tbw.terminate()}catch(e){}}
-  const wurl=URL.createObjectURL(blob),worker=new Worker(wurl);URL.revokeObjectURL(wurl);window.__tbw=worker;
-  worker.onmessage=e=>{tb.textContent=e.data+" "+(C.tz||"utc").toUpperCase()};
-  worker.postMessage({tz:tzMap[C.tz]||"UTC",fmt:C.timeFmt});
-  tb.style.cursor="pointer";
-  tb.onclick=()=>{const opts=Object.keys(tzMap).map(k=>`<option value="${k}" ${k===(C.tz||"utc")?"selected":""}>${k.toUpperCase()}</option>`).join("");modal(`<h3>Timezone</h3><select id="tz_sel">${opts}</select><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="S.chart.tz=document.getElementById('tz_sel').value;save();closeM();drawChart()">Apply</button></div>`)};
+  try{
+    const tzMap={"ny":"America/New_York","utc":"UTC","lon":"Europe/London","par":"Europe/Paris","ber":"Europe/Berlin","tok":"Asia/Tokyo","sha":"Asia/Shanghai","sgp":"Asia/Singapore","hkg":"Asia/Hong_Kong","syd":"Australia/Sydney","dub":"Asia/Dubai","mos":"Europe/Moscow","sao":"America/Sao_Paulo","chi":"America/Chicago","den":"America/Denver","la":"America/Los_Angeles"};
+    const workerCode=`self.onmessage=e=>{const{tz,fmt}=e.data;setInterval(()=>{const now=new Date();const t=now.toLocaleTimeString("en-GB",{hour12:fmt==="12",timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit"});self.postMessage(t)},1000)}`;
+    const blob=new Blob([workerCode],{type:"application/javascript"});
+    if(window.__tbw){try{window.__tbw.terminate()}catch(e){}}
+    const wurl=URL.createObjectURL(blob),worker=new Worker(wurl);URL.revokeObjectURL(wurl);window.__tbw=worker;
+    worker.onmessage=e=>{tb.textContent=e.data+" "+(C.tz||"utc").toUpperCase()};
+    worker.postMessage({tz:tzMap[C.tz]||"UTC",fmt:C.timeFmt});
+    tb.style.cursor="pointer";
+    tb.onclick=()=>{const opts=Object.keys(tzMap).map(k=>`<option value="${k}" ${k===(C.tz||"utc")?"selected":""}>${k.toUpperCase()}</option>`).join("");modal(`<h3>Timezone</h3><select id="tz_sel">${opts}</select><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="S.chart.tz=document.getElementById('tz_sel').value;save();closeM();drawChart()">Apply</button></div>`)};
+  }catch(e){console.error("timebar worker error:",e)}
 }
+}catch(e){console.error("drawChart error:",e)}
 }
 // ---------- price alerts ----------
 function alertsM(prefill){
@@ -1816,17 +1955,20 @@ async function snapDownload(){document.getElementById("snapdrop").style.display=
 async function snapCopy(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>navigator.clipboard.write([new ClipboardItem({"image/png":b})]))}
 async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>{const u=URL.createObjectURL(b);window.open(u)})}
 function resetLive(){
-  if(!ch)return;
-  const a=candles(symOf(S.chart.sym),S.chart.tf);
-  if(!a||!a.length)return;
-  const cw=document.getElementById("cv").clientWidth,nb=cw?Math.round(cw/7):110;
-  ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
-  ch.priceScale("right").applyOptions({autoScale:true,scaleMargins:{top:0.3,bottom:0.1}});
+  try{
+    const cvEl=document.getElementById("cv");
+    if(!ch||!cvEl||typeof ch.timeScale!=="function")return;
+    const a=candles(symOf(S.chart.sym),S.chart.tf);
+    if(!a||!a.length)return;
+    const cw=cvEl.clientWidth,nb=cw?Math.round(cw/7):110;
+    ch.timeScale().setVisibleLogicalRange({from:a.length-Math.round(nb*0.7),to:a.length+Math.round(nb*0.3)});
+    ch.priceScale("right").applyOptions({autoScale:true,scaleMargins:{top:0.3,bottom:0.1}});
+  }catch(e){console.error("resetLive error:",e)}
 }
 function setTool(t){TOOL=t;DRAFT=null;tbRef()}
 function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
 function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}
-function tfPick(t){S.chart.tf=t;save();drawChart();const m=document.getElementById("tfm");if(m)m.style.display="none"}
+function tfPick(t){S.chart.tf=t;save();drawChart();if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&typeof vtSyncChartFeed==="function"&&S.chart.sym)vtSyncChartFeed(S.chart.sym,t);const m=document.getElementById("tfm");if(m)m.style.display="none"}
 function tfMenu(){const m=document.getElementById("tfm");if(!m)return;m.style.display=m.style.display==="block"?"none":"block"}
 function tfCustomM(){
   modal(`<h3>Add custom interval</h3><div class="row"><input type="number" id="tc_n" min="1" value="1" style="width:80px"><select id="tc_u"><option value="s">seconds</option><option value="m" selected>minutes</option><option value="H">hours</option><option value="D">days</option><option value="W">weeks</option><option value="M">months</option></select></div><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="tfCustomAdd()">Add</button></div>`);
@@ -2349,13 +2491,10 @@ const TDN=new Set();
 const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["USD/CHF","FX","FX:USDCHF"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["EUR/GBP","FX","FX:EURGBP"],["EUR/JPY","FX","FX:EURJPY"],["EUR/CHF","FX","FX:EURCHF"],["EUR/AUD","FX","FX:EURAUD"],["EUR/CAD","FX","FX:EURCAD"],["EUR/NZD","FX","FX:EURNZD"],["GBP/JPY","FX","FX:GBPJPY"],["GBP/CHF","FX","FX:GBPCHF"],["GBP/AUD","FX","FX:GBPAUD"],["GBP/CAD","FX","FX:GBPCAD"],["GBP/NZD","FX","FX:GBPNZD"],["AUD/JPY","FX","FX:AUDJPY"],["AUD/CHF","FX","FX:AUDCHF"],["AUD/CAD","FX","FX:AUDCAD"],["AUD/NZD","FX","FX:AUDNZD"],["CAD/JPY","FX","FX:CADJPY"],["CAD/CHF","FX","FX:CADCHF"],["CHF/JPY","FX","FX:CHFJPY"],["NZD/JPY","FX","FX:NZDJPY"],["NZD/CHF","FX","FX:NZDCHF"],["NZD/CAD","FX","FX:NZDCAD"],["USD/MXN","FX","FX:USDMXN"],["USD/ZAR","FX","FX:USDZAR"],["USD/TRY","FX","FX:USDTRY"],["USD/SEK","FX","FX:USDSEK"],["USD/NOK","FX","FX:USDNOK"],["USD/DKK","FX","FX:USDDKK"],["USD/PLN","FX","FX:USDPLN"],["USD/HUF","FX","FX:USDHUF"],["USD/CZK","FX","FX:USDCZK"],["USD/SGD","FX","FX:USDSGD"],["USD/HKD","FX","FX:USDHKD"],["USD/CNH","FX","FX:USDCNH"],["USD/ILS","FX","FX:USDILS"],["EUR/SEK","FX","FX:EURSEK"],["EUR/NOK","FX","FX:EURNOK"],["EUR/PLN","FX","FX:EURPLN"],["EUR/TRY","FX","FX:EURTRY"],["EUR/HUF","FX","FX:EURHUF"],["XAU/USD","CFD","OANDA:XAUUSD"],["XAG/USD","CFD","OANDA:XAGUSD"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
-const QT=[],QB=[],QY=[],bz={},YF={px:-1,fails:0,dead:0,rr:0,cool:[0,0,0]},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0},FHU={list:[],loaded:false,busy:false,err:""},PGU={list:[],loaded:false,busy:false,err:""};
-const BNH=["https://data-api.binance.vision","https://api.binance.com"];
+const QT=[],QB=[],QY=[],bz={},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0},FHU={list:[],loaded:false,busy:false,err:""},PGU={list:[],loaded:false,busy:false,err:""};
+const BNH=["https://data-api.binance.vision"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
-const PX=[u=>"https://corsproxy.io/?url="+encodeURIComponent(u),u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),u=>"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u)];
-// smaller ranges = smaller downloads; each series is still trimmed to the latest 250 candles
-const YI={"1m":["1m","5d"],"5m":["5m","1mo"],"15m":["15m","1mo"],"30m":["30m","1mo"],"1H":["60m","3mo"],"4H":["60m","6mo"],"1D":["1d","1y"],"1W":["1wk","5y"],"1M":["1mo","max"]};
 const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:n+"=F",tv:n+"1!"})),
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
@@ -2446,23 +2585,25 @@ setInterval(checkFailover,1000);
 const BNWS={ws:null,subs:new Set()};
 function bnwsConnect(){
   if(BNWS.ws)return;
-  BNWS.ws=new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr");
+  BNWS.ws=new WebSocket("wss://data-stream.binance.vision:443/ws/!ticker@arr");
   BNWS.ws.onmessage=e=>{
     try{
       markOk("ws");
       const data=JSON.parse(e.data);
       if(!Array.isArray(data))return;
       data.forEach(t=>{
-        const sym=t.s;
+        const sym=t.s,px=+t.c;
+        if(!(px>0))return;
         const k=sym+"|1m";
         if(LIVE[k]){
           const last=LIVE[k][LIVE[k].length-1];
-          if(last){last.c=+t.c;last.h=Math.max(last.h,+t.h);last.l=Math.min(last.l,+t.l)}
+          const bkt=Math.floor(Date.now()/1000/60)*60;
+          if(last&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,"1m"))&&(bkt-last.t)<=120){last.c=px;last.h=Math.max(last.h,px);last.l=Math.min(last.l,px)}
         }
         const s=SYMS.find(x=>x[0]===sym);
-        if(s)s[2]=+t.c;checkAlerts(sym,+t.c);
+        if(s)s[2]=px;checkAlerts(sym,px);
       });
-      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym)){updateLiveBar(S.chart.sym,S.chart.tf);const s=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&s&&s[2]!=null)q.textContent=fp(s[2])}
+      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym)){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(S.chart.sym,S.chart.tf,Math.floor(Date.now()/1000/st)*st);const s=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&s&&s[2]!=null&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(S.chart.sym,S.chart.tf)))q.textContent=fp(s[2])}
     }catch(err){}
   };
   BNWS.ws.onclose=()=>setTimeout(bnwsConnect,5000);
@@ -2478,20 +2619,25 @@ function bnKlineStart(sym,tf){
   if(BNKL.ws){try{BNKL.ws.close()}catch(e){}}
   BNKL.sym=sym;BNKL.tf=tf;
   const stream=sym.toLowerCase()+"@kline_"+bni;
-  BNKL.ws=new WebSocket("wss://stream.binance.com:9443/ws/"+stream);
+  BNKL.ws=new WebSocket("wss://data-stream.binance.vision:443/ws/"+stream);
   BNKL.ws.onmessage=e=>{
     try{
       const m=JSON.parse(e.data),k=m.k;if(!k)return;
       markOk("kline");
-      const key=sym+"|"+tf;
-      if(!LIVE[key])LIVE[key]=[];
-      const bar={t:Math.floor(k.t/1000),o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
-      const arr=LIVE[key],last=arr[arr.length-1];
-      if(last&&last.t===bar.t)arr[arr.length-1]=bar;
-      else if(!last||bar.t>last.t)arr.push(bar);
+      const key=sym+"|"+tf,step=(typeof STEP!=="undefined"&&STEP[tf])||3600;
+      const bar={t:Math.floor(Math.floor(k.t/1000)/step)*step,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
+      const arr=LIVE[key],last=arr&&arr.length?arr[arr.length-1]:null;
+      if(!last||(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,tf))||(bar.t-last.t)>step*2){
+        if(typeof vtSetChartGap==="function")vtSetChartGap(sym,tf,true);
+        if(typeof vtBackfillChart==="function")vtBackfillChart(sym,tf);
+        return;
+      }
+      if(last.t===bar.t)arr[arr.length-1]=bar;
+      else if(bar.t>last.t)arr.push(bar);
+      else return;
       if(arr.length>500)arr.splice(0,arr.length-500);
       const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=bar.c;checkAlerts(sym,bar.c);
-      if(S.chart.sym===sym&&S.chart.tf===tf)updateLiveBar(sym,tf);
+      if(S.chart.sym===sym&&S.chart.tf===tf)updateLiveBar(sym,tf,bar.t);
     }catch(err){}
   };
   BNKL.ws.onclose=()=>{if(BNKL.sym===sym)setTimeout(()=>bnKlineStart(sym,tf),3000)};
@@ -2510,13 +2656,13 @@ function fhWsStart(){
       m.data.forEach(t=>{
         const sym=t.s,price=+t.p,vol=+t.v||0,ts=Math.floor(t.t/1000);
         const key1=sym+"|1m";
-        if(!LIVE[key1])LIVE[key1]=[];
-        const arr=LIVE[key1],bucket=Math.floor(ts/60)*60,last=arr[arr.length-1];
-        if(last&&last.t===bucket){last.c=price;last.h=Math.max(last.h,price);last.l=Math.min(last.l,price);last.v+=vol}
-        else arr.push({t:bucket,o:price,h:price,l:price,c:price,v:vol});
-        if(arr.length>500)arr.splice(0,arr.length-500);
+        const arr=LIVE[key1],bucket=Math.floor(ts/60)*60,last=arr&&arr.length?arr[arr.length-1]:null;
+        if(last&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,"1m"))&&(bucket-last.t)<=120){
+          if(last.t===bucket){last.c=price;last.h=Math.max(last.h,price);last.l=Math.min(last.l,price);last.v+=vol}
+          else if(bucket>last.t){arr.push({t:bucket,o:price,h:price,l:price,c:price,v:vol});if(arr.length>500)arr.splice(0,arr.length-500)}
+        }
         const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=price;checkAlerts(sym,price);
-        if(S.chart.sym===sym)updateLiveBar(sym,S.chart.tf);
+        if(S.chart.sym===sym){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(sym,S.chart.tf,Math.floor(ts/st)*st)}
       });
     }catch(err){}
   };
@@ -2529,21 +2675,22 @@ function fhSubscribe(sym){
   else fhWsStart();
 }
 function bnwsStart(){if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){vtWsConnect();return}if(!BNWS.ws)bnwsConnect()}
-function setLive(){if(SNAP.ok&&SNAP.uni&&SNAP.uni.length){SYMS=SNAP.uni.map(s=>{const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s});return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
+function setLive(){try{if(SNAP.ok&&Array.isArray(SNAP.uni)&&SNAP.uni.length){SYMS=SNAP.uni.map(s=>{if(!Array.isArray(s)||!s[0])return null;const d=LIVE[s[0]+"|1D"];if(d&&d.length)s[2]=d[d.length-1].c;return s}).filter(Boolean);if(SYMS.length)return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
 const seen=new Set(),out=[];
-const add=arr=>{for(const s of arr){if(!s||seen.has(s[0]))continue;seen.add(s[0]);out.push(s)}};
+const add=arr=>{if(!Array.isArray(arr))return;for(const s of arr){if(!s||!s[0]||seen.has(s[0]))continue;seen.add(s[0]);out.push(s)}};
 add(BN.list);
 add(FHU.list);
 add(PGU.list);
 add(FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)));
 add(YFW.map(w=>mk2(w,"yf",w.td)));
 if(BN.err&&!BN.list.length)add(YCR.map(w=>mk2(w,"yf",w.td)));
-SYMS=out;}
-function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";return}
+SYMS=out.length?out:SAMPLE;}catch(e){console.error("setLive error:",e);if(!Array.isArray(SYMS)||!SYMS.length)SYMS=SAMPLE;}}
+function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";if(typeof vtRenderGapBadge==="function")vtRenderGapBadge();return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
 const fo=FAILOVER.on?"CACHED FAILOVER · ":" ";
-d.textContent=fo+(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks (Finnhub)… ":"")+(PGU.busy?"Loading stocks (Polygon)… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+")":"")+(FHU.err?" · Finnhub universe: "+FHU.err:"")+(PGU.err?" · Polygon universe: "+PGU.err:"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"")}
-function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok)){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok))return;PEND[k]=1;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}
+d.textContent=fo+(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks (Finnhub)… ":"")+(PGU.busy?"Loading stocks (Polygon)… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+")":"")+(FHU.err?" · Finnhub universe: "+FHU.err:"")+(PGU.err?" · Polygon universe: "+PGU.err:"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"");
+if(typeof vtRenderGapBadge==="function")vtRenderGapBadge()}
+function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok)){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){const isCry=typeof vtIsCryptoSym==="function"?vtIsCryptoSym(s):(s[8]==="bn"||s[1]==="CRY");const isActive=(S.chart&&S.chart.sym===s[0]&&S.chart.tf===tf)||(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.chart&&S.chart.sym===s[0]&&S.sc.tfB===tf);if(!isCry&&!isActive)return;PEND[k]=1;front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok))return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
 err=Error("HTTP "+r.status+(r.status===451?" (Binance blocks this region)":""));err.status=r.status;err.ra=+r.headers.get("Retry-After")||0;
 if(r.status===429||r.status===418)throw err}catch(e){if(e.status===429||e.status===418)throw e;err=Error("network error, page opened from "+(location.protocol==="https:"||location.protocol==="http:"?location.origin:location.protocol))}}throw err}
@@ -2551,12 +2698,9 @@ async function loadBN(){BN.busy=true;status();try{const j=await bnGet("/api/v3/t
 BN.list=j.filter(x=>x.symbol.endsWith("USDT")&&!STABLE.test(x.symbol)&&+x.quoteVolume>0).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>[x.symbol,"CRY",+x.lastPrice,+x.volume,1,.02,x.symbol,"BINANCE:"+x.symbol,"bn"]);BN.loaded=true;dirty("@bn");persistUni()}catch(e){BN.err=e.message}
 BN.busy=false;render();drawChart()}
 async function proxied(url){
-  // try direct first, then the same public proxies used for Yahoo
-  try{const r=await fetch(url);if(r.ok)return await r.json()}catch(e){}
-  for(const px of PX){
-    try{const r=await fetch(px(url));if(r.ok){const t=await r.text();try{return JSON.parse(t)}catch(e){return JSON.parse(JSON.parse(t))}}}catch(e){}
-  }
-  throw Error("Failed to fetch (CORS/proxy)");
+  const r=await fetch(url);
+  if(!r.ok)throw Error("HTTP "+r.status);
+  return await r.json();
 }
 async function loadFHU(){
   const key=S.data.fhKey;if(!key||FHU.busy||FHU.loaded)return;
@@ -2585,48 +2729,20 @@ async function loadPGU(){
 }
 async function pumpBN(){if(bz.bn)return;bz.bn=1;
 const w=async()=>{while(QB.length){
-// if Binance said "slow down" (429) or banned us briefly (418), every worker waits it out
 while(Date.now()<BN.pause)await sleep(500);
 const[s,tf,k]=QB.shift();status();
-try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=250`);
+try{const j=await bnGet(`/api/v3/klines?symbol=${s[6]}&interval=${BNI[tf]}&limit=1000`);
 LIVE[k]=j.map(x=>({t:Math.floor(x[0]/1000),o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]})).filter(x=>x.c>0);LT[k]=Date.now();dirty(k);markOk("bn")}
 catch(e){if(e.status===429||e.status===418){QB.unshift([s,tf,k]);BN.pause=Date.now()+Math.max((e.ra||0)*1000,e.status===418?120000:30000);status();continue}
-const fb=await tryFallbacks(s,tf);if(fb){LIVE[k]=fb;LT[k]=Date.now();dirty(k);markOk("fb")}else ERR[k]=s[0]+": "+(e.message||"error")}
+ERR[k]=s[0]+": "+(e.message||"error")}
 delete PEND[k];fin(s,tf);await sleep(80)}};
 await Promise.all([w(),w(),w(),w(),w()]);bz.bn=0;if(QB.length)pumpBN()}
-// Yahoo goes through three public proxies. Spread requests across all three and rest any proxy that errors,
-// instead of sending everything through one proxy until it rate-limits us.
-async function yGet(sym,tf){const[iv,rg]=YI[tf];let err;const now=Date.now(),st=YF.rr++%3;
-const order=[0,1,2].map(i=>(i+st)%3).sort((a,b)=>(YF.cool[a]>now)-(YF.cool[b]>now));
-for(const i of order){try{const r=await fetch(PX[i](`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${iv}&range=${rg}`));
-if(!r.ok){YF.cool[i]=Date.now()+(r.status===429?30000:10000);err=E("HTTP "+r.status,true);continue}
-const j=await r.json(),c=j.chart&&j.chart.result&&j.chart.result[0];
-if(j.chart&&j.chart.error)throw E(j.chart.error.description||"no data",false);
-if(!c||!c.timestamp){err=E("no data",true);continue}
-return c}catch(e){if(e.soft===false)throw e;YF.cool[i]=Date.now()+10000;err=E("proxy/network error",true)}}throw err}
-function yParse(c,tf){const q=c.indicators.quote[0],t=c.timestamp;let a=[];
-for(let i=0;i<t.length;i++)if(q.close[i]!=null&&q.open[i]!=null)a.push({t:t[i],o:q.open[i],h:q.high[i],l:q.low[i],c:q.close[i],v:q.volume[i]||0});
-if(tf==="4H"){const m=new Map();a.forEach(x=>{const b=Math.floor(x.t/14400)*14400,y=m.get(b);if(!y)m.set(b,{t:b,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v});else{y.h=Math.max(y.h,x.h);y.l=Math.min(y.l,x.l);y.c=x.c;y.v+=x.v}});a=[...m.values()]}
-return a.slice(-250)}
-// clear failed items so they get queued again (all of them, or only those whose message matches re)
 function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];render()}
-// if Yahoo looks down, stop hammering it for 90 seconds, then retry what failed
-function markDead(){if(YF.dead)return;YF.dead=1;setTimeout(()=>{YF.dead=0;YF.fails=0;retryErr(/Yahoo busy|proxy\/network|HTTP [45]\d\d/)},90000)}
-async function pumpYF(){if(bz.yf)return;bz.yf=1;
-const toTD=(s,tf,k)=>{const s2=s.slice();s2[6]=s[9];QT.push([s2,tf,k]);pumpTD()};
-const w=async()=>{while(QY.length){const[s,tf,k]=QY.shift();status();
-// the free Twelve Data plan allows ~8 requests a minute, so it is only used as a backup for what is on screen
-const tdOk=s[9]&&vtTdKey()&&(PRI.has(s[0])||S.chart.sym===s[0]);
-if(YF.dead){if(tdOk)toTD(s,tf,k);else{ERR[k]=s[0]+": Yahoo busy";delete PEND[k];fin(s,tf)}continue}
-try{const c=await yGet(s[6],tf);LIVE[k]=yParse(c,tf);LT[k]=Date.now();dirty(k);YF.fails=0;delete PEND[k];markOk("yf")}
-catch(e){if(e.soft){if(++YF.fails>=8)markDead();const fb=await tryFallbacks(s,tf);if(fb){LIVE[k]=fb;LT[k]=Date.now();dirty(k);delete PEND[k];markOk("fb");fin(s,tf);continue}if(tdOk){toTD(s,tf,k);continue}}ERR[k]=s[0]+": "+e.message;delete PEND[k]}
-fin(s,tf);await sleep(100)}};
-await Promise.all([w(),w(),w(),w(),w(),w()]);bz.yf=0;if(QY.length)pumpYF()}
 async function pumpTD(){if(bz.td)return;bz.td=1;
 while(QT.length){const[s,tf,k]=QT.shift();status();
 if(!vtTdKey()){ERR[k]=s[0]+": no Twelve Data key (add yours in Settings › Data)";delete PEND[k];continue}
 let wait=7700,again=false;
-try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=250&timezone=UTC&apikey=${encodeURIComponent(vtTdKey())}`),j=await r.json();
+try{const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s[6])}&interval=${TDI[tf]}&outputsize=5000&timezone=UTC&apikey=${encodeURIComponent(vtTdKey())}`),j=await r.json();
 if(j.status==="error"||!j.values){const m=String(j.message||"No data");
 if(j.code===429&&!/day/i.test(m)){QT.unshift([s,tf,k]);again=true;wait=61000}
 else{ERR[k]=s[0]+": "+m.slice(0,90);if(/day/i.test(m)){QT.length=0}}}
@@ -2669,7 +2785,7 @@ const want=new Set(["1D",S.chart.tf]);S.cols.filter(c=>!c.hide).forEach(c=>{if(c
 await Promise.all([...want].filter(t=>m.tfs.includes(t)).map(snapTf))}catch(e){}}
 function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{const r=await fetch(`data/c_${tf}.json?v=${SNAP.t}`);if(!r.ok)return;const j=await r.json();
 for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1;dirty(k)}}}catch(e){}})())}
-async function autoRefresh(){if(!isLive()||!READY)return;const ok=typeof edgeScreenerInit==="function"?await edgeScreenerInit():false;if(!ok)await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/Yahoo busy|proxy\/network|network error|HTTP [45]\d\d/)}
+async function autoRefresh(){if(!isLive()||!READY)return;const ok=typeof edgeScreenerInit==="function"?await edgeScreenerInit():false;if(!ok)await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/network error|HTTP [45]\d\d/)}
 function pgGo(d){S.page+=d;save();render()}
 // Two-stage loading:
 //  1) daily candles for everything (gives price, volume and dollar volume)
@@ -2706,7 +2822,7 @@ function favApply(){
   }
   save();closeM();renderWL();
 }
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Everything loads automatically: crypto from Binance, forex and metals from Yahoo (Twelve Data as backup if you add your own key below), futures, indices, ETFs and US stocks from Yahoo through a public proxy. Daily and longer forex candles are saved for 6 hours.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key (your own)<input id="d_k" value="${esc(VT_TDK.mem||((typeof vtTdCanStore==="function"&&vtTdCanStore()&&localStorage.getItem(vtTdKeyName()))||""))}" placeholder="optional · twelvedata.com" autocomplete="off" spellcheck="false" aria-describedby="d_kn"></label><p class="mut" id="d_kn">${vtTdKeyNote()}</p>
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Single-source chart routing: Crypto loads exclusively from Binance Spot (REST &amp; WebSocket); Forex, Stocks, Indices, ETFs and Futures load via the backend edge router from Twelve Data (60s edge cache + single-symbol WebSocket stream). Dukascopy historical archives are isolated strictly to offline Backtest Replay.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p><label>Twelve Data key (your own)<input id="d_k" value="${esc(VT_TDK.mem||((typeof vtTdCanStore==="function"&&vtTdCanStore()&&localStorage.getItem(vtTdKeyName()))||""))}" placeholder="optional · twelvedata.com" autocomplete="off" spellcheck="false" aria-describedby="d_kn"></label><p class="mut" id="d_kn">${vtTdKeyNote()}</p>
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <label class="chk"><input type="checkbox" id="d_s" ${D.mode==="sample"?"checked":""}>Offline sample data instead</label><div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
@@ -2714,7 +2830,7 @@ function dataSave(){const g=i=>document.getElementById(i);vtTdKeySet(g("d_k").va
 if(S.data.fhKey){FHU.loaded=false;loadFHU()}
 if(S.data.polyKey){PGU.loaded=false;loadPGU()}
 }
-function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;YF.dead=0;YF.fails=0;YF.cool=[0,0,0];try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;if(typeof VT_CANDLE_EDGE_CACHE!=="undefined")VT_CANDLE_EDGE_CACHE.clear();if(typeof VT_EDGE!=="undefined"){if(VT_EDGE.hasMoreHistory)VT_EDGE.hasMoreHistory.clear();if(VT_EDGE.historyBackfillInFlight)VT_EDGE.historyBackfillInFlight.clear()}try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){const m=S.ui||"auto",w=innerWidth;UIM=m!=="auto"?m:w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function goHome(){go("workspace");S.chart.sym="";save();render();drawChart();toast("Home")}
@@ -2760,12 +2876,25 @@ document.addEventListener("keydown",e=>{
 let BOOTED=false;
 // the app only starts (and only fetches market data) once someone is signed in
 function boot(){if(BOOTED)return;BOOTED=true;
-if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur="";
-applyUI();routerInit();sync();render();drawChart();
-loadCache().then(()=>{READY=true;render();drawChart();return(typeof edgeScreenerInit==="function"?edgeScreenerInit().then(ok=>ok||snapInit()):snapInit())}).then(()=>{render();drawChart()});
+try{if(S.cur&&!BI[S.cur]&&!P[S.cur])S.cur=""}catch(_e){}
+for(const fn of [applyUI,routerInit,sync,render,drawChart]){try{fn()}catch(e){console.error("boot step error:",e)}}
+Promise.resolve()
+  .then(()=>loadCache())
+  .catch(e=>console.error("loadCache error:",e))
+  .then(()=>{
+    READY=true;
+    try{render()}catch(e){console.error("post-cache render error:",e)}
+    try{drawChart()}catch(e){console.error("post-cache drawChart error:",e)}
+    return Promise.resolve(typeof edgeScreenerInit==="function"?edgeScreenerInit().then(ok=>ok||snapInit()):snapInit()).catch(e=>{console.error("screener init error:",e);return false});
+  })
+  .then(()=>{
+    try{render()}catch(e){console.error("post-init render error:",e)}
+    try{drawChart()}catch(e){console.error("post-init drawChart error:",e)}
+  })
+  .catch(e=>console.error("boot async error:",e));
 // every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
-setInterval(autoRefresh,15*60*1000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}})}
+setInterval(()=>{try{autoRefresh()}catch(e){console.error("autoRefresh error:",e)}},15*60*1000);
+document.addEventListener("visibilitychange",()=>{try{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}}catch(_e){}})}
 
 /* ---- Login (UI only) ----
    authSignIn() is a PLACEHOLDER: it accepts any username/email + password and just remembers the name on this device.
@@ -2979,24 +3108,44 @@ function vtCandleOpts(s){const C=S.chart,T0="rgba(0,0,0,0)",h=C.type==="hollow",
 return{upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick,priceFormat:{type:"price",precision:prec,minMove:prec===4?0.0001:0.01}}}
 // index of the last bar whose time is <= t (binary search); -1 if t is before the first bar
 function barAt(times,t){let lo=0,hi=times.length-1;if(hi<0||t<times[0])return -1;while(lo<hi){const m=(lo+hi+1)>>1;if(times[m]<=t)lo=m;else hi=m-1}return lo}
-function scKillB(){if(SC.chB){try{SC.chB.remove()}catch(e){}}SC.chB=SC.serB=SC.barsB=null;SC.keyB="";clearTimeout(SC.retry)}
-function scPaneB(){const el=document.getElementById("sc2");if(!el)return;
+function scKillB(){if(SC.chB){try{SC.chB.remove()}catch(e){}}SC.chB=SC.serB=SC.barsB=SC.indSeries=null;SC.keyB="";clearTimeout(SC.retry)}
+function scPaneB(){try{const el=document.getElementById("sc2");if(!el)return;
 if(S.pageView!=="chart"||S.sc.panes!==2){scKillB();el.innerHTML="";return}
 const s=symOf(S.chart.sym)||SYMS[0];if(!s){el.innerHTML=`<p class="mut vt-skel" role="status">Loading markets\u2026</p>`;return}
 const tf=S.sc.tfB;
 el.innerHTML=`<div class="sc2h"><b>${esc(s[0])}</b><span class="mut">Pane 2</span><span class="tfs">${SC_TFS.map(t=>`<button class="chip ${t===tf?"on":""}" onclick="scSetTfB('${t}')">${t}</button>`).join("")}</span><span class="sp"></span><label class="chk" style="font-size:12px" title="Move the crosshair on both panes together"><input type="checkbox" ${S.sc.xsync?"checked":""} onchange="S.sc.xsync=this.checked;save()">Sync crosshair</label></div><div id="cvB"></div>`;
 scKillB();
+const cvBEl=document.getElementById("cvB");if(!cvBEl)return;
 const B=vtBars(s,tf);
-if(!B){document.getElementById("cvB").innerHTML=`<p class="mut vt-skel" role="status">Loading ${esc(tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,tf,true);SC.retry=setTimeout(scPaneB,1500);return}
+if(!B){cvBEl.innerHTML=`<p class="mut vt-skel" role="status">Loading ${esc(tf)} candles\u2026</p>`;if(isLive()&&READY)try{need(s,tf,true)}catch(_e){}SC.retry=setTimeout(scPaneB,1500);return}
 if(!window.LightweightCharts)return;
-const c=LightweightCharts.createChart(document.getElementById("cvB"),vtChartOpts(tf));
+const c=LightweightCharts.createChart(cvBEl,vtChartOpts(tf));
 const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
 const cl=B.a.map(x=>x.c),pts=arr=>arr.map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean);
-S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts(d.t==="ema"?emaArr(cl,d.len):smaArr(cl,d.len)))});
-const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8});
-SC.chB=c;SC.serB=ser;SC.barsB=B;SC.keyB=s[0]+"|"+tf;vtPlusAttach(c,ser,document.getElementById("cvB"),()=>S.chart.sym);vtAlertAttach(c,ser,document.getElementById("cvB"),()=>S.chart.sym);vtTouchChart(c);
-c.subscribeCrosshairMove(p=>{if(SC.lock||!S.sc.xsync||!ch||!MS||!G)return;SC.lock=1;try{
-  if(!p||p.time==null){ch.clearCrosshairPosition()}else{const i=barAt(G.tt,p.time),bar=p.seriesData&&p.seriesData.get(ser);if(i>=0&&bar)ch.setCrosshairPosition(bar.close,G.tt[i],MS)}}catch(e){}SC.lock=0});
+const indSeriesB=[];
+S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{try{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts(d.t==="ema"?emaArr(cl,d.len):smaArr(cl,d.len)));indSeriesB.push({d,ser:l})}catch(_e){}});
+const n=B.D.length;SC._histGuard=1;try{if(c&&typeof c.timeScale==="function")c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8})}catch(_e){}finally{SC._histGuard=0}
+SC.chB=c;SC.serB=ser;SC.barsB=B;SC.indSeries=indSeriesB;SC.keyB=s[0]+"|"+tf;
+try{vtPlusAttach(c,ser,cvBEl,()=>S.chart.sym);vtAlertAttach(c,ser,cvBEl,()=>S.chart.sym);vtTouchChart(c)}catch(_e){}
+if(typeof vtRenderGapBadge==="function")try{vtRenderGapBadge()}catch(_e){}
+try{
+  const tsB=c&&typeof c.timeScale==="function"?c.timeScale():null;
+  const cvBHost=document.getElementById("cvB");
+  if(tsB&&typeof tsB.subscribeVisibleLogicalRangeChange==="function"&&ser&&cvBHost){
+    tsB.subscribeVisibleLogicalRangeChange(rg=>{
+      try{
+        if(!rg||SC._histGuard)return;
+        if(!SC||!SC.chB||!SC.serB||!document.getElementById("cvB"))return;
+        if(typeof vtCheckHistoryScroll==="function")vtCheckHistoryScroll(s[0],tf,rg);
+      }catch(_e){}
+    });
+  }
+}catch(e){console.error("scPaneB range subscription error:",e)}
+try{
+  c.subscribeCrosshairMove(p=>{if(SC.lock||!S.sc.xsync||!ch||!MS||!G)return;SC.lock=1;try{
+    if(!p||p.time==null){ch.clearCrosshairPosition()}else{const i=barAt(G.tt,p.time),bar=p.seriesData&&p.seriesData.get(ser);if(i>=0&&bar)ch.setCrosshairPosition(bar.close,G.tt[i],MS)}}catch(e){}SC.lock=0});
+}catch(_e){}
+}catch(e){console.error("scPaneB error:",e)}
 }
 function scSetTfB(t){S.sc.tfB=t;save();scPaneB()}
 function scSetPanes(n){S.sc.panes=n;save();scApplyAttr();scDock();scPaneB()}
@@ -3465,7 +3614,7 @@ const cl=B.a.map(x=>x.c);S.chart.ind.filter(x=>!x.hidden&&(x.t==="ema"||x.t==="s
 const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-90),to:n+4});SX.ch=c}
 function sxClose(){const d=document.getElementById("sxd");if(d)d.classList.remove("open");clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}sxSel()}
 // hook render/openChart without changing them: Screener Pro only adds to what they already do
-const _vtRender=render;render=function(){_vtRender.apply(this,arguments);if(S.pageView==="screener"){sxBar();sxAugment();sxSel()}};
+const _vtRender=render;render=function(){_vtRender.apply(this,arguments);try{if(S.pageView==="screener"){sxBar();sxAugment();sxSel()}}catch(e){console.error("screener pro render error:",e)}};
 const _vtOpenChart=openChart;openChart=function(sym,tf){_vtOpenChart.apply(this,arguments);if(S.pageView==="screener")sxDrawer(sym)};
 document.addEventListener("click",e=>{if(S.pageView!=="screener")return;const tr=e.target.closest&&e.target.closest("#t tbody tr[data-s]");if(!tr||e.target.closest("td.sy,button,a,input,select"))return;openChart(tr.dataset.s)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelector("#sxd.open")&&!MD.innerHTML)sxClose()});
@@ -4657,11 +4806,17 @@ function calNum(v){const s=String(v||"").replace(/,/g,"").trim();const m=/^([+-]
   let x=parseFloat(m[1]);if(!isFinite(x))return null;const u=(m[2]||"").toUpperCase();if(u==="K")x*=1e3;else if(u==="M")x*=1e6;else if(u==="B")x*=1e9;else if(u==="T")x*=1e12;return x}
 function calActCls(e){if(!e.act||!e.fc)return"";const a=calNum(e.act),f=calNum(e.fc);if(a==null||f==null)return"act-flat";if(Math.abs(a-f)<1e-9)return"act-flat";
   const inv=/unemployment|claimant|jobless|deficit/i.test(e.title);const better=inv?(a<f):(a>f);return better?"act-beat":"act-miss"}
-async function calFetchJSON(u,ms){const routes=[u,...(typeof PX!=="undefined"?PX:[]).map(f=>f(u))];let last="";
-  for(const r of routes){const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||10000);
-    try{const res=await fetch(r,{signal:ac.signal,cache:"no-store",credentials:"omit",referrerPolicy:"no-referrer"});if(!res.ok){last="HTTP "+res.status;continue}
-      const txt=await res.text();clearTimeout(t);return{txt,via:r===u?"direct":new URL(r).host}}
-    catch(e){last=e.name==="AbortError"?"timed out":"blocked or offline"}finally{clearTimeout(t)}}throw new Error(last||"unavailable")}
+async function calFetchJSON(u,ms){
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||10000);
+  try{
+    const res=await fetch(u,{signal:ac.signal,cache:"no-store",credentials:"omit",referrerPolicy:"no-referrer"});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const txt=await res.text();
+    return{txt,via:"direct"};
+  }catch(e){
+    throw new Error(e.name==="AbortError"?"timed out":"unavailable");
+  }finally{clearTimeout(t)}
+}
 function calParse(txt){let j;try{j=JSON.parse(txt)}catch(e){throw new Error("the feed wasn\u2019t valid JSON")}if(!Array.isArray(j))throw new Error("unexpected feed format");
   const out=[];for(const e of j){if(!e||typeof e.title!=="string"||typeof e.date!=="string")continue;const t=Date.parse(e.date);if(!isFinite(t))continue;
     const hasTime=/T\d{2}:\d{2}/.test(e.date)&&!(e.time&&/all\s*day|tentative/i.test(String(e.time)))&&e.impact!=="Holiday";
@@ -4809,14 +4964,21 @@ function btFindStartIdx(D,isoStr){
   if(idx<0)idx=n-1;
   return Math.max(Math.min(n,2),idx+1);
 }
-async function btFetchIfNeeded(sym,tf){
+async function btFetchIfNeeded(sym,tf,fromSec,toSec){
   const s=symOf(sym);
   if(!s)return null;
+  const k=s[0]+"|"+tf;
   let D=vtBars(s,tf);
-  if(D&&D.a.length>=25)return D;
-  if(typeof isLive==="function"&&isLive()){
+  const needMore=!D||D.a.length<250||(fromSec&&D.a[0]&&fromSec<D.a[0].t);
+  if(needMore&&typeof isLive==="function"&&isLive()){
     if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&typeof edgeFetchCandles==="function"){
-      try{await edgeFetchCandles(s,tf)}catch(e){}
+      try{
+        const bars=await edgeFetchCandles(s,tf,{limit:1500,replay:true,from:fromSec,to:toSec});
+        if(bars&&bars.length){
+          if(typeof vtMergeBars==="function")vtMergeBars(k,bars);
+          else{LIVE[k]=bars;LT[k]=Date.now();dirty(k)}
+        }
+      }catch(e){}
       D=vtBars(s,tf);
       if(D&&D.a.length>=25)return D;
     }
@@ -5135,9 +5297,12 @@ async function btReplayInit(resetSession){
   const s=symOf(B.sym);
   if(!s){if(er)er.textContent="Unknown symbol \u201c"+B.sym+"\u201d. Pick a ticker from the list.";host.innerHTML="";return}
   let D=btData();
-  if(!D||D.a.length<25){
+  const targetSec=B.startAt?Math.floor(Date.parse(B.startAt)/1000):0;
+  const needHist=!D||D.a.length<25||(targetSec&&D.a[0]&&targetSec<D.a[0].t);
+  if(needHist){
     host.innerHTML=`<p class="mut vt-skel">Loading ${esc(B.sym)} ${esc(B.tf)} historical candles\u2026</p>`;
-    D=await btFetchIfNeeded(B.sym,B.tf);
+    const padSec=(STEP[B.tf]||3600)*120;
+    D=await btFetchIfNeeded(B.sym,B.tf,targetSec>0?Math.max(0,targetSec-padSec):undefined);
     if(!document.getElementById("bt_cv"))return;
     if(!D||D.a.length<25){
       clearTimeout(BT.wait);
@@ -5237,7 +5402,16 @@ function btBuild(){
   const q=id=>document.getElementById(id);
   q("bt_sym").onchange=e=>{const v=e.target.value.trim().toUpperCase();if(!v)return;B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save();btStop();btReplayInit(true)};
   q("bt_tf").onchange=e=>{B.tf=e.target.value;save();btStop();btReplayInit(true)};
-  q("bt_start").onchange=e=>{B.startAt=e.target.value;save();btStop();if(BT.D){btNewSession(BT.D,B,btFindStartIdx(BT.D,B.startAt));btRefreshAll()}};
+  q("bt_start").onchange=async e=>{
+    B.startAt=e.target.value;save();btStop();
+    const sec=Math.floor(Date.parse(B.startAt)/1000);
+    if(BT.D&&isFinite(sec)&&BT.D.a.length&&sec<BT.D.a[0].t){
+      const padSec=(STEP[B.tf]||3600)*120;
+      const fetched=await btFetchIfNeeded(B.sym,B.tf,Math.max(0,sec-padSec));
+      if(fetched)BT.D=fetched;
+    }
+    if(BT.D){btNewSession(BT.D,B,btFindStartIdx(BT.D,B.startAt));btRefreshAll()}
+  };
   el.querySelectorAll("[data-qpos]").forEach(btn=>btn.onclick=()=>{
     if(!BT.D||!BT.D.a.length)return;btStop();
     const idx=Math.max(1,Math.min(BT.D.a.length,Math.round(BT.D.a.length*(+btn.dataset.qpos))));
@@ -5320,19 +5494,18 @@ const LG_STORE=`<table class="ftbl"><thead><tr><th>Where</th><th>Key / name</th>
 <tr><td>localStorage (only if you allow it and tick \u201cRemember the key\u201d)</td><td><code>vt_aikey~\u2026</code> (one per account)</td><td><b>Optional preferences:</b> the AI provider name and the API key you entered for the Journal AI review. It stays in this browser and is only ever sent to that provider. It is deleted when you untick \u201cRemember\u201d, press \u201cForget key\u201d or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it; never for guests)</td><td><code>vt_tdkey~\u2026</code> (one per account)</td><td><b>Optional preferences:</b> your own Twelve Data API key from Settings \u203a Data. It is only ever sent to Twelve Data. Without this choice the key works until you close the tab. Deleted when you clear the field or withdraw Optional preferences.</td></tr><tr><td>localStorage (only if you allow it)</td><td><code>vt_prefs</code></td><td><b>Optional preferences</b> you turn on, such as the alert sound and its volume. Only written if you allow “Optional preferences”; deleted when you withdraw that choice.</td></tr>
 <tr><td>IndexedDB (only if you allow it)</td><td>database <code>scr</code>, store <code>c</code></td><td>The optional <b>market-data cache</b>: price candles, the list of markets and a snapshot of the screener universe, so the app loads faster. It's only created after you accept it in the storage banner, and it's deleted if you withdraw consent.</td></tr></tbody></table>`;
 const LG_SOURCES=`<table class="ftbl"><thead><tr><th>Third party</th><th>Addresses contacted</th><th>Used for</th></tr></thead><tbody>
-<tr><td>Binance</td><td><code>data-api.binance.vision</code>, <code>api.binance.com</code>, WebSocket <code>stream.binance.com:9443</code></td><td>Crypto market list, candles, the live all-market ticker stream, and the live candle stream for the crypto chart you have open.</td></tr>
-<tr><td>Yahoo Finance</td><td><code>query1.finance.yahoo.com</code>, reached through public CORS proxies <code>corsproxy.io</code>, <code>api.allorigins.win</code>, <code>api.codetabs.com</code></td><td>Candles for forex, metals, futures, indices, US stocks and ETFs, and for custom watchlist tickers.</td></tr>
-<tr><td>Twelve Data</td><td><code>api.twelvedata.com</code></td><td>Backup candles for symbols on screen when Yahoo is unavailable. Only used if you enter your own key under Settings \u203a Data; the app no longer ships with a key. Requests go directly from your browser to Twelve Data.</td></tr>
-<tr><td>Finnhub (only if you add a key)</td><td><code>finnhub.io</code>, WebSocket <code>ws.finnhub.io</code></td><td>Stock candles, the US stock list and live stock trades.</td></tr>
-<tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Stock candles and the stock and ETF list.</td></tr>
-<tr><td>Forex Factory (Fair Economy)</td><td><code>nfs.faireconomy.media</code>, directly or through the public CORS proxies above</td><td>This week\u2019s economic calendar on the Calendar \u0026 News page, fetched only while that page is open.</td></tr>
-<tr><td>Yahoo Finance RSS</td><td><code>feeds.finance.yahoo.com</code>, directly or through the public CORS proxies above</td><td>Headline titles and links for the symbols you choose on the Calendar \u0026 News page. Articles open on the publisher\u2019s site.</td></tr>
+<tr><td>Binance</td><td><code>data-api.binance.vision</code>, WebSocket <code>data-stream.binance.vision:443</code></td><td>Crypto market list, historical candles via backend API, and the live kline WebSocket stream for the active crypto chart.</td></tr>
+<tr><td>Twelve Data</td><td><code>api.twelvedata.com</code> (via backend <code>/api/candles</code>), WebSocket <code>ws.twelvedata.com</code></td><td>Historical candles and single-symbol live price streaming for Forex, Stocks, Indices, ETFs, and Futures.</td></tr>
+<tr><td>Finnhub (only if you add a key)</td><td><code>finnhub.io</code>, WebSocket <code>ws.finnhub.io</code></td><td>Optional stock candles and trade stream fallback.</td></tr>
+<tr><td>Polygon.io (only if you add a key)</td><td><code>api.polygon.io</code></td><td>Optional stock candles and stock/ETF list.</td></tr>
+<tr><td>Forex Factory (Fair Economy)</td><td><code>nfs.faireconomy.media</code> (via backend <code>/api/calendar</code>)</td><td>This week\u2019s economic calendar on the Calendar \u0026 News page, fetched only while that page is open.</td></tr>
+<tr><td>Yahoo Finance RSS</td><td><code>feeds.finance.yahoo.com</code> (via backend <code>/api/news</code>)</td><td>Headline titles and links for the symbols you choose on the Calendar \u0026 News page. Articles open on the publisher\u2019s site.</td></tr>
 <tr><td>CoinGecko</td><td><code>api.coingecko.com</code></td><td>Fallback daily crypto candles.</td></tr>
 <tr><td>jsDelivr CDN</td><td><code>cdn.jsdelivr.net</code></td><td>Loads the charting library (TradingView Lightweight Charts 4.1.3) and html2canvas 1.4.1 (chart snapshots).</td></tr>
-<tr><td>TradingView (links only)</td><td><code>www.tradingview.com</code></td><td>Opens only when you click a \u201cTradingView\u201d link. Nothing is loaded from it in the background.</td></tr>
+<tr><td>Dukascopy</td><td><code>datafeed.dukascopy.com</code> (via backend replay API)</td><td>Historical OHLC candles strictly isolated to offline Backtest Replay for Forex, Metals, Indices, and Commodities.</td></tr>
 <tr><td>AI provider you choose (only if you use the Journal AI review)</td><td><code>api.openai.com</code>, <code>api.anthropic.com</code>, or the OpenAI-compatible endpoint you enter</td><td>Only when you press Send in the Journal AI review: the journal data shown on screen, sent with your own key. Never contacted otherwise.</td></tr>
 <tr><td>This website</td><td><code>data/manifest.json</code>, <code>data/c_*.json</code></td><td>An optional pre-built market data snapshot, if the site operator publishes one.</td></tr></tbody></table>
-<p><b>What each of them receives:</b> your IP address, your browser\u2019s user-agent and language, the time of the request, and the market symbols and timeframes requested. Requests go out without cookies. They also receive the API key, for Twelve Data, Finnhub and Polygon (including through the proxies, where a key is part of the address). The WebSocket services keep a connection open while the app is open. Each third party acts as an independent controller of that data under its own privacy policy. None of them is our processor, and none receives your settings, alerts, watchlist or sign-in name.</p>
+<p><b>What each of them receives:</b> your IP address, your browser\u2019s user-agent and language, the time of the request, and the market symbols and timeframes requested. Requests go out without cookies. Optional user-supplied keys are sent only to the provider they belong to. The WebSocket services keep a connection open while the app is open. Each third party acts as an independent controller of that data under its own privacy policy. None of them is our processor, and none receives your settings, alerts, watchlist or sign-in name.</p>
 <p><b>Fonts and icons:</b> no web fonts are loaded and there is no Google Fonts, so text uses your device\u2019s system fonts. Icons are inline SVG drawn for this app ${PH("confirm icon origin and licence")}.</p>
 <p><b>AI:</b> Scores, tiers, signals and the Journal\u2019s local summary come from fixed, rule-based formulas; no artificial intelligence or machine learning is used for them. The only AI feature is the optional <b>Journal AI review</b>. It is off until you use it and works only with your own API key. When you press Send, your browser sends the journal data shown on screen directly to the AI provider you choose (OpenAI, Anthropic or an OpenAI-compatible endpoint you enter). Vektor Terminal has no server in between and receives neither the data nor your key. The provider\u2019s own terms and privacy policy apply. AI replies can be wrong and are not financial advice.</p>`;
 const LEGAL={
@@ -5343,7 +5516,7 @@ terms:["Terms of Use",()=>`<h1>Terms of Use</h1>${LG_META()}
 <h2>4. Who can use it</h2><p>The Service is for people aged 18 and over. You must be allowed to use services like this where you live. We don\u2019t knowingly collect data from anyone under 18. If you think a child has used the Service, contact us and we\u2019ll delete anything we hold.</p>
 <h2>4a. Paid plans</h2><p>The Service is currently free. If a paid plan is offered, the <a href="#/legal/refunds">Refunds and Cancellation</a> terms apply.</p>
 <h2>5. Your account and sign-in</h2><p>The sign-in screen is currently a prototype. It does not check credentials against a server, and your password is neither stored nor sent anywhere. It only remembers your username or email on your device. Don\u2019t rely on it to protect your data on a shared device.</p>
-<h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. Some requests go through public proxies (see the <a href="#/legal/privacy">Privacy Policy</a>). The optional Journal AI review sends your data to the AI provider you choose with your own key, under that provider\u2019s terms and at your own cost. Its replies are generated automatically, can be wrong, and are not financial, investment or trading advice.</p>
+<h2>6. Data providers and API keys</h2><p>Market data comes from third parties (see <a href="#/legal/data">Data Sources</a>), and their own terms apply. If you enter your own API keys, you are responsible for keeping them safe and for following the provider\u2019s terms. Keys are stored in your browser and sent to the provider they belong to. The optional Journal AI review sends your data to the AI provider you choose with your own key, under that provider\u2019s terms and at your own cost. Its replies are generated automatically, can be wrong, and are not financial, investment or trading advice.</p>
 <h2>7. Acceptable use</h2><p>Don\u2019t misuse the Service. That includes trying to disrupt it, overloading data providers through it, scraping or redistributing third-party data in breach of their terms, or using it for anything unlawful.</p>
 <h2>8. Intellectual property</h2><p>The Service, its design and code belong to ${PH("Company legal name")} or its licensors. Third-party libraries are used under their own licences (see <a href="#/legal/data">Data Sources and Attributions</a>). Your own notes, journal entries and settings stay yours.</p>
 <h2>9. Availability and changes</h2><p>The Service is provided \u201cas is\u201d and \u201cas available\u201d. Features, data sources and these terms may change. We\u2019ll update the effective date when the terms change.</p>
@@ -5357,7 +5530,7 @@ privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <h2>3. Sign-in</h2><p>The sign-in screen is a prototype. When you sign in, the username or email you type is saved on your device only (key <code>scr2a</code>). The password is not stored and is not sent anywhere. Logging out deletes the saved name. If a real account system is added, this policy will be updated before it goes live.</p>
 <h2>4. What\u2019s stored on your device</h2>${LG_STORE}<p>This data never leaves your device, except API keys, which your browser sends to the provider they belong to (section 5). You can delete all of it by logging out and clearing this site\u2019s data in your browser. Data \u2192 Reload data also empties the market data cache.</p>
 <h2>5. Third parties your browser contacts</h2>${LG_SOURCES}
-<p><b>Public proxies.</b> Yahoo Finance requests, and the Finnhub and Polygon market-list requests when a direct request fails, go through the public CORS proxies listed above. The Finnhub and Polygon list requests include your API key in the address, so the proxy operator can see it. Use keys you\u2019re comfortable sharing on that basis, or leave those fields empty.</p>
+<p><b>Edge routing.</b> Market candle, screener, calendar, and news requests route through Vektor Terminal\u2019s own backend endpoints (<code>/api/*</code>), avoiding third-party public CORS proxies.</p>
 <h2>6. Website hosting</h2><p>The company or service hosting this website (${PH("Hosting provider")}) may keep standard server logs (IP address, time, page requested) for security and operation. It acts as our processor under ${PH("hosting data processing terms")}.</p>
 <h2>7. Notifications and sound</h2><p>When you add a price alert, your browser may ask permission to show notifications. Alerts are checked and shown on your device, and nothing is sent to us.</p>
 <h2>8. Lawful bases</h2><table class="ftbl"><thead><tr><th>What</th><th>Lawful basis (UK GDPR Art. 6)</th></tr></thead><tbody>
@@ -5507,6 +5680,7 @@ function vtDownload(obj,name){const b=new Blob([JSON.stringify(obj,null,2)],{typ
 // erase everything this app keeps in the browser and disconnect live feeds; the caller reloads afterwards
 async function vtWipe(){window.__vtWiped=true;save=function(){};lsSet=function(){};ssSet=function(){};clearTimeout(fl);DIRTY.clear();
 for(const o of [BNWS,BNKL,FHWS]){try{if(o.ws){o.ws.onclose=o.ws.onerror=o.ws.onmessage=o.ws.onopen=null;o.ws.close()}o.ws=null;if(o.subs)o.subs.clear()}catch(e){}}
+try{if(typeof vtStopAllFeeds==="function")vtStopAllFeeds()}catch(e){}
 try{if(window.__tbw)window.__tbw.terminate()}catch(e){}
 try{if(IDB)IDB.close()}catch(e){}IDB=null;
 try{localStorage.clear()}catch(e){}try{sessionStorage.clear()}catch(e){}
@@ -5659,18 +5833,18 @@ setInterval(()=>{try{if(typeof BOOTED==="undefined"||!BOOTED||!chartOnPage()||do
 // 4) Chart settings that were shown but did nothing now work:
 //    Scales > Buttons > Navigation (zoom/scroll/reset buttons on the chart) and Pane (buttons on the RSI pane),
 //    Status line > Volume (bar volume next to the price), Data modification > Time colour (the clock under the chart).
-function vtNavBtns(){const cv=document.getElementById("cv");if(!cv||typeof ch==="undefined"||!ch)return;const old=cv.querySelector(".vt-navb");if(old)old.remove();
+function vtNavBtns(){try{const cv=document.getElementById("cv");if(!cv||typeof ch==="undefined"||!ch||typeof ch.timeScale!=="function")return;const old=cv.querySelector(".vt-navb");if(old)old.remove();
   const mode=S.chart.navBtn||"hover";if(mode==="hide")return;const ts=ch.timeScale();
-  const zoom=f=>{const r=ts.getVisibleLogicalRange();if(!r)return;const c=r.to,w=Math.max(10,(r.to-r.from)*f);ts.setVisibleLogicalRange({from:c-w,to:c})};
-  const scroll=k=>{const r=ts.getVisibleLogicalRange();if(!r)return;const d=(r.to-r.from)*0.25*k;ts.setVisibleLogicalRange({from:r.from+d,to:r.to+d})};
+  const zoom=f=>{try{const r=ts.getVisibleLogicalRange();if(!r)return;const c=r.to,w=Math.max(10,(r.to-r.from)*f);ts.setVisibleLogicalRange({from:c-w,to:c})}catch(_e){}};
+  const scroll=k=>{try{const r=ts.getVisibleLogicalRange();if(!r)return;const d=(r.to-r.from)*0.25*k;ts.setVisibleLogicalRange({from:r.from+d,to:r.to+d})}catch(_e){}};
   const d=document.createElement("div");d.className="vt-navb"+(mode==="always"?" on":"");d.setAttribute("role","toolbar");d.setAttribute("aria-label","Chart navigation");
   [['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>',"Zoom out",()=>zoom(1.25)],
    ['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',"Zoom in",()=>zoom(0.8)],
    ['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',"Scroll left",()=>scroll(-1)],
    ['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>',"Scroll right",()=>scroll(1)],
-   ['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',"Reset chart view",()=>{ts.resetTimeScale();try{ch.priceScale("right").applyOptions({autoScale:true})}catch(e){}}]]
+   ['<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',"Reset chart view",()=>{try{ts.resetTimeScale();ch.priceScale("right").applyOptions({autoScale:true})}catch(e){}}]]
     .forEach(([ic,l,f])=>{const b=document.createElement("button");b.type="button";b.innerHTML=ic;b.title=l;b.setAttribute("aria-label",l);b.onclick=e=>{e.stopPropagation();f()};b.onpointerdown=e=>e.stopPropagation();d.append(b)});
-  cv.append(d)}
+  cv.append(d)}catch(e){console.error("vtNavBtns error:",e)}}
 function vtPaneBtns(){const p=document.getElementById("cv2");if(!p)return;const old=p.querySelector(".vt-paneb");if(old)old.remove();const mode=S.chart.paneBtn||"hover";if(mode==="hide")return;
   const r=S.chart.ind.find(x=>x.t==="rsi");if(!r)return;p.style.position=p.style.position||"relative";
   const d=document.createElement("div");d.className="vt-paneb"+(mode==="always"?" on":"");d.setAttribute("role","toolbar");d.setAttribute("aria-label","RSI pane");
@@ -5707,20 +5881,1096 @@ const r=vtVirtRange(w,VV.n);if(r.a!==VV.a||r.b!==VV.b)render()}
 // switching between phone/tablet and desktop layouts swaps pages <-> continuous list
 window.addEventListener("resize",deb(()=>{const on=vtVirtOn();if(on!==VV.was){VV.was=on;if(typeof BOOTED!=="undefined"&&BOOTED)render()}},250));
 /* No placeholder pages remain; stubPage() is kept for future pages. */
-// ---------- 94 edge client: /api/screener, /api/candles, silent timeframe prefetch, /ws ----------
-const VT_TF_ORDER=["1m","5m","15m","30m","1H","4H","1D","1W","1M"];
-const VT_PREFETCH_PEND={};
-const VT_EDGE={ok:false,ts:0,ws:null,wsRetry:0,wsDown:false};
-const VT_EDGE_META=new Map();
-function vtCanUseEdge(){return(location.protocol==="http:"||location.protocol==="https:")&&!Array.isArray(window.__WS)}
-async function edgeScreenerInit(){if(!vtCanUseEdge()||!isLive())return false;try{const r=await fetch("/api/screener");if(!r.ok)return false;const m=await r.json();if(!m||!Array.isArray(m.universe)||!m.universe.length)return false;SNAP.t=m.ts||Date.now();SNAP.tfs=m.tfs||["1D","1H"];SNAP.uni=m.universe.map(u=>{if(u[10]||u[11])VT_EDGE_META.set(u[0],{name:u[10]||u[0],ex:u[11]||"",m:u[1]||"STK",pct:u[12]});return[u[0],u[1],u[2],u[3],u[4]||1,u[5]||0.01,u[6]||u[0],u[7]||"",u[8]||"yf",u[9]||u[0]]});SNAP.ok=true;VT_EDGE.ok=true;VT_EDGE.ts=SNAP.t;dirtySnap();setLive();return true}catch(_e){return false}}
-async function edgeFetchCandles(s,tf){if(!vtCanUseEdge())return null;try{const u=`/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(s[6]||s[0])}&mkt=${encodeURIComponent(s[1]||"")}`;const r=await fetch(u);if(!r.ok)return null;const j=await r.json();if(!j||!j.ok||!Array.isArray(j.bars)||!j.bars.length)return null;return j.bars}catch(_e){return null}}
-const QE=[];let bzEdge=0;
-async function pumpEdge(){if(bzEdge)return;bzEdge=1;const w=async()=>{while(QE.length){const[s,tf,k]=QE.shift();try{const bars=await edgeFetchCandles(s,tf);if(bars&&bars.length){LIVE[k]=bars;LT[k]=Date.now();dirty(k);markOk("edge");delete PEND[k];fin(s,tf);continue}}catch(_e){}const p=s[8],q=p==="bn"?QB:p==="yf"?QY:QT;q.push([s,tf,k]);(p==="bn"?pumpBN:p==="yf"?pumpYF:pumpTD)()}};await Promise.all([w(),w(),w(),w(),w(),w()]);bzEdge=0;if(QE.length)pumpEdge()}
-function vtPrefetchAdjacent(s,tf){if(!s||!tf||!isLive()||!vtCanUseEdge())return;const idx=VT_TF_ORDER.indexOf(tf);if(idx<0)return;const adj=[VT_TF_ORDER[idx-1],VT_TF_ORDER[idx+1]].filter(Boolean);for(const atf of adj){const k=s[0]+"|"+atf;if(LIVE[k]&&Date.now()-(LT[k]||0)<ttl(k))continue;if(PEND[k]||VT_PREFETCH_PEND[k])continue;VT_PREFETCH_PEND[k]=1;setTimeout(async()=>{try{const bars=await edgeFetchCandles(s,atf);if(bars&&bars.length){LIVE[k]=bars;LT[k]=Date.now();dirty(k)}}catch(_e){}finally{delete VT_PREFETCH_PEND[k]}},120)}}
-function vtWsSubscribe(sym,tf){if(!VT_EDGE.ws||VT_EDGE.ws.readyState!==1)return;const subs=[sym,...(typeof wlAll==="function"?wlAll().slice(0,15):[])].filter(Boolean);try{VT_EDGE.ws.send(JSON.stringify({type:"subscribe",symbols:[...new Set(subs)],interval:tf||"1H"}))}catch(_e){}}
-function vtWsConnect(){if(!vtCanUseEdge()){bnwsConnect();return}if(VT_EDGE.ws&&(VT_EDGE.ws.readyState===0||VT_EDGE.ws.readyState===1))return;const proto=location.protocol==="https:"?"wss:":"ws:";try{const ws=new WebSocket(`${proto}//${location.host}/ws`);VT_EDGE.ws=ws;ws.onopen=()=>{VT_EDGE.wsRetry=0;VT_EDGE.wsDown=false;markOk("ws");if(S&&S.chart&&S.chart.sym)vtWsSubscribe(S.chart.sym,S.chart.tf)};ws.onmessage=e=>{try{const msg=JSON.parse(e.data);markOk("ws");if(msg.type==="ticks"&&Array.isArray(msg.ticks)){let chartHit=false;for(const t of msg.ticks){const sym=t.s,c=+t.c;if(!(c>0))continue;const k1=sym+"|1m";if(LIVE[k1]&&LIVE[k1].length){const last=LIVE[k1][LIVE[k1].length-1];last.c=c;if(t.h)last.h=Math.max(last.h,+t.h);if(t.l)last.l=Math.min(last.l,+t.l)}const row=SYMS.find(x=>x[0]===sym);if(row)row[2]=c;checkAlerts(sym,c);if(S.chart.sym===sym)chartHit=true}if(ch&&chartHit){updateLiveBar(S.chart.sym,S.chart.tf);const cs=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&cs&&cs[2]!=null)q.textContent=fp(cs[2])}}else if(msg.type==="kline"&&msg.symbol&&msg.interval&&msg.bar){const key=msg.symbol+"|"+msg.interval,bar=msg.bar;if(!LIVE[key])LIVE[key]=[];const arr=LIVE[key],last=arr[arr.length-1];if(last&&last.t===bar.t){last.c=bar.c;last.h=Math.max(last.h,bar.h);last.l=Math.min(last.l,bar.l);last.v=Math.max(last.v||0,bar.v||0)}else if(!last||bar.t>last.t)arr.push(bar);if(arr.length>500)arr.splice(0,arr.length-500);const row=SYMS.find(x=>x[0]===msg.symbol);if(row)row[2]=bar.c;checkAlerts(msg.symbol,bar.c);if(S.chart.sym===msg.symbol&&S.chart.tf===msg.interval){updateLiveBar(msg.symbol,msg.interval);const q=document.getElementById("cpx");if(q)q.textContent=fp(bar.c)}}}catch(_err){}};ws.onclose=()=>{VT_EDGE.ws=null;if(++VT_EDGE.wsRetry>=3&&!BNWS.ws){VT_EDGE.wsDown=true;bnwsConnect();return}setTimeout(vtWsConnect,Math.min(10000,1500*VT_EDGE.wsRetry))};ws.onerror=()=>{try{ws.close()}catch(_e){}}}catch(_e){bnwsConnect()}}
+// ---------- 94 edge client: Edge Cache + KV Screener + Single-Source Binance/TwelveData WebSockets ----------
+const VT_TF_ORDER = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
+const VT_BNI = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w", "1M": "1M" };
+const VT_PREFETCH_PEND = {};
+const VT_CANDLE_IN_FLIGHT = new Map();
+const VT_CANDLE_EDGE_CACHE = new Map();
+const VT_BACKFILL_COOLDOWN_MS = 15000;
+const VT_MAX_BARS = 25000;
+const VT_EDGE = {
+  ok: false,
+  ts: 0,
+  bnWs: null,
+  bnSym: "",
+  bnTf: "",
+  bnRetry: 0,
+  bnTimer: 0,
+  tdWs: null,
+  tdKey: "",
+  tdKeyFetched: false,
+  tdActiveSym: "",
+  tdActiveTdSym: "",
+  tdSubTdSym: "",
+  tdRetry: 0,
+  tdTimer: 0,
+  tdHb: 0,
+  pausedCharts: new Set(),
+  backfillInFlight: new Map(),
+  backfillAt: new Map(),
+  hasMoreHistory: new Map(),
+  historyBackfillInFlight: new Map(),
+  hiddenAt: 0,
+  gapDocDelegated: false,
+};
+const VT_EDGE_META = new Map();
 
+function vtCanUseEdge() {
+  return (
+    (location.protocol === "http:" || location.protocol === "https:") &&
+    !Array.isArray(window.__WS)
+  );
+}
+
+function vtIsCryptoSym(sOrSym) {
+  const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
+  const sym = String(Array.isArray(sOrSym) ? sOrSym[0] : sOrSym || "").trim().toUpperCase();
+  if (s && (s[8] === "bn" || s[1] === "CRY")) return true;
+  return sym.endsWith("USDT");
+}
+
+function vtToBnSym(sym) {
+  let u = String(sym || "").trim().toUpperCase();
+  if (!u.endsWith("USDT")) u = u.endsWith("USD") ? u + "T" : u + "USDT";
+  return u;
+}
+
+function vtToTdSym(sOrSym) {
+  const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
+  const sym = String(s ? s[0] : sOrSym || "").trim().toUpperCase();
+  if (s && s[9] && !String(s[9]).includes("=X")) return String(s[9]).trim();
+  if (/^[A-Z]{6}$/.test(sym)) return sym.slice(0, 3) + "/" + sym.slice(3);
+  return sym;
+}
+
+function vtNextBackoff(retry) {
+  return Math.min(30000, 1000 * Math.pow(2, Math.max(0, retry)));
+}
+
+function vtHasMoreHistory(sym, tf) {
+  if (!sym || !tf) return false;
+  return VT_EDGE.hasMoreHistory.get(sym + "|" + tf) !== false;
+}
+
+function vtHasActiveChartMount(sym, tf) {
+  if (typeof document === "undefined") return true;
+  try {
+    const hasMain =
+      typeof S !== "undefined" &&
+      S &&
+      S.chart &&
+      S.chart.sym === sym &&
+      S.chart.tf === tf &&
+      typeof ch !== "undefined" &&
+      !!ch &&
+      typeof MS !== "undefined" &&
+      !!MS &&
+      !!document.getElementById("cv");
+    const hasPaneB =
+      typeof SC !== "undefined" &&
+      SC &&
+      SC.chB &&
+      SC.serB &&
+      SC.keyB === sym + "|" + tf &&
+      !!document.getElementById("cvB");
+    return !!(hasMain || hasPaneB);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function vtIsChartPaused(sym, tf) {
+  if (!sym || !tf) return false;
+  const k = sym + "|" + tf;
+  if (VT_EDGE.pausedCharts.has(k)) return true;
+  if (typeof ERR !== "undefined" && ERR[k]) return true;
+  if (typeof document !== "undefined") {
+    const dst = document.getElementById("dst");
+    const txt = dst ? String(dst.textContent || "") : "";
+    if (txt && /feed unavailable/i.test(txt)) {
+      const escSym = String(sym).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (
+        new RegExp("\\b" + escSym + "\\s*:\\s*feed unavailable", "i").test(txt) ||
+        !/[A-Z0-9._-]+:\s*feed unavailable/i.test(txt)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function vtHandleGapRetry(sym, tf, badgeEl) {
+  try {
+    if (!sym && typeof S !== "undefined" && S && S.chart) sym = S.chart.sym;
+    if (!tf && typeof S !== "undefined" && S && S.chart) tf = S.chart.tf;
+    if (typeof document !== "undefined") {
+      const targets = [];
+      if (badgeEl) targets.push(badgeEl);
+      else {
+        const bMain = document.getElementById("vt_gap_badge");
+        if (bMain) targets.push(bMain);
+      }
+      for (const b of targets) {
+        if (!b) continue;
+        b.style.display = "none";
+        if (b.parentElement) b.parentElement.removeChild(b);
+      }
+    }
+    if (sym && tf) {
+      const k = sym + "|" + tf;
+      VT_EDGE.pausedCharts.delete(k);
+      if (typeof ERR !== "undefined" && ERR[k]) delete ERR[k];
+      if (typeof status === "function") {
+        try { status(); } catch (_e) {}
+      }
+      return vtBackfillChart(sym, tf, { refresh: true });
+    }
+  } catch (_e) {}
+  return null;
+}
+
+function vtOnGapDelegatedClick(e) {
+  try {
+    if (!e || e.__vtGapHandled) return;
+    let target = e.target;
+    if (target && target.nodeType === 3) target = target.parentElement;
+    if (!target) return;
+    let btn = null;
+    if (typeof target.closest === "function") {
+      btn = target.closest("[data-vt-gap-retry], .vt-gap-retry, #vt_gap_badge button, #vt_gap_badge_b button");
+    } else if (
+      target.tagName === "BUTTON" &&
+      (target.className === "vt-gap-retry" || (target.attributes && target.attributes["data-vt-gap-retry"]))
+    ) {
+      btn = target;
+    }
+    if (!btn) return;
+    e.__vtGapHandled = true;
+    if (typeof e.preventDefault === "function") e.preventDefault();
+    if (typeof e.stopPropagation === "function") e.stopPropagation();
+    const badge =
+      typeof btn.closest === "function"
+        ? btn.closest(".vt-gap-badge, #vt_gap_badge, #vt_gap_badge_b")
+        : btn.parentElement || null;
+    const sym =
+      (btn.dataset && btn.dataset.sym) ||
+      (typeof btn.getAttribute === "function" && btn.getAttribute("data-sym")) ||
+      (badge && badge.dataset && badge.dataset.sym) ||
+      (badge && typeof badge.getAttribute === "function" && badge.getAttribute("data-sym")) ||
+      (typeof S !== "undefined" && S && S.chart ? S.chart.sym : "");
+    const tf =
+      (btn.dataset && btn.dataset.tf) ||
+      (typeof btn.getAttribute === "function" && btn.getAttribute("data-tf")) ||
+      (badge && badge.dataset && badge.dataset.tf) ||
+      (badge && typeof badge.getAttribute === "function" && badge.getAttribute("data-tf")) ||
+      (badge && badge.id === "vt_gap_badge_b" && typeof S !== "undefined" && S && S.sc ? S.sc.tfB : "") ||
+      (typeof S !== "undefined" && S && S.chart ? S.chart.tf : "");
+    vtHandleGapRetry(sym, tf, badge);
+  } catch (_e) {}
+}
+
+function vtBindGapContainerDelegation(container) {
+  if (typeof document !== "undefined" && !VT_EDGE.gapDocDelegated && typeof document.addEventListener === "function") {
+    VT_EDGE.gapDocDelegated = true;
+    document.addEventListener("click", vtOnGapDelegatedClick);
+  }
+  if (!container || container.__vtGapDelegated || typeof container.addEventListener !== "function") return;
+  container.__vtGapDelegated = true;
+  container.addEventListener("click", vtOnGapDelegatedClick);
+}
+
+function vtSyncGapBadgeAttrs(el, btn, sym, tf) {
+  if (el) {
+    if (el.dataset) {
+      el.dataset.sym = sym || "";
+      el.dataset.tf = tf || "";
+    }
+    if (typeof el.setAttribute === "function") {
+      el.setAttribute("data-sym", sym || "");
+      el.setAttribute("data-tf", tf || "");
+    }
+  }
+  if (btn) {
+    if (btn.dataset) {
+      btn.dataset.vtGapRetry = "1";
+      btn.dataset.sym = sym || "";
+      btn.dataset.tf = tf || "";
+    }
+    if (typeof btn.setAttribute === "function") {
+      btn.setAttribute("data-vt-gap-retry", "1");
+      btn.setAttribute("data-sym", sym || "");
+      btn.setAttribute("data-tf", tf || "");
+    }
+  }
+}
+
+function vtMakeGapBadgeEl(sym, tf, id) {
+  const el = document.createElement("div");
+  el.id = id;
+  el.className = "vt-gap-badge";
+  el.setAttribute("role", "status");
+  el.style.cssText =
+    "position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:15;pointer-events:auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:rgba(24,20,14,0.92);border:1px solid rgba(245,158,11,0.45);color:#fbbf24;font-size:11.5px;font-weight:500;white-space:nowrap;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 4px 12px rgba(0,0,0,0.35)";
+  const msg = document.createElement("span");
+  msg.textContent = "Historical gap — waiting for fresh feed";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "vt-gap-retry";
+  btn.textContent = "Retry";
+  btn.style.cssText =
+    "background:rgba(245,158,11,0.16);color:#fde68a;border:1px solid rgba(245,158,11,0.45);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;cursor:pointer;pointer-events:auto";
+  vtSyncGapBadgeAttrs(el, btn, sym, tf);
+  btn.onclick = (e) => {
+    if (e) {
+      if (e.__vtGapHandled) return;
+      e.__vtGapHandled = true;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+    }
+    const curSym =
+      (btn.dataset && btn.dataset.sym) ||
+      (el.dataset && el.dataset.sym) ||
+      sym;
+    const curTf =
+      (btn.dataset && btn.dataset.tf) ||
+      (el.dataset && el.dataset.tf) ||
+      tf;
+    vtHandleGapRetry(curSym, curTf, el);
+  };
+  el.append(msg, btn);
+  return el;
+}
+
+function vtRenderGapBadge() {
+  if (typeof document === "undefined") return;
+  const cm = document.querySelector(".cm");
+  vtBindGapContainerDelegation(cm);
+  const curBadge = document.getElementById("vt_gap_badge");
+  const hasActive = typeof S !== "undefined" && S && S.chart && S.chart.sym && S.chart.tf;
+  const showMain = !!(cm && hasActive && vtIsChartPaused(S.chart.sym, S.chart.tf));
+
+  if (showMain) {
+    if (!curBadge || curBadge.parentElement !== cm) {
+      if (curBadge && curBadge.parentElement) curBadge.parentElement.removeChild(curBadge);
+      cm.appendChild(vtMakeGapBadgeEl(S.chart.sym, S.chart.tf, "vt_gap_badge"));
+    } else {
+      curBadge.style.display = "flex";
+      const curBtn = typeof curBadge.querySelector === "function" ? curBadge.querySelector("button") : null;
+      vtSyncGapBadgeAttrs(curBadge, curBtn, S.chart.sym, S.chart.tf);
+    }
+  } else if (curBadge && curBadge.parentElement) {
+    curBadge.parentElement.removeChild(curBadge);
+  }
+
+  const cvB = document.getElementById("cvB");
+  vtBindGapContainerDelegation(cvB);
+  const curBadgeB = document.getElementById("vt_gap_badge_b");
+  const hasPaneB =
+    hasActive &&
+    typeof SC !== "undefined" &&
+    SC &&
+    S.pageView === "chart" &&
+    S.sc &&
+    S.sc.panes === 2 &&
+    S.sc.tfB;
+  const showPaneB = !!(cvB && hasPaneB && vtIsChartPaused(S.chart.sym, S.sc.tfB));
+
+  if (showPaneB) {
+    if (!curBadgeB || curBadgeB.parentElement !== cvB) {
+      if (curBadgeB && curBadgeB.parentElement) curBadgeB.parentElement.removeChild(curBadgeB);
+      cvB.appendChild(vtMakeGapBadgeEl(S.chart.sym, S.sc.tfB, "vt_gap_badge_b"));
+    } else {
+      curBadgeB.style.display = "flex";
+      const curBtnB = typeof curBadgeB.querySelector === "function" ? curBadgeB.querySelector("button") : null;
+      vtSyncGapBadgeAttrs(curBadgeB, curBtnB, S.chart.sym, S.sc.tfB);
+    }
+  } else if (curBadgeB && curBadgeB.parentElement) {
+    curBadgeB.parentElement.removeChild(curBadgeB);
+  }
+}
+
+function vtSetChartGap(sym, tf, on) {
+  if (!sym || !tf) return;
+  const k = sym + "|" + tf;
+  if (on) VT_EDGE.pausedCharts.add(k);
+  else VT_EDGE.pausedCharts.delete(k);
+  vtRenderGapBadge();
+}
+
+function vtMarkFeedUnavailable(sym, tf) {
+  if (!sym || !tf) return;
+  const k = sym + "|" + tf;
+  VT_EDGE.pausedCharts.add(k);
+  if (typeof ERR !== "undefined") ERR[k] = sym + ": feed unavailable";
+  if (typeof status === "function") {
+    try { status(); } catch (_e) {}
+  }
+  vtRenderGapBadge();
+}
+
+function vtClearFeedGap(sym, tf) {
+  if (!sym || !tf) return;
+  const k = sym + "|" + tf;
+  VT_EDGE.pausedCharts.delete(k);
+  if (typeof ERR !== "undefined" && ERR[k]) delete ERR[k];
+  if (typeof status === "function") {
+    try { status(); } catch (_e) {}
+  }
+  vtRenderGapBadge();
+}
+
+async function vtResolveTdKey() {
+  if (typeof vtTdKey === "function") {
+    const k = vtTdKey();
+    if (k) return k;
+  }
+  if (VT_EDGE.tdKey) return VT_EDGE.tdKey;
+  if (VT_EDGE.tdKeyFetched) return "";
+  VT_EDGE.tdKeyFetched = true;
+  try {
+    const r = await fetch("/api/ws-config", { cache: "no-store" });
+    if (!r.ok) return "";
+    const j = await r.json();
+    if (j && j.ok && j.tdKey) {
+      VT_EDGE.tdKey = String(j.tdKey).trim();
+      return VT_EDGE.tdKey;
+    }
+  } catch (_e) {}
+  return "";
+}
+
+async function edgeScreenerInit() {
+  if (!vtCanUseEdge() || !isLive()) return false;
+  try {
+    const r = await fetch("/api/screener");
+    if (!r.ok) return false;
+    const m = await r.json();
+    if (!m || !Array.isArray(m.universe) || !m.universe.length) return false;
+
+    SNAP.t = m.ts || Date.now();
+    SNAP.tfs = m.tfs || ["1D", "1H"];
+    SNAP.uni = m.universe
+      .map((u) => {
+        if (!Array.isArray(u) || !u[0]) return null;
+        if (u[10] || u[11]) {
+          VT_EDGE_META.set(u[0], {
+            name: u[10] || u[0],
+            ex: u[11] || "",
+            m: u[1] || "STK",
+            pct: u[12],
+          });
+        }
+        return [u[0], u[1], u[2], u[3], u[4] || 1, u[5] || 0.01, u[6] || u[0], u[7] || "", u[8] || "yf", u[9] || u[0]];
+      })
+      .filter(Boolean);
+    SNAP.ok = true;
+    VT_EDGE.ok = true;
+    VT_EDGE.ts = SNAP.t;
+    if (typeof dirtySnap === "function") try { dirtySnap(); } catch (_e) {}
+    if (typeof setLive === "function") try { setLive(); } catch (_e) {}
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function vtMergeBars(k, incoming) {
+  if (!Array.isArray(incoming) || !incoming.length) return LIVE[k] || [];
+  const map = new Map();
+  const prev = Array.isArray(LIVE[k]) ? LIVE[k] : [];
+  for (const b of prev) {
+    if (b && b.t != null && b.c > 0) map.set(b.t, b);
+  }
+  for (const b of incoming) {
+    if (b && b.t != null && b.c > 0) map.set(b.t, b);
+  }
+  const merged = [...map.values()].sort((a, b) => a.t - b.t);
+  LIVE[k] = merged.length > VT_MAX_BARS ? merged.slice(-VT_MAX_BARS) : merged;
+  LT[k] = Date.now();
+  dirty(k);
+  return LIVE[k];
+}
+
+async function edgeFetchCandles(s, tf, opts) {
+  if (!vtCanUseEdge() || !s) return null;
+  const o = opts || {};
+  const fromSec = o.from != null && isFinite(+o.from) ? Math.floor(+o.from) : 0;
+  const toSec = o.to != null && isFinite(+o.to) ? Math.floor(+o.to) : 0;
+  const rawBefore = o.before != null && isFinite(+o.before) ? +o.before : 0;
+  const beforeSec = rawBefore > 0 ? Math.floor(rawBefore > 1e11 ? rawBefore / 1000 : rawBefore) : 0;
+  const replay = o.replay ? 1 : 0;
+  const refresh = o.refresh ? 1 : 0;
+  const defaultLim = replay ? (fromSec || toSec ? 1500 : 1000) : (vtIsCryptoSym(s) ? 1000 : 5000);
+  const limit = o.limit != null && isFinite(+o.limit) && +o.limit > 0 ? Math.floor(+o.limit) : defaultLim;
+  const flightKey = `${s[0]}|${tf}|${fromSec}|${toSec}|${beforeSec}|${limit}|${replay}|${refresh}`;
+  const memTtlMs = beforeSec > 0 ? 86400000 : 60000;
+
+  if (!replay && !refresh) {
+    const cached = VT_CANDLE_EDGE_CACHE.get(flightKey);
+    if (cached && Date.now() - cached.ts < memTtlMs) {
+      return cached.bars;
+    }
+  }
+  if (VT_CANDLE_IN_FLIGHT.has(flightKey)) {
+    return VT_CANDLE_IN_FLIGHT.get(flightKey);
+  }
+
+  const job = (async () => {
+    try {
+      let u = `/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(s[6] || s[0])}&mkt=${encodeURIComponent(s[1] || "")}`;
+      if (fromSec > 0) u += `&from=${fromSec}`;
+      if (toSec > 0) u += `&to=${toSec}`;
+      if (beforeSec > 0) u += `&before=${beforeSec}`;
+      if (limit > 0) u += `&limit=${limit}`;
+      if (replay) u += `&replay=1`;
+      if (refresh) u += `&refresh=1`;
+      const r = await fetch(u);
+      if (!r.ok) {
+        if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
+        return null;
+      }
+      const j = await r.json();
+      if (!j || !j.ok || !Array.isArray(j.bars)) {
+        if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
+        return null;
+      }
+      if (beforeSec > 0 && (j.bars.length === 0 || j.hasMore === false)) {
+        if (s[0] && j.bars.length === 0) {
+          VT_EDGE.hasMoreHistory.set(s[0] + "|" + tf, false);
+        }
+        if (j.bars.length === 0) {
+          if (!replay && j.source !== "simulator") {
+            if (VT_CANDLE_EDGE_CACHE.size > 160) VT_CANDLE_EDGE_CACHE.clear();
+            VT_CANDLE_EDGE_CACHE.set(flightKey, { ts: Date.now(), bars: [] });
+          }
+          return [];
+        }
+      }
+      if (!j.bars.length) {
+        if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
+        return null;
+      }
+      if (!replay && j.source !== "simulator") {
+        if (VT_CANDLE_EDGE_CACHE.size > 160) VT_CANDLE_EDGE_CACHE.clear();
+        VT_CANDLE_EDGE_CACHE.set(flightKey, { ts: Date.now(), bars: j.bars });
+      }
+      if (!replay && !beforeSec && s[0]) {
+        VT_EDGE.pausedCharts.delete(s[0] + "|" + tf);
+        if (typeof ERR !== "undefined" && ERR[s[0] + "|" + tf]) delete ERR[s[0] + "|" + tf];
+      }
+      return j.bars;
+    } catch (_e) {
+      if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
+      return null;
+    } finally {
+      VT_CANDLE_IN_FLIGHT.delete(flightKey);
+    }
+  })();
+
+  VT_CANDLE_IN_FLIGHT.set(flightKey, job);
+  return job;
+}
+
+async function vtLoadMoreHistory(sym, tf) {
+  if (!vtCanUseEdge() || !isLive() || !sym || !tf) return null;
+  const k = sym + "|" + tf;
+  if (VT_EDGE.hasMoreHistory.get(k) === false) return null;
+  if (VT_EDGE.historyBackfillInFlight.has(k)) {
+    return VT_EDGE.historyBackfillInFlight.get(k);
+  }
+  const cur = Array.isArray(LIVE[k]) ? LIVE[k] : [];
+  if (!cur.length || !(cur[0].t > 0)) return null;
+  const oldestT = cur[0].t;
+
+  let s = typeof symOf === "function" ? symOf(sym) : null;
+  if (!s) {
+    const isCry = vtIsCryptoSym(sym);
+    s = [sym, isCry ? "CRY" : "FX", 0, 0, 1, 0.01, sym, "", isCry ? "bn" : "yf", sym];
+  }
+  const lim = vtIsCryptoSym(s) ? 1000 : 5000;
+
+  const job = (async () => {
+    try {
+      const rawOlder = await edgeFetchCandles(s, tf, { before: oldestT, limit: lim });
+      if (rawOlder === null) return null;
+
+      const byT = new Map();
+      for (const b of rawOlder) {
+        if (b && b.t != null && b.t < oldestT && b.c > 0) {
+          byT.set(b.t, b);
+        }
+      }
+      const older = [...byT.values()].sort((a, b) => a.t - b.t);
+      if (!older.length) {
+        VT_EDGE.hasMoreHistory.set(k, false);
+        return [];
+      }
+
+      const latest = Array.isArray(LIVE[k]) ? LIVE[k] : [];
+      const cutT = latest.length && latest[0].t > 0 ? latest[0].t : oldestT;
+      const prepended = older.filter((b) => b.t < cutT);
+      if (!prepended.length) {
+        VT_EDGE.hasMoreHistory.set(k, false);
+        return [];
+      }
+
+      const combined = prepended.concat(latest);
+      LIVE[k] = combined.length > VT_MAX_BARS ? combined.slice(-VT_MAX_BARS) : combined;
+      if (typeof dirty === "function") dirty(k);
+
+      if (typeof vtApplyHistoryPrepend === "function") {
+        vtApplyHistoryPrepend(sym, tf, prepended.length);
+      }
+      return prepended;
+    } catch (_e) {
+      return null;
+    } finally {
+      VT_EDGE.historyBackfillInFlight.delete(k);
+    }
+  })();
+
+  VT_EDGE.historyBackfillInFlight.set(k, job);
+  return job;
+}
+
+function vtCheckHistoryScroll(sym, tf, range) {
+  try {
+    if (!vtCanUseEdge() || !isLive() || !sym || !tf || !range || !isFinite(range.from)) return;
+    if (!vtHasActiveChartMount(sym, tf)) return;
+    if (range.from > 50) return;
+    const k = sym + "|" + tf;
+    if (VT_EDGE.hasMoreHistory.get(k) === false) return;
+    if (VT_EDGE.historyBackfillInFlight.has(k)) return;
+    const cur = typeof LIVE !== "undefined" && Array.isArray(LIVE[k]) ? LIVE[k] : null;
+    if (!cur || !cur.length || !(cur[0].t > 0)) return;
+    vtLoadMoreHistory(sym, tf);
+  } catch (_e) {}
+}
+
+async function vtBackfillChart(sym, tf, opts) {
+  if (!vtCanUseEdge() || !isLive() || !sym || !tf) return null;
+  const k = sym + "|" + tf;
+  if (VT_EDGE.backfillInFlight.has(k)) {
+    return VT_EDGE.backfillInFlight.get(k);
+  }
+  const o = opts || {};
+  const now = Date.now();
+  const lastTry = VT_EDGE.backfillAt.get(k) || 0;
+  if (!o.force && !o.refresh && now - lastTry < VT_BACKFILL_COOLDOWN_MS) {
+    return null;
+  }
+  VT_EDGE.backfillAt.set(k, now);
+
+  let s = typeof symOf === "function" ? symOf(sym) : null;
+  if (!s) {
+    const isCry = vtIsCryptoSym(sym);
+    s = [sym, isCry ? "CRY" : "FX", 0, 0, 1, 0.01, sym, "", isCry ? "bn" : "yf", sym];
+  }
+
+  const job = (async () => {
+    try {
+      const bars = await edgeFetchCandles(s, tf, { refresh: true });
+      if (bars && bars.length) {
+        if (Array.isArray(LIVE[k]) && LIVE[k].length) {
+          const headCut = bars[0].t;
+          const older = LIVE[k].filter((b) => b && b.t < headCut && b.c > 0);
+          const combined = older.concat(bars);
+          LIVE[k] = combined.length > VT_MAX_BARS ? combined.slice(-VT_MAX_BARS) : combined;
+        } else {
+          LIVE[k] = bars;
+        }
+        LT[k] = Date.now();
+        dirty(k);
+        if (typeof markOk === "function") markOk("edge");
+        vtClearFeedGap(sym, tf);
+
+        const lastBar = LIVE[k][LIVE[k].length - 1];
+        if (typeof vtLastPlotT !== "undefined" && lastBar) vtLastPlotT[k] = lastBar.t;
+        if (typeof SYMS !== "undefined" && lastBar) {
+          const row = SYMS.find((x) => x[0] === sym);
+          if (row) row[2] = lastBar.c;
+        }
+        if (typeof checkAlerts === "function" && lastBar) checkAlerts(sym, lastBar.c);
+
+        if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
+          if (typeof drawChart === "function") drawChart();
+        }
+        if (
+          typeof SC !== "undefined" &&
+          SC &&
+          typeof S !== "undefined" &&
+          S &&
+          S.pageView === "chart" &&
+          S.sc &&
+          S.sc.panes === 2 &&
+          S.chart &&
+          S.chart.sym === sym &&
+          S.sc.tfB === tf &&
+          typeof scPaneB === "function"
+        ) {
+          scPaneB();
+        }
+        return LIVE[k];
+      }
+      vtMarkFeedUnavailable(sym, tf);
+      return null;
+    } catch (_e) {
+      vtMarkFeedUnavailable(sym, tf);
+      return null;
+    } finally {
+      VT_EDGE.backfillInFlight.delete(k);
+    }
+  })();
+
+  VT_EDGE.backfillInFlight.set(k, job);
+  return job;
+}
+
+const QE = [];
+let bzEdge = 0;
+async function pumpEdge() {
+  if (bzEdge) return;
+  bzEdge = 1;
+  const w = async () => {
+    while (QE.length) {
+      const [s, tf, k] = QE.shift();
+      try {
+        const bars = await edgeFetchCandles(s, tf);
+        if (bars && bars.length) {
+          LIVE[k] = bars;
+          LT[k] = Date.now();
+          dirty(k);
+          markOk("edge");
+          VT_EDGE.pausedCharts.delete(k);
+          delete ERR[k];
+          delete PEND[k];
+          fin(s, tf);
+          vtRenderGapBadge();
+          continue;
+        }
+      } catch (_e) {}
+      vtMarkFeedUnavailable(s[0], tf);
+      delete PEND[k];
+      fin(s, tf);
+    }
+  };
+  await Promise.all([w(), w(), w(), w()]);
+  bzEdge = 0;
+  if (QE.length) pumpEdge();
+}
+
+function vtPrefetchAdjacent(s, tf) {
+  if (!s || !tf || !isLive() || !vtCanUseEdge()) return;
+  // Credit protection: prefetch adjacent timeframes ONLY for Crypto (never Twelve Data)
+  if (!vtIsCryptoSym(s)) return;
+  const idx = VT_TF_ORDER.indexOf(tf);
+  if (idx < 0) return;
+  const adj = [VT_TF_ORDER[idx - 1], VT_TF_ORDER[idx + 1]].filter(Boolean);
+  for (const atf of adj) {
+    const k = s[0] + "|" + atf;
+    if (LIVE[k] && Date.now() - (LT[k] || 0) < ttl(k)) continue;
+    if (PEND[k] || VT_PREFETCH_PEND[k]) continue;
+    VT_PREFETCH_PEND[k] = 1;
+    setTimeout(async () => {
+      try {
+        const bars = await edgeFetchCandles(s, atf);
+        if (bars && bars.length) {
+          LIVE[k] = bars;
+          LT[k] = Date.now();
+          dirty(k);
+        }
+      } catch (_e) {
+      } finally {
+        delete VT_PREFETCH_PEND[k];
+      }
+    }, 120);
+  }
+}
+
+function vtBnKlineStop() {
+  clearTimeout(VT_EDGE.bnTimer);
+  VT_EDGE.bnTimer = 0;
+  VT_EDGE.bnSym = "";
+  VT_EDGE.bnTf = "";
+  if (VT_EDGE.bnWs) {
+    try {
+      VT_EDGE.bnWs.onopen = VT_EDGE.bnWs.onmessage = VT_EDGE.bnWs.onclose = VT_EDGE.bnWs.onerror = null;
+      VT_EDGE.bnWs.close();
+    } catch (_e) {}
+    VT_EDGE.bnWs = null;
+  }
+}
+
+function vtBnKlineStart(sym, tf) {
+  if (!vtCanUseEdge() || !isLive() || !sym || !tf) return;
+  const bni = VT_BNI[tf];
+  if (!bni) return;
+  const bnSym = vtToBnSym(sym);
+  if (VT_EDGE.bnWs && (VT_EDGE.bnWs.readyState === 0 || VT_EDGE.bnWs.readyState === 1) && VT_EDGE.bnSym === sym && VT_EDGE.bnTf === tf) {
+    return;
+  }
+  vtBnKlineStop();
+  VT_EDGE.bnSym = sym;
+  VT_EDGE.bnTf = tf;
+
+  const stream = bnSym.toLowerCase() + "@kline_" + bni;
+  try {
+    const ws = new WebSocket(`wss://data-stream.binance.vision:443/ws/${stream}`);
+    VT_EDGE.bnWs = ws;
+    ws.onopen = () => {
+      VT_EDGE.bnRetry = 0;
+      markOk("bnws");
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        const k = msg && msg.k;
+        if (!k) return;
+        const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+        const bar = {
+          t: Math.floor(Math.floor(k.t / 1000) / step) * step,
+          o: +k.o,
+          h: +k.h,
+          l: +k.l,
+          c: +k.c,
+          v: +k.v || 0,
+        };
+        if (!(bar.o > 0 && bar.h > 0 && bar.l > 0 && bar.c > 0)) return;
+        markOk("bnws");
+
+        const key = sym + "|" + tf;
+        const arr = Array.isArray(LIVE[key]) ? LIVE[key] : null;
+        const last = arr && arr.length ? arr[arr.length - 1] : null;
+
+        if (vtIsChartPaused(sym, tf)) {
+          vtBackfillChart(sym, tf);
+        } else if (!last) {
+          if (typeof PEND === "undefined" || !PEND[key]) {
+            vtSetChartGap(sym, tf, true);
+            vtBackfillChart(sym, tf);
+          }
+        } else if (bar.t < last.t) {
+          // Ignore out-of-order older klines
+        } else if (bar.t - last.t > step * 2) {
+          vtSetChartGap(sym, tf, true);
+          vtBackfillChart(sym, tf);
+        } else {
+          if (last.t === bar.t) {
+            arr[arr.length - 1] = bar;
+          } else {
+            arr.push(bar);
+            if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
+          }
+
+          const row = SYMS.find((x) => x[0] === sym);
+          if (row) row[2] = bar.c;
+          checkAlerts(sym, bar.c);
+
+          if (S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
+            if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+              updateLiveBar(sym, tf, bar.t);
+            }
+            const q = document.getElementById("cpx");
+            if (q) q.textContent = fp(bar.c);
+          }
+        }
+
+        if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
+          const tfB = (S.sc && S.sc.tfB) || "1D";
+          const kB = sym + "|" + tfB;
+          const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
+          const bktB = Math.floor(bar.t / stB) * stB;
+          if (vtIsChartPaused(sym, tfB)) {
+            vtBackfillChart(sym, tfB);
+          } else if (LIVE[kB] && LIVE[kB].length) {
+            const lb = LIVE[kB][LIVE[kB].length - 1];
+            if (bktB - lb.t > stB * 2) {
+              vtSetChartGap(sym, tfB, true);
+              vtBackfillChart(sym, tfB);
+            } else if (bktB === lb.t) {
+              lb.c = bar.c;
+              lb.h = Math.max(lb.h, bar.c);
+              lb.l = Math.min(lb.l, bar.c);
+              try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
+            } else if (bktB > lb.t) {
+              const nb = { t: bktB, o: lb.c, h: Math.max(lb.c, bar.c), l: Math.min(lb.c, bar.c), c: bar.c, v: bar.v };
+              LIVE[kB].push(nb);
+              try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
+            }
+          }
+        }
+      } catch (_err) {}
+    };
+    ws.onclose = () => {
+      if (VT_EDGE.bnWs === ws) VT_EDGE.bnWs = null;
+      if (VT_EDGE.bnSym === sym && VT_EDGE.bnTf === tf && isLive() && S && S.chart && S.chart.sym === sym) {
+        const delay = vtNextBackoff(VT_EDGE.bnRetry++);
+        clearTimeout(VT_EDGE.bnTimer);
+        VT_EDGE.bnTimer = setTimeout(() => {
+          if (S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
+            vtBnKlineStart(sym, tf);
+          }
+        }, delay);
+      }
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (_e) {}
+    };
+  } catch (_e) {}
+}
+
+function vtTdWsStop() {
+  const prevSub = VT_EDGE.tdSubTdSym;
+  clearTimeout(VT_EDGE.tdTimer);
+  VT_EDGE.tdTimer = 0;
+  clearInterval(VT_EDGE.tdHb);
+  VT_EDGE.tdHb = 0;
+  VT_EDGE.tdActiveSym = "";
+  VT_EDGE.tdActiveTdSym = "";
+  VT_EDGE.tdSubTdSym = "";
+  if (VT_EDGE.tdWs) {
+    try {
+      if (VT_EDGE.tdWs.readyState === 1 && prevSub) {
+        VT_EDGE.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: prevSub } }));
+      }
+    } catch (_e) {}
+    try {
+      VT_EDGE.tdWs.onopen = VT_EDGE.tdWs.onmessage = VT_EDGE.tdWs.onclose = VT_EDGE.tdWs.onerror = null;
+      VT_EDGE.tdWs.close();
+    } catch (_e) {}
+    VT_EDGE.tdWs = null;
+  }
+}
+
+function vtApplyTwelveDataTick(sym, price, tsSec) {
+  if (!sym || !(price > 0) || !isFinite(price)) return;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const rawTs = tsSec && isFinite(tsSec) && tsSec > 1000000000 ? Math.floor(tsSec) : nowSec;
+  const tf = (S && S.chart && S.chart.tf) || "1H";
+  const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+  const bucket = Math.floor(rawTs / step) * step;
+  const kChart = sym + "|" + tf;
+
+  const arr = Array.isArray(LIVE[kChart]) ? LIVE[kChart] : null;
+  const last = arr && arr.length ? arr[arr.length - 1] : null;
+
+  if (vtIsChartPaused(sym, tf)) {
+    vtBackfillChart(sym, tf);
+  } else if (!last) {
+    if (typeof PEND === "undefined" || !PEND[kChart]) {
+      vtSetChartGap(sym, tf, true);
+      vtBackfillChart(sym, tf);
+    }
+  } else if (bucket < last.t) {
+    // Ignore out-of-order older packets
+  } else if (bucket - last.t > step * 2) {
+    vtSetChartGap(sym, tf, true);
+    vtBackfillChart(sym, tf);
+  } else {
+    if (bucket === last.t) {
+      last.c = price;
+      last.h = Math.max(last.h, price);
+      last.l = Math.min(last.l, price);
+    } else {
+      const open = last.c > 0 ? last.c : price;
+      arr.push({
+        t: bucket,
+        o: open,
+        h: Math.max(open, price),
+        l: Math.min(open, price),
+        c: price,
+        v: 0,
+      });
+      if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
+    }
+
+    const row = SYMS.find((x) => x[0] === sym);
+    if (row) row[2] = price;
+    checkAlerts(sym, price);
+
+    if (S && S.chart && S.chart.sym === sym) {
+      if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+        updateLiveBar(sym, tf, bucket);
+      }
+      const q = document.getElementById("cpx");
+      if (q) q.textContent = fp(price);
+    }
+  }
+
+  if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
+    const tfB = (S.sc && S.sc.tfB) || "1D";
+    const kB = sym + "|" + tfB;
+    const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
+    const bktB = Math.floor(rawTs / stB) * stB;
+    if (vtIsChartPaused(sym, tfB)) {
+      vtBackfillChart(sym, tfB);
+    } else if (LIVE[kB] && LIVE[kB].length) {
+      const lb = LIVE[kB][LIVE[kB].length - 1];
+      if (bktB - lb.t > stB * 2) {
+        vtSetChartGap(sym, tfB, true);
+        vtBackfillChart(sym, tfB);
+      } else if (bktB >= lb.t) {
+        if (bktB === lb.t) {
+          lb.c = price;
+          lb.h = Math.max(lb.h, price);
+          lb.l = Math.min(lb.l, price);
+          try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
+        } else {
+          const nb = { t: bktB, o: lb.c, h: Math.max(lb.c, price), l: Math.min(lb.c, price), c: price, v: 0 };
+          LIVE[kB].push(nb);
+          try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
+        }
+      }
+    }
+  }
+}
+
+async function vtTdWsConnect(sym) {
+  if (!vtCanUseEdge() || !isLive() || !sym || vtIsCryptoSym(sym)) return;
+  const sObj = typeof symOf === "function" ? symOf(sym) : null;
+  const tdSym = vtToTdSym(sObj || sym);
+  VT_EDGE.tdActiveSym = sym;
+  VT_EDGE.tdActiveTdSym = tdSym;
+
+  if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 1) {
+    if (VT_EDGE.tdSubTdSym !== tdSym) {
+      try {
+        if (VT_EDGE.tdSubTdSym) {
+          VT_EDGE.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: VT_EDGE.tdSubTdSym } }));
+        }
+        VT_EDGE.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdSym } }));
+        VT_EDGE.tdSubTdSym = tdSym;
+      } catch (_e) {}
+    }
+    return;
+  }
+  if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 0) return;
+
+  const key = await vtResolveTdKey();
+  if (!key || VT_EDGE.tdActiveSym !== sym || !isLive()) return;
+  if (VT_EDGE.tdWs && (VT_EDGE.tdWs.readyState === 0 || VT_EDGE.tdWs.readyState === 1)) return;
+
+  try {
+    const ws = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(key)}`);
+    VT_EDGE.tdWs = ws;
+    ws.onopen = () => {
+      VT_EDGE.tdRetry = 0;
+      markOk("tdws");
+      const targetTd = VT_EDGE.tdActiveTdSym || tdSym;
+      try {
+        ws.send(JSON.stringify({ action: "subscribe", params: { symbols: targetTd } }));
+        VT_EDGE.tdSubTdSym = targetTd;
+      } catch (_e) {}
+      clearInterval(VT_EDGE.tdHb);
+      VT_EDGE.tdHb = setInterval(() => {
+        if (ws.readyState === 1) {
+          try { ws.send(JSON.stringify({ action: "heartbeat" })); } catch (_e) {}
+        }
+      }, 10000);
+    };
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (!d || d.event !== "price" || !(Number(d.price) > 0)) return;
+        const evSym = String(d.symbol || "").trim().toUpperCase();
+        const activeTd = String(VT_EDGE.tdActiveTdSym || "").trim().toUpperCase();
+        if (!evSym || !activeTd || (evSym !== activeTd && evSym.replace("/", "") !== VT_EDGE.tdActiveSym)) {
+          return;
+        }
+        markOk("tdws");
+        vtApplyTwelveDataTick(VT_EDGE.tdActiveSym, Number(d.price), Number(d.timestamp));
+      } catch (_err) {}
+    };
+    ws.onclose = () => {
+      clearInterval(VT_EDGE.tdHb);
+      VT_EDGE.tdHb = 0;
+      if (VT_EDGE.tdWs === ws) {
+        VT_EDGE.tdWs = null;
+        VT_EDGE.tdSubTdSym = "";
+      }
+      const cur = S && S.chart && S.chart.sym;
+      if (cur && !vtIsCryptoSym(cur) && isLive() && VT_EDGE.tdActiveSym === cur) {
+        const delay = vtNextBackoff(VT_EDGE.tdRetry++);
+        clearTimeout(VT_EDGE.tdTimer);
+        VT_EDGE.tdTimer = setTimeout(() => {
+          if (S && S.chart && S.chart.sym === cur && !vtIsCryptoSym(cur)) {
+            vtTdWsConnect(cur);
+          }
+        }, delay);
+      }
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (_e) {}
+    };
+  } catch (_e) {}
+}
+
+function vtSyncChartFeed(sym, tf) {
+  if (!vtCanUseEdge() || !isLive() || !sym) return;
+  const s = typeof symOf === "function" ? symOf(sym) : null;
+  if (vtIsCryptoSym(s || sym)) {
+    vtTdWsStop();
+    vtBnKlineStart(sym, tf || (S && S.chart && S.chart.tf) || "1H");
+  } else {
+    vtBnKlineStop();
+    vtTdWsConnect(sym);
+  }
+}
+
+function vtWsSubscribe(sym, tf) {
+  if (!vtCanUseEdge()) return;
+  vtSyncChartFeed(sym, tf);
+}
+
+function vtWsConnect() {
+  if (!vtCanUseEdge()) {
+    bnwsConnect();
+    return;
+  }
+  if (S && S.chart && S.chart.sym) {
+    vtSyncChartFeed(S.chart.sym, S.chart.tf);
+  }
+}
+
+function vtStopAllFeeds() {
+  vtBnKlineStop();
+  vtTdWsStop();
+}
+
+async function vtHandleTabWake() {
+  if (!vtCanUseEdge() || !isLive()) return;
+  if (typeof S === "undefined" || !S || !S.chart || !S.chart.sym) return;
+  const sym = S.chart.sym;
+  const tf = S.chart.tf || "1H";
+  vtSetChartGap(sym, tf, true);
+  const jobs = [vtBackfillChart(sym, tf, { force: true })];
+  if (typeof SC !== "undefined" && SC && S.pageView === "chart" && S.sc && S.sc.panes === 2 && S.sc.tfB && S.sc.tfB !== tf) {
+    vtSetChartGap(sym, S.sc.tfB, true);
+    jobs.push(vtBackfillChart(sym, S.sc.tfB, { force: true }));
+  }
+  const resList = await Promise.all(jobs);
+  if (resList[0] && S && S.chart && S.chart.sym === sym) {
+    vtSyncChartFeed(sym, S.chart.tf);
+  }
+}
+
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("visibilitychange", () => {
+    try {
+      if (document.hidden || document.visibilityState === "hidden") {
+        if (!VT_EDGE.hiddenAt) VT_EDGE.hiddenAt = Date.now();
+        return;
+      }
+      const awayMs = VT_EDGE.hiddenAt ? Date.now() - VT_EDGE.hiddenAt : 0;
+      VT_EDGE.hiddenAt = 0;
+      if (awayMs > 60000) {
+        vtHandleTabWake();
+      }
+    } catch (_e) {}
+  });
+}
 // ---------- 95 symbol search: TradingView-style instant prefix-matching autocomplete ----------
 const VT_SR_TABS=["All","Stocks","Forex","Crypto","Futures","Indices"];
 const VT_CATALOG=[
@@ -5845,6 +7095,22 @@ function syCancel(){SYBUF="";VT_SY_STATE.idx=0;const h=document.getElementById("
 function syConfirm(){const hit=VT_SY_STATE.results[VT_SY_STATE.idx]||VT_SY_STATE.results[0],q=SYBUF.trim().toUpperCase();syCancel();if(hit){vtEnsureSym(hit.sym,true);openChart(hit.sym);return}if(!q)return;const m=SYMS.find(s=>s[0].toUpperCase()===q)||SYMS.find(s=>s[0].toUpperCase().startsWith(q));if(m)openChart(m[0]);else{vtEnsureSym(q,true);openChart(q)}}
 document.addEventListener("mousedown",e=>{const h=document.getElementById("sypop");if(h&&h.style.display!=="none"&&!h.contains(e.target)&&!e.target.closest(".vt-symbtn"))syCancel()});
 // ==== VT PAGES END ====
-applyTheme();authInit();
+function vtStartup(){
+  try{applyTheme()}catch(e){console.error("applyTheme error:",e)}
+  try{authInit()}catch(e){console.error("authInit error:",e)}
+}
+if(document.readyState==="loading"){
+  document.addEventListener("DOMContentLoaded",vtStartup,{once:true});
+}else{
+  vtStartup();
+}
+window.addEventListener("load",()=>{
+  try{
+    if(BOOTED&&READY){
+      const tbl=document.getElementById("t");
+      if(tbl&&(!tbl.tBodies||!tbl.tBodies.length))render();
+    }
+  }catch(e){console.error("window load error:",e)}
+});
 </script></body></html>
 

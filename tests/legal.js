@@ -19,7 +19,7 @@ for(const [k,t] of Object.entries(DOCS)){await P.evaluate(k=>{location.hash="#/l
   assert.notStrictEqual(st.ls,"legal");console.log("legal",k,"ok",st.txt.length,"chars");}
 // content facts
 const pv=await P.evaluate(()=>{location.hash="#/legal/privacy";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["UK GDPR","Data Protection Act 2018","scr2","scr2a","IndexedDB","stream.binance.com","corsproxy.io","api.twelvedata.com","ws.finnhub.io","api.polygon.io","api.coingecko.com","cdn.jsdelivr.net","password is not stored","vektorhq@proton.me","[Registered address]"])assert(pv.includes(s),"privacy missing "+s);
+for(const s of ["UK GDPR","Data Protection Act 2018","scr2","scr2a","IndexedDB","data-stream.binance.vision","api.twelvedata.com","ws.twelvedata.com","ws.finnhub.io","api.polygon.io","api.coingecko.com","cdn.jsdelivr.net","password is not stored","vektorhq@proton.me","[Registered address]"])assert(pv.includes(s),"privacy missing "+s);
 assert(await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0),"websocket replaced");
 // index route + reload deep link
 await P.evaluate(()=>{location.hash="#/legal"});await P.waitForTimeout(250);

@@ -69,6 +69,7 @@ function vtDownload(obj,name){const b=new Blob([JSON.stringify(obj,null,2)],{typ
 // erase everything this app keeps in the browser and disconnect live feeds; the caller reloads afterwards
 async function vtWipe(){window.__vtWiped=true;save=function(){};lsSet=function(){};ssSet=function(){};clearTimeout(fl);DIRTY.clear();
 for(const o of [BNWS,BNKL,FHWS]){try{if(o.ws){o.ws.onclose=o.ws.onerror=o.ws.onmessage=o.ws.onopen=null;o.ws.close()}o.ws=null;if(o.subs)o.subs.clear()}catch(e){}}
+try{if(typeof vtStopAllFeeds==="function")vtStopAllFeeds()}catch(e){}
 try{if(window.__tbw)window.__tbw.terminate()}catch(e){}
 try{if(IDB)IDB.close()}catch(e){}IDB=null;
 try{localStorage.clear()}catch(e){}try{sessionStorage.clear()}catch(e){}

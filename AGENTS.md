@@ -255,7 +255,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **Mini-chart mode:** the grid button next to "Data" turns the list into small candle charts (intervals 15m, 1H, 4H or 1D). Click a card, or focus it and press Enter, to open the full chart.
 
 **Charts (Workspace and Supercharts)**
-- **Chart header:** symbol search (click it, start typing, or press Ctrl+K), the price and 1D %, a market-status icon, the interval picker, a ★ watchlist toggle, **Indicators**, **Alerts**, **Settings**, a camera icon (Download image / Copy image / Open in new tab), **Reset chart view**, and a small "TradingView ↗" link that opens the same symbol on TradingView.
+- **Chart header:** symbol search (click it, start typing, or press Ctrl+K), the price and 1D %, a market-status icon, the interval picker, a ★ watchlist toggle, **+ Watchlist** (shows **✓ In Watchlist** once the symbol is in the list), **Locate in Screener**, **Indicators**, **Alerts**, **Settings**, a camera icon (Download image / Copy image / Open in new tab), **Reset chart view**, and a small "TradingView ↗" link that opens the same symbol on TradingView.
 - **Timeframes:** 1s, 5s, 10s, 15s, 30s, 45s, 1m, 3m, 5m, 15m, 30m, 45m, 1H, 2H, 3H, 4H, 12H, 1D, 1W, 1M (month), 3M, 6M and 12M. You can add custom intervals and favourite them.
 - **Chart types:** candles by default. The code can also draw hollow candles, line, area and bar charts.
   - `TODO (needs Tyler):` I couldn't find a visible chart-type picker in index.html. Is there one, or does chart type only come from templates? The bot shouldn't tell users how to switch chart type until this is confirmed.
@@ -275,8 +275,8 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Open it with the **Scripts** button on the chart.
 - Example: `macd = ema(close, 12) - ema(close, 26)` then `plot(macd, "MACD", color=blue)`.
 - Language features:
-  - Series: open, high, low, close, volume and hl2. Use `close[1]` for past values.
-  - Functions: sma, ema, rma, wma, rsi, stdev, atr, highest, lowest, roc and crossover.
+  - Series: open, high, low, close, volume, hl2, hlc3, ohlc4, bar_index and time (`VS_SERIES` in `index.html`). Use `close[1]` for past values.
+  - Functions (all 29 in `VS_FN`): sma, ema, rma, wma, stdev, highest, lowest, sum, change, roc, rsi, tr, atr, crossover, crossunder, cum, nz, abs, sqrt, log, exp, round, floor, ceil, pow, min, max, avg and isna.
   - Declarations: `indicator()`, `input()`, `plot()` (line, histogram or area) and `hline()`.
 - Built-in examples: MACD, RSI with bands, Bollinger Bands, Stochastic, EMA cross, Keltner channel and rate of change.
 - Errors show the line and column, a plain-English hint and "Did you mean" suggestions, with a **Go to line** button.
@@ -310,16 +310,16 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 **Watchlists**
 - The watchlist panel has sections (by default "Traded" and "Section") with **+ Symbol**, **+ Section**, edit and remove buttons.
 - Watchlist symbols load their data first.
-- The ★ button in the chart header is currently broken on the live site: it calls a function that doesn't exist. Tell users to use **+ Symbol** in the watchlist panel or the "watchlist" button in the Screener drawer instead.
-- Pending, not live yet: a starter watchlist (BTCUSDT, EURUSD, SPY, XAUUSD, NVDA) with a "Clear starter list" button, plus "+ Watchlist" and "Locate in Screener" buttons in the chart header (TASK-06). This work is not committed. Don't announce it.
+- The chart header **★** works: it adds the current symbol to the first section, or removes it from every section. `src/watchlist_starter.js` (loaded from `index.html`) defines `window.wlStar` for the header button's `wlStar()` call. **+ Watchlist** adds the symbol to the first section without duplicates, then shows **✓ In Watchlist**. **Locate in Screener** opens the Screener with that row selected and in view. If a search or market filter was hiding it, those filters are cleared and a message says so. If a preset or column filter still hides it, or the symbol isn't in the screener list, a message explains why.
+- Starter list (live, TASK-06): for a guest, or a signed-in account that had no saved work on this device when the page loaded (`VT_WL_FRESH`), and only if the watchlist is still empty, the first section is seeded with BTCUSDT, EURUSD, SPY, XAUUSD and NVDA. Existing accounts that already have saved settings are never seeded, even if their watchlist is empty. **Clear starter list** appears in the watchlist header only while the list is still exactly those five symbols and the other sections are empty. Clearing it, or changing the list in any other way, removes the button.
 
 **Backtest Lab (Backtest page)**
-- Rules: EMA cross, RSI reversal or N-bar breakout; long, short or both. The stop can be an ATR(14) multiple or a % of entry, with an optional target in R and fees on both sides.
-- No look-ahead: a signal fills at the next bar's open.
-- Results: net, return, win rate, profit factor, expectancy (R), max drawdown, an equity curve, a trades table and **CSV export**. The CSV uses the Journal format with the account "Backtest", so it can be imported into the Journal.
-- **Bar replay:** step, play/pause, speed, a slider, and entry/exit markers.
-- **Manual paper trading in replay:** Buy (B), Sell (S), Close and Reverse ("Close and flip direction") buttons. Bracket presets: ATR 1:2 (default), ATR 1:3, 1% / 2%, or Manual stop/target. If a bar touches both stop and target, the stop fills first. All fills are simulated on historical candles; nothing goes to a broker.
-- It runs on the candles the app already has for the symbol, usually the latest ~250 bars. Results are labelled hypothetical and not advice.
+- `#/backtest` is the **Manual Backtest Lab** only. There is no rules-based strategy runner in the running app: no EMA-cross, RSI-reversal or N-bar-breakout backtest, and no `btRun` in `index.html`. "EMA cross" in the app is a Vektor Script example, not a backtest rule. `tests/backtest.js` still calls `btRun`.
+- Pick a symbol and start time (or a 20% / 50% / 75% point in the history), a timeframe (1m, 5m, 15m, 1H, 4H or 1D), starting balance, risk % and fee per side, then step or play bars and place manual Long/Short orders with stop-loss and take-profit.
+- **Bar replay:** step back/forward, play/pause, speed (1x–16x), a slider, and jump to start or end. Shortcuts: Left/Right step bars, Space toggles play/pause, B/S place Long/Short, X closes the position.
+- **Manual paper trading in replay:** Long (B), Short (S), Close (X) and Reverse. Bracket presets: ATR 1:2 (default), ATR 1:3, 1% / 2%, or Manual stop/target. If a bar touches both stop and target, the stop fills first. All fills are simulated on historical candles; nothing goes to a broker.
+- Results: live equity, realized net, return, trades, win rate, average R:R, profit factor, max drawdown, an equity curve, a trades table and **Export CSV**. The CSV uses the Journal format with account "Manual Replay" and setup "Manual", so it can be imported into the Journal.
+- If fewer than about 250 bars are already cached, the lab asks the edge for more (it requests up to 1,500 bars with `replay=true`). It is not limited to a fixed 250-bar window. Replay depth isn't shown before playback starts (TASK-08 is open). Results are labelled hypothetical and not advice.
 
 **Journal & Prop Tracker (Journal page)**
 - You enter trades manually. Nothing connects to a broker.
@@ -464,12 +464,12 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **Alert didn't fire:** alerts only run while a tab with the app is open. Each alert fires once, and the user must **Re-arm** it. The sound is off by default, and browser notification permission must be granted.
 - **Calendar says "Macro calendar":** the live feed is unavailable and the events shown are a template, not real. If the feed fails entirely, the page shows an error. Escalate if it persists.
 - **Mobile layout problems:** check the layout switch in More (auto/phone/tablet/desktop). Backtest has a known overflow problem on 375px phones.
-- **The ★ watchlist button does nothing:** this is a known bug. Use + Symbol in the watchlist panel.
+- **The ★ watchlist button:** it should add or remove the charted symbol (see Watchlists). If it still does nothing, hard-refresh to pick up `src/watchlist_starter.js`, or use **+ Watchlist**, **+ Symbol**, or the watchlist button in the Screener drawer. Escalate if it still fails after a refresh.
 - **Browser support:** `TODO (needs Tyler):` Which browsers and versions are officially supported? The tests only use Chromium. Browsers that block storage (sandboxed or private modes) fall back to memory, so nothing is saved.
 
 ### Known limitations (current main)
 - **13 browser tests fail on main** according to the ops log (18 Nov 2026). The ones users might notice:
-  - **Backtest:** the test fails with "btRun not defined". The name exists only in the test, so this may be the test being out of date rather than a broken Run button. Not confirmed.
+  - **Backtest:** the test fails with "btRun not defined". Confirmed: `btRun` is not in the running app. `#/backtest` is the Manual Backtest Lab. `tests/backtest.js` still calls `btRun`.
   - **Journal:** an error reading `pnl`. Journal P&L or stats may fail in some cases.
   - **Phone layout:** the Backtest page overflows sideways (700px of content on a 375px screen).
   - **Today's session summary:** open P&L doesn't match an independent recalculation (45.87 vs 46.94). Treat summary P&L as approximate.
@@ -482,7 +482,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **No auth backend.** Sign-in is local only, with no recovery and no sync. TASK-04 is blocked.
 - **The `vektor-proxy` Worker (`worker/`) is not deployed.** Production `/api/*` is the Pages Function → `worker.js`. The planned shared data service and provenance badges (LIVE/DELAYED/CACHED/SAMPLE everywhere) are **not built yet** (TASK-02 is blocked, TASK-03 is deferred).
 - Simulated candles and screener prices for non-crypto symbols aren't consistently labelled as sample data.
-- The backtester uses only about 250 recent bars. Replay depth isn't shown before playback starts (TASK-08 is open).
+- The backtester will fetch more history if fewer than about 250 bars are already cached (a replay request can ask the edge for up to 1,500 bars). Replay depth isn't shown before playback starts (TASK-08 is open).
 - Alerts only work while a tab is open. There are no email, SMS or push alerts from a server.
 - Canvas charts can't be read by screen readers (the Data Window gives the values as text). Some drawing tools need a pointer.
 - Security issues (exposed keys, data leaks, anything a user reports as a vulnerability) are never discussed in chat: thank the user and escalate to Tyler privately.
@@ -508,5 +508,5 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Never ask for passwords or API keys. Remind users that the JSON export contains their saved keys.
 - Never make up company names, addresses, contact details beyond `vektorhq@proton.me`, support hours, SLAs, social links or legal entities. If unsure, say you'll pass it to the team.
 - Be honest that sign-in is a local prototype and that data lives only in the user's browser.
-- Don't describe unreleased or uncommitted work (for example the starter watchlist) as available.
+- Don't describe unreleased or uncommitted work as available. The starter watchlist and the header ★ / **+ Watchlist** / **Locate in Screener** controls are live (see Watchlists).
 

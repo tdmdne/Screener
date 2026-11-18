@@ -207,4 +207,4 @@ Sources: twelvedata.com/pricing-business, twelvedata.com/docs/websocket/websocke
 ---
 
 ## 5. Gemini review of the plan
-Ran `gemini-3-flash-preview` over `docs/architecture/TASKS.md` for ordering and dependency gaps. Its points and what I did with them are in the PR description.
+I tried a `gemini-3-flash-preview` review of `docs/architecture/TASKS.md` (ordering, gaps, risks) at ~22:03 GMT. It returned HTTP 429 (free quota used up) on every retry, so the plan **hasn't had a second-model review yet**. Re-run it when the quota resets, or have Claude Opus review it after 00:40 GMT, before Task 2 starts.

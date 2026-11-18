@@ -8,7 +8,11 @@
     "start": "node server.js",
     "build": "node tests/syntax.js",
     "lint": "node --check server.js && node tests/syntax.js",
-    "test:proxy": "node tests/proxy.test.mjs"
+    "test:proxy": "node tests/proxy.test.mjs",
+    "test:shared": "node tests/shared.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.12"
   },
   "dependencies": {
     "express": "^4.21.2",

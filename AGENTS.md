@@ -154,7 +154,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 ## 10. EXECUTABLE TASK BACKLOG
 
 ### Phase 1: Backend Deduplication & Data Pipeline
-- [ ] **TASK-01: Extract Shared Catalogs & Normalizer (`shared/`)**
+- [x] **TASK-01: Extract Shared Catalogs & Normalizer (`shared/`)**
   - **Target:** `server.js`, `worker.js` → `shared/instruments.js`, `shared/intervals.js`, `shared/symbolNormalizer.js`
   - **Action:** Move duplicated instrument catalogs, interval maps, Dukascopy maps, and Binance fallback lists out of `server.js` and `worker.js` into `shared/`. Implement deterministic `normalizeSymbol(symbol, provider)` handling `BTCUSD` → `BTCUSDT`. Update both backends to import from `shared/`.
   - **Done When:** Zero duplicate catalog/interval blocks remain in `server.js` or `worker.js`, and unit checks confirm `BTCUSD`, `BTC/USD`, and `BTCUSDT` resolve cleanly.

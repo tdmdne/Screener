@@ -109,22 +109,21 @@ await ok("every local asset index.html loads (and their relative imports) is all
   }
 });
 
-await ok("_routes.json: include /*, excludes are allowlisted, excluded prefixes expose only app code", () => {
+await ok("_routes.json: include /*, only exact allowlisted excludes, covers the page's own assets", () => {
   const r = JSON.parse(read("_routes.json"));
   assert.equal(r.version, 1);
   assert.deepEqual(r.include, ["/*"]);
   assert.ok(r.exclude.length <= 100);
   for (const e of r.exclude) {
-    if (e.endsWith("/*")) {
-      const dir = e.slice(1, -1);
-      assert.ok(["src/", "shared/"].includes(dir), "unexpected wildcard exclude " + e);
-      if (tracked) for (const f of tracked.filter((f) => f.startsWith(dir)))
-        assert.ok(/\.(js|mjs|css)$/.test(f) || f === "shared/package.json", "would expose " + f);
-    } else {
-      assert.equal(isPublicPath(e), true, "exclude not on allowlist: " + e);
-    }
+    // Wildcard excludes bypass the middleware, so trick paths under them would reach
+    // the static server (SPA fallback) instead of a 404. Keep them exact.
+    assert.ok(!e.includes("*"), "wildcard exclude not allowed: " + e);
+    assert.equal(isPublicPath(e), true, "exclude not on allowlist: " + e);
+    if (e !== "/") assert.ok(fs.existsSync(path.join(root, e.slice(1))), "exclude for missing file: " + e);
   }
-  assert.ok(!r.exclude.some((e) => e.startsWith("/api")), "/api must not be excluded");
+  // Cost: every file a page load fetches should skip the Function.
+  for (const p of ["/", "/favicon.ico", "/favicon.svg", "/apple-touch-icon.png", "/src/auth_email_validation.js", "/src/watchlist_starter.js", "/shared/emailValidator.js"])
+    assert.ok(r.exclude.includes(p), "page asset not excluded (would count as a Function request): " + p);
 });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

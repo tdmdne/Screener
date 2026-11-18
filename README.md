@@ -18,4 +18,4 @@ The running app also has legal and privacy pages under **Legal** in the footer (
 
 ## For developers
 
-See [SETUP.md](SETUP.md) for local development and Cloudflare Edge deployment. Architecture notes for the market-data proxy live in [docs/PROXY_SETUP.md](docs/PROXY_SETUP.md). Agent and contributor conventions are in `AGENTS.md`.
+See [SETUP.md](SETUP.md) for local development and Cloudflare Edge deployment. Architecture notes for the market-data proxy live in [docs/PROXY_SETUP.md](docs/PROXY_SETUP.md). Agent and contributor conventions are in `AGENTS.md`, including the [support knowledge base](AGENTS.md#support-knowledge-base-for-the-support-bot).

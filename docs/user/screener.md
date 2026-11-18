@@ -3,7 +3,7 @@
 The screener is a table of markets (stocks, forex, crypto and other asset classes in the app’s universe). You will find it:
 
 - in the left-hand list on **Workspace**
-- as a full-width **Screener** page (`#/screener`), sometimes referred to in the code as Screener Pro, with extra columns, filter pills and a slide-over chart
+- as a full-width **Screener** page (`#/screener`), sometimes referred to in the code as Screener Pro, with extra columns (including Market, 1D %, ADR 14d, Vektor score, Expansion score and Phase), filter pills and a slide-over drawer
 
 The watchlist is separate; see [Watchlists](watchlists.md).
 
@@ -11,7 +11,7 @@ The watchlist is separate; see [Watchlists](watchlists.md).
 
 - Search the visible list with the search box.
 - Filter by asset class with the market dropdown.
-- Click a row to open that symbol on the chart. Arrow Up and Down move the selection.
+- Click a row to open that symbol on the chart. On the full Screener page, a row also opens a side drawer with a mini chart and buttons for **Open in Supercharts**, **Workspace**, the watchlist and an alert. Esc closes the drawer. Arrow Up and Down move the selection.
 - On a desktop (Workspace and Screener) the list is one continuous scrolling table with sticky headers; only nearby rows are drawn. Phones and tablets still paginate.
 - Sort by clicking a column, or with the phone sort control.
 - You can save and switch screener **layouts** (column sets) on this device, and export or import them.
@@ -62,8 +62,8 @@ The **Vektor score** (0–100, used on the heatmap and some columns) is a separa
 
 ## S01–S04
 
-The S01–S04 “Cycle” filter is **not** on the Screener page. It was removed. Cycle scores are no longer used to re-sort the list. An expansion / momentum read-out related to the old scoring function still feeds the Expansion column, the chart preview and the heatmap’s momentum metric.
+The S01–S04 “Cycle” filter is **not** on the Screener page. It was removed. Cycle scores are no longer used to re-sort the list. An expansion / momentum read-out related to the old scoring function still feeds the Expansion column, a **Phase** label (for example Expansion, Accumulation, Distribution, Reaccumulation, Retracement, Range or Neutral), the chart preview and the heatmap’s momentum metric.
 
 ## Mini-charts
 
-Mini-chart mode draws a small sparkline for rows in the list. On long lists it shows batches of 48 with **Show more**.
+A **Mini charts** button next to **Data** switches the list to a grid of small candle charts for the symbols on the current page. On long lists it shows batches of 48 with **Show more**. See [Workspace and charts](workspace-charts.md#mini-charts).

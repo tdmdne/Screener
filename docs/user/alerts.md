@@ -18,7 +18,7 @@ The first tick after you add an alert sets a baseline and does not fire. After t
 
 Active alerts can be drawn on Workspace and Supercharts panes.
 
-A log of alerts that have triggered is kept with your settings (the legal storage table describes the last 200). The end-of-day **session summary** can count today’s alerts.
+A log of alerts that have triggered is kept with your settings (the legal storage table describes the last 200). **Today’s session** (the **Today** header button, or **More → Tools** on a phone) counts today’s alerts and lists them with the rest of the day’s summary. See [Workspace and charts](workspace-charts.md#todays-session).
 
 ## Notifications and sound
 

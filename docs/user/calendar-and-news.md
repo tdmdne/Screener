@@ -4,7 +4,9 @@
 
 ## Economic calendar
 
-The calendar is loaded first from the app’s own `/api/calendar` endpoint, which reads this week’s schedule from Forex Factory’s Fair Economy feed (`nfs.faireconomy.media`). If that source is what came back, the status can read **Forex Factory**. If the backend used its fallback, the status can read **Macro calendar**.
+The calendar is loaded first from the app’s own `/api/calendar` endpoint, which reads this week’s schedule from Forex Factory’s Fair Economy feed (`nfs.faireconomy.media`). If that source is what came back, the status can read **Forex Factory**.
+
+If Forex Factory data is missing, the worker fills in a **built-in template week** (`generateWeeklyMacroSchedule` in `worker.js`) and the API source is `macro-schedule`. The Calendar page then labels the status **Macro calendar**. Those events are typical-looking releases with placeholder figures, not a live official calendar. Do not treat “Macro calendar” rows as real prints or forecasts.
 
 You can:
 

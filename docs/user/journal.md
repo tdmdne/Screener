@@ -17,7 +17,9 @@
 - Account, Setup, Tags
 - Notes (optional, up to 2,000 characters)
 
-The page can show an **equity curve**, **daily P&amp;L**, and breakdowns **by setup**, **by weekday** and **by side**, plus the trade table.
+The page can show an **equity curve**, a **Daily P&amp;L** calendar (month-by-month, with previous/next), and breakdowns **by setup**, **by weekday** and **by side**, plus the trade table.
+
+**Import CSV…** and **Export CSV** sit next to **+ Add trade**. Import reads a UTF-8 CSV of the same columns the export writes (symbol, side, dates, prices, fees, account, setup, tags, notes, and so on). Files larger than 5 MB are rejected.
 
 A **local summary** of the trades in view is produced with fixed, rule-based observations in the browser. Nothing leaves the device for that summary. It is descriptive, not advice.
 
@@ -49,7 +51,7 @@ You choose a provider and enter **your own API key**. The request goes **from yo
 | Anthropic | `https://api.anthropic.com/v1/messages` | `claude-3-5-haiku-latest` |
 | OpenAI-compatible endpoint | A base URL you type (for example `https://example.com/v1`) | You must enter a model name |
 
-Nothing is sent until you enter a key, tick the confirmation, and press **Send**. If you skip either step, the app asks you to enter the key or tick the box.
+Nothing is sent until you enter a key, tick the confirmation, and press **Send**. If you skip either step, the app asks you to enter the key or tick the box. A **See exactly what will be sent** disclosure shows the JSON payload before you send it.
 
 **What is sent** (JSON), for up to the last **200** closed trades in the current journal view:
 

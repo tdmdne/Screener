@@ -47,9 +47,15 @@ The pages in the navigation are:
 - **Screener** — a full-width market table
 - **Heatmaps**, **Calendar**, **Journal**, **Calculators**, **Backtest**
 
-On a phone, less-used pages sit under a **More** sheet in the bottom tab bar.
+On a phone, the bottom tab bar shows Workspace, Supercharts, Screener, Calculators and **More**. The More sheet includes:
 
-The header also has a dark/light theme toggle. If you have not chosen a theme, the app follows the system colour scheme.
+- **Pages:** Heatmaps, Calendar, Journal and Backtest
+- **Tools:** **Today’s session**
+- **Legal and privacy:** Risk disclaimer, Privacy, Your data, all legal pages, and **Cookie settings**
+- **Layout:** Auto, or Desktop layout
+- a short data-status line, when the header has one
+
+The header also has a **Today** button (Today’s session summary) and a dark/light theme toggle. If you have not chosen a theme, the app follows the system colour scheme.
 
 A footer on every page includes a short risk warning and links to the legal pages.
 
@@ -58,14 +64,14 @@ A footer on every page includes a short risk warning and links to the legal page
 1. Open **Workspace** (or click a symbol in the list).
 2. Use the symbol button on the chart toolbar, or start typing a name, or press **Ctrl+K** (Cmd+K on a Mac), to search. Intervals can be typed as a number (for example `15` or `4H`).
 3. Pick a timeframe from the interval control. The app lists intervals from 1 second up to 12 months.
-4. **Indicators**, **Alerts**, **Settings**, the camera button (chart snapshot) and the star (watchlist) are on the same toolbar. **Scripts** opens the Vektor Script editor.
+4. **Indicators**, **Alerts**, **Settings**, the camera button (chart snapshot) and the watchlist **star** are on the same toolbar, together with **+ Watchlist** and **Locate in Screener** once that header has loaded. **Scripts** opens the Vektor Script editor. You can also add a **custom interval** from the interval menu.
 5. The note under the chart reads “Live data.” or “Sample data.” Indicators are calculated on those candles.
 
 A default Workspace chart includes two EMAs (length 10 and 20). See [Workspace and charts](workspace-charts.md) and [Indicators](indicators.md).
 
 ## Watchlist and screener
 
-The left column of Workspace has your **Watchlist** (your own symbols, in sections) and the **screener list** (the market universe, with search, asset-class filter and P1–P5 presets). They are separate. See [Watchlists](watchlists.md) and [Screener](screener.md).
+The left column of Workspace has your **Watchlist** (your own symbols, in sections) and the **screener list** (the market universe, with search, asset-class filter and P1–P5 presets). They are separate. New guests, and accounts with no saved work yet, may see a short **starter list**. See [Watchlists](watchlists.md) and [Screener](screener.md).
 
 ## Adding a data key
 
@@ -75,7 +81,7 @@ Open **Data** (next to the list search on Workspace or Screener). You can enter:
 - a **Finnhub** key (optional stocks fallback)
 - a **Polygon** key (optional stocks fallback)
 
-Crypto charts use Binance public data and do not need a key. Tick **Offline sample data instead** to use simulated prices rather than live feeds. Details and a note about leftover “Yahoo” wording are in [Data and settings](data-and-settings.md).
+Crypto charts use Binance public data and do not need a key. Tick **Offline sample data instead** to use simulated prices rather than live feeds. If you stay in live mode but no Twelve Data key is available to the backend, non-crypto charts may still show generated prices without being labelled as sample data. Details, including leftover “Yahoo” wording you may still see in Data, are in [Data and settings](data-and-settings.md).
 
 ## Next steps
 

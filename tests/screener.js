@@ -1,9 +1,12 @@
-const {launch}=require("./harness");const assert=require("assert");
+const {launch}=require("./harness");const assert=require("assert");const path=require("path");
+const {hashes,BASE,NAMES}=require("./scorefns");
+// Scoring functions must stay byte-identical to the frozen baseline in scorefns.js (commit 1c48048),
+// the same check claims.js uses. A full baseline.html snapshot of index.html is not in the repo and
+// would drift with every unrelated UI change; the hashes are the maintained, self-contained fixture.
+assert.deepStrictEqual(hashes(path.join(__dirname,"../index.html")),BASE,"scoring functions must be unchanged");
 (async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.mkt="CRY";save();render()});await P.waitForTimeout(2500);
-// scoring functions are untouched: compare their source with the baseline file
-const fs=require("fs");const base=fs.readFileSync(__dirname+"/../baseline.html","utf8");
-for(const fn of ["scoreMarket","passesPreset","scoreSymbol"]){const src=await P.evaluate(n=>window[n].toString(),fn);assert(base.includes(src),fn+" changed");}
+for(const fn of NAMES){const src=await P.evaluate(n=>typeof window[n]==="function"&&window[n].toString(),fn);assert(src,fn+" missing at runtime")}
 await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(600);
 let st=await P.evaluate(()=>({th:document.querySelectorAll("#t thead th").length,rows:document.querySelectorAll("#t tbody tr[data-s]").length,pro:document.querySelectorAll("#t tbody td[data-l=Tier]").length,bar:!!document.querySelector("#sxbar").offsetParent,scroll:(()=>{const w=document.querySelector(".side>.tw");return w.scrollWidth-w.clientWidth})()}));
 console.log(JSON.stringify(st));assert(st.th>=12&&st.rows>0&&st.pro===st.rows&&st.bar&&st.scroll<=2);

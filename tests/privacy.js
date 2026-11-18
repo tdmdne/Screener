@@ -14,7 +14,7 @@ await P.screenshot({path:"shots/10_consent_banner.png"});
 await P.click("#vcb_man");assert.strictEqual(await P.isChecked("#vcb_cache"),false);assert.strictEqual(await P.isChecked("#vcb_nec"),true);
 await P.click("#vcb_rej");await P.waitForTimeout(200);assert(!(await P.isVisible("#vcb")));
 let c=await P.evaluate(()=>[JSON.parse(localStorage.getItem("vt_consent")),JSON.parse(localStorage.getItem("vt_consent_log"))]);
-assert.strictEqual(c[0].cache,false);assert.strictEqual(c[0].v,"1.0");assert(c[0].ts>0);assert.strictEqual(c[1].length,1);assert.strictEqual(c[1][0].method,"reject_all");
+assert.strictEqual(c[0].cache,false);assert.strictEqual(c[0].v,"1.1");assert(c[0].ts>0);assert.strictEqual(c[1].length,1);assert.strictEqual(c[1][0].method,"reject_all");
 await P.waitForTimeout(2500);assert(!(await dbs(P)).includes("scr"),"still no IndexedDB after reject");
 // 2) footer "Cookie settings" -> enable cache -> IndexedDB created and filled
 await P.click("#vft_ck");await P.check("#vcb_cache");await P.click("#vcb_save");await P.waitForTimeout(2800);

@@ -60,7 +60,9 @@ assert(!e.dk&&!e.all.includes("myOwnTdKey9")&&!e.saved.includes("myOwnTdKey9")&&
 await h.close();
 
 // D) leftover client Twelve Data keys are deleted; the browser never holds or sends one
-h=await launch({auth:false});P=h.page;const td=[];await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.fulfill({status:404,body:""})});
+h=await launch({auth:false});P=h.page;const td=[],proxy=[];
+await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.fulfill({status:404,body:""})});
+await P.route(/vektor-market\./,r=>{proxy.push(r.request().url());r.fulfill({contentType:"application/json",body:JSON.stringify({status:"error",message:"feed unavailable"})})});
 await P.goto(h.base);await signIn(P,"tester");
 await P.evaluate(()=>{const n=typeof vtSK==="function"&&vtSK("vt_tdkey")||"vt_tdkey~tester";
   localStorage.setItem(n,"leftoverTdKey1");localStorage.setItem("vt_tdkey~other","leftoverTdKey2");sessionStorage.setItem("vt_tdkey~sess","leftoverTdKey3");
@@ -74,10 +76,11 @@ assert(!wiped.vals&&!wiped.dk,"leftover key values not kept");
 assert.strictEqual(wiped.td,"undefined");assert.strictEqual(wiped.tdk,"undefined");
 assert.strictEqual(wiped.set,"undefined");assert.strictEqual(wiped.cfg,"undefined");assert.strictEqual(wiped.note,"undefined");
 assert.strictEqual(td.length,0,"nothing sent to Twelve Data");
+assert(proxy.every(u=>!/[?&]apikey=/.test(u)),"no per-user apikey on the market-data URL");
 const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance socket up");
 console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // E) legal pages describe it
 h=await launch({});P=h.page;await P.goto(h.base);await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
-const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","no longer ships with a key"])assert(lg.includes(s),"legal mentions "+s);
+const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data key"])assert(lg.includes(s),"legal mentions "+s);
 await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

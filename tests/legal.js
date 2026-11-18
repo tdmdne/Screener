@@ -20,7 +20,7 @@ for(const [k,t] of Object.entries(DOCS)){await P.evaluate(k=>{location.hash="#/l
   assert(!st.txt.includes("DRAFT")&&!/solicitor/i.test(st.txt),k+" still has draft or solicitor framing");
   assert(!/template only/i.test(st.txt),k+" still says template only");
   assert(!/S01|S02|S03|S04/.test(st.txt),k+" still mentions S01-S04");
-  assert(!/Stripe/.test(st.txt),k+" names Stripe");
+  if(!["terms","privacy","refunds"].includes(k))assert(!/Stripe/.test(st.txt),k+" names Stripe");
   assert(!/Pine Script|Translate Pine/.test(st.txt),k+" mentions Pine translation");
   assert.notStrictEqual(st.ls,"legal");console.log("legal",k,"ok",st.txt.length,"chars");}
 // content facts
@@ -32,13 +32,19 @@ const ck=await P.evaluate(()=>{location.hash="#/legal/cookies";return new Promis
 for(const s of ["Cloudflare Web Analytics","Umami Cloud","Advertising is not used","[confirm before publishing: Umami installed and live]","[confirm: Umami Cloud hosting region and DPA]"])assert(ck.includes(s),"cookies missing "+s);
 assert(!/if adopted/.test(ck),"cookies still treats Umami as unadopted");
 const rf=await P.evaluate(()=>{location.hash="#/legal/refunds";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["currently free","£11.99","£109","£24.99","£219","$14.99","$135","$29.99","$269","20% VAT","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","Consumer Rights Act 2015","Consumer Contracts","regulation 36","regulation 37","Model cancellation form","not excluded","Free trial","Elite only","end of day 7","one trial per person","Part 4, Chapter 2"])assert(rf.includes(s),"refunds missing "+s);
+for(const s of ["currently free","£11.99","£109","£24.99","£219","$14.99","$135","$29.99","$269","20% VAT","[confirm before launch]","Sold through Link, LLC","Stripe Managed Payments","Link Consumer Terms of Service","Consumer Rights Act 2015","Consumer Contracts","regulation 36","regulation 37","Model cancellation form","not excluded","Free trial","Elite only","end of day 7","one trial per person","13-month","plus-tags are removed","offered Elite without a trial","keep Elite until the trial ends","Part 4, Chapter 2","original payment method through Stripe","14-day cancellation rights"])assert(rf.includes(s),"refunds missing "+s);
+assert(!/one trial per person \[confirm\]/.test(rf),"refunds still has trial confirm placeholder");
 assert(!/pounds sterling only/i.test(rf)&&!/All prices are in pounds sterling/.test(rf),"refunds still pounds-sterling-only");
 assert(!/Chapter 3 of Part 4/.test(rf),"refunds still cites DMCC Chapter 3");
 const tm=await P.evaluate(()=>{location.hash="#/legal/terms";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["currently free","Pro","Elite","£11.99","$14.99","$29.99","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","shown at checkout","renew automatically","30 days","not authorised or regulated by the Financial Conduct Authority","Free trial","Elite only","end of day 7"])assert(tm.includes(s),"terms missing "+s);
+for(const s of ["currently free","Pro","Elite","£11.99","$14.99","$29.99","[confirm before launch]","Sold through Link, LLC","Stripe Managed Payments","Link Consumer Terms of Service","Stripe, LLC","Stripe Technology Company, Limited","shown at checkout","renew automatically","30 days","not authorised or regulated by the Financial Conduct Authority","Free trial","Elite only","end of day 7","one trial per person","13-month","plus-tags are removed","offered Elite without a trial","keep Elite until the trial ends"])assert(tm.includes(s),"terms missing "+s);
+assert(!/one trial per person \[confirm\]/.test(tm),"terms still has trial confirm placeholder");
 assert(!/pounds sterling only/i.test(tm)&&!/in pounds sterling including/.test(tm),"terms still pounds-sterling-only");
 assert(pv.includes("legitimate interests")&&pv.includes("Art. 15")&&pv.includes("Art. 22")&&pv.includes("Information Commissioner")&&pv.includes("18 and over"),"privacy missing rights or lawful-basis wording");
+for(const s of ["card identifier","normalised email","do not store your card number","13 months","independent controller","Sold through Link, LLC","Stripe Privacy Policy","Link Privacy Center","Stripe Data Processing Agreement","Payment Services Regulations 2017"])assert(pv.includes(s),"privacy missing trial-eligibility or Stripe wording "+s);
+assert(!pv.includes("[Payment provider, e.g. merchant of record, confirm]")&&!pv.includes("[confirm: USD tax treatment / merchant of record]")&&!pv.includes("[confirm: retention period for trial-eligibility records]"),"privacy still has payment or retention placeholders");
+assert(!rf.includes("[Payment provider, e.g. merchant of record, confirm]")&&!rf.includes("[confirm: USD tax treatment / merchant of record]")&&!tm.includes("[Payment provider, e.g. merchant of record, confirm]")&&!tm.includes("[confirm: USD tax treatment / merchant of record]"),"terms or refunds still have payment placeholders");
+
 assert(await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0),"websocket replaced");
 // index route + reload deep link
 await P.evaluate(()=>{location.hash="#/legal"});await P.waitForTimeout(250);

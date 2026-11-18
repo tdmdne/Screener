@@ -6,30 +6,39 @@ const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await
 const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"))};
 (async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base);await ready(P);
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>{const a=candles(symOf("BTCUSDT"),"1H");return a&&a.length>30});
-// seed: one closed long (target hit today) and one open short, from the real candle store; two alerts (today, yesterday)
+// seed: one closed long (target hit today) and one open short, from the real candle store; two alerts (today, yesterday).
+// Open P&L uses the live price s[2] (vtSumPositions → posCalc.pnlAt). A previous flake (+45.87 vs 46.94) was that
+// price ticking between the expectation and vtSumM(). Pin s[2] before opening the dialog and compute expected P&L
+// from that same pinned price (and posCalc) in the same turn — no loose tolerance.
 const exp=await P.evaluate(()=>{const s=symOf("BTCUSDT"),B=candles(s,"1H"),n=B.length,t0=new Date();t0.setHours(0,0,0,0);
-  // pick an entry bar today with at least 4 bars after it
   let i=B.findIndex(b=>b.t*1000>=t0.getTime());if(i<0||i>n-5)i=n-5;const E=B[i].c,after=B.slice(i+1);
   const T=Math.max(...after.map(b=>b.h))*.999,Sx=Math.min(...after.map(b=>b.l))*.5;
   const E2=B[n-3].c,T2=E2*.5,S2=E2*1.5;
+  const pin=s[2];
+  window.__sumPin=pin;
+  if(window.__sumPinId)clearInterval(window.__sumPinId);
+  const hold=()=>{const x=symOf("BTCUSDT");if(x)x[2]=window.__sumPin};
+  window.__sumPinId=setInterval(hold,1);hold();
   S.dr=S.dr||{};S.dr.BTCUSDT=[{id:1,t:"long",p:[{t:B[i].t,y:E},{t:B[n-1].t,y:T},{t:B[n-1].t,y:Sx}],acct:10000,risk:1,ru:"%",lot:1,lev:0,prec:2},
     {id:2,t:"short",p:[{t:B[n-3].t,y:E2},{t:B[n-1].t+86400,y:T2},{t:B[n-1].t+86400,y:S2}],acct:10000,risk:1,ru:"%",lot:1,lev:0,prec:2}];
   const now=Date.now();S.alog=[{sym:"BTCUSDT",dir:"above",level:101.5,px:101.6,at:now-6e5,msg:"breakout"},{sym:"ETHUSDT",dir:"below",level:90,px:89.9,at:t0.getTime()-3600e3,msg:""}];save();
-  // independent expectations: walk the bars, first touch closes (stop first), qty = risk / distance, floored to 2 dp
   let hit=null;for(const b of after){if(b.l<=Sx){hit={st:"sl",t:b.t};break}if(b.h>=T){hit={st:"tp",t:b.t};break}}
-  const q1=Math.floor(100/(E-Sx)*100+1e-9)/100,real=(T-E)*q1;const q2=Math.floor(100/(S2-E2)*100+1e-9)/100,unreal=(E2-s[2])*q2;
-  const ch=SYMS.map(x=>{const a=candles(x,"1D");return a&&a.length>1&&x[2]!=null?[x[0],(x[2]/a[a.length-2].c-1)*100]:null}).filter(Boolean).sort((a,b)=>b[1]-a[1]);
-  return{hit,real,unreal,top:ch[0],bottom:ch[ch.length-1],up:ch.filter(x=>x[1]>0).length,dn:ch.filter(x=>x[1]<0).length,n:ch.length}});
+  const tick=pin<10?1e-4:.01;
+  const c1=posCalc({side:"long",entry:E,tp:T,sl:Sx,acct:10000,risk:1,ru:"%",lot:1,lev:0,prec:2,pv:1,tick});
+  const c2=posCalc({side:"short",entry:E2,tp:T2,sl:S2,acct:10000,risk:1,ru:"%",lot:1,lev:0,prec:2,pv:1,tick});
+  const real=c1.pnlTP,unreal=c2.pnlAt(pin);
+  const ch=SYMS.map(x=>{const a=candles(x,"1D");const px=x[0]==="BTCUSDT"?pin:x[2];return a&&a.length>1&&px!=null?[x[0],(px/a[a.length-2].c-1)*100]:null}).filter(Boolean).sort((a,b)=>b[1]-a[1]);
+  return{hit,real,unreal,pin,top:ch[0],bottom:ch[ch.length-1],up:ch.filter(x=>x[1]>0).length,dn:ch.filter(x=>x[1]<0).length,n:ch.length}});
 assert.strictEqual(exp.hit&&exp.hit.st,"tp","seeded long hits target");
-await P.click("#sumb");await P.waitForTimeout(700);
+await P.click("#sumb");await P.waitForSelector("#sm_unreal");
 const sg=v=>(v>0?"+":v<0?"\u2212":"")+Math.abs(v).toFixed(2);
-let got=await P.evaluate(()=>({real:document.getElementById("sm_real").textContent,unreal:document.getElementById("sm_unreal").textContent,br:document.getElementById("sm_breadth").textContent,al:document.getElementById("sm_alc").textContent,
-  rows:[...document.querySelectorAll(".smt tbody tr")].map(r=>r.textContent),gain:(document.querySelector(".smg ol li")||{}).textContent,role:document.querySelector("#modal .box,.ov .box").getAttribute("role")}));
-// the open short is valued at the live price, which can tick between our read and the dialog: allow 1 cent of drift per unit
-assert.strictEqual(got.real,sg(exp.real),"realised P&L");assert(Math.abs(parseFloat(got.unreal.replace("\u2212","-"))-exp.unreal)<Math.max(1,Math.abs(exp.unreal)*.02),"open P&L "+got.unreal+" vs "+exp.unreal);
+let got=await P.evaluate(()=>{const x=symOf("BTCUSDT");if(x&&window.__sumPin!=null)x[2]=window.__sumPin;
+  return{real:document.getElementById("sm_real").textContent,unreal:document.getElementById("sm_unreal").textContent,br:document.getElementById("sm_breadth").textContent,al:document.getElementById("sm_alc").textContent,
+  rows:[...document.querySelectorAll(".smt tbody tr")].map(r=>r.textContent),gain:(document.querySelector(".smg ol li")||{}).textContent,role:document.querySelector("#modal .box,.ov .box").getAttribute("role")}});
+assert.strictEqual(got.real,sg(exp.real),"realised P&L");assert.strictEqual(got.unreal,sg(exp.unreal),"open P&L "+got.unreal+" vs "+sg(exp.unreal)+" (pinned live px "+exp.pin+")");
 assert.strictEqual(got.br,exp.up+" / "+exp.dn);assert.strictEqual(got.al,"1","only today's alerts");assert.strictEqual(got.rows.length,2);assert(/Target hit/.test(got.rows[0])&&/Open/.test(got.rows[1]));
 assert(got.gain.startsWith(exp.top[0].replace(/USDT$/,"")),"top gainer "+got.gain+" vs "+exp.top[0]);assert.strictEqual(got.role,"dialog");
-let v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" summary axe: "+v.join(" | "));
+await P.evaluate(()=>{if(window.__sumPinId){clearInterval(window.__sumPinId);window.__sumPinId=0}});await P.waitForTimeout(600);let v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" summary axe: "+v.join(" | "));
 if(theme==="dark"){await P.screenshot({path:__dirname+"/../shots/19_session_summary.png"});
   // export text
   const [dl]=await Promise.all([P.waitForEvent("download"),P.click("#sm_dl")]);const txt=fs.readFileSync(await dl.path(),"utf8");
@@ -47,7 +56,7 @@ if(theme==="dark"){await P.screenshot({path:__dirname+"/../shots/19_session_summ
   // the evening chip
   await P.evaluate(()=>vtSumChip(true));assert(await P.isVisible("#vtsumchip"));await P.click("#vtsum_open");await P.waitForTimeout(100);assert(await P.evaluate(()=>!!document.querySelector(".smm")&&!document.getElementById("vtsumchip")));
   await P.evaluate(()=>closeM());await P.evaluate(()=>vtSumChip(true));assert(!(await P.isVisible("#vtsumchip").catch(()=>false)),"only once a day")}
-console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
+await P.evaluate(()=>{if(window.__sumPinId){clearInterval(window.__sumPinId);window.__sumPinId=0}});console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
 // phone: header button hidden, entry in the More sheet
 const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base);await ready(P);
 assert.strictEqual(await P.isVisible("#sumb"),false);await P.click("#vnmore");await P.waitForTimeout(200);await P.click("#vm_sum");await P.waitForTimeout(200);

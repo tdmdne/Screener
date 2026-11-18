@@ -14,7 +14,9 @@ await P.route(/feeds\.finance\.yahoo\.com/,r=>{rssHits++;r.fulfill({contentType:
 await P.goto(h.base);await ready(P);await P.evaluate(()=>{S.chart.sym="AAPL";location.hash="#/calendar"});await P.waitForSelector(".calday");
 if(theme==="dark"){
 let r=await P.evaluate(()=>({stub:!!document.querySelector("#pv-calendar .stub"),rows:[...document.querySelectorAll(".calt tbody tr")].map(t=>t.textContent),next:document.getElementById("cal_next").textContent,img:document.querySelectorAll("#pv-calendar img").length,x:window.__x||0,n:CAL.ev.length}));
-assert(!r.stub);assert.strictEqual(r.n,4,"malformed rows dropped");assert.strictEqual(r.rows.length,2,"default filter High+Medium");assert(/CPI m\/m/.test(r.rows.join()));assert(/Next high-impact: USD CPI m\/m in [23] h/.test(r.next),r.next);
+assert(!r.stub);assert.strictEqual(r.n,4,"malformed rows dropped");assert.strictEqual(r.rows.length,2,"default filter High+Medium");assert(/CPI m\/m/.test(r.rows.join()));
+// calIn formats as "3h 0m" (not "3 h"). #cal_next textContent may also include the High badge ("HighNext…").
+assert(/Next high-impact:\s*USD CPI m\/m in \d+h(?:\s*\d+m)?/.test(r.next),r.next);
 const t=await P.evaluate(()=>{const e=CAL.ev.find(x=>x.title==="CPI m/m");return calTime(e.t)});const exp=new Date(now+3*H).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});assert.strictEqual(t,exp,"local time");
 assert(await P.evaluate(()=>[...document.querySelectorAll(".calt tbody tr")].some(t=>t.classList.contains("past"))),"past dimmed");
 await P.click('.calimp[data-imp="Low"]');await P.waitForTimeout(100);r=await P.evaluate(()=>({t:document.getElementById("cal_list").textContent,img:document.querySelectorAll("#cal_list img").length,x:window.__x||0}));
@@ -33,7 +35,8 @@ await P.waitForTimeout(600);const v=await axe(P,"#pv-calendar");assert.deepStric
 console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
 // every route fails -> honest error, no events
 {const h=await launch({viewport:{width:1440,height:900}});const P=h.page;await P.goto(h.base);await ready(P);await P.evaluate(()=>{location.hash="#/calendar"});
- await P.waitForSelector(".calerr",{timeout:60000});const t=await P.textContent("#cal_list");assert(/Couldn.t load the calendar/.test(t)&&/No events are shown rather than guessed/.test(t));assert.strictEqual(await P.evaluate(()=>document.querySelectorAll(".calt").length),0);await h.close()}
+ await P.waitForSelector(".calerr",{timeout:60000});const t=await P.textContent("#cal_list");
+ assert(/Couldn.t load the calendar/.test(t)&&/Try Refresh/.test(t),t);assert.strictEqual(await P.evaluate(()=>document.querySelectorAll(".calt").length),0);await h.close()}
 // phone
 {const h=await launch({viewport:{width:390,height:844},mobile:true,calendar:FEED});const P=h.page;await P.route(/feeds\.finance\.yahoo\.com/,r=>r.fulfill({contentType:"application/rss+xml",body:RSS}));await P.goto(h.base);await ready(P);
  await P.evaluate(()=>{S.chart.sym="AAPL";location.hash="#/calendar"});await P.waitForSelector(".calday");await P.waitForTimeout(500);

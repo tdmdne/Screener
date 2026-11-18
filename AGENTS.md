@@ -45,7 +45,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **PRESERVE STORAGE KEYS:** Never rename, wipe, or alter the schema of `scr2~<account_hash>~*` LocalStorage keys. Guest isolation and existing user watchlists/journals/scripts must remain intact.
 - **NO ARTIFICIAL CANDLE CLAMPING:** Never clamp, smooth, or alter OHLC candle wicks/spikes in UI code. Fix bad ticks at the ingestion/normalization layer or switch feed providers.
 - **XSS SAFETY:** Do not introduce raw `innerHTML` string concatenation with dynamic/user data in new modules; use `document.createElement` and `textContent`.
-- **NO PAYWALLS / DARK PATTERNS:** Core multi-asset charting, custom Vektor scripting, bar-replay backtesting, and P1–P5 tiering must remain unrestricted.
+- **NO PAYWALLS / DARK PATTERNS:** The Vektor Script editor and language must remain available on Free, but Vektor Script indicators count toward Free's 3-indicator limit. P1–P5 tiering must remain unrestricted. Backtesting and bar replay must never be paywalled or limited, and heatmaps and the journal are included on Free and must remain unrestricted. The approved Free limits — 3 charts, 3 indicators, and 3 alerts — are allowed.
 
 **NEVER BREAK:**
 - Chart rendering
@@ -226,9 +226,10 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Live URL: **https://screener-cso.pages.dev**
 - Target public launch: **1 March 2027**. The bot must not promise this date (see Bot rules).
 - Pricing: today the app is free and nothing can be bought. Paid plans cannot be purchased until launch on **1 March 2027**. All prices include VAT.
-  - **Free:** live crypto, delayed stocks/FX, 1 chart, 3 indicators, 3 alerts, a limited backtester, 25 journal trades.
+  - **Free:** live crypto, delayed stocks/FX, 3 charts, 3 indicators (Vektor Script indicators count toward the 3), 3 alerts, full unrestricted backtesting and bar replay, heatmaps, and an unlimited journal.
   - **Pro:** £11.99/mo or £109/yr ($14.99 / $135).
   - **Elite:** £24.99/mo or £219/yr ($29.99 / $269).
+- **Elite 7-day free trial:** at launch there is a 7-day free trial on Elite only (not Free or Pro). A card is required upfront. The trial auto-converts to paid Elite after 7 days unless cancelled. The first charge is the Elite price (£24.99/mo or £219/yr; $29.99 / $269) at the end of day 7. There is no charge if it is cancelled before then. Cancel path: `[cancel path TBC by Dex]`. Full cancellation details are on the Terms and Refunds legal pages. The trial is not live until launch on **1 March 2027**; today the app is free and nothing can be bought.
 - The word "Plus" in the code is the chart's price-scale **"+" button**. It is not a pricing tier.
 
 ### Navigation (where things are)

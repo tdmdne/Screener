@@ -20,7 +20,7 @@ async function launch(opts={}){
   const ctx=await browser.newContext(Object.assign({viewport:opts.viewport||{width:1600,height:950},colorScheme:opts.colorScheme||"dark",reducedMotion:opts.reducedMotion||"no-preference"},opts.mobile?{hasTouch:true,isMobile:true,deviceScaleFactor:opts.dsf||1}:{}));
   await ctx.addInitScript(WSMOCK);
   await ctx.addInitScript(({mode,state,consent,auth})=>{if(auth!==false&&!localStorage.getItem("scr2a"))localStorage.setItem("scr2a",JSON.stringify({id:"tester"}));
-    if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.0",ts:Date.now(),cache:true,method:"test"}))}
+    if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.1",ts:Date.now(),cache:true,method:"test"}))}
     if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null,consent:opts.consent,auth:opts.auth});
   await ctx.route("**/*",route=>{const u=route.request().url();
     if(u.startsWith("http://127.0.0.1:"+port+"/config.local.js"))return route.fulfill({contentType:"application/javascript",body:opts.config?"window.VT_CONFIG="+JSON.stringify(opts.config)+";":"/* no local config in tests */"});

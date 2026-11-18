@@ -40,23 +40,57 @@ function vtCanUseEdge() {
   );
 }
 
+const VT_FUTURES_TO_TD = {
+  "NQ=F": "QQQ",
+  "ES=F": "SPY",
+  "YM=F": "DIA",
+  "RTY=F": "IWM",
+  "GC=F": "XAU/USD",
+  "SI=F": "XAG/USD",
+  "CL=F": "WTI/USD",
+  "NG=F": "NATGAS/USD",
+  "6E=F": "EUR/USD",
+  "6B=F": "GBP/USD",
+  "6J=F": "USD/JPY",
+  "6A=F": "AUD/USD",
+  "6C=F": "USD/CAD",
+  "6S=F": "USD/CHF",
+  "ZN=F": "TLT",
+  "ZB=F": "TLT",
+  "ZF=F": "IEF",
+  "ZT=F": "SHY",
+  "BZ=F": "BRENT/USD",
+  "HG=F": "COPPER/USD",
+  "PL=F": "XPT/USD",
+  "PA=F": "XPD/USD",
+};
+
 function vtIsCryptoSym(sOrSym) {
   const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
   const sym = String(Array.isArray(sOrSym) ? sOrSym[0] : sOrSym || "").trim().toUpperCase();
   if (s && (s[8] === "bn" || s[1] === "CRY")) return true;
-  return sym.endsWith("USDT");
+  return sym.endsWith("USDT") || sym.endsWith("BUSD") || sym.endsWith("BTC");
 }
 
 function vtToBnSym(sym) {
   let u = String(sym || "").trim().toUpperCase();
-  if (!u.endsWith("USDT")) u = u.endsWith("USD") ? u + "T" : u + "USDT";
+  if (!u.endsWith("USDT") && !u.endsWith("BUSD") && !u.endsWith("BTC")) {
+    u = u.endsWith("USD") ? u + "T" : u + "USDT";
+  }
   return u;
 }
 
 function vtToTdSym(sOrSym) {
   const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
   const sym = String(s ? s[0] : sOrSym || "").trim().toUpperCase();
-  if (s && s[9] && !String(s[9]).includes("=X")) return String(s[9]).trim();
+  if (VT_FUTURES_TO_TD[sym]) return VT_FUTURES_TO_TD[sym];
+  if (s && s[9] && !String(s[9]).includes("=X")) {
+    const tdCandidate = String(s[9]).trim().toUpperCase();
+    if (VT_FUTURES_TO_TD[tdCandidate]) return VT_FUTURES_TO_TD[tdCandidate];
+    if (tdCandidate.endsWith("=F")) return "";
+    return String(s[9]).trim();
+  }
+  if (sym.endsWith("=F")) return "";
   if (/^[A-Z]{6}$/.test(sym)) return sym.slice(0, 3) + "/" + sym.slice(3);
   return sym;
 }
@@ -436,7 +470,9 @@ async function edgeFetchCandles(s, tf, opts) {
 
   const job = (async () => {
     try {
-      let u = `/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(s[6] || s[0])}&mkt=${encodeURIComponent(s[1] || "")}`;
+      const tdMapped = !vtIsCryptoSym(s) ? vtToTdSym(s) : "";
+      const apiSym = vtIsCryptoSym(s) ? (s[6] || s[0]) : (tdMapped || s[6] || s[0]);
+      let u = `/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(apiSym)}&mkt=${encodeURIComponent(s[1] || "")}`;
       if (fromSec > 0) u += `&from=${fromSec}`;
       if (toSec > 0) u += `&to=${toSec}`;
       if (beforeSec > 0) u += `&before=${beforeSec}`;
@@ -948,6 +984,7 @@ async function vtTdWsConnect(sym) {
   if (!vtCanUseEdge() || !isLive() || !sym || vtIsCryptoSym(sym)) return;
   const sObj = typeof symOf === "function" ? symOf(sym) : null;
   const tdSym = vtToTdSym(sObj || sym);
+  if (!tdSym) return;
   VT_EDGE.tdActiveSym = sym;
   VT_EDGE.tdActiveTdSym = tdSym;
 

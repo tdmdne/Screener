@@ -1,6 +1,22 @@
 // Cloudflare Pages Function catch-all for /api/*
 // Delegates all API requests (candles, screener, calendar, news, quote) directly to the worker.js handler with secure secret mapping and CORS headers
-import worker from "../../worker.js";
+import worker, {
+  BINANCE_MIRRORS,
+  fetchBinanceWithFallback,
+  FUTURES_TO_TWELVEDATA,
+  resolveTdSymbol,
+  fetchBinanceCandles,
+  fetchBinanceTickers,
+} from "../../worker.js";
+
+export {
+  BINANCE_MIRRORS,
+  fetchBinanceWithFallback,
+  FUTURES_TO_TWELVEDATA,
+  resolveTdSymbol,
+  fetchBinanceCandles,
+  fetchBinanceTickers,
+};
 
 export async function onRequest(context) {
   const { request, env } = context;

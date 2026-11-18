@@ -2492,10 +2492,11 @@ const FXW=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY",
 FXW.forEach(w=>TDN.add(w.n));
 const isLive=()=>S.data.mode!=="sample";
 const QT=[],QB=[],QY=[],bz={},BN={list:[],loaded:false,busy:false,err:"",host:"",pause:0},FHU={list:[],loaded:false,busy:false,err:""},PGU={list:[],loaded:false,busy:false,err:""};
-const BNH=["https://data-api.binance.vision"];
+const BNH=["https://data-api.binance.vision","https://api.binance.com"];
 const BNI={"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","4H":"4h","1D":"1d","1W":"1w","1M":"1M"};
 const STABLE=/^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
-const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:n+"=F",tv:n+"1!"})),
+const FUT_TD_MAP={"NQ=F":"QQQ","ES=F":"SPY","YM=F":"DIA","RTY=F":"IWM","GC=F":"XAU/USD","SI=F":"XAG/USD","CL=F":"WTI/USD","NG=F":"NATGAS/USD","6E=F":"EUR/USD","6B=F":"GBP/USD","6J=F":"USD/JPY","6A=F":"AUD/USD","6C=F":"USD/CAD","6S=F":"USD/CHF","ZN=F":"TLT","ZB=F":"TLT","ZF=F":"IEF","ZT=F":"SHY","BZ=F":"BRENT/USD","HG=F":"COPPER/USD","PL=F":"XPT/USD","PA=F":"XPD/USD"};
+const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC CT 6E 6B 6J 6A 6C 6S").split(" ").map(n=>({n:n+"=F",m:"FUT",td:FUT_TD_MAP[n+"=F"]||"",tv:n+"1!"})),
 ...[["SPX","^GSPC","SP:SPX"],["NASDAQ","^IXIC","NASDAQ:IXIC"],["DJI","^DJI","DJ:DJI"],["RUT","^RUT","TVC:RUT"],["VIX","^VIX","TVC:VIX"],["FTSE","^FTSE","TVC:UKX"],["DAX","^GDAXI","XETR:DAX"],["CAC40","^FCHI","TVC:CAC40"],["STOXX50","^STOXX50E","TVC:SX5E"],["N225","^N225","TVC:NI225"],["HSI","^HSI","TVC:HSI"],["ASX200","^AXJO","ASX:XJO"],["KOSPI","^KS11","TVC:KOSPI"],["SENSEX","^BSESN","BSE:SENSEX"],["TSX","^GSPTSE","TSX:TSX"]].map(([n,td,tv])=>({n,m:"IDX",td,tv})),
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
 ...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
@@ -5923,23 +5924,57 @@ function vtCanUseEdge() {
   );
 }
 
+const VT_FUTURES_TO_TD = {
+  "NQ=F": "QQQ",
+  "ES=F": "SPY",
+  "YM=F": "DIA",
+  "RTY=F": "IWM",
+  "GC=F": "XAU/USD",
+  "SI=F": "XAG/USD",
+  "CL=F": "WTI/USD",
+  "NG=F": "NATGAS/USD",
+  "6E=F": "EUR/USD",
+  "6B=F": "GBP/USD",
+  "6J=F": "USD/JPY",
+  "6A=F": "AUD/USD",
+  "6C=F": "USD/CAD",
+  "6S=F": "USD/CHF",
+  "ZN=F": "TLT",
+  "ZB=F": "TLT",
+  "ZF=F": "IEF",
+  "ZT=F": "SHY",
+  "BZ=F": "BRENT/USD",
+  "HG=F": "COPPER/USD",
+  "PL=F": "XPT/USD",
+  "PA=F": "XPD/USD",
+};
+
 function vtIsCryptoSym(sOrSym) {
   const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
   const sym = String(Array.isArray(sOrSym) ? sOrSym[0] : sOrSym || "").trim().toUpperCase();
   if (s && (s[8] === "bn" || s[1] === "CRY")) return true;
-  return sym.endsWith("USDT");
+  return sym.endsWith("USDT") || sym.endsWith("BUSD") || sym.endsWith("BTC");
 }
 
 function vtToBnSym(sym) {
   let u = String(sym || "").trim().toUpperCase();
-  if (!u.endsWith("USDT")) u = u.endsWith("USD") ? u + "T" : u + "USDT";
+  if (!u.endsWith("USDT") && !u.endsWith("BUSD") && !u.endsWith("BTC")) {
+    u = u.endsWith("USD") ? u + "T" : u + "USDT";
+  }
   return u;
 }
 
 function vtToTdSym(sOrSym) {
   const s = Array.isArray(sOrSym) ? sOrSym : (typeof symOf === "function" ? symOf(sOrSym) : null);
   const sym = String(s ? s[0] : sOrSym || "").trim().toUpperCase();
-  if (s && s[9] && !String(s[9]).includes("=X")) return String(s[9]).trim();
+  if (VT_FUTURES_TO_TD[sym]) return VT_FUTURES_TO_TD[sym];
+  if (s && s[9] && !String(s[9]).includes("=X")) {
+    const tdCandidate = String(s[9]).trim().toUpperCase();
+    if (VT_FUTURES_TO_TD[tdCandidate]) return VT_FUTURES_TO_TD[tdCandidate];
+    if (tdCandidate.endsWith("=F")) return "";
+    return String(s[9]).trim();
+  }
+  if (sym.endsWith("=F")) return "";
   if (/^[A-Z]{6}$/.test(sym)) return sym.slice(0, 3) + "/" + sym.slice(3);
   return sym;
 }
@@ -6319,7 +6354,9 @@ async function edgeFetchCandles(s, tf, opts) {
 
   const job = (async () => {
     try {
-      let u = `/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(s[6] || s[0])}&mkt=${encodeURIComponent(s[1] || "")}`;
+      const tdMapped = !vtIsCryptoSym(s) ? vtToTdSym(s) : "";
+      const apiSym = vtIsCryptoSym(s) ? (s[6] || s[0]) : (tdMapped || s[6] || s[0]);
+      let u = `/api/candles?symbol=${encodeURIComponent(s[0])}&interval=${encodeURIComponent(tf)}&apiSym=${encodeURIComponent(apiSym)}&mkt=${encodeURIComponent(s[1] || "")}`;
       if (fromSec > 0) u += `&from=${fromSec}`;
       if (toSec > 0) u += `&to=${toSec}`;
       if (beforeSec > 0) u += `&before=${beforeSec}`;
@@ -6831,6 +6868,7 @@ async function vtTdWsConnect(sym) {
   if (!vtCanUseEdge() || !isLive() || !sym || vtIsCryptoSym(sym)) return;
   const sObj = typeof symOf === "function" ? symOf(sym) : null;
   const tdSym = vtToTdSym(sObj || sym);
+  if (!tdSym) return;
   VT_EDGE.tdActiveSym = sym;
   VT_EDGE.tdActiveTdSym = tdSym;
 
@@ -7045,16 +7083,16 @@ const VT_CATALOG=[
   ["GBPJPY","British Pound / Japanese Yen","FX","FX","GBPJPY=X","FX:GBPJPY","yf","GBP/JPY"],
   ["XAUUSD","Gold Spot / US Dollar","CFD","OANDA","GC=F","OANDA:XAUUSD","yf","XAU/USD"],
   ["XAGUSD","Silver Spot / US Dollar","CFD","OANDA","SI=F","OANDA:XAGUSD","yf","XAG/USD"],
-  ["ES=F","E-mini S&P 500 Futures","FUT","CME","ES=F","CME_MINI:ES1!","yf","ES=F"],
-  ["NQ=F","E-mini Nasdaq-100 Futures","FUT","CME","NQ=F","CME_MINI:NQ1!","yf","NQ=F"],
-  ["YM=F","E-mini Dow ($5) Futures","FUT","CBOT","YM=F","CBOT_MINI:YM1!","yf","YM=F"],
-  ["RTY=F","E-mini Russell 2000 Futures","FUT","CME","RTY=F","CME_MINI:RTY1!","yf","RTY=F"],
-  ["CL=F","WTI Crude Oil Futures","FUT","NYMEX","CL=F","NYMEX:CL1!","yf","CL=F"],
-  ["NG=F","Henry Hub Natural Gas Futures","FUT","NYMEX","NG=F","NYMEX:NG1!","yf","NG=F"],
-  ["GC=F","Gold Futures","FUT","COMEX","GC=F","COMEX:GC1!","yf","GC=F"],
-  ["SI=F","Silver Futures","FUT","COMEX","SI=F","COMEX:SI1!","yf","SI=F"],
-  ["ZN=F","10-Year T-Note Futures","FUT","CBOT","ZN=F","CBOT:ZN1!","yf","ZN=F"],
-  ["6E=F","Euro FX Futures","FUT","CME","6E=F","CME:6E1!","yf","6E=F"],
+  ["ES=F","E-mini S&P 500 Futures","FUT","CME","ES=F","CME_MINI:ES1!","yf","SPY"],
+  ["NQ=F","E-mini Nasdaq-100 Futures","FUT","CME","NQ=F","CME_MINI:NQ1!","yf","QQQ"],
+  ["YM=F","E-mini Dow ($5) Futures","FUT","CBOT","YM=F","CBOT_MINI:YM1!","yf","DIA"],
+  ["RTY=F","E-mini Russell 2000 Futures","FUT","CME","RTY=F","CME_MINI:RTY1!","yf","IWM"],
+  ["CL=F","WTI Crude Oil Futures","FUT","NYMEX","CL=F","NYMEX:CL1!","yf","WTI/USD"],
+  ["NG=F","Henry Hub Natural Gas Futures","FUT","NYMEX","NG=F","NYMEX:NG1!","yf","NATGAS/USD"],
+  ["GC=F","Gold Futures","FUT","COMEX","GC=F","COMEX:GC1!","yf","XAU/USD"],
+  ["SI=F","Silver Futures","FUT","COMEX","SI=F","COMEX:SI1!","yf","XAG/USD"],
+  ["ZN=F","10-Year T-Note Futures","FUT","CBOT","ZN=F","CBOT:ZN1!","yf","TLT"],
+  ["6E=F","Euro FX Futures","FUT","CME","6E=F","CME:6E1!","yf","EUR/USD"],
   ["SPX","S&P 500 Index","IDX","SP","^GSPC","SP:SPX","yf","SPX"],
   ["NASDAQ","Nasdaq Composite Index","IDX","NASDAQ","^IXIC","NASDAQ:IXIC","yf","IXIC"],
   ["DJI","Dow Jones Industrial Average","IDX","DJ","^DJI","DJ:DJI","yf","DJI"],

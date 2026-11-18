@@ -58,6 +58,60 @@ const YI = {
 
 const STABLE_RE = /^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
 
+const BINANCE_MIRRORS = [
+  "https://data-api.binance.vision",
+  "https://api.binance.com",
+];
+
+async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 3500) {
+  for (const base of BINANCE_MIRRORS) {
+    try {
+      const r = await fetchWithTimeout(`${base}${pathAndQuery}`, init, timeoutMs);
+      if (r.status === 451 || (r.status >= 500 && r.status <= 599)) {
+        continue;
+      }
+      return r;
+    } catch (_e) {}
+  }
+  return null;
+}
+
+const FUTURES_TO_TWELVEDATA = {
+  "NQ=F": "QQQ",
+  "ES=F": "SPY",
+  "YM=F": "DIA",
+  "RTY=F": "IWM",
+  "GC=F": "XAU/USD",
+  "SI=F": "XAG/USD",
+  "CL=F": "WTI/USD",
+  "NG=F": "NATGAS/USD",
+  "6E=F": "EUR/USD",
+  "6B=F": "GBP/USD",
+  "6J=F": "USD/JPY",
+  "6A=F": "AUD/USD",
+  "6C=F": "USD/CAD",
+  "6S=F": "USD/CHF",
+  "ZN=F": "TLT",
+  "ZB=F": "TLT",
+  "ZF=F": "IEF",
+  "ZT=F": "SHY",
+  "BZ=F": "BRENT/USD",
+  "HG=F": "COPPER/USD",
+  "PL=F": "XPT/USD",
+  "PA=F": "XPD/USD",
+};
+
+function resolveTdSymbol(sym, fallback) {
+  if (!sym) return fallback || "";
+  const s = String(sym).trim().toUpperCase();
+  if (FUTURES_TO_TWELVEDATA[s]) return FUTURES_TO_TWELVEDATA[s];
+  if (fallback && FUTURES_TO_TWELVEDATA[String(fallback).trim().toUpperCase()]) {
+    return FUTURES_TO_TWELVEDATA[String(fallback).trim().toUpperCase()];
+  }
+  if (s.endsWith("=F")) return "";
+  return fallback || s;
+}
+
 const DUKASCOPY_MAP = {
   EURUSD: { id: "EURUSD", scale: 100000 },
   GBPUSD: { id: "GBPUSD", scale: 100000 },
@@ -101,16 +155,16 @@ const BASE_INSTRUMENTS = [
   { s: "GBPJPY", m: "FX", name: "British Pound / Japanese Yen", ex: "FX", p: 192.2, v: 0, cs: 1, vf: 0.007, api: "GBPJPY=X", td: "GBP/JPY", tv: "FX:GBPJPY", pr: "yf" },
   { s: "XAUUSD", m: "CFD", name: "Gold Spot / US Dollar", ex: "OANDA", p: 2680, v: 0, cs: 1, vf: 0.011, api: "GC=F", td: "XAU/USD", tv: "OANDA:XAUUSD", pr: "yf" },
   { s: "XAGUSD", m: "CFD", name: "Silver Spot / US Dollar", ex: "OANDA", p: 31.4, v: 0, cs: 1, vf: 0.018, api: "SI=F", td: "XAG/USD", tv: "OANDA:XAGUSD", pr: "yf" },
-  { s: "ES=F", m: "FUT", name: "E-mini S&P 500 Futures", ex: "CME", p: 5890, v: 1200000, cs: 50, vf: 0.01, api: "ES=F", td: "ES=F", tv: "CME_MINI:ES1!", pr: "yf" },
-  { s: "NQ=F", m: "FUT", name: "E-mini Nasdaq-100 Futures", ex: "CME", p: 20650, v: 600000, cs: 20, vf: 0.013, api: "NQ=F", td: "NQ=F", tv: "CME_MINI:NQ1!", pr: "yf" },
-  { s: "YM=F", m: "FUT", name: "E-mini Dow ($5) Futures", ex: "CBOT", p: 43600, v: 180000, cs: 5, vf: 0.009, api: "YM=F", td: "YM=F", tv: "CBOT_MINI:YM1!", pr: "yf" },
-  { s: "RTY=F", m: "FUT", name: "E-mini Russell 2000 Futures", ex: "CME", p: 2310, v: 220000, cs: 50, vf: 0.015, api: "RTY=F", td: "RTY=F", tv: "CME_MINI:RTY1!", pr: "yf" },
-  { s: "CL=F", m: "FUT", name: "WTI Crude Oil Futures", ex: "NYMEX", p: 71.5, v: 350000, cs: 1000, vf: 0.02, api: "CL=F", td: "CL=F", tv: "NYMEX:CL1!", pr: "yf" },
-  { s: "NG=F", m: "FUT", name: "Henry Hub Natural Gas Futures", ex: "NYMEX", p: 2.85, v: 190000, cs: 10000, vf: 0.032, api: "NG=F", td: "NG=F", tv: "NYMEX:NG1!", pr: "yf" },
-  { s: "GC=F", m: "FUT", name: "Gold Futures", ex: "COMEX", p: 2685, v: 200000, cs: 100, vf: 0.011, api: "GC=F", td: "GC=F", tv: "COMEX:GC1!", pr: "yf" },
-  { s: "SI=F", m: "FUT", name: "Silver Futures", ex: "COMEX", p: 31.5, v: 85000, cs: 5000, vf: 0.018, api: "SI=F", td: "SI=F", tv: "COMEX:SI1!", pr: "yf" },
-  { s: "ZN=F", m: "FUT", name: "10-Year T-Note Futures", ex: "CBOT", p: 110.5, v: 1500000, cs: 1000, vf: 0.004, api: "ZN=F", td: "ZN=F", tv: "CBOT:ZN1!", pr: "yf" },
-  { s: "6E=F", m: "FUT", name: "Euro FX Futures", ex: "CME", p: 1.086, v: 200000, cs: 125000, vf: 0.005, api: "6E=F", td: "6E=F", tv: "CME:6E1!", pr: "yf" },
+  { s: "ES=F", m: "FUT", name: "E-mini S&P 500 Futures", ex: "CME", p: 5890, v: 1200000, cs: 50, vf: 0.01, api: "ES=F", td: "SPY", tv: "CME_MINI:ES1!", pr: "yf" },
+  { s: "NQ=F", m: "FUT", name: "E-mini Nasdaq-100 Futures", ex: "CME", p: 20650, v: 600000, cs: 20, vf: 0.013, api: "NQ=F", td: "QQQ", tv: "CME_MINI:NQ1!", pr: "yf" },
+  { s: "YM=F", m: "FUT", name: "E-mini Dow ($5) Futures", ex: "CBOT", p: 43600, v: 180000, cs: 5, vf: 0.009, api: "YM=F", td: "DIA", tv: "CBOT_MINI:YM1!", pr: "yf" },
+  { s: "RTY=F", m: "FUT", name: "E-mini Russell 2000 Futures", ex: "CME", p: 2310, v: 220000, cs: 50, vf: 0.015, api: "RTY=F", td: "IWM", tv: "CME_MINI:RTY1!", pr: "yf" },
+  { s: "CL=F", m: "FUT", name: "WTI Crude Oil Futures", ex: "NYMEX", p: 71.5, v: 350000, cs: 1000, vf: 0.02, api: "CL=F", td: "WTI/USD", tv: "NYMEX:CL1!", pr: "yf" },
+  { s: "NG=F", m: "FUT", name: "Henry Hub Natural Gas Futures", ex: "NYMEX", p: 2.85, v: 190000, cs: 10000, vf: 0.032, api: "NG=F", td: "NATGAS/USD", tv: "NYMEX:NG1!", pr: "yf" },
+  { s: "GC=F", m: "FUT", name: "Gold Futures", ex: "COMEX", p: 2685, v: 200000, cs: 100, vf: 0.011, api: "GC=F", td: "XAU/USD", tv: "COMEX:GC1!", pr: "yf" },
+  { s: "SI=F", m: "FUT", name: "Silver Futures", ex: "COMEX", p: 31.5, v: 85000, cs: 5000, vf: 0.018, api: "SI=F", td: "XAG/USD", tv: "COMEX:SI1!", pr: "yf" },
+  { s: "ZN=F", m: "FUT", name: "10-Year T-Note Futures", ex: "CBOT", p: 110.5, v: 1500000, cs: 1000, vf: 0.004, api: "ZN=F", td: "TLT", tv: "CBOT:ZN1!", pr: "yf" },
+  { s: "6E=F", m: "FUT", name: "Euro FX Futures", ex: "CME", p: 1.086, v: 200000, cs: 125000, vf: 0.005, api: "6E=F", td: "EUR/USD", tv: "CME:6E1!", pr: "yf" },
   { s: "SPX", m: "IDX", name: "S&P 500 Index", ex: "SP", p: 5875, v: 0, cs: 1, vf: 0.009, api: "^GSPC", td: "SPX", tv: "SP:SPX", pr: "yf" },
   { s: "NASDAQ", m: "IDX", name: "Nasdaq Composite Index", ex: "NASDAQ", p: 18980, v: 0, cs: 1, vf: 0.012, api: "^IXIC", td: "IXIC", tv: "NASDAQ:IXIC", pr: "yf" },
   { s: "DJI", m: "IDX", name: "Dow Jones Industrial Average", ex: "DJ", p: 43520, v: 0, cs: 1, vf: 0.008, api: "^DJI", td: "DJI", tv: "DJ:DJI", pr: "yf" },
@@ -185,10 +239,15 @@ function makeRng(seed) {
 function inferMeta(symbol, mktHint, apiHint) {
   const sym = String(symbol || "").trim().toUpperCase();
   const known = BY_SYM.get(sym);
-  if (known) return known;
-  const isBn = sym.endsWith("USDT") || mktHint === "CRY";
+  if (known) {
+    const tdResolved = resolveTdSymbol(known.td, known.s);
+    return { ...known, td: tdResolved };
+  }
+  const isBn = sym.endsWith("USDT") || sym.endsWith("BUSD") || sym.endsWith("BTC") || mktHint === "CRY";
   const isFx = mktHint === "FX" || /^[A-Z]{6}$/.test(sym);
   const isFut = mktHint === "FUT" || sym.endsWith("=F");
+  const futTd = resolveTdSymbol(sym, "");
+  const tdSym = futTd ? futTd : (isFx && sym.length === 6 ? sym.slice(0, 3) + "/" + sym.slice(3) : (sym.endsWith("=F") ? "" : sym));
   return {
     s: sym,
     m: isBn ? "CRY" : isFx ? "FX" : isFut ? "FUT" : mktHint || "STK",
@@ -199,7 +258,7 @@ function inferMeta(symbol, mktHint, apiHint) {
     cs: 1,
     vf: isFx ? 0.006 : 0.02,
     api: apiHint || (isFx && !sym.includes("=") ? sym + "=X" : sym),
-    td: isFx && sym.length === 6 ? sym.slice(0, 3) + "/" + sym.slice(3) : sym,
+    td: tdSym,
     tv: sym,
     pr: isBn ? "bn" : "yf",
   };
@@ -255,12 +314,12 @@ async function fetchWithTimeout(url, opts = {}, ms = 4500) {
 
 async function fetchBinanceTickers() {
   try {
-    const r = await fetchWithTimeout("https://data-api.binance.vision/api/v3/ticker/24hr", {}, 3500);
-    if (!r.ok) return null;
+    const r = await fetchBinanceWithFallback("/api/v3/ticker/24hr", {}, 3500);
+    if (!r || !r.ok) return null;
     const j = await r.json();
     if (!Array.isArray(j)) return null;
     return j
-      .filter((x) => x.symbol && x.symbol.endsWith("USDT") && !STABLE_RE.test(x.symbol) && +x.quoteVolume > 0)
+      .filter((x) => x.symbol && (x.symbol.endsWith("USDT") || x.symbol.endsWith("BUSD") || x.symbol.endsWith("BTC")) && !STABLE_RE.test(x.symbol) && +x.quoteVolume > 0)
       .sort((a, b) => +b.quoteVolume - +a.quoteVolume)
       .slice(0, 120)
       .map((x) => {
@@ -275,8 +334,8 @@ async function fetchBinanceTickers() {
           x.symbol,
           "BINANCE:" + x.symbol,
           "bn",
-          x.symbol.replace("USDT", "/USD"),
-          known ? known.name : x.symbol.replace("USDT", "") + " / Tether",
+          x.symbol.replace(/(USDT|BUSD|BTC)$/, "/USD"),
+          known ? known.name : x.symbol.replace(/(USDT|BUSD|BTC)$/, " / $1"),
           "BINANCE",
           +x.priceChangePercent || 0,
         ];
@@ -660,7 +719,7 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
   const step = STEPS[interval] || 3600;
   if (!bni) return null;
   let bnSym = String(apiSym || "").trim().toUpperCase();
-  if (!bnSym.endsWith("USDT")) {
+  if (!bnSym.endsWith("USDT") && !bnSym.endsWith("BUSD") && !bnSym.endsWith("BTC")) {
     bnSym = bnSym.endsWith("USD") ? bnSym + "T" : bnSym + "USDT";
   }
   const maxLimit = opts.replay ? 10000 : 1000;
@@ -681,8 +740,8 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
       const qs = new URLSearchParams({ symbol: bnSym, interval: bni, limit: String(chunkLim) });
       if (beforeSec > 0 || opts.to > 0 || b > 0) qs.set("endTime", String(Math.floor(endMs)));
       if (startMs > 0) qs.set("startTime", String(Math.floor(startMs)));
-      const r = await fetchWithTimeout(`https://data-api.binance.vision/api/v3/klines?${qs}`, {}, 3500);
-      if (r.ok) {
+      const r = await fetchBinanceWithFallback(`/api/v3/klines?${qs}`, {}, 3500);
+      if (r && r.ok) {
         hadUpstreamOk = true;
         const j = await r.json();
         if (Array.isArray(j) && j.length) {
@@ -693,7 +752,7 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
             })
             .filter((x) => x.o > 0 && x.h > 0 && x.l > 0 && x.c > 0);
         }
-      } else if (r.status !== 400) {
+      } else if (!r || r.status !== 400) {
         hadUpstreamErr = true;
       }
     } catch (_e) {
@@ -723,7 +782,7 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
 async function fetchTwelveDataCandles(tdSym, interval, opts = {}) {
   const tdi = TDI[interval];
   const step = STEPS[interval] || 3600;
-  if (!tdi || !TWELVEDATA_KEY) return null;
+  if (!tdi || !TWELVEDATA_KEY || !tdSym || String(tdSym).endsWith("=F")) return null;
   const limit = Math.max(10, Math.min(5000, Number(opts.limit) || 5000));
   const beforeSec = opts.before > 0 ? Math.floor(opts.before) : 0;
   const cacheKey = `${tdSym}|${interval}|${opts.from || 0}|${opts.to || 0}|${beforeSec}|${limit}`;
@@ -836,7 +895,7 @@ async function buildScreenerBody() {
       item.api,
       item.tv,
       item.pr,
-      item.td,
+      resolveTdSymbol(item.td || item.s, item.s),
       item.name,
       item.ex,
       Number(pct.toFixed(2)),
@@ -928,7 +987,7 @@ app.get("/api/candles", async (req, res) => {
   }
 
   const meta = inferMeta(rawSym, mktHint, apiHint);
-  const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT");
+  const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT") || rawSym.endsWith("BUSD") || rawSym.endsWith("BTC");
   const rawLimit = Math.floor(Number(req.query.limit) || 0);
   const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
   const limit = Math.max(10, Math.min(5000, rawLimit || defaultLimit));
@@ -969,16 +1028,22 @@ app.get("/api/candles", async (req, res) => {
           if (bars) source = "dukascopy";
         }
         if (!bars && !isCrypto && TWELVEDATA_KEY) {
-          bars = await fetchTwelveDataCandles(meta.td || rawSym, interval, opts);
-          if (bars) source = "twelvedata";
+          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+          if (tdResolved) {
+            bars = await fetchTwelveDataCandles(tdResolved, interval, opts);
+            if (bars) source = "twelvedata";
+          }
         }
       } else {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
         } else if (TWELVEDATA_KEY) {
-          bars = await fetchTwelveDataCandles(meta.td || rawSym, interval, opts);
-          if (bars !== null) source = "twelvedata";
+          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+          if (tdResolved) {
+            bars = await fetchTwelveDataCandles(tdResolved, interval, opts);
+            if (bars !== null) source = "twelvedata";
+          }
         }
       }
 

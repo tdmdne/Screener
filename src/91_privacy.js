@@ -1,5 +1,4 @@
 // ---------- UK GDPR / PECR mechanisms: storage consent banner + log, privacy centre (export, delete, rights requests) ----------
-// Template only, not legal advice; have a solicitor review before publishing.
 const VT_POLICY_V="1.0";             // bump when the cookie/privacy notice changes materially: everyone is asked again
 const VT_CONSENT_MAX_AGE=365*864e5;  // and again after 12 months
 let vtOpenMail=u=>{location.href=u};

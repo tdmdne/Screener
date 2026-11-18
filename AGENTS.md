@@ -229,6 +229,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
   - **Free:** live crypto, delayed stocks/FX, 3 charts, 3 indicators, 3 alerts, full unrestricted backtesting and bar replay, heatmaps, and a full unrestricted journal.
   - **Pro:** £11.99/mo or £109/yr ($14.99 / $135).
   - **Elite:** £24.99/mo or £219/yr ($29.99 / $269).
+- **Elite 7-day free trial:** at launch there is a 7-day free trial on Elite only (not Free or Pro). A card is required upfront. The trial auto-converts to paid Elite after 7 days unless cancelled. The first charge is the Elite price (£24.99/mo or £219/yr; $29.99 / $269) at the end of day 7. There is no charge if it is cancelled before then. Cancel path: `[cancel path TBC by Dex]`. Full cancellation details are on the Terms and Refunds legal pages. The trial is not live until launch on **1 March 2027**; today the app is free and nothing can be bought.
 - The word "Plus" in the code is the chart's price-scale **"+" button**. It is not a pricing tier.
 
 ### Navigation (where things are)

@@ -12,6 +12,8 @@ Known facts already filled in (do not replace with guesses):
 - The service is currently free. Nothing is charged until paid plans go live.
 - Intended launch prices (still marked `[confirm before launch]`): Pro £11.99/month or £109/year; Elite £24.99/month or £219/year; GBP including 20% VAT.
 - Required market-data attribution included in Data Sources, Privacy and Cookies: “Data provided by Twelve Data.”
+- The hosted site at https://screener-cso.pages.dev/ serves a Cloudflare Web Analytics beacon (`static.cloudflareinsights.com/beacon.min.js` with `data-cf-beacon`). It is injected at Cloudflare’s edge, not in this repository.
+- Umami Cloud (free Hobby plan, cookieless) has been approved as a second analytics provider for aggregate page views, events and UTM signup/campaign measurement. Source: reported by Leo/Bruce, Tyler-approved. Bruce is installing it; the script was not on the live site when this draft was written, so the pages carry `[confirm before publishing: Umami installed and live]`.
 
 ---
 
@@ -51,14 +53,15 @@ Other solicitor checks on this page (no separate placeholder): England and Wales
 | `[Company legal name]`, `[Registered address]`, `[Company number]`, `[ICO registration number]` (controller section) | Legal identity plus ICO registration, or a decision that ICO registration is not required and the line should be changed. |
 | `[Hosting provider]` | The organisation that hosts the site. Cloudflare Pages is the intended host in the repo, but this must be confirmed and must not be published as fact until then. |
 | `[hosting data processing terms]` | The contract or terms under which the host acts as processor. |
-| `[confirm with solicitor: whether the hosting provider (intended, but not yet confirmed, to be Cloudflare) sets its own cookies for security or content delivery, and the applicable cookie and processing terms]` | Confirm from the host’s docs and a solicitor. Until then the policy does **not** state that the host does or does not set cookies. |
+| `[confirm with solicitor: whether the hosting provider also sets its own cookies for security or content delivery, separate from the cookieless Web Analytics beacon, and the applicable cookie and processing terms]` | Separate from Cloudflare Web Analytics (cookieless, according to Cloudflare’s docs). Until this is confirmed, the policy does **not** state that the host does or does not set other cookies. |
 | `[confirm with solicitor: controller and processor roles for the /api backend and hosting provider]` (in the shared sources table) | Who is controller vs processor when `/api/*` sees the user’s IP and requested symbols. |
 | `[confirm icon origin and licence]` | Confirm that icons are original to this app, or name the licence/source. |
-| `[confirm with solicitor: lawful bases, including /api processing and optional preferences]` | Review the Art. 6 table, including the new optional-preferences row and the split between `/api` requests and direct browser requests. |
+| `[confirm with solicitor: lawful bases, including /api processing, optional preferences, and Cloudflare Web Analytics and Umami Cloud (legitimate interests / PECR exemption)]` | Review the Art. 6 table, including optional preferences, the `/api` vs direct-request split, and both analytics tools. |
 | `[Hosting log retention period]` | How long hosting logs are kept. |
 | `[Correspondence retention period]` | How long rights requests and emails are kept. |
 | `[transfer mechanism, e.g. UK adequacy regulations or the UK International Data Transfer Agreement / Addendum]` | The UK transfer tool actually relied on. |
-| `[confirm with solicitor: transfer wording for direct browser requests versus /api backend requests]` | Direct browser calls vs transfers made by the backend. |
+| `[confirm with solicitor: transfer wording for direct browser requests versus /api backend requests, and for Cloudflare Web Analytics (which Cloudflare says may be processed at a nearby data centre that may be outside the UK)]` | Direct browser calls, `/api` backend calls, and Cloudflare Web Analytics processing location. |
+| `[confirm: Umami Cloud hosting region and DPA]` | Umami Cloud offers US and EU storage regions (selected at account setup). Confirm which region this account uses, complete the DPA, and confirm transfer wording. Umami’s docs say the region applies to analytics storage, and that CDN, security, support and operational logging may involve services outside it. |
 | `[confirm with solicitor: lawful basis and transfer wording for user-initiated sends to an AI provider]` | Journal AI review (user’s own key, sent from the browser). |
 
 Also confirm: the sign-in description (password is not stored and is not sent) remains true; bump `VT_POLICY_V` in `src/91_privacy.js` / `index.html` before publishing a changed cookie or privacy notice, so users are asked again.
@@ -70,8 +73,56 @@ Also confirm: the sign-in description (password is not stored and is not sent) r
 | Placeholder or `[confirm…]` item | What’s needed |
 | --- | --- |
 | Shared header details | As above. |
-| `[confirm with solicitor: whether the hosting provider (intended, but not yet confirmed, to be Cloudflare) sets its own cookies for security or content delivery]` | Same hosting-cookie question as Privacy. The app’s own code does not set cookies (no `document.cookie`, and `/api/login` is only an unused comment). |
+| `[confirm with solicitor: whether the hosting provider also sets its own cookies for security or content delivery, separate from this cookieless analytics beacon]` | Same hosting-cookie question as Privacy, kept separate from the analytics beacons. The app’s own code does not set cookies (no `document.cookie`, and `/api/login` is only an unused comment). |
 | `[confirm icon origin and licence]` | Appears because this page reuses the shared sources table. |
+| Analytics placeholders on this page | See [Analytics](#analytics-cloudflare-web-analytics-and-umami-cloud) below. |
+
+
+---
+
+## Analytics (Cloudflare Web Analytics and Umami Cloud)
+
+These appear on Privacy, Cookies, Data Sources (shared sources table) and in the consent banner. Advertising is not used. No future paid analytics tool is described.
+
+### Cloudflare Web Analytics (live on the hosted preview)
+
+Verified on https://screener-cso.pages.dev/ : the edge injects `static.cloudflareinsights.com/beacon.min.js` with a `data-cf-beacon` token. This is not in the repo.
+
+Wording is based on Cloudflare’s documentation (data origin and collection, RUM beacon privacy notes, Web Analytics FAQ and the public Web Analytics page), not an independent audit of Cloudflare’s systems:
+
+- Cookieless: no cookies, localStorage, sessionStorage or IndexedDB, according to Cloudflare.
+- Used for aggregate page views and performance (including Core Web Vitals), plus dimensions such as referrer, country, device, browser and path.
+- No cross-site tracking of individuals across Cloudflare customers’ sites; no fingerprinting of individuals for these analytics; query strings not logged; IP on the beacon request discarded and not stored, according to Cloudflare.
+- Cloudflare is described as our processor.
+
+| Placeholder or `[confirm…]` item | What’s needed |
+| --- | --- |
+| `[confirm with solicitor: legitimate interests / PECR exemption]` | Whether this cookieless beacon can run without a consent toggle (the banner category is disabled and is not an opt-out). |
+| `[confirm with solicitor: whether to rely on Cloudflare’s published retention periods]` | Cloudflare’s docs (as at this draft) say unsampled beacon data is kept for 7 days and dashboard data is available for six months. |
+| Transfer wording for Cloudflare Web Analytics | Included in the Privacy transfers confirm above. |
+
+### Umami Cloud (approved, not yet confirmed live)
+
+**Source:** reported by Leo/Bruce, Tyler-approved. Approved as the free Hobby plan, cookieless, for aggregate page views, events and UTM parameters on signup/campaign measurement. Bruce is installing it. The script was **not** on the live site when this draft was written, so the copy says the site is “intended to use” Umami Cloud until installation is confirmed.
+
+Wording is based on Umami’s documentation (security/privacy-by-design page, metric definitions, tracker functions, Cloud FAQ, privacy policy and DPA), not an independent audit:
+
+- Standard analytics do not use cookies, do not track visitors across different websites, do not collect names or email addresses, and do not use the data for advertising, according to Umami.
+- Page views include hostname, URL, title, referrer, screen size and browser language. Events can include signup events. UTM parameters (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`) are stored with each event.
+- IP addresses are processed transiently for approximate location and anonymous visit grouping, but are not stored as a field in standard analytics records; they may appear in operational or security logs, according to Umami.
+- Default Cloud script and endpoint: `cloud.umami.is/script.js` and `gateway.umami.is/api/send`.
+- Hobby plan production analytics retention is six months, according to Umami’s Cloud FAQ (backups are separate).
+- Umami is described as our processor.
+- Optional Umami features (session replay, heatmaps, Distinct IDs) are not described as enabled. If any of those are turned on, this notice must be updated before publish.
+
+| Placeholder or `[confirm…]` item | What’s needed |
+| --- | --- |
+| `[confirm before publishing: Umami installed and live]` | Confirm the script is actually on the hosted site, then this marker can be removed and “intended to use” can be tightened to “uses”. |
+| `[confirm: Umami Cloud hosting region and DPA]` | Which Cloud data region (US or EU) this account uses, signed DPA, and transfer wording. Umami’s FAQ says the region applies to analytics storage and that some operational processing may occur outside it. |
+| `[confirm with solicitor: legitimate interests / PECR exemption]` | Same consent/exemption question as Cloudflare Web Analytics, for Umami’s cookieless script. |
+| `[confirm with solicitor: whether to rely on Umami’s published retention periods]` | Hobby plan six-month production retention, as published. |
+
+Bump `VT_POLICY_V` before publishing this revised cookie/privacy notice so existing users are asked again.
 
 ---
 
@@ -97,6 +148,8 @@ Factual notes already reflected in the draft (please check they remain true at l
 ---
 
 ## Data Sources and Attributions
+
+The shared sources table now also lists Cloudflare Web Analytics and Umami Cloud (see [Analytics](#analytics-cloudflare-web-analytics-and-umami-cloud)).
 
 | Placeholder or `[confirm…]` item | What’s needed |
 | --- | --- |

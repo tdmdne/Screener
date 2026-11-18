@@ -23,8 +23,12 @@ for(const [k,t] of Object.entries(DOCS)){await P.evaluate(k=>{location.hash="#/l
   assert.notStrictEqual(st.ls,"legal");console.log("legal",k,"ok",st.txt.length,"chars");}
 // content facts
 const pv=await P.evaluate(()=>{location.hash="#/legal/privacy";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["UK GDPR","Data Protection Act 2018","scr2","scr2a","IndexedDB","data-stream.binance.vision","stream.binance.com:9443","api.binance.com","api.twelvedata.com","ws.twelvedata.com","ws.finnhub.io","api.polygon.io","api.coingecko.com","cdn.jsdelivr.net","feeds.finance.yahoo.com","nfs.faireconomy.media","datafeed.dukascopy.com","Data provided by Twelve Data","password is not stored","vektorhq@proton.me","[Registered address]","How requests are routed"])assert(pv.includes(s),"privacy missing "+s);
+for(const s of ["UK GDPR","Data Protection Act 2018","scr2","scr2a","IndexedDB","data-stream.binance.vision","stream.binance.com:9443","api.binance.com","api.twelvedata.com","ws.twelvedata.com","ws.finnhub.io","api.polygon.io","api.coingecko.com","cdn.jsdelivr.net","feeds.finance.yahoo.com","nfs.faireconomy.media","datafeed.dukascopy.com","Data provided by Twelve Data","password is not stored","vektorhq@proton.me","[Registered address]","How requests are routed","Cloudflare Web Analytics","static.cloudflareinsights.com","Umami Cloud","cloud.umami.is","gateway.umami.is","[confirm before publishing: Umami installed and live]","[confirm: Umami Cloud hosting region and DPA]"])assert(pv.includes(s),"privacy missing "+s);
 assert(pv.includes("Yahoo is not used as a price"),"privacy should say Yahoo is RSS only");
+assert(!/Plausible/.test(pv),"privacy mentions a paid analytics tool");
+const ck=await P.evaluate(()=>{location.hash="#/legal/cookies";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
+for(const s of ["Cloudflare Web Analytics","Umami Cloud","advertising is not used","[confirm before publishing: Umami installed and live]","[confirm: Umami Cloud hosting region and DPA]"])assert(ck.includes(s),"cookies missing "+s);
+assert(!/if adopted/.test(ck),"cookies still treats Umami as unadopted");
 const rf=await P.evaluate(()=>{location.hash="#/legal/refunds";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
 for(const s of ["currently free","£11.99","£109","£24.99","£219","20% VAT","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","Consumer Rights Act 2015"])assert(rf.includes(s),"refunds missing "+s);
 const tm=await P.evaluate(()=>{location.hash="#/legal/terms";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});

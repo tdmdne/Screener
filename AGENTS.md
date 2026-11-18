@@ -181,7 +181,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
   - **Done When:** Invalid email characters trigger instant form validation errors and block backend request submission.
 
 ### Phase 3: UX, Onboarding Fixes & Polish
-- [ ] **TASK-06: Pre-Populated Starter Watchlist & Chart-to-Watchlist Action**
+- [x] **TASK-06: Pre-Populated Starter Watchlist & Chart-to-Watchlist Action**
   - **Target:** Watchlist initialization state, Supercharts symbol header
   - **Action:** When a guest or new user initializes with an empty `scr2~*` watchlist, seed default starter symbols (`BTCUSDT`, `EURUSD`, `SPY`, `XAUUSD`, `NVDA`) with a one-click `"Clear Starter List"` option. Add a visible **`+ Watchlist`** and **`Locate in Screener`** button directly on the active chart header.
   - **Done When:** New/guest sessions never boot into a blank watchlist, and any charted symbol can be added to the active watchlist in 1 click.

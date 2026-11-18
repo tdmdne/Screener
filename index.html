@@ -1158,6 +1158,7 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script type="module" src="src/auth_email_validation.js"></script>
+<script type="module" src="src/watchlist_starter.js"></script>
 <script>
 // Safe storage: localStorage/sessionStorage throw SecurityError in sandboxed contexts
 const memStore = {};
@@ -1209,6 +1210,7 @@ function vtSK(k,scope){const sc=scope===undefined?VT_SCOPE:scope;return sc?k+sc:
 let P={},S=Object.assign({q:"",cur:""},clone(BI["Cheat sheet (candle change)"])),arm=false;
 if(VT_SCOPE){try{P=JSON.parse(lsGet(vtSK("scr2p"))||"{}")}catch(e){}
 try{const x=JSON.parse(lsGet(vtSK("scr2"))||"null");if(x&&Array.isArray(x.cols))S=Object.assign(S,x)}catch(e){}}
+const VT_WL_FRESH=!VT_SCOPE||lsGet(vtSK("scr2"))==null; // TASK-06: nothing saved for this account yet (read before boot saves); src/watchlist_starter.js only seeds when true
 const WL0=[["EUR/USD","FX","FX:EURUSD"],["GBP/USD","FX","FX:GBPUSD"],["USD/JPY","FX","FX:USDJPY"],["AUD/USD","FX","FX:AUDUSD"],["USD/CAD","FX","FX:USDCAD"],["NZD/USD","FX","FX:NZDUSD"],["AAPL","STK","NASDAQ:AAPL"],["NVDA","STK","NASDAQ:NVDA"],["TSLA","STK","NASDAQ:TSLA"],["AMD","STK","NASDAQ:AMD"],["BTC/USD","CRY","BITSTAMP:BTCUSD"],["ETH/USD","CRY","BITSTAMP:ETHUSD"],["SPY","ETF","AMEX:SPY"],["QQQ","ETF","NASDAQ:QQQ"],["GLD","ETF","AMEX:GLD"],["USO","ETF","AMEX:USO"]].map(([td,m,tv])=>({n:td.replace("/",""),m,td,tv}));
 const CH0={type:"candle",tf:"1H",sym:"EURUSD",bg:"auto",bgCol:"#ffffff",
 upBody:"#0f9d58",dnBody:"#d93025",upBorder:"#0f9d58",dnBorder:"#d93025",upWick:"#0f9d58",dnWick:"#d93025",

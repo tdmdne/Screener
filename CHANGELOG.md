@@ -9,6 +9,11 @@ Short dated log of changes to `index.html` (the whole app) and why.
   - Favicon files (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) use the existing VT lettermark.
   - Public URL and SEO copy live in `site.config.js`. `useCustomDomain` is `false` until `vektorterminal.com` is live, so canonical / OG / JSON-LD / sitemap / robots currently use `https://screener-cso.pages.dev`. Cutover is: flip the flag, run `npm run sync-seo`, attach the domain in Cloudflare Pages, and 301-redirect pages.dev to it (keep pages.dev out of search results).
 
+- **Starter watchlist and chart-to-watchlist buttons (TASK-06).** New code is in `src/watchlist_starter.js`. `index.html` gained one line that loads it and one flag line, `VT_WL_FRESH`.
+  - A guest, or an account with no saved work on this device, now starts with BTCUSDT, EURUSD, SPY, XAUUSD and NVDA in the first watchlist section instead of an empty list. Accounts that already have saved work are never changed, even if their watchlist is empty.
+  - "Clear starter list" appears in the watchlist header while the list is still exactly the starter list. Clearing it, or changing the list in any way, removes the button for good. The state is a small `wlStarter` field saved inside the account's existing `scr2~<code>` entry. For guests it stays in memory, so nothing is written to localStorage.
+  - The chart header (Workspace and Supercharts) has "+ Watchlist", which adds the charted symbol to the first section and then shows "✓ In Watchlist", and "Locate in Screener", which opens the Screener with that row selected and in view. If a search or market filter hides the row, the filter is cleared and a message says so. If a preset hides it, or the symbol isn't in the screener list, a message explains why.
+  - The header star button called a `wlStar()` function that didn't exist, so it threw an error. It now adds or removes the charted symbol.
 
 ## 2026-11-17
 - **Removed the S01–S04 "Cycle" filter from the Screener page.** The Cycle button row, `applySFilter`, the `SXF` list and the `S.sFilter` state are gone, so the list is no longer re-sorted by cycle score. `scoreSymbol` stays because the Expansion column, the chart preview panel and the heatmap momentum metric use it. `tests/scorefns.js` and `tests/screener.js` no longer expect `applySFilter`.

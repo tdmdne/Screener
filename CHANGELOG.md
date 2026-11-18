@@ -2,6 +2,14 @@
 
 Short dated log of changes to `index.html` (the whole app) and why.
 
+## 2026-11-18
+- **Launch-readiness SEO (head tags, robots, sitemap, favicon).**
+  - `index.html` `<head>` now has a generated `<!-- vt:seo-start -->` block: a clearer title and meta description, canonical, Open Graph and Twitter tags, favicon / apple-touch-icon links, theme-color, and a simple WebApplication JSON-LD. There is no `og:image` yet (needs a 1200×630 image).
+  - New static `robots.txt` and `sitemap.xml` so those URLs stop falling through to the HTML app. The sitemap lists only `/`.
+  - Favicon files (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) use the existing VT lettermark.
+  - Public URL and SEO copy live in `site.config.js`. `useCustomDomain` is `false` until `vektorterminal.com` is live, so canonical / OG / JSON-LD / sitemap / robots currently use `https://screener-cso.pages.dev`. Cutover is: flip the flag, run `npm run sync-seo`, attach the domain in Cloudflare Pages, and 301-redirect pages.dev to it (keep pages.dev out of search results).
+
+
 ## 2026-11-17
 - **Removed the S01–S04 "Cycle" filter from the Screener page.** The Cycle button row, `applySFilter`, the `SXF` list and the `S.sFilter` state are gone, so the list is no longer re-sorted by cycle score. `scoreSymbol` stays because the Expansion column, the chart preview panel and the heatmap momentum metric use it. `tests/scorefns.js` and `tests/screener.js` no longer expect `applySFilter`.
 

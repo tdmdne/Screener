@@ -11,7 +11,9 @@
     "test": "node scripts/run-tests.js",
     "test:proxy": "node tests/proxy.test.mjs",
     "test:shared": "node tests/shared.test.mjs",
-    "test:email": "node tests/email.test.mjs"
+    "test:email": "node tests/email.test.mjs",
+    "sync-seo": "node scripts/sync-seo.js",
+    "test:seo": "node tests/seo.js"
   },
   "engines": {
     "node": ">=22.12"

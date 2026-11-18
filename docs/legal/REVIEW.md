@@ -11,7 +11,7 @@ Known facts already filled in (do not replace with guesses):
 - Contact email: `vektorhq@proton.me`
 - The service is currently free. Nothing is charged until paid plans go live.
 - Intended launch prices (still marked `[confirm before launch]`): Pro £11.99/month or £109/year ($14.99/month or $135/year); Elite £24.99/month or £219/year ($29.99/month or $269/year). GBP prices include 20% VAT. USD tax treatment is not stated as fact; it is marked `[confirm: USD tax treatment / merchant of record]`. The currency is shown at checkout.
-- At launch, a 7-day free trial is offered on Elite only (card required up front; auto-converts to paid Elite at the end of day 7 unless cancelled). One trial per person is marked `[confirm]`.
+- At launch, a 7-day free trial is offered on Elite only (card required up front; auto-converts to paid Elite at the end of day 7 unless cancelled). Tyler confirmed (relayed by Bruce, 18 November 2026): one trial per person, checked by card and by email, with plus-tags removed on every domain; if a card has already had a trial, the new trial is cancelled with no charge and Elite is offered without a trial; if someone cancels during the trial, they keep Elite until the trial ends and are never charged.
 - Required market-data attribution: “Data provided by Twelve Data,” plus credits and terms links for the other live vendors. Twelve Data prices and candles are fetched server-side via the team’s `vektor-market` Worker (`vektor-market.tdmltd2026.workers.dev`). The browser does not open a WebSocket to `ws.twelvedata.com`. Leftover `vt_tdkey~` helper code remains in `index.html` (see pre-publish checks); the legal storage row was therefore not removed.
 - The hosted site at https://screener-cso.pages.dev/ is on Cloudflare Pages and serves a Cloudflare Web Analytics beacon (`static.cloudflareinsights.com/beacon.min.js` with `data-cf-beacon`), injected at Cloudflare’s edge, not in this repository.
 - Umami Cloud (free Hobby plan, cookieless) has been approved as a second analytics provider for aggregate page views, events and UTM signup/campaign measurement. Source: reported by Leo/Bruce, Tyler-approved. Bruce is installing it; confirm it is live before publishing.
@@ -47,7 +47,9 @@ Shown highlighted in the app. Fill the real value, then remove the brackets.
 | --- | --- |
 | `[Website URL]` | The public site URL. |
 | `[confirm before launch]` (prices and renewal reminders) | Confirm Pro / Elite prices, that they include 20% VAT, and the renewal-reminder wording, before launch. |
-| `[Payment provider, e.g. merchant of record, confirm]` | The payment provider or merchant of record that will actually take payment. Do not name a provider until that is chosen. |
+| `[Payment provider, e.g. merchant of record, confirm]` | The payment provider or merchant of record that will actually take payment. Do not name a provider until that is chosen. It is also named in the Privacy Policy as the processor that supplies the card identifier or fingerprint for trial-eligibility checks. |
+| `[confirm: USD tax treatment / merchant of record]` | How USD prices are taxed (for example sales tax, or tax included), and who the merchant of record is for USD. Do not claim a VAT or sales-tax treatment that has not been confirmed. Still open. |
+| `[confirm: retention period for trial-eligibility records]` | How long card-identifier/fingerprint and normalised-email records used to enforce one trial per person are kept. |
 | `[Account → Billing page]` | The real in-app path (or URL) for cancelling a paid plan, once that page exists. |
 | `[confirm: Umami Cloud hosting region and DPA]` | The Umami Cloud region chosen at setup, and that a DPA is in place. |
 | `[confirm before publishing: Umami installed and live]` | Confirm the Umami script is on the live hosted site, then remove this marker. |
@@ -74,7 +76,7 @@ Shown highlighted in the app. Fill the real value, then remove the brackets.
 
 3. **Checkout waiver tick-box (product requirement).** See also “Product requirements for Dex” below. For immediate access during the 14-day cooling-off period (including during an Elite trial), checkout must capture, and keep a record of, the user’s express request to start the service early (CCR regulation 36) and, for digital content, express consent plus an acknowledgement that the right to cancel that digital content will be lost (CCR regulation 37). The legal pages describe this; the product does not yet implement it. Do not offer immediate access without that tick-box and acknowledgement.
 
-4. **Account billing / cancel path.** The pages point at `[Account → Billing page]`. That page (or an equivalent cancel flow that is as easy as sign-up) must exist before paid plans and the Elite trial go live, including confirmation by email, and must work during the trial so that a user who cancels before the trial ends is not charged.
+4. **Account billing / cancel path.** The pages point at `[Account → Billing page]`. That page (or an equivalent cancel flow that is as easy as sign-up) must exist before paid plans and the Elite trial go live, including confirmation by email, and must work during the trial so that a user who cancels during the trial keeps Elite until the trial ends and is never charged.
 
 5. **Simulated prices.** Legal copy already warns that `/api/candles` may return unlabelled synthetic bars when a live feed is unavailable. The product UI still does not label those bars. Labelling them in the chart is a product change (not this PR) and should be done before launch.
 
@@ -155,10 +157,16 @@ The legal pages describe these duties; the product must actually do them before 
 
 5. **Cooling-off notice on conversion.** When Chapter 2 applies, give a cooling-off notice at the start of the renewal cooling-off period (the day the first paid-Elite charge becomes due), on a durable medium, so the user knows they have 14 days from conversion to cancel under s.264–265.
 
-6. **Cancel button / online cancel route.** Cancellation must be as easy as sign-up, including during the trial and after conversion: an online control on `[Account → Billing page]` (or equivalent), without requiring a phone call. Cancelling before the trial ends must result in **no charge**. Confirm cancellation by email. The model cancellation form in the Refunds page must also be honoured if sent to `vektorhq@proton.me`.
+6. **Cancel button / online cancel route.** Cancellation must be as easy as sign-up, including during the trial and after conversion: an online control on `[Account → Billing page]` (or equivalent), without requiring a phone call. If the user cancels during the trial, they **keep Elite until the trial ends** and are **never charged**. Confirm cancellation by email. The model cancellation form in the Refunds page must also be honoured if sent to `vektorhq@proton.me`.
 
 7. **Cooling-off waiver tick-box.** If immediate access to Elite (trial or paid) starts during a cooling-off period, checkout must include an unticked-by-default tick-box for the express request to start the service (CCR reg. 36) and, for digital content, express consent plus acknowledgement that the digital-content cancellation right will be lost (CCR reg. 37). Do not start supply early without it. Record what was ticked and when.
 
-8. **Records.** Keep records of: the pre-contract information shown, the trial-end date displayed, the price, currency and billing period chosen, the waiver tick-box state, the confirmation and reminder and cooling-off notices sent (and when), and cancellations. These are needed to show compliance and to handle refunds.
+8. **Records.** Keep records of: the pre-contract information shown, the trial-end date displayed, the price, currency and billing period chosen, the waiver tick-box state, the confirmation and reminder and cooling-off notices sent (and when), cancellations, and trial-eligibility checks (normalised email and card identifier or fingerprint, with the retention period once confirmed). These are needed to show compliance, to enforce one trial per person, and to handle refunds.
 
-The legal pages already describe the trial, the first charge at the end of day 7, trial cancellation, the CCR remainder after conversion, and the intended DMCC renewal cooling-off right. They cannot make the product compliant on their own.
+9. **Normalised-email and card-fingerprint checks.** Enforce one trial per person by (a) a normalised email, with plus-tags removed on every domain so `name+x@domain` counts as `name@domain`, and (b) a card identifier or fingerprint supplied by the payment provider. Do not store card numbers. Apply both checks before a trial starts.
+
+10. **Auto-cancel-and-offer flow.** If the card has already been used for a trial, cancel the new trial with no charge and offer Elite without a trial (paid Elite at the chosen price and billing period, with the usual cooling-off and checkout information).
+
+11. **Access until trial end after cancellation.** If the user cancels during the trial, keep Elite access until the original trial end date and never take a charge. Do not cut off access immediately on cancel, and do not convert the trial to a paid plan.
+
+The legal pages already describe the trial, the first charge at the end of day 7, trial cancellation (including remaining access until the trial ends), the one-trial eligibility rules, the CCR remainder after conversion, and the intended DMCC renewal cooling-off right. They cannot make the product compliant on their own.

@@ -67,7 +67,9 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - **Never block the UI thread:** Avoid polling when WebSockets exist; batch DOM updates and avoid allocations inside animation loops.
 - **Geometry & Hierarchy:** Flatten nested cards stuck inside cards. Ensure mathematical container alignment: **Inner Corner Radius = Outer Corner Radius - Padding**.
 - **Data Display:** Enforce tabular numbers (`font-variant-numeric: tabular-nums`) across all financial tables, screeners, and chart legends. Always provide explicit loading states for asynchronous data fetches.
-- **Anti-Glitz Rule:** Kill meaningless gradients, glowing blurs, forever-looping animations, and decorative filler badges that convey no real operational status. Keep animations strictly tied to useful feedback.
+- **Anti-Glitz & Anti-Slop Rule:** Kill meaningless gradients, glowing blurs, forever-looping animations, and decorative filler badges that convey no real operational status. Keep animations strictly tied to useful feedback.
+- **Interactive Control Audit:** Every button, link, and tab must be fully wired up. **Zero dead links, placeholder buttons, or non-functional fake controls are permitted.**
+- **Comprehensive State Coverage:** Every view and component must explicitly handle **Empty States**, **Loading States**, **Error States** (with actionable, human-readable error messages), and **Long Text / Overflow Truncation** (`text-overflow: ellipsis` / wrapping).
 - **Forbidden Libraries:** Do not introduce jQuery, Bootstrap, Tailwind, React, Vue, or Angular unless explicitly requested.
 
 ---
@@ -85,12 +87,24 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ## 6. SECURITY, PRIVACY & COMPLIANCE HARDENING
 - **Secrets & Storage Security:** Never expose API keys or credentials in client bundles. Ensure storage buckets are strictly private (never public) and all user uploads are promptly purged when deleted. Check Git history to ensure no secrets were ever leaked.
+- **Database & Query Protection:**
+  - **Client vs. Server Keys:** Never use database admin/service-role keys on the frontend; use strictly public anon keys client-side.
+  - **Row-Level Security (RLS) & IDOR Prevention:** Enforce RLS on every database table and perform rigorous server-side ownership checks to prevent Insecure Direct Object Reference (IDOR) exploits.
+  - **Parameterized Queries:** Always use parameterized queries / prepared statements for all database interactions to prevent SQL injection.
+- **API & Billing Protection:** Set strict hard billing caps and usage alerts on all external APIs (Twelve Data, Cloudflare, database providers) to protect against runaway loops or abuse.
 - **Route Protection & Sanitization:** Enforce strict authentication on sensitive backend handlers, validate CORS headers, and sanitize all form inputs against XSS.
-- **Compliance Disclosures:** The platform documentation and privacy terms must explicitly state that user data is collected and processed through AI third-party integrations to prevent regulatory liability.
+- **Compliance & AI Disclosures:** Platform documentation and privacy terms must explicitly state that user data is processed through AI third-party integrations to maintain regulatory compliance.
 
 ---
 
-## 7. DEPLOYMENT, TESTING & GIT WORKFLOW
+## 7. SEO, METADATA & PRODUCTION HYGIENE
+- **Metadata & Branding:** Ensure every page features a unique title, meta description, Open Graph / social share preview image, canonical URL, clean favicon, and a proper semantic heading hierarchy (`h1`–`h3`). Strip all default Vite/React/preview branding.
+- **Discovery & Error Pages:** Include a valid `sitemap.xml`, `robots.txt`, and a custom `404` error page.
+- **Code Hygiene:** Strip all leftover `console.log` statements, development debug files, and bloated JavaScript build artifacts prior to deployment.
+
+---
+
+## 8. DEPLOYMENT, TESTING & GIT WORKFLOW
 **Deploy Targets:** Cloudflare Pages & Cloudflare Workers. Never introduce dependencies incompatible with Cloudflare Workers.
 
 **Before committing, run:**
@@ -108,7 +122,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ---
 
-## 8. AGENT WORKFLOW & UNCERTAINTY PROTOCOL
+## 9. AGENT WORKFLOW & UNCERTAINTY PROTOCOL
 **Before making changes:**
 1. Read relevant files completely.
 2. Search for existing implementations.
@@ -128,7 +142,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ---
 
-## 9. EXECUTABLE TASK BACKLOG
+## 10. EXECUTABLE TASK BACKLOG
 
 ### Phase 1: Backend Deduplication & Data Pipeline
 - [ ] **TASK-01: Extract Shared Catalogs & Normalizer (`shared/`)**
@@ -146,34 +160,40 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
   - **Action:** Replace conflicting status labels with a single deterministic provenance badge driven by `dataService.js` metadata: `LIVE (Binance WS)`, `REAL-TIME`, `DELAYED (15m)`, `CACHED (HH:MM)`, or `SAMPLE`.
   - **Done When:** Simulated/sample data and delayed feeds cannot render without an explicit matching badge visible on both chart and screener views.
 
-### Phase 2: UX & Onboarding Fixes (Solving High-Bounce & Density Issues)
-- [ ] **TASK-04: Pre-Populated Starter Watchlist & Chart-to-Watchlist Action**
+### Phase 2: Authentication & Onboarding
+- [ ] **TASK-04: Implement Secure Auth & Registration Flow**
+  - **Target:** Sign-up / Sign-in modals and backend handlers
+  - **Action:** Build clean authentication UI collecting strictly **Email**, **Username**, **Password**, and a mandatory **Terms & Conditions / Privacy Consent Checkbox** (disclosing AI data processing). Exclude first/last name and phone number to minimize onboarding friction. Enforce strict server/client email validation allowing only letters, numbers, and standard email symbols (`!`, `*`, `+`, `-`, `=`, `?`, `^`, `_`, `.`, `@`) while blocking injection characters (`<`, `>`, whitespace, etc.). Securely hash passwords and verify RLS account ownership sessions.
+  - **Done When:** New users can successfully register and log in with clean validation, secure password hashing, and mandatory T&C consent recorded.
+
+### Phase 3: UX, Onboarding Fixes & Polish
+- [ ] **TASK-05: Pre-Populated Starter Watchlist & Chart-to-Watchlist Action**
   - **Target:** Watchlist initialization state, Supercharts symbol header
   - **Action:** When a guest or new user initializes with an empty `scr2~*` watchlist, seed default starter symbols (`BTCUSDT`, `EURUSD`, `SPY`, `XAUUSD`, `NVDA`) with a one-click `"Clear Starter List"` option. Add a visible **`+ Watchlist`** and **`Locate in Screener`** button directly on the active chart header.
   - **Done When:** New/guest sessions never boot into a blank watchlist, and any charted symbol can be added to the active watchlist in 1 click.
 
-- [ ] **TASK-05: Trim Default Screener Columns to 6-Column Core View**
+- [ ] **TASK-06: Trim Default Screener Columns to 6-Column Core View**
   - **Target:** Screener column configuration & preset switcher
   - **Action:** Set the default desktop screener column preset to 6 core columns: `Symbol`, `Price`, `1D %`, `Dollar Vol`, `Vektor Tier (P1–P5)`, and `Expansion`. Ensure tabular-nums formatting on all numerical columns. Move the existing 12+ column layout into a `"Power User (All Metrics)"` preset in the preset selector.
   - **Done When:** First-time desktop load renders the clean 6-column view without horizontal table clutter, while switching to `"Power User"` restores all metrics.
 
-- [ ] **TASK-06: Telegraph Bar-Replay Candle Window Limits**
+- [ ] **TASK-07: Telegraph Bar-Replay Candle Window Limits**
   - **Target:** Bar-Replay / Backtest toolbar
   - **Action:** Display the exact loaded historical bar count and date range (`Replay Window: N bars | YYYY-MM-DD to YYYY-MM-DD`) directly on the replay toolbar before playback starts.
   - **Done When:** Users see exact available historical depth before initiating bar replay.
 
-### Phase 3: Monolith Decomposition (`index.html` → `src/`)
-- [ ] **TASK-07: Extract Inline Styles (`index.html` → `src/styles/main.css`)**
+### Phase 4: Monolith Decomposition (`index.html` → `src/`)
+- [ ] **TASK-08: Extract Inline Styles (`index.html` → `src/styles/main.css`)**
   - **Target:** ~1,000 lines of inline `<style>` in `index.html`
   - **Action:** Move all inline CSS into `src/styles/` without altering `data-ui="phone"` responsive rules or CSS custom properties. Clean up nested card structures and enforce proper inner/outer radius mathematics.
   - **Done When:** `index.html` contains zero `<style>` blocks and mobile/desktop Playwright layout checks pass.
 
-- [ ] **TASK-08: Extract Feature Modules Out of `index.html`**
+- [ ] **TASK-09: Extract Feature Modules Out of `index.html`**
   - **Target:** Inline JS in `index.html` (~6,000 lines) → `src/`
   - **Action:** Incrementally extract Custom Script Interpreter, Screener Table Renderer (replacing unsafe `innerHTML`), Journal/Prop Tracker, and Bar-Replay engine into ES modules under `src/`. Update Playwright test targets from `index.html` monolith selectors to modular build entrypoints.
   - **Done When:** `index.html` acts solely as a lightweight HTML shell (<300 lines) loading modular ES bundles, and all Playwright suites pass.
 
-## 10. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
+## 11. VERIFICATION CHECKLIST (RUN BEFORE CLOSING ANY TASK)
 1. Confirm `scr2~*` LocalStorage keys read/write identically for both Guest and signed-in hash accounts.
 2. Verify mobile layout (`data-ui="phone"`) has zero horizontal overflow.
 3. Verify Playwright test suite passes with zero console errors or uncaught promise rejections.

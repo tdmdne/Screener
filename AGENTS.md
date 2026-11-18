@@ -316,7 +316,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 - Starter list (live, TASK-06): for a guest, or a signed-in account that had no saved work on this device when the page loaded (`VT_WL_FRESH`), and only if the watchlist is still empty, the first section is seeded with BTCUSDT, EURUSD, SPY, XAUUSD and NVDA. Existing accounts that already have saved settings are never seeded, even if their watchlist is empty. **Clear starter list** appears in the watchlist header only while the list is still exactly those five symbols and the other sections are empty. Clearing it, or changing the list in any other way, removes the button.
 
 **Backtest Lab (Backtest page)**
-- `#/backtest` is the **Manual Backtest Lab** only. There is no rules-based strategy runner in the running app: no EMA-cross, RSI-reversal or N-bar-breakout backtest, and no `btRun` in `index.html`. "EMA cross" in the app is a Vektor Script example, not a backtest rule. `tests/backtest.js` still calls `btRun`.
+- `#/backtest` is the **Manual Backtest Lab** only. There is no rules-based strategy runner in the running app: no EMA-cross, RSI-reversal or N-bar-breakout backtest, and no `btRun` in `index.html`. "EMA cross" in the app is a Vektor Script example, not a backtest rule. `tests/backtest.js` uses `btBuild`, `btPlay` and `btSeek`.
 - Pick a symbol and start time (or a 20% / 50% / 75% point in the history), a timeframe (1m, 5m, 15m, 1H, 4H or 1D), starting balance, risk % and fee per side, then step or play bars and place manual Long/Short orders with stop-loss and take-profit.
 - **Bar replay:** step back/forward, play/pause, speed (1x–16x), a slider, and jump to start or end. Shortcuts: Left/Right step bars, Space toggles play/pause, B/S place Long/Short, X closes the position.
 - **Manual paper trading in replay:** Long (B), Short (S), Close (X) and Reverse. Bracket presets: ATR 1:2 (default), ATR 1:3, 1% / 2%, or Manual stop/target. If a bar touches both stop and target, the stop fills first. All fills are simulated on historical candles; nothing goes to a broker.
@@ -471,7 +471,7 @@ Vektor Terminal is a browser-based professional multi-asset trading platform.
 
 ### Known limitations (current main)
 - **13 browser tests fail on main** according to the ops log (18 Nov 2026). The ones users might notice:
-  - **Backtest:** the test fails with "btRun not defined". Confirmed: `btRun` is not in the running app. `#/backtest` is the Manual Backtest Lab. `tests/backtest.js` still calls `btRun`.
+  - **Backtest:** Confirmed: `btRun` is not in the running app. `#/backtest` is the Manual Backtest Lab. `tests/backtest.js` uses `btBuild`, `btPlay` and `btSeek`.
   - **Journal:** an error reading `pnl`. Journal P&L or stats may fail in some cases.
   - **Phone layout:** the Backtest page overflows sideways (700px of content on a 375px screen).
   - **Today's session summary:** open P&L doesn't match an independent recalculation (45.87 vs 46.94). Treat summary P&L as approximate.

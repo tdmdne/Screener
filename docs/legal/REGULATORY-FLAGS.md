@@ -83,3 +83,110 @@ These reduce risk; they do not remove the flags above.
 3. Put a short hypothetical-results / paper-trading note on Backtest, Calculators and the prop tracker.
 4. Soften landing “position planning” / “Every market” if needed.
 5. Make sure score, tier, phase and heatmap surfaces all keep `VT_NA_TXT` (or equivalent) in view, including exports.
+
+---
+
+## Marketing and social posts
+
+Internal guidance for Growth (Leo’s launch-plan draft, lines 173–185, asked Iris to own the final wording). This is not legal advice and is not shown in the app. Vektor Terminal is not FCA-authorised. Tyler has decided not to use a solicitor; Tyler signs this off. Thursday content packs should still flag anything borderline so Tyler sees it before it posts.
+
+### 1. Are organic demo posts financial promotions?
+
+**The legal test.** Under FSMA 2000 s.21, a person must not, in the course of business, communicate an invitation or inducement to engage in investment activity unless they are authorised, an authorised person has approved the content, or an exemption in the Financial Services and Markets Act 2000 (Financial Promotion) Order 2005 (the FPO) applies. A breach can be a criminal offence (up to two years’ imprisonment, an unlimited fine, or both). “Engage in investment activity” means entering or offering to enter an agreement that is a controlled activity, or exercising rights in a controlled investment (s.21(8)). Controlled investments are set out in the FPO and include shares, units, derivatives, CFDs and qualifying cryptoassets.
+
+Sources:
+
+- FSMA s.21: https://www.legislation.gov.uk/ukpga/2000/8/section/21
+- FPO 2005: https://www.legislation.gov.uk/uksi/2005/1529
+- FCA PERG 8.4 (invitation or inducement): https://www.handbook.fca.org.uk/handbook/PERG/8/4.html
+- FCA FG24/1, *Finalised guidance on financial promotions on social media* (March 2024): https://www.fca.org.uk/publications/finalised-guidance/fg24-1-finalised-guidance-financial-promotions-social-media and https://www.fca.org.uk/publication/finalised-guidance/fg24-1.pdf
+- Cryptoasset financial promotions: FCA Handbook COBS 4.12A: https://www.handbook.fca.org.uk/handbook/COBS/4/12A.html
+
+PERG 8.4 applies an **objective** test. A reasonable observer, taking all the circumstances, must both consider that the communicator intended the communication to persuade or incite the recipient to engage in investment activity (or that that was its purpose), and regard the communication as seeking to do so. A communication with no element of persuasion or incitement toward investment activity is not an invitation or inducement under s.21.
+
+FG24/1 confirms that any form of social-media communication, including organic posts, videos, stories and “private” channels, can be a financial promotion if it includes such an invitation or inducement. The restriction is technology-neutral. Overall impression matters; a disclaimer does not cure a promotional message. The “in the course of business” test is met by Vektor’s own marketing (a commercial interest is enough). A communication that originates outside the UK is still caught if it is capable of having an effect in the UK.
+
+**Decision (conservative).** A tightly framed organic TikTok, X or Instagram post that only demonstrates the product as a charting and screening **tool**, with no trade recommendation and no instrument presented as an opportunity, can reasonably be treated as marketing of an unregulated information product, not as a financial promotion of an investment. Promoting the software itself is not, by itself, “engaging in investment activity.”
+
+Do **not** treat that as automatically safe. The line is thin, especially where a clip shows live crypto, FX or CFD prices, P1–P5 tiers, “expansion” labels or a heatmap of movers. The FCA looks at the whole clip, caption, audio and on-screen text together. Because Vektor is not authorised, anything that crosses into a s.21 financial promotion would need approval by an authorised person or an FPO exemption. There is no plan to obtain that approval. The conservative working rule is therefore:
+
+- Keep every demo strictly as a product/tool demonstration.
+- Apply the risk lines in section 3 on every profile and on every post that shows markets.
+- Assume a UK audience even if the poster is abroad.
+- If there is any doubt, do not post until Tyler has reviewed it. Do not rely on a disclaimer to pull a borderline post back over the line.
+
+**What tips a post into a financial promotion**
+
+- Naming instruments as opportunities, trades, “setups to take,” “watch this for a long,” or “scans of the week” that read as recommended trades rather than a description of what the screen is showing.
+- Crypto, in particular: inviting or inducing someone to invest in qualifying cryptoassets is a financial promotion under the crypto regime (COBS 4.12A), with prescribed risk warnings and other rules Vektor is not in a position to meet. A clip that frames Bitcoin or another token as something to buy, or that links out to an exchange, is high risk even if the caption says “not advice.”
+- Performance: win rates, backtests presented as expected returns, P&L screenshots, “I made…,” “best,” “guaranteed,” or get-rich language.
+- Broker, exchange or affiliate links, or any path that incites the viewer to open a trading account or deal.
+- Presenting Vektor as a signals, tipster or broker service.
+
+### 2. Rules for all marketing and social posts
+
+- **18+ audience only.** Do not target, appear to target, or use formats likely to appeal mainly to under-18s.
+- **Never** tell anyone to buy, sell or hold an instrument, and do not use language that amounts to the same thing (“go long,” “take this,” “load up,” “avoid this name”).
+- **“Setups / scans of the week”** may only describe what the screener or chart is displaying (for example, “this market currently passes the P2 filter on these candles”). They are not a recommended trade.
+- **No performance claims:** no win rates, no backtests presented as expected returns, no P&L screenshots, no “I made…,” and no “best,” “guaranteed,” or get-rich language. Do not use testimonials we cannot stand behind, and do not photoshop results.
+- Do not present Vektor as a signals service, a tipster, or a broker. It does not place trades.
+- If prices are delayed, or a mode uses sample or simulated data, say so **on screen or in the caption**.
+- Put the short risk line from section 3 on any post that shows markets, and the profile/bio line on every official account.
+- These rules apply to organic posts, ads, landing pages, emails, and anything in a Thursday pack.
+
+### 3. Exact risk copy
+
+Use this wording unless Tyler agrees a change. Do not shorten a line so that a qualifier drops out.
+
+**Profile / bio risk line** (116 characters, for X, Instagram, TikTok and similar bios):
+
+> 18+ only. Tools and information, not investment advice. You can lose money. Data may be delayed. Not FCA authorised.
+
+**Short on-post risk line** (put on screen or as the first or last line of the caption on any post that shows markets):
+
+> Not investment advice. 18+. Risk of loss. Data may be delayed.
+
+**Longer caption version:**
+
+> Vektor Terminal is a set of charting and screening tools for people aged 18 and over. This is information and education only, not investment advice, and not a personal recommendation to buy, sell or hold anything. You can lose money, especially with CFDs, FX and crypto. Data may be delayed or, in some modes, simulated and not live market prices. Vektor is not authorised or regulated by the FCA and does not place trades.
+
+### 4. Free-trial advertising copy
+
+A 7-day Elite trial that requires a card and auto-converts to a paid plan is not unconditionally “free.” Do not use the word “free” (or “gratis,” “without charge,” or similar) unless the qualifiers below appear **next to that claim**, in the same view, with comparable prominence — not only in a footnote, a link, or terms and conditions.
+
+**Why.** The unfair commercial practices rules are in **Part 4, Chapter 1** of the Digital Markets, Competition and Consumers Act 2024 (not Part 1, which deals with digital markets). They have applied to commercial practices from 6 April 2025. Schedule 20, paragraph 23 makes it unfair in all circumstances to describe a product as “gratis,” “free,” “without charge” or similar if the consumer has to pay anything other than unavoidable response or delivery costs. Misleading omissions and invitations to purchase are also prohibited (ss.225–230). The CMA’s guidance is *Unfair commercial practices* (CMA207, 18 November 2025): https://www.gov.uk/government/publications/unfair-commercial-practices-cma207/unfair-commercial-practices and https://www.legislation.gov.uk/ukpga/2024/13/schedule/20.
+
+Separately, once DMCC Part 4, Chapter 2 (subscription contracts) applies to new contracts — intended from 1 January 2027, but not in force as at 18 November 2026; see `docs/legal/REVIEW.md` — pre-contract information, reminder notices, easy exit and cooling-off on conversion also apply. Draft advertising to comply with that regime now, so a “free trial” claim already states the paid price, auto-renewal, cancel route and one-trial limit.
+
+Every “7-day Elite trial” / “free trial” claim must, next to the claim, state all of the following:
+
+- it is a 7-day Elite trial
+- a card is required
+- the price after the trial: £24.99/month or £219/year; $29.99/$269 plus any applicable taxes
+- it renews automatically on the date shown at checkout unless cancelled
+- cancel any time before day 7 with no charge (and, in body copy, that Elite access continues until the trial ends)
+- one trial per person
+
+USD tax treatment is still a placeholder; say “plus any applicable taxes,” not that tax is included. GBP launch prices include 20% VAT; social and email copy may use the short “plus any applicable taxes” form for USD, and the landing-page block below can add that GBP includes 20% VAT.
+
+**Social post** (use as the caption or the on-screen text; do not lead with a bare “Free trial” sticker):
+
+> Start a 7-day Elite trial of Vektor Terminal. A card is required. After the trial, Elite is £24.99/month or £219/year ($29.99/month or $269/year, plus any applicable taxes). It renews automatically on the date shown at checkout unless you cancel. Cancel any time before day 7 and you will not be charged; you keep Elite until the trial ends. One trial per person. 18+ only. Tools and information, not investment advice. You can lose money. Data may be delayed.
+
+**Landing page, immediately next to the CTA** (the button itself should read “Start a 7-day Elite trial,” not “Start free” or “Try free”):
+
+> This is a 7-day Elite trial. A payment card is required up front. Unless you cancel before the trial ends, it becomes a paid Elite subscription at the end of day 7 and renews automatically on the date shown at checkout, at £24.99 a month or £219 a year (GBP includes 20% VAT) or $29.99 a month or $269 a year plus any applicable taxes, according to the plan you choose. Cancel any time before day 7 and you will not be charged; you keep Elite until the trial ends. One trial per person. 18+ only. Tools and information, not investment advice.
+
+**Email**
+
+Subject: Your 7-day Elite trial — card required, cancel before day 7 with no charge
+
+Body:
+
+> You can start a 7-day Elite trial of Vektor Terminal. A payment card is required up front. After the trial, Elite is £24.99 a month or £219 a year (GBP includes 20% VAT), or $29.99 a month or $269 a year plus any applicable taxes, according to the plan you choose at checkout. The subscription renews automatically on the date shown at checkout unless you cancel. Cancel any time before day 7 and you will not be charged; you keep Elite until the trial ends. One trial per person.
+>
+> Vektor Terminal is for people aged 18 and over. It is a set of tools and information only, not investment advice. You can lose money. Data may be delayed.
+>
+> Start a 7-day Elite trial: [link]
+>
+> Cancel: [Account → Billing page, once that path exists] or email vektorhq@proton.me

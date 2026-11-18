@@ -32,13 +32,17 @@ const ck=await P.evaluate(()=>{location.hash="#/legal/cookies";return new Promis
 for(const s of ["Cloudflare Web Analytics","Umami Cloud","Advertising is not used","[confirm before publishing: Umami installed and live]","[confirm: Umami Cloud hosting region and DPA]"])assert(ck.includes(s),"cookies missing "+s);
 assert(!/if adopted/.test(ck),"cookies still treats Umami as unadopted");
 const rf=await P.evaluate(()=>{location.hash="#/legal/refunds";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["currently free","£11.99","£109","£24.99","£219","$14.99","$135","$29.99","$269","20% VAT","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","Consumer Rights Act 2015","Consumer Contracts","regulation 36","regulation 37","Model cancellation form","not excluded","Free trial","Elite only","end of day 7","one trial per person","Part 4, Chapter 2"])assert(rf.includes(s),"refunds missing "+s);
+for(const s of ["currently free","£11.99","£109","£24.99","£219","$14.99","$135","$29.99","$269","20% VAT","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","Consumer Rights Act 2015","Consumer Contracts","regulation 36","regulation 37","Model cancellation form","not excluded","Free trial","Elite only","end of day 7","one trial per person","plus-tags are removed","offered Elite without a trial","keep Elite until the trial ends","Part 4, Chapter 2"])assert(rf.includes(s),"refunds missing "+s);
+assert(!/one trial per person \[confirm\]/.test(rf),"refunds still has trial confirm placeholder");
 assert(!/pounds sterling only/i.test(rf)&&!/All prices are in pounds sterling/.test(rf),"refunds still pounds-sterling-only");
 assert(!/Chapter 3 of Part 4/.test(rf),"refunds still cites DMCC Chapter 3");
 const tm=await P.evaluate(()=>{location.hash="#/legal/terms";return new Promise(r=>setTimeout(()=>r(document.getElementById("pv-legal").innerText),250))});
-for(const s of ["currently free","Pro","Elite","£11.99","$14.99","$29.99","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","shown at checkout","renew automatically","30 days","not authorised or regulated by the Financial Conduct Authority","Free trial","Elite only","end of day 7"])assert(tm.includes(s),"terms missing "+s);
+for(const s of ["currently free","Pro","Elite","£11.99","$14.99","$29.99","[confirm before launch]","[Payment provider, e.g. merchant of record, confirm]","[confirm: USD tax treatment / merchant of record]","shown at checkout","renew automatically","30 days","not authorised or regulated by the Financial Conduct Authority","Free trial","Elite only","end of day 7","one trial per person","plus-tags are removed","offered Elite without a trial","keep Elite until the trial ends"])assert(tm.includes(s),"terms missing "+s);
+assert(!/one trial per person \[confirm\]/.test(tm),"terms still has trial confirm placeholder");
 assert(!/pounds sterling only/i.test(tm)&&!/in pounds sterling including/.test(tm),"terms still pounds-sterling-only");
 assert(pv.includes("legitimate interests")&&pv.includes("Art. 15")&&pv.includes("Art. 22")&&pv.includes("Information Commissioner")&&pv.includes("18 and over"),"privacy missing rights or lawful-basis wording");
+for(const s of ["card identifier","normalised email","do not store your card number","[confirm: retention period for trial-eligibility records]","[Payment provider, e.g. merchant of record, confirm]"])assert(pv.includes(s),"privacy missing trial-eligibility wording "+s);
+
 assert(await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0),"websocket replaced");
 // index route + reload deep link
 await P.evaluate(()=>{location.hash="#/legal"});await P.waitForTimeout(250);

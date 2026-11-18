@@ -15,6 +15,8 @@
 - PR #14 Elite trial eligibility in the legal pages + btRun notes (`fb0d608`).
 - Backend-mandate audit + backend-first task list + compact AGENTS.md (this PR).
 
+- 18 Nov: AGENTS.md §6 Institutional UI/UX standard + recurring UI Audit phase (TradingView/Tradovate/FX Replay benchmark).
+
 ## Elite trial rules (Tyler, confirmed)
 - 7 days, Elite only, card upfront, converts to paid after 7 days.
 - One trial per person. A card that already had a trial gets no trial and is offered Elite without one.
@@ -23,6 +25,7 @@
 
 ## Next
 - Task 1: bring vektor-market into `workers/market/` (Claude Sonnet, after the 00:40 GMT Claude reset).
+- First UI Audit pass (Claude Sonnet + Playwright) → `docs/ui/AUDIT-2026-11-19.md`.
 - Fix the 5 failing test bugs (Mara).
 - Accounts (Dex, legacy TASK-04 = ACC dependency).
 - Tyler decisions D1–D8 (`docs/architecture/AUDIT.md` §4): crypto source, Workers Paid, TD Venture timing.

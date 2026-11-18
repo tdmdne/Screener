@@ -77,6 +77,7 @@ The browser is a **dumb terminal, a presentation layer only**.
   - Task 18: replay and backtest fills.
   - Task 19: journal and prop stats (ACC).
 - **Phase D:** Task 20: delete the deprecated backends.
+- **UI-AUDIT (recurring, §6):** a UI review pass runs before any feature is marked complete, and a full-app audit runs once per phase.
 - **UI carry-overs:** UI-07 six-column screener, UI-08 replay window, UI-09/10 monolith decomposition.
 - **History:** completed legacy tasks (TASK-01, TASK-06) and the old backlog are in `docs/architecture/HISTORY.md`.
 
@@ -85,4 +86,18 @@ The browser is a **dumb terminal, a presentation layer only**.
 2. Saved user data still loads for guests and signed-in accounts (`scr2~*` until Task 15, then the server).
 3. Mobile layout (`data-ui="phone"`) has zero horizontal overflow.
 4. Verified on a preview deploy, then live after merge. Tick the task in TASKS.md and add a 1-line bullet to STATE.md.
-5. Open a PR. Never push to `main`.
+5. **UI Audit pass (§6)** is done for every UI-touching task: Playwright screenshots and DOM checks against the live or preview site, all findings fixed or logged in STATE.md.
+6. Open a PR. Never push to `main`.
+
+## 6. INSTITUTIONAL UI/UX STANDARD (Tyler, 18 Nov 2026)
+- **Benchmark:** every screen, modal, chart overlay, watchlist, auth form and replay control must meet institutional trading-terminal standards, modelled on **TradingView**, **Tradovate** and **FX Replay**.
+- **Design rules:**
+  - High-density layout with crisp dark-mode contrast (WCAG AA minimum).
+  - `font-variant-numeric: tabular-nums` and a monospace stack for every price, tick, size and PnL, so numbers never jitter.
+  - Clean pane docking and resizing.
+  - Consistent spacing scale and alignment, and no layout shift on updates.
+  - Feedback under 100 ms for every click and hover; never more than 1 s.
+  - No generic "AI-template" styling: no gradient blobs, oversized rounded cards, emoji UI or filler copy.
+- **§0 still wins:** UI polish is presentation only. It must never add client-side data processing.
+- **UI Audit workflow:** before any feature is marked complete, run a UI review pass. Playwright takes screenshots and runs DOM checks (desktop 1440×900 and phone 375×812) on the live or preview site. Claude (Sonnet, fresh session) reviews them against the benchmark, then fixes the problems in small single-task PRs that name the files and line ranges. A full-app audit runs once per phase. Findings go to `docs/ui/AUDIT-<date>.md`, with a 1-line summary in STATE.md.
+

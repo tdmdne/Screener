@@ -34,6 +34,10 @@ const VERIFY_MIGRATION_SQL = readFileSync(
   join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
   "utf8"
 );
+const AVATAR_MIGRATION_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0004_user_avatar.sql"),
+  "utf8"
+);
 
 const BASE_ORIGIN = "https://terminal.vektor.test";
 const BASE_TIME = Date.UTC(2026, 10, 19, 14, 0, 0);
@@ -44,6 +48,7 @@ function createD1TestDb() {
   sqlite.exec(AUTH_MIGRATION_SQL);
   sqlite.exec(WAITLIST_MIGRATION_SQL);
   sqlite.exec(VERIFY_MIGRATION_SQL);
+  sqlite.exec(AVATAR_MIGRATION_SQL);
 
   return {
     _sqlite: sqlite,

@@ -23,11 +23,33 @@ function ensureAuthExtraStyles() {
   const style = document.createElement("style");
   style.id = "vtVerifyStyles";
   style.textContent = [
-    ".vt-terms-row{display:flex;align-items:flex-start;gap:9px;margin:2px 0 4px;padding:8px 10px;background:var(--bg-0);border:1px solid var(--line-1);border-radius:var(--r-sm);font-size:12px;line-height:1.45;color:var(--mut);}",
-    ".vt-terms-row input[type=\"checkbox\"]{margin:2px 0 0;width:16px;height:16px;min-height:16px;flex-shrink:0;accent-color:var(--acc);cursor:pointer;}",
-    ".vt-terms-row input[aria-invalid=\"true\"]{outline:2px solid var(--r);outline-offset:1px;}",
-    ".vt-terms-row a{color:var(--acc);font-weight:500;text-decoration:underline;text-underline-offset:2px;}",
-    ".vt-terms-row a:hover{color:var(--acc-hover);}",
+    ".vt-terms-row{display:flex;align-items:flex-start;gap:9px;margin:2px 0 4px;padding:9px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm,8px);font-size:12px;line-height:1.45;color:#e5e7eb;}",
+    ".vt-terms-row label{display:inline;margin:0;color:#e5e7eb;font-weight:400;}",
+    ".vt-terms-row input[type=\"checkbox\"]{margin:2px 0 0;width:16px;height:16px;min-height:16px;flex-shrink:0;accent-color:#f59e0b;cursor:pointer;}",
+    ".vt-terms-row input[aria-invalid=\"true\"]{outline:2px solid var(--r,#ef4444);outline-offset:1px;}",
+    ".vt-terms-row a{color:#f59e0b;font-weight:600;text-decoration:underline;text-underline-offset:2px;}",
+    ".vt-terms-row a:hover{color:#fbbf24;}",
+    "#auth .auth-card .vt-auth-seg,.auth-card.vt-d1-auth .vt-auth-seg{background:#10131b;border:1px solid rgba(255,255,255,0.12);}",
+    "#auth .auth-card .vt-auth-tab,.auth-card.vt-d1-auth .vt-auth-tab{background:#161922;color:#c7cdd8;border:1px solid transparent;}",
+    "#auth .auth-card .vt-auth-tab:hover:not(.on),.auth-card.vt-d1-auth .vt-auth-tab:hover:not(.on){background:#1c202c;color:#f3f4f6;border-color:rgba(255,255,255,0.14);}",
+    "#auth .auth-card .vt-auth-tab.on,.auth-card.vt-d1-auth .vt-auth-tab.on{background:#222736;color:#ffffff;border-color:rgba(245,158,11,0.55);box-shadow:0 1px 4px rgba(0,0,0,0.35);}",
+    "#auth .auth-card .vt-pw-rules,.auth-card.vt-d1-auth .vt-pw-rules{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:#e5e7eb;}",
+    "#auth .auth-card .vt-pw-rules li,.auth-card.vt-d1-auth .vt-pw-rules li{color:#e5e7eb;}",
+    "#auth .auth-card .vt-pw-rules li::before,.auth-card.vt-d1-auth .vt-pw-rules li::before{background:rgba(255,255,255,0.34);}",
+    "#auth .auth-card .vt-pw-rules li.ok,.auth-card.vt-d1-auth .vt-pw-rules li.ok{color:#4ade80;}",
+    "#auth .auth-card .vt-pw-rules li.ok::before,.auth-card.vt-d1-auth .vt-pw-rules li.ok::before{background:#4ade80;}",
+    "#auth .auth-card .vt-field>span:first-child,.auth-card.vt-d1-auth .vt-field>span:first-child,#auth .auth-card label{color:#e5e7eb;}",
+    "#auth .auth-card input:not([type=\"checkbox\"]),.auth-card.vt-d1-auth input:not([type=\"checkbox\"]){background:#12151e;color:#f3f4f6;border:1px solid rgba(255,255,255,0.16);color-scheme:dark;}",
+    "#auth .auth-card input:not([type=\"checkbox\"])::placeholder,.auth-card.vt-d1-auth input:not([type=\"checkbox\"])::placeholder{color:#8b93a6;}",
+    "#auth .auth-card input[type=\"date\"],.auth-card.vt-d1-auth input[type=\"date\"],.vt-auth-modal input[type=\"date\"]{color-scheme:dark;}",
+    "#auth .auth-card #auBtn,#auth .auth-card #vtSuBtn,.auth-card.vt-d1-auth button.pri{background:#f59e0b;color:#0b0d12;border:1px solid #f59e0b;font-weight:700;opacity:1;}",
+    "#auth .auth-card #auBtn:hover:not(:disabled),#auth .auth-card #vtSuBtn:hover:not(:disabled),.auth-card.vt-d1-auth button.pri:hover:not(:disabled){background:#fbbf24;border-color:#fbbf24;color:#0b0d12;}",
+    "#auth .auth-card #auBtn:disabled,#auth .auth-card #vtSuBtn:disabled,.auth-card.vt-d1-auth button.pri:disabled{background:#d97706;color:#0b0d12;opacity:0.75;}",
+    ".vt-prelaunch-notice{padding:10px 12px;margin:0 0 10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.38);border-radius:var(--r-sm,8px);color:#fde68a;font-size:12.5px;line-height:1.45;}",
+    ".vt-prelaunch-notice[hidden]{display:none !important;}",
+    ".vt-prelaunch-home{color:#fbbf24;font-weight:600;text-decoration:underline;text-underline-offset:2px;white-space:nowrap;}",
+    ".vt-prelaunch-home:hover{color:#ffffff;}",
+    "html[data-vt-live-gate=\"1\"] #auGuest,html[data-vt-live-gate=\"1\"] #auGuestNote,html[data-vt-live-gate=\"1\"] #auForm .auor,html[data-vt-live-gate=\"1\"] #auClose{display:none !important;}",
     ".vt-verify-grid{display:flex;flex-direction:column;gap:12px;margin:12px 0;}",
     ".vt-verify-card{padding:14px;background:var(--bg-0);border:1px solid var(--line-2);border-radius:var(--r-md);display:flex;flex-direction:column;gap:10px;}",
     ".vt-verify-card.is-ok{border-color:color-mix(in srgb,var(--g) 40%,var(--line-2));}",
@@ -408,7 +430,7 @@ function openCompleteProfileModal(user) {
     name: "phone",
     type: "tel",
     autocomplete: "tel",
-    placeholder: "+44 7700 900000",
+    placeholder: "+447700900000",
     value: user.phone || "",
     required: true,
     "aria-describedby": "vtCpErr",
@@ -464,7 +486,7 @@ function openCompleteProfileModal(user) {
         const dobErr = checkDobClient(dob);
         if (dobErr) return showErr(dobErr, dobInput);
         if (!PHONE_E164_RE.test(phone)) {
-          return showErr("Enter an international phone number starting with + (e.g. +44 7700 900000).", phoneInput);
+          return showErr("Enter an international phone number starting with + (e.g. +447700900000).", phoneInput);
         }
 
         submitBtn.disabled = true;
@@ -2198,6 +2220,25 @@ function buildImportPayloadFromLocalKeys(keys) {
 
 function maybeOfferLegacyImport(user) {
   if (!user || !user.id || !user.profile_completed) return;
+  const rawHash = String((typeof window !== "undefined" && window.location && window.location.hash) || "")
+    .trim()
+    .toLowerCase();
+  if (
+    rawHash === "" ||
+    rawHash === "#" ||
+    rawHash === "#/" ||
+    rawHash === "#/home" ||
+    rawHash === "#/landing" ||
+    rawHash === "#/pricing" ||
+    rawHash.startsWith("#/features/") ||
+    rawHash.startsWith("#/products/") ||
+    rawHash === "#/legal" ||
+    rawHash.startsWith("#/legal/") ||
+    rawHash === "#legal" ||
+    rawHash.startsWith("#legal/")
+  ) {
+    return;
+  }
   const skipKey = `vt_import_skip_${user.id}`;
   try {
     if (window.sessionStorage.getItem(skipKey) === "1") return;
@@ -2488,8 +2529,31 @@ function enhanceAuthScreen() {
   });
   const seg = el("div", { className: "vt-auth-seg", role: "tablist", "aria-label": "Account mode" }, tabSignIn, tabSignUp);
 
-  if (sub) sub.after(seg);
-  else form.prepend(seg);
+  const preLaunchNotice = el(
+    "div",
+    {
+      id: "vtPreLaunchNotice",
+      className: "vt-prelaunch-notice",
+      role: "status",
+      hidden: !isLivePreLaunchHost(),
+    },
+    el("span", {
+      textContent:
+        "Pre-Launch Early Access \u2014 Sign in with your invite or admin account, or join the waitlist on the home page. ",
+    }),
+    el("a", {
+      href: "#/",
+      className: "vt-prelaunch-home",
+      textContent: "Back to home",
+    })
+  );
+
+  if (sub) sub.after(preLaunchNotice, seg);
+  else form.prepend(preLaunchNotice, seg);
+
+  if (isLivePreLaunchHost()) {
+    enforceLivePreLaunchGuestGate();
+  }
 
   // Wrap existing sign-in fields into #vtSignInFields without losing element references/IDs
   const signInWrap = el("div", { id: "vtSignInFields", className: "vt-auth-panel", role: "tabpanel" });
@@ -2555,7 +2619,7 @@ function enhanceAuthScreen() {
     name: "phone",
     type: "tel",
     autocomplete: "tel",
-    placeholder: "+44 7700 900000",
+    placeholder: "+447700900000",
     required: true,
     "aria-describedby": "vtSuErr",
   });
@@ -2768,15 +2832,37 @@ function enhanceAuthScreen() {
 
   function syncAuthHashRoute() {
     const h = String(window.location.hash || "").toLowerCase();
+    // Never cover legal routes (#/legal, #/legal/*) with the #auth gate
+    if (isLegalRouteHash(h)) {
+      document.documentElement.classList.remove("locked");
+      return;
+    }
+
     const isSignUpHash = isSignUpRouteHash(h);
     const isSignInHash = isSignInRouteHash(h);
-    if (!isSignUpHash && !isSignInHash) return;
-    if (typeof window.vtShowSignIn === "function") {
-      window.vtShowSignIn();
-    } else {
-      document.documentElement.classList.add("locked");
+    if (isSignUpHash || isSignInHash) {
+      if (typeof window.vtShowSignIn === "function") {
+        window.vtShowSignIn();
+      } else {
+        document.documentElement.classList.add("locked");
+      }
+      if (isLivePreLaunchHost()) {
+        hideGuestControls();
+        showPreLaunchNotice();
+      }
+      setMode(isSignUpHash ? "signup" : "signin");
+      return;
     }
-    setMode(isSignUpHash ? "signup" : "signin");
+
+    if (isLivePreLaunchHost() && !activeUser) {
+      if (isTerminalRouteHash(h) || !isPublicPreLaunchHash(h)) {
+        redirectToPreLaunchLogin();
+        setMode("signin");
+        return;
+      }
+      // Public non-auth landing routes: ensure #auth gate is not blocking the home/pricing/product view
+      document.documentElement.classList.remove("locked");
+    }
   }
 
   window.addEventListener("hashchange", syncAuthHashRoute);
@@ -2852,7 +2938,7 @@ function enhanceAuthScreen() {
     const dobErr = checkDobClient(dob);
     if (dobErr) return showSuError(dobErr, suDob);
     if (!PHONE_E164_RE.test(phone)) {
-      return showSuError("Phone must be in international E.164 format (e.g. +44 7700 900000).", suPhone);
+      return showSuError("Phone must be in international E.164 format (e.g. +447700900000).", suPhone);
     }
     const emailCheck = validateEmail(emailRaw);
     if (!emailCheck.ok) return showSuError(emailCheck.error, suEmail);
@@ -2921,8 +3007,12 @@ function enhanceAuthScreen() {
 // Bootstrap: Probe /api/auth/providers & /api/auth/me
 // ---------------------------------------------------------------------------
 
+function normalizeRouteHash(rawHash) {
+  return String(rawHash || "").trim().toLowerCase().replace(/\/+$/, "");
+}
+
 function isExplicitAuthRouteHash(rawHash) {
-  const h = String(rawHash || "").toLowerCase();
+  const h = normalizeRouteHash(rawHash);
   return (
     h === "#signup" ||
     h === "#/signup" ||
@@ -2941,14 +3031,196 @@ function isExplicitAuthRouteHash(rawHash) {
   );
 }
 
+function isLegalRouteHash(rawHash) {
+  const h = normalizeRouteHash(rawHash);
+  return h === "#legal" || h === "#/legal" || h.startsWith("#legal/") || h.startsWith("#/legal/");
+}
+
+function isTerminalRouteHash(rawHash) {
+  const h = normalizeRouteHash(rawHash);
+  const prefixes = [
+    "#workspace",
+    "#/workspace",
+    "#chart",
+    "#/chart",
+    "#charts",
+    "#/charts",
+    "#screener",
+    "#/screener",
+    "#backtest",
+    "#/backtest",
+    "#journal",
+    "#/journal",
+    "#heatmap",
+    "#/heatmap",
+    "#calendar",
+    "#/calendar",
+    "#calc",
+    "#/calc",
+  ];
+  return prefixes.some((p) => h === p || h.startsWith(`${p}/`));
+}
+
+function isPublicPreLaunchHash(rawHash) {
+  const h = normalizeRouteHash(rawHash);
+  if (
+    h === "" ||
+    h === "#" ||
+    h === "#/" ||
+    h === "#home" ||
+    h === "#/home" ||
+    h === "#landing" ||
+    h === "#/landing" ||
+    h === "#waitlist" ||
+    h === "#/waitlist" ||
+    h === "#pricing" ||
+    h === "#/pricing"
+  ) {
+    return true;
+  }
+  if (
+    h === "#features" ||
+    h === "#/features" ||
+    h.startsWith("#features/") ||
+    h.startsWith("#/features/") ||
+    h === "#products" ||
+    h === "#/products" ||
+    h.startsWith("#products/") ||
+    h.startsWith("#/products/")
+  ) {
+    return true;
+  }
+  if (isLegalRouteHash(h)) return true;
+  if (isExplicitAuthRouteHash(h) || h.startsWith("#auth/") || h.startsWith("#/auth/")) return true;
+  return false;
+}
+
 function isLocalTestOrigin() {
   if (typeof window === "undefined" || !window.location) return false;
   const h = String(window.location.hostname || "").toLowerCase();
   return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
 }
 
+function isLivePreLaunchHost() {
+  if (typeof window === "undefined" || !window.location) return false;
+  return !isLocalTestOrigin();
+}
+
+function showPreLaunchNotice() {
+  if (typeof document === "undefined") return;
+  const notice = document.getElementById("vtPreLaunchNotice");
+  if (notice) notice.hidden = false;
+}
+
+function hideGuestControls() {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.vtLiveGate = "1";
+  const guestBtn = document.getElementById("auGuest");
+  if (guestBtn) {
+    guestBtn.hidden = true;
+    guestBtn.disabled = true;
+    guestBtn.setAttribute("aria-hidden", "true");
+    guestBtn.onclick = (ev) => {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      redirectToPreLaunchLogin();
+    };
+  }
+  const guestNote = document.getElementById("auGuestNote");
+  if (guestNote) {
+    guestNote.hidden = true;
+    guestNote.setAttribute("aria-hidden", "true");
+  }
+  const form = document.getElementById("auForm");
+  if (form) {
+    const orEl = form.querySelector(".auor");
+    if (orEl) orEl.hidden = true;
+  }
+  const closeBtn = document.getElementById("auClose");
+  if (closeBtn) closeBtn.hidden = true;
+}
+
+function redirectToPreLaunchLogin() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (isLegalRouteHash(window.location.hash)) {
+    document.documentElement.classList.remove("locked");
+    return;
+  }
+  if (normalizeRouteHash(window.location.hash) !== "#/login") {
+    window.location.hash = "#/login";
+  }
+  if (typeof window.vtShowSignIn === "function") {
+    window.vtShowSignIn();
+  } else {
+    document.documentElement.classList.add("locked");
+  }
+  if (typeof window.vtSetAuthMode === "function") {
+    window.vtSetAuthMode("signin");
+  }
+  hideGuestControls();
+  showPreLaunchNotice();
+}
+
+let guestGateWired = false;
+function enforceLivePreLaunchGuestGate() {
+  if (!isLivePreLaunchHost()) return;
+  ensureAuthExtraStyles();
+  hideGuestControls();
+  try {
+    window.sessionStorage.removeItem("vt_guest");
+  } catch {
+    // ignore
+  }
+  if (guestGateWired) return;
+  guestGateWired = true;
+
+  const blockedGuest = () => {
+    redirectToPreLaunchLogin();
+    return false;
+  };
+  window.vtEnterGuest = blockedGuest;
+  window.authGuest = blockedGuest;
+
+  if (typeof window.vtHideSignIn === "function") {
+    const origHide = window.vtHideSignIn;
+    window.vtHideSignIn = function () {
+      if (!activeUser && isLivePreLaunchHost()) {
+        return false;
+      }
+      return origHide.apply(this, arguments);
+    };
+  }
+
+  if (typeof window.authEnter === "function") {
+    const origEnter = window.authEnter;
+    window.authEnter = function (u) {
+      if (isLivePreLaunchHost() && !activeUser && (!u || u.guest)) {
+        hideGuestControls();
+        redirectToPreLaunchLogin();
+        return false;
+      }
+      return origEnter.apply(this, arguments);
+    };
+  }
+
+  if (typeof window.vtShowSignIn === "function") {
+    const origShow = window.vtShowSignIn;
+    window.vtShowSignIn = function () {
+      const out = origShow.apply(this, arguments);
+      hideGuestControls();
+      showPreLaunchNotice();
+      return out;
+    };
+  }
+}
+
 async function initD1Auth() {
   const isLocal = isLocalTestOrigin();
+  if (!isLocal) {
+    enforceLivePreLaunchGuestGate();
+  }
   let provRes;
   try {
     provRes = await apiJson("/api/auth/providers");
@@ -2957,6 +3229,15 @@ async function initD1Auth() {
     if (!isLocal || (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash))) {
       enhanceAuthScreen();
       wireRealLogout();
+      if (!isLocal) {
+        enforceLivePreLaunchGuestGate();
+        const curHash = window.location.hash || "";
+        if (isLegalRouteHash(curHash)) {
+          document.documentElement.classList.remove("locked");
+        } else if (isTerminalRouteHash(curHash) || !isPublicPreLaunchHash(curHash)) {
+          redirectToPreLaunchLogin();
+        }
+      }
     }
     return;
   }
@@ -2966,6 +3247,15 @@ async function initD1Auth() {
     if (!isLocal || (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash))) {
       enhanceAuthScreen();
       wireRealLogout();
+      if (!isLocal) {
+        enforceLivePreLaunchGuestGate();
+        const curHash = window.location.hash || "";
+        if (isLegalRouteHash(curHash)) {
+          document.documentElement.classList.remove("locked");
+        } else if (isTerminalRouteHash(curHash) || !isPublicPreLaunchHash(curHash)) {
+          redirectToPreLaunchLogin();
+        }
+      }
     }
     return;
   }
@@ -2981,6 +3271,9 @@ async function initD1Auth() {
 
   enhanceAuthScreen();
   wireRealLogout();
+  if (!isLocal) {
+    enforceLivePreLaunchGuestGate();
+  }
 
   // Check active HttpOnly session cookie
   try {
@@ -2988,12 +3281,31 @@ async function initD1Auth() {
     if (meRes.ok && meRes.data && meRes.data.user) {
       applySignedInSession(meRes.data.user);
     } else if (meRes.status === 401) {
-      const explicitAuth = typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash);
+      const curHash = typeof window !== "undefined" ? window.location.hash || "" : "";
+      if (isLegalRouteHash(curHash)) {
+        document.documentElement.classList.remove("locked");
+        return;
+      }
+      const explicitAuth = typeof window !== "undefined" && isExplicitAuthRouteHash(curHash);
       if (explicitAuth) {
         if (typeof window.vtShowSignIn === "function") {
           window.vtShowSignIn();
         } else {
           document.documentElement.classList.add("locked");
+        }
+        if (!isLocal) {
+          hideGuestControls();
+          showPreLaunchNotice();
+        }
+      } else if (!isLocal) {
+        // Clear any stale pre-D1 local session marker
+        if (typeof window.authUser === "function" && window.authUser() && typeof window.authClear === "function") {
+          window.authClear();
+        }
+        if (isTerminalRouteHash(curHash) || !isPublicPreLaunchHash(curHash)) {
+          redirectToPreLaunchLogin();
+        } else {
+          document.documentElement.classList.remove("locked");
         }
       } else if (!(typeof window.vtIsGuest === "function" && window.vtIsGuest())) {
         // Clear any stale pre-D1 local session marker so real server auth is strictly enforced

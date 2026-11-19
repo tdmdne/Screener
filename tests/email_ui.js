@@ -4,7 +4,7 @@ const {launch}=require("./harness");const assert=require("assert");
 const locked=P=>P.evaluate(()=>document.documentElement.classList.contains("locked"));
 const state=P=>P.evaluate(()=>({err:document.getElementById("auErr").textContent,inv:document.getElementById("auId").getAttribute("aria-invalid"),
   ls:localStorage.getItem("scr2a"),ss:sessionStorage.getItem("scr2a"),btn:document.getElementById("auBtn").textContent}));
-const open=async()=>{const h=await launch({auth:false});await h.page.goto(h.base);await h.page.waitForSelector("#auId",{state:"visible"});assert(await locked(h.page));return h};
+const open=async()=>{const h=await launch({auth:false});await h.page.goto(h.base+"#/workspace");await h.page.waitForSelector("#auId",{state:"visible"});assert(await locked(h.page));return h};
 (async()=>{
 // 1) invalid characters: instant error + aria-invalid, submit blocked, existing handler never runs
 let h=await open();let P=h.page;

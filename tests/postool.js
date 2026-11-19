@@ -3,7 +3,7 @@
 // right-click menu (settings, clone, lock, hide, delete), axis tags; then touch: 22px handle radius, bottom-sheet settings.
 const {launch}=require("./harness");const assert=require("assert");
 const money=v=>(v<0?"\u2212":"")+Math.abs(v).toLocaleString("en-GB",{minimumFractionDigits:2,maximumFractionDigits:2});
-async function setup(opts){const h=await launch(opts);const P=h.page;await P.goto(h.base);
+async function setup(opts){const h=await launch(opts);const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.dr={};S.posDef={};save();openChart("BTCUSDT","1H");go("chart")});
 await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(1200);
 await P.evaluate(()=>scrollTo(0,0));await P.locator("#cv").scrollIntoViewIfNeeded();await P.waitForTimeout(200);const box=await P.locator("#cv").boundingBox();const pw=await P.evaluate(()=>ch.timeScale().width());return{h,P,box,pw}}
@@ -63,7 +63,7 @@ await P.screenshot({path:"shots/pos_tool_after.png"});
 console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);await h.close();
 // 7) touch (390x844): place by tap, 22px handle radius, settings as a bottom sheet
 ({h,P,box,pw}=await setup({viewport:{width:390,height:844},mobile:true}));
-await P.tap('.tbar button[data-tool="short"]');await P.locator("#cv").scrollIntoViewIfNeeded();box=await P.locator("#cv").boundingBox();await P.touchscreen.tap(box.x+pw*0.5,box.y+box.height*0.5);await P.waitForTimeout(250);
+await P.evaluate(()=>vtOpenDrawFlyout(null,'pos'));await P.tap('#vt_draw_flyout .vt-df-pick:has-text("Short position")');await P.locator("#cv").scrollIntoViewIfNeeded();box=await P.locator("#cv").boundingBox();await P.touchscreen.tap(box.x+pw*0.5,box.y+box.height*0.5);await P.waitForTimeout(250);
 const m=await P.evaluate(()=>{const d=DL()[0];return{id:d.id,t:d.t,g:posGeo(d),p:d.p.map(q=>q.y)}});assert.strictEqual(m.t,"short");
 const cdp=await P.context().newCDPSession(P);const touch=(type,pts)=>cdp.send("Input.dispatchTouchEvent",{type,touchPoints:pts.map(([x,y],i)=>({x,y,id:i}))});
 const sx=box.x+m.g.xL+15,sy=box.y+m.g.yT+12;await touch("touchStart",[[sx,sy]]);for(let i=1;i<=5;i++){await touch("touchMove",[[sx,sy+i*6]]);await P.waitForTimeout(16)}await touch("touchEnd",[]);await P.waitForTimeout(200);

@@ -6,7 +6,7 @@ const anims=(P,sel)=>P.evaluate(s=>{const e=document.querySelector(s);return e?e
 // a tick as the feeds deliver it: the ticker price plus the forming candle close (the kline stream does the latter)
 const tick=(P,sym,f)=>P.evaluate(([sym,f])=>{const s=symOf(sym),c=s[2]*f;for(const k in LIVE)if(k.startsWith(sym+"|")){const b=LIVE[k][LIVE[k].length-1];if(b){b.c=c;b.h=Math.max(b.h,c);b.l=Math.min(b.l,c)}}
   BNWS.ws.onmessage({data:JSON.stringify([{s:sym,c:String(c),h:String(c*1.001),l:String(c*.999)}])});return s[2]},[sym,f]);
-(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.goto(h.base);await ready(P);
+(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.goto(h.base+"#/workspace");await ready(P);
 await P.evaluate(()=>{window.__ws=__WS.length;window.__w=BNWS.ws});
 // 1) page transitions
 await P.evaluate(()=>go("calc"));await P.waitForTimeout(30);
@@ -51,11 +51,11 @@ const perf=await P.evaluate(async s=>{const t=[];for(let i=0;i<60;i++){const x=s
 console.log("render ms",JSON.stringify(perf));assert(perf.ws,"no new sockets");assert(perf.med<12,"render median "+perf.med);
 console.log("errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // 8) phone: dialogs come up as sheets
-h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base);await ready(P);
+h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base+"#/workspace");await ready(P);
 await P.evaluate(()=>modal("<h3>Test</h3>"));await P.waitForTimeout(20);assert.deepStrictEqual(await anims(P,".ov .box"),["vtSheetIn"]);
 assert.deepStrictEqual(h.errors,[]);await h.close();
 // 9) reduced motion: nothing animates, no flash classes
-h=await launch({viewport:{width:1440,height:900},reducedMotion:"reduce"});P=h.page;await P.goto(h.base);await ready(P);
+h=await launch({viewport:{width:1440,height:900},reducedMotion:"reduce"});P=h.page;await P.goto(h.base+"#/workspace");await ready(P);
 await P.evaluate(()=>go("calc"));await P.waitForTimeout(30);
 assert.strictEqual(await P.evaluate(()=>document.getElementById("pv-calc").classList.contains("vt-pgin")),false);
 await P.evaluate(()=>{go("workspace");S.mkt="CRY";render()});

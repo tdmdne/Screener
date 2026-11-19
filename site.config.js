@@ -30,7 +30,7 @@
 const VT_SITE = {
   customDomain: "https://vektorterminal.com",
   pagesDevUrl: "https://screener-cso.pages.dev",
-  useCustomDomain: false,
+  useCustomDomain: true,
   name: "Vektor Terminal",
   title: "Vektor Terminal — Every market. One terminal.",
   description: "Charts, a multi-market screener, alerts, journal, heatmaps and backtesting for crypto, forex and stocks. Prices may be delayed. Not investment advice.",

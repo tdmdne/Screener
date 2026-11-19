@@ -27,12 +27,17 @@ const MIGRATION_0003_SQL = readFileSync(
   join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
   "utf8"
 );
+const MIGRATION_0004_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0004_user_avatar.sql"),
+  "utf8"
+);
 
 function createTestAuthDb() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   sqlite.exec(MIGRATION_0001_SQL);
   sqlite.exec(MIGRATION_0003_SQL);
+  sqlite.exec(MIGRATION_0004_SQL);
   return {
     prepare(sql) {
       let bound = [];
@@ -1155,5 +1160,111 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
     });
     assert.equal(resEvilCors.status, 200);
     assert.equal(resEvilCors.headers.get("access-control-allow-origin"), null);
+  });
+});
+
+describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => {
+  it("adapts GET /api/candles through env.MARKET_SERVICE /api/bars with symbol/tf mapping", async () => {
+    const bars = sampleBars(5);
+    const seenUrls = [];
+    const env = {
+      MARKET_SERVICE: {
+        async fetch(req) {
+          const u = new URL(req.url);
+          seenUrls.push(u.pathname + u.search);
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              sym: u.searchParams.get("sym"),
+              tf: u.searchParams.get("tf"),
+              bars,
+              hasMore: true,
+              provenance: PROVENANCE.LIVE,
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        },
+      },
+    };
+
+    const fxRes = await onApiRequest({
+      request: new Request(
+        "https://vektorterminal.com/api/candles?symbol=EURUSD&interval=1H&apiSym=EURUSD&mkt=FX&limit=100",
+        { headers: { Origin: "https://vektorterminal.com" } }
+      ),
+      env,
+    });
+    assert.equal(fxRes.status, 200);
+    assert.equal(fxRes.headers.get("x-provenance"), PROVENANCE.LIVE);
+    assert.equal(fxRes.headers.get("access-control-allow-origin"), "https://vektorterminal.com");
+    const fxData = await fxRes.json();
+    assert.equal(fxData.ok, true);
+    assert.equal(fxData.symbol, "EURUSD");
+    assert.equal(fxData.interval, "1H");
+    assert.equal(fxData.source, "market-service");
+    assert.equal(fxData.provenance, PROVENANCE.LIVE);
+    assert.equal(fxData.hasMore, true);
+    assert.equal(fxData.bars.length, 5);
+
+    const cryRes = await onApiRequest({
+      request: new Request("https://vektorterminal.com/api/candles?symbol=BTCUSDT&interval=1D&limit=50"),
+      env,
+    });
+    assert.equal(cryRes.status, 200);
+    const cryData = await cryRes.json();
+    assert.equal(cryData.ok, true);
+    assert.equal(cryData.symbol, "BTCUSDT");
+    assert.equal(cryData.interval, "1D");
+    assert.equal(cryData.bars.length, 5);
+
+    assert.deepEqual(seenUrls, [
+      "/api/bars?sym=EUR%2FUSD&tf=1h&limit=100",
+      "/api/bars?sym=BTC%2FUSD&tf=1d&limit=50",
+    ]);
+  });
+
+  it("returns clean 503 JSON with PROVENANCE.UNAVAILABLE (never 502 plain text) when upstream has no bars or throws", async () => {
+    const emptyEnv = {
+      TWELVEDATA_KEY: SECRET_TD,
+      MARKET_SERVICE: {
+        async fetch() {
+          return new Response(JSON.stringify({ ok: true, bars: [], hasMore: false }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      },
+    };
+    const emptyRes = await onApiRequest({
+      request: new Request("https://vektorterminal.com/api/candles?symbol=EURUSD&interval=1H&limit=100"),
+      env: emptyEnv,
+    });
+    assert.equal(emptyRes.status, 503);
+    assert.equal(emptyRes.headers.get("x-provenance"), PROVENANCE.UNAVAILABLE);
+    const emptyText = await emptyRes.text();
+    assert.ok(!emptyText.includes(SECRET_TD));
+    const emptyData = JSON.parse(emptyText);
+    assert.equal(emptyData.ok, false);
+    assert.equal(emptyData.status.provenance, PROVENANCE.UNAVAILABLE);
+
+    const errEnv = {
+      TWELVEDATA_KEY: SECRET_TD,
+      MARKET_SERVICE: {
+        async fetch() {
+          throw new Error(`Upstream boom apikey=${SECRET_TD}`);
+        },
+      },
+    };
+    const errRes = await onApiRequest({
+      request: new Request("https://vektorterminal.com/api/candles?symbol=EURUSD&interval=1H&limit=100"),
+      env: errEnv,
+    });
+    assert.equal(errRes.status, 503);
+    assert.equal(errRes.headers.get("x-provenance"), PROVENANCE.UNAVAILABLE);
+    const errText = await errRes.text();
+    assert.ok(!errText.includes(SECRET_TD), "secret leaked in /api/candles 503 body");
+    const errData = JSON.parse(errText);
+    assert.equal(errData.ok, false);
+    assert.equal(errData.status.provenance, PROVENANCE.UNAVAILABLE);
   });
 });

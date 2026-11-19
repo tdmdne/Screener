@@ -439,6 +439,14 @@ function buildProductIcon(slug) {
 // Route Parser
 // ---------------------------------------------------------------------------
 
+const SLUG_ALIASES = {
+  vektorcharts: "supercharts",
+  charts: "supercharts",
+  backtest: "replay",
+  heatmaps: "heatmap",
+  script: "vektor-script",
+};
+
 function parseLandingRoute(rawHash) {
   const hash = (rawHash || "").trim().toLowerCase();
   if (HOME_HASHES.has(hash)) {
@@ -449,7 +457,7 @@ function parseLandingRoute(rawHash) {
   }
   const match = hash.match(/^#\/?(?:features|products)\/([a-z0-9-]+)$/);
   if (match) {
-    const rawSlug = match[1] === "vektorcharts" ? "supercharts" : match[1];
+    const rawSlug = SLUG_ALIASES[match[1]] || match[1];
     if (PRODUCT_BY_SLUG.has(rawSlug)) {
       return { view: "feature", slug: rawSlug };
     }
@@ -506,7 +514,9 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
           "font-size": "10",
           "font-family": "JetBrains Mono, monospace",
         },
-        showOrderLines ? `1.0${(800 + lv * 2).toString()}` : `${(89000 + lv * 38).toLocaleString("en-US")}`
+        showOrderLines
+          ? (1.08 + ((lv - 80) / 16) * 0.002).toFixed(4)
+          : `${(89000 + lv * 38).toLocaleString("en-US")}`
       )
     );
   }
@@ -589,9 +599,9 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
   }
 
   if (showOrderLines) {
-    const tpY = mapY(134);
-    const entryY = mapY(112);
-    const slY = mapY(101);
+    const tpY = mapY(141.4);
+    const entryY = mapY(99.2);
+    const slY = mapY(81.6);
     svg.appendChild(
       svgEl("line", { x1: padL, y1: tpY, x2: width - padR, y2: tpY, stroke: "#10b981", "stroke-width": "1", "stroke-dasharray": "3 3" })
     );
@@ -1004,7 +1014,8 @@ function buildTerminalFrame(chromeTitle, previewNode, { titleElRef = null, stage
           el("span", { className: "vl-chrome-dot" }),
           el("span", { className: "vl-chrome-dot" })
         ),
-        titleSpan
+        titleSpan,
+        el("span", { className: "vl-preview-badge", text: "Illustrative UI preview" })
       ),
       el(
         "div",
@@ -1436,26 +1447,32 @@ export function mountLanding(container, options = {}) {
     },
   });
 
+  const isLocalHost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
+
   const headerAuthBtn = el("button", {
     type: "button",
-    className: "vl-btn vl-btn-ghost",
+    className: "vl-btn vl-btn-ghost vl-hdr-signin",
     text: "Sign in",
     onClick: triggerSignIn,
   });
 
   const headerSignUpBtn = el("button", {
     type: "button",
-    className: "vl-btn vl-btn-secondary",
+    className: "vl-btn vl-btn-secondary vl-hdr-signup",
     text: "Create Account",
     onClick: triggerSignUp,
   });
+
+  const canEnterDirect = () => isLocalHost || isAdmin;
 
   const headerOpenBtn = el("button", {
     type: "button",
     id: "vl-open-terminal",
     className: "vl-btn vl-btn-primary",
-    text: "Open Terminal",
-    onClick: triggerEnterTerminal,
+    text: canEnterDirect() ? "Open Terminal" : "Early Access Login",
+    onClick: () => (canEnterDirect() ? triggerEnterTerminal() : triggerSignIn()),
   });
 
   const header = el(
@@ -1506,6 +1523,7 @@ export function mountLanding(container, options = {}) {
     for (const [id, btn] of tabButtons.entries()) {
       const selected = id === activeTab;
       btn.setAttribute("aria-selected", selected ? "true" : "false");
+      btn.classList.toggle("is-active", selected);
       btn.tabIndex = selected ? 0 : -1;
     }
     if (showcaseTitleRef.current) {
@@ -1534,16 +1552,18 @@ export function mountLanding(container, options = {}) {
     heroForm.classList.add("vl-enter-form");
     activeEmailInput = heroEmailInput;
 
+    const heroOpenBtn = el("button", {
+      type: "button",
+      id: "vl-hero-open-terminal",
+      className: "vl-btn vl-btn-primary",
+      text: canEnterDirect() ? "Open Terminal →" : "Early Access Login →",
+      onClick: () => (canEnterDirect() ? triggerEnterTerminal() : triggerSignIn()),
+    });
+
     const heroCtaBar = el(
       "div",
       { className: "vl-admin-bar" },
-      el("button", {
-        type: "button",
-        id: "vl-hero-open-terminal",
-        className: "vl-btn vl-btn-primary",
-        text: "Open Terminal →",
-        onClick: triggerEnterTerminal,
-      }),
+      heroOpenBtn,
       el("a", {
         className: "vl-btn vl-btn-secondary",
         href: "#/features/supercharts",
@@ -1597,7 +1617,7 @@ export function mountLanding(container, options = {}) {
         type: "button",
         role: "tab",
         id: `vl-tab-${tab.id}`,
-        className: "vl-seg-btn",
+        className: tab.id === activeTab ? "vl-seg-btn is-active" : "vl-seg-btn",
         "aria-selected": tab.id === activeTab ? "true" : "false",
         "aria-controls": "vl-showcase-panel",
         tabindex: tab.id === activeTab ? "0" : "-1",
@@ -1667,6 +1687,7 @@ export function mountLanding(container, options = {}) {
         {
           className: "vl-dir-card",
           href: `#/features/${prod.slug}`,
+          "aria-label": prod.name,
           onClick: (e) => {
             e.preventDefault();
             navigateHash(`#/features/${prod.slug}`);
@@ -1904,18 +1925,36 @@ export function mountLanding(container, options = {}) {
     { className: "vl-footer" },
     el(
       "div",
-      { className: "vl-wrap vl-footer-inner" },
-      el("span", { text: "Vektor Terminal · Free core tier forever · Not financial advice" }),
+      { className: "vl-wrap vl-footer-stack" },
       el(
         "div",
-        { className: "vl-footer-links" },
-        makeLegalLink("Legal Hub", "#/legal"),
-        makeLegalLink("Privacy", "#/legal/privacy"),
-        makeLegalLink("Terms", "#/legal/terms"),
-        makeLegalLink("Risk Disclaimer", "#/legal/risk"),
-        footerSignUpBtn,
-        footerAuthBtn
-      )
+        { className: "vl-footer-inner" },
+        el(
+          "span",
+          { className: "vl-footer-meta" },
+          "Vektor Terminal · Free core tier forever · ",
+          el("a", {
+            className: "vl-footer-mail",
+            href: "mailto:support@vektorterminal.com",
+            text: "support@vektorterminal.com",
+          })
+        ),
+        el(
+          "div",
+          { className: "vl-footer-links" },
+          makeLegalLink("Legal Hub", "#/legal"),
+          makeLegalLink("Privacy", "#/legal/privacy"),
+          makeLegalLink("Terms", "#/legal/terms"),
+          makeLegalLink("Risk", "#/legal/risk"),
+          makeLegalLink("Cookies", "#/legal/cookies"),
+          footerSignUpBtn,
+          footerAuthBtn
+        )
+      ),
+      el("p", {
+        className: "vl-footer-risk",
+        text: "Market data may be delayed. Vektor Terminal is an analytical software platform — nothing here is investment, financial, or trading advice. Trading FX, CFDs, and digital assets carries a high risk of capital loss.",
+      })
     )
   );
 
@@ -1965,6 +2004,11 @@ export function mountLanding(container, options = {}) {
 
   const setAdmin = (nextIsAdmin) => {
     isAdmin = Boolean(nextIsAdmin);
+    headerOpenBtn.textContent = canEnterDirect() ? "Open Terminal" : "Early Access Login";
+    const heroBtn = root.querySelector("#vl-hero-open-terminal");
+    if (heroBtn) {
+      heroBtn.textContent = canEnterDirect() ? "Open Terminal →" : "Early Access Login →";
+    }
     for (const btn of authBtnNodes) {
       btn.textContent = isAdmin ? "Open Terminal" : "Sign in";
     }
@@ -2058,10 +2102,15 @@ async function syncAutoLanding() {
     hash === "#/login" ||
     hash === "#signin" ||
     hash === "#/signin";
+  const legalHash =
+    hash === "#legal" ||
+    hash === "#/legal" ||
+    hash.startsWith("#/legal/") ||
+    hash.startsWith("#legal/");
   const gateActive = window.VT_WAITLIST_GATE === true;
 
-  // Never cover the auth screen so Sign In / Create Account always renders cleanly
-  if (authHash) {
+  // Never cover the auth screen or public legal pages
+  if (authHash || legalHash) {
     unmountAutoLanding();
     return;
   }

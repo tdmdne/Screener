@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /ws
 
-Sitemap: https://screener-cso.pages.dev/sitemap.xml
+Sitemap: https://vektorterminal.com/sitemap.xml

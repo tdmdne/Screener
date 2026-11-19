@@ -5,7 +5,7 @@ fs.mkdirSync(__dirname+"/../shots/m",{recursive:true});
 const frame=P=>P.evaluate(()=>document.getElementById("aubg").toDataURL());
 (async()=>{
 // 1) desktop, no consent yet, not signed in
-let h=await launch({auth:false,consent:false});let P=h.page;await P.goto(h.base);
+let h=await launch({auth:false,consent:false});let P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForSelector("#auth .auhero h1");assert(await P.evaluate(()=>document.documentElement.classList.contains("locked")));
 await P.waitForFunction(()=>document.querySelectorAll("#autick span b").length>=3);
 const tk=await P.evaluate(()=>[...document.querySelectorAll("#autick span b")].map(b=>b.textContent));assert.deepStrictEqual(tk.slice(0,3),["BTC","ETH","SOL"]);
@@ -44,11 +44,11 @@ assert.deepStrictEqual(s2,{mark:1,ws:0,g:false,lgo:"Log out",a:JSON.stringify({i
 await P.evaluate(()=>vtAddAlertAt("BTCUSDT",123));assert(!(await P.$("#vg_h")),"no gate once signed in");
 console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
 // 4) reduced motion: one static frame, no animation loop
-h=await launch({auth:false,reducedMotion:"reduce"});P=h.page;await P.goto(h.base);await P.waitForSelector("#auth .auhero h1");await P.waitForTimeout(200);
+h=await launch({auth:false,reducedMotion:"reduce"});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");await P.waitForTimeout(200);
 const r1=await frame(P);await P.waitForTimeout(400);const r2=await frame(P);assert.strictEqual(r1,r2,"static under reduced motion");assert.strictEqual(await P.evaluate(()=>AUBG.raf),0);
 assert(r1.length>5000,"static frame drawn");await h.close();
 // 5) phone
-h=await launch({auth:false,viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base);await P.waitForSelector("#auth .auhero h1");
+h=await launch({auth:false,viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");
 await P.waitForFunction(()=>document.querySelectorAll("#autick span b").length>=3);
 const ov=await P.evaluate(()=>{const a=document.getElementById("auth");return a.scrollWidth-a.clientWidth});assert(ov<=1,"no sideways scroll "+ov);
 const gb=await P.locator("#auGuest").boundingBox();assert(gb.height>=44);

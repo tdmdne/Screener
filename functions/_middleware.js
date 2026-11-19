@@ -99,6 +99,24 @@ export function notFound() {
 }
 
 export async function onRequest(context) {
-  const { pathname } = new URL(context.request.url);
-  return isPublicPath(pathname) ? context.next() : notFound();
+  const url = new URL(context.request.url);
+  const host = url.hostname.toLowerCase();
+
+  // 301-redirect the legacy pages.dev apex to the canonical custom domain.
+  if (host === "screener-cso.pages.dev" || host === "www.vektorterminal.com") {
+    return Response.redirect(`https://vektorterminal.com${url.pathname}${url.search}`, 301);
+  }
+
+  if (!isPublicPath(url.pathname)) {
+    return notFound();
+  }
+
+  const resp = await context.next();
+  // Keep preview *.pages.dev subdomains out of search engines without affecting vektorterminal.com.
+  if (host.endsWith(".pages.dev") && resp && resp.headers) {
+    const nextResp = new Response(resp.body, resp);
+    nextResp.headers.set("x-robots-tag", "noindex");
+    return nextResp;
+  }
+  return resp;
 }

@@ -194,9 +194,9 @@
   gap: 4px;
 }
 
-.vl-nav-link {
+:root .vl-root .vl-nav-link {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--vl-ink-secondary);
   font-family: inherit;
   font-size: 0.875rem;
@@ -209,12 +209,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: color 160ms var(--vl-ease-out), background-color 160ms var(--vl-ease-out);
+  white-space: nowrap;
+  transition: color 160ms var(--vl-ease-out), background-color 160ms var(--vl-ease-out), border-color 160ms var(--vl-ease-out);
 }
 
-.vl-nav-link:hover {
+:root .vl-root .vl-nav-link:hover {
   color: var(--vl-ink);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .vl-dropdown-wrap {
@@ -232,9 +234,11 @@
   transition: transform 180ms var(--vl-ease-out), opacity 180ms var(--vl-ease-out);
 }
 
-.vl-products-trigger[aria-expanded="true"] {
-  color: var(--vl-ink);
-  background: rgba(255, 255, 255, 0.06);
+:root .vl-root .vl-products-trigger[aria-expanded="true"],
+:root .vl-root .vl-products-trigger[aria-expanded="true"]:hover {
+  color: #f4f6fa;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .vl-products-trigger[aria-expanded="true"] .vl-chevron {
@@ -250,13 +254,13 @@
   max-width: calc(100vw - 32px);
   padding: 12px;
   border-radius: 14px;
-  background: rgba(12, 16, 24, 0.86);
+  background: rgba(15, 18, 24, 0.98);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow:
-    0 28px 68px rgba(0, 0, 0, 0.68),
-    0 4px 16px rgba(0, 0, 0, 0.35),
+    0 28px 68px rgba(0, 0, 0, 0.8),
+    0 4px 16px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   z-index: 90;
   opacity: 0;
@@ -393,40 +397,44 @@
   cursor: not-allowed;
 }
 
-.vl-btn-ghost {
+:root .vl-root .vl-btn-ghost {
   background: transparent;
   color: var(--vl-ink-secondary);
   border-color: transparent;
   padding: 0 12px;
 }
 
-.vl-btn-ghost:hover:not(:disabled) {
+:root .vl-root .vl-btn-ghost:hover:not(:disabled) {
   color: var(--vl-ink);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.07);
 }
 
-.vl-btn-primary {
+:root .vl-root .vl-btn-primary {
   background: var(--vl-ink);
   color: var(--vl-bg);
+  border-color: var(--vl-ink);
   font-weight: 600;
 }
 
-.vl-btn-primary:hover:not(:disabled) {
+:root .vl-root .vl-btn-primary:hover:not(:disabled) {
   background: #ffffff;
+  color: #06070a;
+  border-color: #ffffff;
 }
 
-.vl-btn-secondary {
+:root .vl-root .vl-btn-secondary {
   background: var(--vl-surface-2);
   color: var(--vl-ink);
   border-color: var(--vl-border-strong);
 }
 
-.vl-btn-secondary:hover:not(:disabled) {
+:root .vl-root .vl-btn-secondary:hover:not(:disabled) {
   background: var(--vl-surface-3);
+  color: var(--vl-ink);
   border-color: rgba(255, 255, 255, 0.24);
 }
 
-.vl-header .vl-btn-primary {
+:root .vl-root .vl-header .vl-btn-primary {
   min-height: 36px;
   padding: 0 14px;
   font-size: 0.8125rem;
@@ -438,11 +446,11 @@
 
 .vl-hero {
   position: relative;
-  min-height: calc(100svh - 60px);
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 72px 0 88px;
+  padding: 56px 0 48px;
   isolation: isolate;
 }
 
@@ -641,7 +649,7 @@
    ========================================================================== */
 
 .vl-showcase {
-  padding: 92px 0 104px;
+  padding: 44px 0 96px;
 }
 
 .vl-section-head {
@@ -683,7 +691,7 @@
   overflow-x: auto;
 }
 
-.vl-seg-btn {
+:root .vl-root .vl-seg-btn {
   appearance: none;
   background: transparent;
   border: 1px solid transparent;
@@ -702,14 +710,20 @@
     border-color 160ms var(--vl-ease-out);
 }
 
-.vl-seg-btn:hover {
-  color: var(--vl-ink);
+:root .vl-root .vl-seg-btn:hover {
+  color: #f4f6fa;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
 }
 
-.vl-seg-btn[aria-selected="true"] {
-  background: var(--vl-surface-3);
-  color: var(--vl-ink);
-  border-color: var(--vl-border-strong);
+:root .vl-root .vl-seg-btn[aria-selected="true"],
+:root .vl-root .vl-seg-btn.is-active,
+:root .vl-root .vl-seg-btn[aria-selected="true"]:hover,
+:root .vl-root .vl-seg-btn.is-active:hover {
+  background: #f4f6fa;
+  color: #06070a;
+  border-color: #f4f6fa;
+  font-weight: 600;
 }
 
 /* Terminal Bezel Frame */
@@ -766,6 +780,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.vl-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--vl-ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .vl-chrome-meta {
@@ -971,10 +999,21 @@
   white-space: nowrap;
 }
 
-.vl-table th:first-child,
-.vl-table td:first-child {
+:root .vl-root .vl-table th:first-child,
+:root .vl-root .vl-table td:first-child {
   text-align: left;
   padding-left: 18px;
+  background: #0d1016;
+  color: #f3f4f6;
+}
+
+:root .vl-root .vl-table tbody tr:hover td:first-child {
+  background: #141923;
+  color: #f3f4f6;
+}
+
+:root .vl-root .vl-table td:first-child strong {
+  color: #f3f4f6;
 }
 
 .vl-table th:last-child,
@@ -1645,7 +1684,10 @@
   font-weight: 600;
   letter-spacing: -0.032em;
   line-height: 1.1;
-  color: var(--vl-ink);
+  color: #f4f6fa;
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 .vl-feat-title::before {
@@ -1662,7 +1704,10 @@
   margin: 14px 0 0;
   font-size: 1.08rem;
   line-height: 1.55;
-  color: var(--vl-ink-secondary);
+  color: #cbd5e1;
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 .vl-feat-tier {
@@ -1670,10 +1715,13 @@
   display: inline-block;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--vl-ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f4f6fa;
   font-size: 0.8125rem;
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 .vl-feat-frame {
@@ -1827,6 +1875,12 @@
   padding: 28px 0 40px;
 }
 
+.vl-footer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .vl-footer-inner {
   display: flex;
   align-items: center;
@@ -1837,13 +1891,33 @@
   color: var(--vl-ink-muted);
 }
 
+.vl-footer-mail {
+  color: var(--vl-ink-secondary);
+  text-decoration: none;
+}
+
+.vl-footer-mail:hover {
+  color: var(--vl-ink);
+  text-decoration: underline;
+}
+
+.vl-footer-risk {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--vl-border);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--vl-ink-muted);
+}
+
 .vl-footer-links {
   display: inline-flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.vl-footer-btn {
+:root .vl-root .vl-footer-btn {
   background: transparent;
   border: none;
   color: var(--vl-ink-secondary);
@@ -1852,11 +1926,14 @@
   cursor: pointer;
   min-height: 44px;
   padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
   transition: color 160ms var(--vl-ease-out);
 }
 
-.vl-footer-btn:hover {
+:root .vl-root .vl-footer-btn:hover {
   color: var(--vl-ink);
+  background: transparent;
 }
 
 /* ==========================================================================
@@ -1893,11 +1970,62 @@
 
 @media (max-width: 768px) {
   .vl-wrap {
-    padding: 0 18px;
+    padding: 0 14px;
+  }
+
+  .vl-header-inner {
+    gap: 8px;
+    overflow: hidden;
+    flex-wrap: nowrap;
   }
 
   .vl-header-left {
-    gap: 12px;
+    gap: 6px;
+    min-width: 0;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+
+  .vl-brand {
+    gap: 6px;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .vl-nav {
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .vl-nav > a,
+  .vl-nav-pricing,
+  .vl-nav a[href="#pricing"],
+  .vl-nav a[href="#architecture"],
+  .vl-hdr-signin,
+  .vl-hdr-signup {
+    display: none !important;
+  }
+
+  :root .vl-root .vl-products-trigger {
+    padding: 6px 8px;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .vl-header-actions {
+    gap: 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  :root .vl-root .vl-header .vl-btn-primary {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .vl-glass-menu {
@@ -1922,19 +2050,19 @@
   }
 
   .vl-hero {
-    min-height: calc(100svh - 60px);
-    padding: 48px 0 64px;
+    min-height: 0;
+    padding: 40px 0 44px;
   }
 
   .vl-showcase {
-    padding: 56px 0 72px;
+    padding: 40px 0 64px;
   }
 
   .vl-segmented {
     width: 100%;
   }
 
-  .vl-seg-btn {
+  :root .vl-root .vl-seg-btn {
     min-height: 44px;
     flex: 1 0 auto;
   }
@@ -1951,13 +2079,18 @@
 }
 
 @media (max-width: 520px) {
-  .vl-header-actions {
-    gap: 6px;
+  .vl-wrap {
+    padding: 0 12px;
   }
 
-  .vl-header .vl-btn-primary {
-    min-height: 44px;
-    padding: 0 12px;
+  .vl-header-actions {
+    gap: 4px;
+  }
+
+  :root .vl-root .vl-header .vl-btn-primary {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 0.75rem;
   }
 
   .vl-waitlist-row {

@@ -1,6 +1,6 @@
 // Price-scale "+" -> alert at that price (fires once on a cross) and horizontal line; Workspace + both Supercharts panes
 const {launch}=require("./harness");const assert=require("assert");
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{S.alerts=[];S.dr={};save();openChart("BTCUSDT","1H")});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(600);
 await P.evaluate(()=>{window.__fires=0;const f=fireAlert;window.fireAlert=function(){__fires++;return f.apply(this,arguments)}});

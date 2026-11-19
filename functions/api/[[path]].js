@@ -17,6 +17,7 @@ import worker, {
   fetchBinanceTickers,
 } from "../../worker.js";
 import { MAX_CHART_BARS, PROVENANCE } from "../../shared/protocol.js";
+import { toTwelveSymbol } from "../../shared/schema.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -49,6 +50,47 @@ export {
 };
 
 const MARKET_SERVICE_PATHS = new Set(["/api/bootstrap", "/api/bars", "/api/hub/stats"]);
+
+const CANDLES_TF_MAP = Object.freeze({
+  "1m": "1m",
+  "1min": "1m",
+  "5m": "5m",
+  "5M": "5m",
+  "5min": "5m",
+  "15m": "15m",
+  "15M": "15m",
+  "15min": "15m",
+  "30m": "30m",
+  "30M": "30m",
+  "30min": "30m",
+  "1H": "1h",
+  "1h": "1h",
+  "60m": "1h",
+  "4H": "4h",
+  "4h": "4h",
+  "1D": "1d",
+  "1d": "1d",
+  "1day": "1d",
+  "1W": "1w",
+  "1w": "1w",
+  "1week": "1w",
+  "1wk": "1w",
+  "1M": "1M",
+  "1month": "1M",
+  "1mo": "1M",
+});
+
+function mapCandlesSymbol(rawSym, mktHint = "") {
+  const sym = String(rawSym || "").trim().toUpperCase();
+  if (!sym) return "";
+  if (sym.includes("/")) return sym;
+  const mapped = toTwelveSymbol(sym);
+  if (mapped && mapped.includes("/")) return mapped;
+  if (mktHint === "FX" && /^[A-Z]{6}$/.test(sym)) {
+    return `${sym.slice(0, 3)}/${sym.slice(3)}`;
+  }
+  return mapped || sym;
+}
 
 const VS_RUN_MAX_BYTES = 256 * 1024;
 const JOURNAL_STATS_MAX_BYTES = 1024 * 1024;
@@ -400,6 +442,105 @@ async function handleMarketServiceForward(request, env) {
       env
     );
   }
+}
+
+async function handleCandlesViaMarketService(request, env) {
+  if (request.method !== "GET") {
+    return jsonResponse(
+      { ok: false, error: "Method not allowed; use GET" },
+      405,
+      { "cache-control": "no-store", allow: "GET, OPTIONS" },
+      request,
+      env
+    );
+  }
+
+  const url = new URL(request.url);
+  const rawSym = (url.searchParams.get("symbol") || url.searchParams.get("sym") || "").trim().toUpperCase();
+  const interval = (url.searchParams.get("interval") || url.searchParams.get("tf") || "1H").trim();
+  const mktHint = (url.searchParams.get("mkt") || "").trim().toUpperCase();
+  const mappedTf = CANDLES_TF_MAP[interval] || null;
+
+  if (!rawSym || !VS_SYMBOL_RE.test(rawSym) || !mappedTf) {
+    return jsonResponse(
+      { ok: false, error: "Invalid symbol or interval" },
+      400,
+      { "cache-control": "no-store" },
+      request,
+      env
+    );
+  }
+
+  const fromSec = Math.max(0, Math.floor(Number(url.searchParams.get("from")) || 0));
+  const toSec = Math.max(0, Math.floor(Number(url.searchParams.get("to")) || 0));
+  const rawBefore = Number(url.searchParams.get("before")) || 0;
+  const beforeSec = rawBefore > 0 ? Math.floor(rawBefore > 1e11 ? rawBefore / 1000 : rawBefore) : 0;
+  const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
+  const limit = Math.max(10, Math.min(MAX_CHART_BARS, rawLimit || 500));
+
+  const mappedSym = mapCandlesSymbol(rawSym, mktHint);
+  const barsUrl = new URL("/api/bars", request.url);
+  barsUrl.searchParams.set("sym", mappedSym);
+  barsUrl.searchParams.set("tf", mappedTf);
+  barsUrl.searchParams.set("limit", String(limit));
+  if (beforeSec > 0) barsUrl.searchParams.set("before", String(beforeSec));
+
+  let upRes;
+  try {
+    upRes = await env.MARKET_SERVICE.fetch(new Request(barsUrl.toString(), { method: "GET" }));
+  } catch {
+    return serviceUnavailable("Unable to reach market service", request, env);
+  }
+
+  let data = null;
+  try {
+    data = await upRes.json();
+  } catch {
+    data = null;
+  }
+
+  if (!upRes.ok || !data || data.ok === false) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+
+  const norm = normalizeBarList(data.bars);
+  if (!norm.ok) {
+    return serviceUnavailable("Market service returned invalid bar data", request, env);
+  }
+
+  let bars = norm.bars;
+  if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
+  if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
+
+  if (!bars.length && beforeSec === 0) {
+    return serviceUnavailable("No market bars available for symbol", request, env);
+  }
+
+  const provenance =
+    typeof data.provenance === "string" && data.provenance.trim()
+      ? data.provenance.trim()
+      : PROVENANCE.LIVE;
+
+  return jsonResponse(
+    {
+      ok: true,
+      symbol: rawSym,
+      interval,
+      ttl: 60,
+      ts: Date.now(),
+      source: "market-service",
+      provenance,
+      hasMore: Boolean(data.hasMore),
+      bars,
+    },
+    200,
+    {
+      "cache-control": "no-store",
+      "x-provenance": provenance,
+    },
+    request,
+    env
+  );
 }
 
 async function handleVsRun(request, env) {
@@ -1228,6 +1369,14 @@ export async function onRequest(context) {
   }
   if (pathname === "/api/alerts/evaluate") {
     return handleAlertsEvaluate(request, env);
+  }
+  if (
+    pathname === "/api/candles" &&
+    env &&
+    env.MARKET_SERVICE &&
+    typeof env.MARKET_SERVICE.fetch === "function"
+  ) {
+    return handleCandlesViaMarketService(request, env);
   }
 
   // Ensure secrets / environment bindings are passed correctly from Cloudflare secrets

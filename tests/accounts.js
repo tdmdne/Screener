@@ -12,7 +12,7 @@ const plant=tag=>{S.dr=S.dr||{};S.dr.BTCUSDT=[{id:77,t:"hline",p:[{t:1,y:123.45}
   S.tpl={list:[{id:"tp"+tag,name:tag+" template",cfg:{}}],def:null};S.alerts=[{id:"a"+tag,sym:"BTCUSDT",price:1,msg:tag+" alert"}];S.__who=tag;save();saveP&&saveP()};
 (async()=>{
 // A) two people on one browser
-let h=await launch({auth:false});let P=h.page;await P.goto(h.base);
+let h=await launch({auth:false});let P=h.page;await P.goto(h.base+"#/workspace");
 await signIn(P,"alice@example.com");assert.strictEqual(await P.evaluate(()=>VT_UID),"alice@example.com");
 await P.evaluate(t=>{const plant=eval("("+t+")");plant("ALICE-SECRET")},plant.toString());
 let ks=await P.evaluate(()=>Object.keys(localStorage));assert(ks.some(k=>/^scr2~[0-9a-f]{16}$/.test(k))&&!ks.includes("scr2"),"scoped key "+ks);
@@ -40,7 +40,7 @@ console.log("A errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.clo
 
 // B) older unscoped data, nobody signed in: never shown to guests; later sign-ins are asked
 const legacy={cols:[{id:"price",type:"price"}],chart:{sym:"XRPUSDT"},__who:"LEGACY-WORK",dr:{BTCUSDT:[{id:5,t:"hline",p:[{t:1,y:9}]}]}};
-h=await launch({auth:false,state:legacy});P=h.page;await P.goto(h.base);await P.waitForSelector("#auGuest",{state:"visible"});
+h=await launch({auth:false,state:legacy});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auGuest",{state:"visible"});
 assert.strictEqual(await P.evaluate(()=>localStorage.getItem("vt_legacy")),"1");await P.click("#auGuest");await booted(P);
 g=await P.evaluate(mine);assert(!g.all.includes("LEGACY-WORK"),"guest never sees older data");
 await P.click("#lgo");await signIn(P,"carol");await P.waitForSelector("#lg_h");await P.click("#lg_no");
@@ -52,7 +52,7 @@ assert(d.all.includes("LEGACY-WORK")&&!d.ks.includes("scr2")&&!d.ks.includes("vt
 console.log("B errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 
 // C) older data while someone is signed in: it becomes theirs automatically
-h=await launch({state:Object.assign({},legacy,{data:{key:"myOwnTdKey9",mode:"all",v:3}})});P=h.page;await P.goto(h.base);await booted(P);
+h=await launch({state:Object.assign({},legacy,{data:{key:"myOwnTdKey9",mode:"all",v:3}})});P=h.page;await P.goto(h.base+"#/workspace");await booted(P);
 let e=await P.evaluate(()=>({all:JSON.stringify(S),ks:Object.keys(localStorage),dk:"key" in S.data,saved:localStorage.getItem(vtSK("scr2"))}));
 assert(e.all.includes("LEGACY-WORK")&&!e.ks.includes("scr2")&&!e.ks.includes("vt_legacy")&&e.ks.some(k=>/^scr2~/.test(k)),"auto-claimed "+e.ks);
 // a Twelve Data key saved inside settings by an older version is deleted, not kept in memory or storage
@@ -63,7 +63,7 @@ await h.close();
 h=await launch({auth:false});P=h.page;const td=[],proxy=[];
 await P.route(/api\.twelvedata\.com/,r=>{td.push(r.request().url());r.fulfill({status:404,body:""})});
 await P.route(/vektor-market\./,r=>{proxy.push(r.request().url());r.fulfill({contentType:"application/json",body:JSON.stringify({status:"error",message:"feed unavailable"})})});
-await P.goto(h.base);await signIn(P,"tester");
+await P.goto(h.base+"#/workspace");await signIn(P,"tester");
 await P.evaluate(()=>{const n=typeof vtSK==="function"&&vtSK("vt_tdkey")||"vt_tdkey~tester";
   localStorage.setItem(n,"leftoverTdKey1");localStorage.setItem("vt_tdkey~other","leftoverTdKey2");sessionStorage.setItem("vt_tdkey~sess","leftoverTdKey3");
   const raw=localStorage.getItem(vtSK("scr2"));const st=raw?JSON.parse(raw):{};st.data=Object.assign({},st.data,{key:"leftoverTdKey4"});localStorage.setItem(vtSK("scr2"),JSON.stringify(st))});
@@ -80,7 +80,7 @@ assert(proxy.every(u=>!/[?&]apikey=/.test(u)),"no per-user apikey on the market-
 const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance socket up");
 console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // E) legal pages describe it
-h=await launch({});P=h.page;await P.goto(h.base);await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
+h=await launch({});P=h.page;await P.goto(h.base+"#/workspace");await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
 const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data API key"])assert(lg.includes(s),"legal mentions "+s);
 await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

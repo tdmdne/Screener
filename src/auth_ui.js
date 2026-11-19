@@ -9,6 +9,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,24}$/;
 const PHONE_E164_RE = /^\+[1-9]\d{6,14}$/;
 const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const SAFE_AVATAR_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_AVATAR_CHARS = 128 * 1024;
 
 let activeUser = null;
 let providers = { email: false, google: false, apple: false, email_verify: false, phone_verify: false };
@@ -42,6 +44,32 @@ function ensureAuthExtraStyles() {
     ".vt-verify-msg.err{color:var(--r);}",
     ".vt-verify-msg.ok{color:var(--g);}",
     ".vt-verify-msg.note{color:var(--mut);}",
+    ".vt-profile-btn{position:relative;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;border:1px solid var(--line-2);background:var(--bg-2,var(--bg-1));color:var(--fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:border-color 140ms ease,box-shadow 140ms ease,transform 140ms ease;}",
+    ".vt-profile-btn:hover{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 22%,transparent);}",
+    ".vt-profile-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}",
+    ".vt-avatar-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}",
+    ".vt-avatar-init{font-size:11.5px;font-weight:700;letter-spacing:0.03em;line-height:1;color:var(--fg);user-select:none;text-transform:uppercase;}",
+    ".vt-avatar-dot{position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--bg-1,#0f1218);box-sizing:border-box;pointer-events:none;}",
+    ".vt-avatar-dot.is-verified{background:var(--g,#22c55e);}",
+    ".vt-avatar-dot.is-pending{background:var(--y,#f59e0b);}",
+    ".vt-prof-hero{display:flex;align-items:center;gap:14px;padding:12px;margin:10px 0 14px;background:var(--bg-0);border:1px solid var(--line-1);border-radius:var(--r-md);}",
+    ".vt-prof-preview{width:64px;height:64px;min-width:64px;border-radius:50%;border:1px solid var(--line-2);background:var(--bg-2,var(--bg-1));display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}",
+    ".vt-prof-preview .vt-avatar-init{font-size:21px;}",
+    ".vt-prof-meta{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;}",
+    ".vt-prof-name{font-size:14.5px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+    ".vt-prof-sub{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}",
+    ".vt-prof-photo-acts{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}",
+    ".vt-prof-photo-btn{min-height:30px;padding:0 10px;font-size:12px;}",
+    ".vt-prof-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}",
+    ".vt-prof-vbtn{border:none;background:none;padding:0;color:var(--acc);font-size:11.5px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}",
+    ".vt-prof-vbtn:hover{color:var(--acc-hover);}",
+    ".vt-prof-note{font-size:11.5px;color:var(--mut);margin:2px 0 4px;line-height:1.4;}",
+    ".vt-prof-acts{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-1);flex-wrap:wrap;}",
+    ".vt-prof-acts-right{display:flex;align-items:center;gap:8px;}",
+    ".vt-btn-danger{color:var(--r);border-color:color-mix(in srgb,var(--r) 35%,var(--line-2));}",
+    ".vt-btn-danger:hover{background:color-mix(in srgb,var(--r) 12%,transparent);}",
+    ".vt-prof-select{width:100%;min-height:38px;padding:7px 10px;background:var(--bg-0);color:var(--fg);border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:13px;font-family:inherit;box-sizing:border-box;cursor:pointer;}",
+    ".vt-prof-select:focus{border-color:var(--acc);outline:none;}",
     "@media (max-width:520px){.vt-field-row{grid-template-columns:1fr;}}",
   ].join("\n");
   document.head.append(style);
@@ -678,6 +706,7 @@ function openVerificationModal(user) {
       controls.remove();
       setMsg("Confirmed.", "ok");
       syncFooterState();
+      mountProfileAvatar(activeUser);
     }
 
     sendBtn.addEventListener("click", async () => {
@@ -803,6 +832,1004 @@ function openVerificationModal(user) {
   dialog.append(head, sub, grid, acts);
   syncFooterState();
   setTimeout(() => closeBtn.focus(), 20);
+}
+
+// ---------------------------------------------------------------------------
+// Interface Language & Lightweight i18n (window.VT_I18N)
+// ---------------------------------------------------------------------------
+
+const VT_LANG_STORAGE_KEY = "vt_ui_lang";
+
+const VT_LANGUAGES = Object.freeze([
+  Object.freeze({ code: "en-GB", label: "English — UK" }),
+  Object.freeze({ code: "en-US", label: "English — US" }),
+  Object.freeze({ code: "es", label: "Español" }),
+  Object.freeze({ code: "fr", label: "Français" }),
+  Object.freeze({ code: "de", label: "Deutsch" }),
+  Object.freeze({ code: "pt", label: "Português" }),
+  Object.freeze({ code: "it", label: "Italiano" }),
+  Object.freeze({ code: "nl", label: "Nederlands" }),
+  Object.freeze({ code: "ja", label: "日本語" }),
+  Object.freeze({ code: "zh-CN", label: "中文 — 简体" }),
+  Object.freeze({ code: "ko", label: "한국어" }),
+  Object.freeze({ code: "ar", label: "العربية" }),
+]);
+
+const VT_LANGUAGE_SET = new Set(VT_LANGUAGES.map((l) => l.code));
+
+const VT_I18N_DICT = Object.freeze({
+  "en-GB": {
+    account_settings: "Account Settings",
+    upload_photo: "Upload photo",
+    remove: "Remove",
+    full_name: "Full name",
+    username: "Username",
+    email_address: "Email address",
+    phone_e164: "Phone (E.164)",
+    interface_language: "Interface Language",
+    verified: "Verified",
+    verify_email: "Verify email",
+    verify_phone: "Verify phone",
+    reverify_note: "Changing your email or phone number resets verification status for that channel.",
+    sign_out: "Sign out",
+    cancel: "Cancel",
+    save_changes: "Save changes",
+    saving: "Saving…",
+    profile_saved: "Profile saved.",
+    language_updated: "Interface language updated.",
+    nav_screener: "Screener",
+    nav_charts: "Charts",
+    nav_heatmap: "Heatmap",
+    nav_alerts: "Alerts",
+    nav_journal: "Journal",
+    nav_settings: "Settings",
+  },
+  "en-US": {
+    account_settings: "Account Settings",
+    upload_photo: "Upload photo",
+    remove: "Remove",
+    full_name: "Full name",
+    username: "Username",
+    email_address: "Email address",
+    phone_e164: "Phone (E.164)",
+    interface_language: "Interface Language",
+    verified: "Verified",
+    verify_email: "Verify email",
+    verify_phone: "Verify phone",
+    reverify_note: "Changing your email or phone number resets verification status for that channel.",
+    sign_out: "Sign out",
+    cancel: "Cancel",
+    save_changes: "Save changes",
+    saving: "Saving…",
+    profile_saved: "Profile saved.",
+    language_updated: "Interface language updated.",
+    nav_screener: "Screener",
+    nav_charts: "Charts",
+    nav_heatmap: "Heatmap",
+    nav_alerts: "Alerts",
+    nav_journal: "Journal",
+    nav_settings: "Settings",
+  },
+  es: {
+    account_settings: "Configuración de cuenta",
+    upload_photo: "Subir foto",
+    remove: "Eliminar",
+    full_name: "Nombre completo",
+    username: "Usuario",
+    email_address: "Correo electrónico",
+    phone_e164: "Teléfono (E.164)",
+    interface_language: "Idioma de la interfaz",
+    verified: "Verificado",
+    verify_email: "Verificar correo",
+    verify_phone: "Verificar teléfono",
+    reverify_note: "Cambiar tu correo o teléfono restablece la verificación de ese canal.",
+    sign_out: "Cerrar sesión",
+    cancel: "Cancelar",
+    save_changes: "Guardar cambios",
+    saving: "Guardando…",
+    profile_saved: "Perfil guardado.",
+    language_updated: "Idioma de la interfaz actualizado.",
+    nav_screener: "Escáner",
+    nav_charts: "Gráficos",
+    nav_heatmap: "Mapa de calor",
+    nav_alerts: "Alertas",
+    nav_journal: "Diario",
+    nav_settings: "Ajustes",
+  },
+  fr: {
+    account_settings: "Paramètres du compte",
+    upload_photo: "Importer une photo",
+    remove: "Supprimer",
+    full_name: "Nom complet",
+    username: "Nom d'utilisateur",
+    email_address: "Adresse e-mail",
+    phone_e164: "Téléphone (E.164)",
+    interface_language: "Langue de l'interface",
+    verified: "Vérifié",
+    verify_email: "Vérifier l'e-mail",
+    verify_phone: "Vérifier le téléphone",
+    reverify_note: "Modifier votre e-mail ou téléphone réinitialise la vérification de ce canal.",
+    sign_out: "Se déconnecter",
+    cancel: "Annuler",
+    save_changes: "Enregistrer",
+    saving: "Enregistrement…",
+    profile_saved: "Profil enregistré.",
+    language_updated: "Langue de l'interface mise à jour.",
+    nav_screener: "Screener",
+    nav_charts: "Graphiques",
+    nav_heatmap: "Carte thermique",
+    nav_alerts: "Alertes",
+    nav_journal: "Journal",
+    nav_settings: "Paramètres",
+  },
+  de: {
+    account_settings: "Kontoeinstellungen",
+    upload_photo: "Foto hochladen",
+    remove: "Entfernen",
+    full_name: "Vollständiger Name",
+    username: "Benutzername",
+    email_address: "E-Mail-Adresse",
+    phone_e164: "Telefon (E.164)",
+    interface_language: "Sprache der Oberfläche",
+    verified: "Verifiziert",
+    verify_email: "E-Mail verifizieren",
+    verify_phone: "Telefon verifizieren",
+    reverify_note: "Das Ändern von E-Mail oder Telefon setzt die Verifizierung für diesen Kanal zurück.",
+    sign_out: "Abmelden",
+    cancel: "Abbrechen",
+    save_changes: "Änderungen speichern",
+    saving: "Speichern…",
+    profile_saved: "Profil gespeichert.",
+    language_updated: "Sprache aktualisiert.",
+    nav_screener: "Screener",
+    nav_charts: "Charts",
+    nav_heatmap: "Heatmap",
+    nav_alerts: "Alarme",
+    nav_journal: "Journal",
+    nav_settings: "Einstellungen",
+  },
+  pt: {
+    account_settings: "Configurações da conta",
+    upload_photo: "Enviar foto",
+    remove: "Remover",
+    full_name: "Nome completo",
+    username: "Usuário",
+    email_address: "E-mail",
+    phone_e164: "Telefone (E.164)",
+    interface_language: "Idioma da interface",
+    verified: "Verificado",
+    verify_email: "Verificar e-mail",
+    verify_phone: "Verificar telefone",
+    reverify_note: "Alterar seu e-mail ou telefone redefine a verificação desse canal.",
+    sign_out: "Sair",
+    cancel: "Cancelar",
+    save_changes: "Salvar alterações",
+    saving: "Salvando…",
+    profile_saved: "Perfil salvo.",
+    language_updated: "Idioma atualizado.",
+    nav_screener: "Screener",
+    nav_charts: "Gráficos",
+    nav_heatmap: "Mapa de calor",
+    nav_alerts: "Alertas",
+    nav_journal: "Diário",
+    nav_settings: "Configurações",
+  },
+  it: {
+    account_settings: "Impostazioni account",
+    upload_photo: "Carica foto",
+    remove: "Rimuovi",
+    full_name: "Nome completo",
+    username: "Nome utente",
+    email_address: "Indirizzo e-mail",
+    phone_e164: "Telefono (E.164)",
+    interface_language: "Lingua dell'interfaccia",
+    verified: "Verificato",
+    verify_email: "Verifica e-mail",
+    verify_phone: "Verifica telefono",
+    reverify_note: "Modificare e-mail o telefono reimposta lo stato di verifica per quel canale.",
+    sign_out: "Esci",
+    cancel: "Annulla",
+    save_changes: "Salva modifiche",
+    saving: "Salvataggio…",
+    profile_saved: "Profilo salvato.",
+    language_updated: "Lingua aggiornata.",
+    nav_screener: "Screener",
+    nav_charts: "Grafici",
+    nav_heatmap: "Mappa termica",
+    nav_alerts: "Avvisi",
+    nav_journal: "Diario",
+    nav_settings: "Impostazioni",
+  },
+  nl: {
+    account_settings: "Accountinstellingen",
+    upload_photo: "Foto uploaden",
+    remove: "Verwijderen",
+    full_name: "Volledige naam",
+    username: "Gebruikersnaam",
+    email_address: "E-mailadres",
+    phone_e164: "Telefoon (E.164)",
+    interface_language: "Interfacetaal",
+    verified: "Geverifieerd",
+    verify_email: "E-mail verifiëren",
+    verify_phone: "Telefoon verifiëren",
+    reverify_note: "Het wijzigen van je e-mail of telefoon reset de verificatie voor dat kanaal.",
+    sign_out: "Uitloggen",
+    cancel: "Annuleren",
+    save_changes: "Wijzigingen opslaan",
+    saving: "Opslaan…",
+    profile_saved: "Profiel opgeslagen.",
+    language_updated: "Interfacetaal bijgewerkt.",
+    nav_screener: "Screener",
+    nav_charts: "Grafieken",
+    nav_heatmap: "Heatmap",
+    nav_alerts: "Meldingen",
+    nav_journal: "Journaal",
+    nav_settings: "Instellingen",
+  },
+  ja: {
+    account_settings: "アカウント設定",
+    upload_photo: "写真をアップロード",
+    remove: "削除",
+    full_name: "氏名",
+    username: "ユーザー名",
+    email_address: "メールアドレス",
+    phone_e164: "電話番号 (E.164)",
+    interface_language: "表示言語",
+    verified: "認証済み",
+    verify_email: "メールを認証",
+    verify_phone: "電話を認証",
+    reverify_note: "メールまたは電話番号を変更すると、そのチャネルの認証状態がリセットされます。",
+    sign_out: "サインアウト",
+    cancel: "キャンセル",
+    save_changes: "変更を保存",
+    saving: "保存中…",
+    profile_saved: "プロフィールを保存しました。",
+    language_updated: "表示言語を更新しました。",
+    nav_screener: "スクリーナー",
+    nav_charts: "チャート",
+    nav_heatmap: "ヒートマップ",
+    nav_alerts: "アラート",
+    nav_journal: "トレード記録",
+    nav_settings: "設定",
+  },
+  "zh-CN": {
+    account_settings: "账户设置",
+    upload_photo: "上传头像",
+    remove: "移除",
+    full_name: "姓名",
+    username: "用户名",
+    email_address: "电子邮箱",
+    phone_e164: "手机号 (E.164)",
+    interface_language: "界面语言",
+    verified: "已验证",
+    verify_email: "验证邮箱",
+    verify_phone: "验证手机",
+    reverify_note: "更改邮箱或手机号将重置该通道的验证状态。",
+    sign_out: "退出登录",
+    cancel: "取消",
+    save_changes: "保存更改",
+    saving: "保存中…",
+    profile_saved: "个人资料已保存。",
+    language_updated: "界面语言已更新。",
+    nav_screener: "筛选器",
+    nav_charts: "图表",
+    nav_heatmap: "热力图",
+    nav_alerts: "预警",
+    nav_journal: "交易日志",
+    nav_settings: "设置",
+  },
+  ko: {
+    account_settings: "계정 설정",
+    upload_photo: "사진 업로드",
+    remove: "제거",
+    full_name: "이름",
+    username: "사용자 이름",
+    email_address: "이메일 주소",
+    phone_e164: "전화번호 (E.164)",
+    interface_language: "인터페이스 언어",
+    verified: "인증됨",
+    verify_email: "이메일 인증",
+    verify_phone: "전화번호 인증",
+    reverify_note: "이메일이나 전화번호를 변경하면 해당 채널의 인증 상태가 초기화됩니다.",
+    sign_out: "로그아웃",
+    cancel: "취소",
+    save_changes: "변경 사항 저장",
+    saving: "저장 중…",
+    profile_saved: "프로필이 저장되었습니다.",
+    language_updated: "언어가 업데이트되었습니다.",
+    nav_screener: "스크리너",
+    nav_charts: "차트",
+    nav_heatmap: "히트맵",
+    nav_alerts: "알림",
+    nav_journal: "매매일지",
+    nav_settings: "설정",
+  },
+  ar: {
+    account_settings: "إعدادات الحساب",
+    upload_photo: "تحميل صورة",
+    remove: "إزالة",
+    full_name: "الاسم الكامل",
+    username: "اسم المستخدم",
+    email_address: "البريد الإلكتروني",
+    phone_e164: "رقم الهاتف (E.164)",
+    interface_language: "لغة الواجهة",
+    verified: "موثّق",
+    verify_email: "توثيق البريد",
+    verify_phone: "توثيق الهاتف",
+    reverify_note: "يؤدي تغيير البريد الإلكتروني أو رقم الهاتف إلى إعادة تعيين حالة التوثيق لتلك القناة.",
+    sign_out: "تسجيل الخروج",
+    cancel: "إلغاء",
+    save_changes: "حفظ التغييرات",
+    saving: "جارٍ الحفظ…",
+    profile_saved: "تم حفظ الملف الشخصي.",
+    language_updated: "تم تحديث لغة الواجهة.",
+    nav_screener: "الماسح",
+    nav_charts: "الرسوم البيانية",
+    nav_heatmap: "الخريطة الحرارية",
+    nav_alerts: "التنبيهات",
+    nav_journal: "سجل التداول",
+    nav_settings: "الإعدادات",
+  },
+});
+
+let currentUiLang = "en-GB";
+
+function resolveSupportedLang(raw) {
+  if (typeof raw !== "string") return "en-GB";
+  const trimmed = raw.trim();
+  if (VT_LANGUAGE_SET.has(trimmed)) return trimmed;
+  const lower = trimmed.toLowerCase();
+  for (const item of VT_LANGUAGES) {
+    if (item.code.toLowerCase() === lower) return item.code;
+  }
+  const base = lower.split("-")[0];
+  if (base === "zh") return "zh-CN";
+  if (base === "en") return lower.includes("us") ? "en-US" : "en-GB";
+  if (VT_LANGUAGE_SET.has(base)) return base;
+  return "en-GB";
+}
+
+function readStoredUiLang() {
+  try {
+    const stored = window.localStorage.getItem(VT_LANG_STORAGE_KEY);
+    if (stored && VT_LANGUAGE_SET.has(stored)) return stored;
+  } catch {
+    // ignore storage errors
+  }
+  if (typeof document !== "undefined" && document.documentElement && document.documentElement.lang) {
+    return resolveSupportedLang(document.documentElement.lang);
+  }
+  return "en-GB";
+}
+
+function tUi(key) {
+  const table = VT_I18N_DICT[currentUiLang] || VT_I18N_DICT["en-GB"];
+  if (table && Object.prototype.hasOwnProperty.call(table, key)) return table[key];
+  const fallback = VT_I18N_DICT["en-GB"];
+  if (fallback && Object.prototype.hasOwnProperty.call(fallback, key)) return fallback[key];
+  return String(key);
+}
+
+function syncLanguagePreference(lang) {
+  if (!activeUser || !d1AuthLive || typeof fetch !== "function") return;
+  apiJson("/api/me/data")
+    .then((getRes) => {
+      const existing =
+        getRes.ok && getRes.data && getRes.data.data && typeof getRes.data.data.preferences === "object"
+          ? getRes.data.data.preferences
+          : {};
+      return apiJson("/api/me/data/preferences", {
+        method: "PUT",
+        body: Object.assign({}, existing || {}, { lang }),
+      });
+    })
+    .catch(() => {
+      // Best-effort preference sync; never block UI.
+    });
+}
+
+function setUiLang(lang, { sync = true } = {}) {
+  const next = resolveSupportedLang(lang);
+  currentUiLang = next;
+  try {
+    window.localStorage.setItem(VT_LANG_STORAGE_KEY, next);
+  } catch {
+    // ignore storage errors
+  }
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.lang = next;
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new CustomEvent("vt:langchange", { detail: { lang: next } }));
+    } catch {
+      // ignore
+    }
+  }
+  if (sync) {
+    syncLanguagePreference(next);
+  }
+  return next;
+}
+
+if (typeof window !== "undefined") {
+  currentUiLang = readStoredUiLang();
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.lang = currentUiLang;
+  }
+  try {
+    window.dispatchEvent(new CustomEvent("vt:langchange", { detail: { lang: currentUiLang } }));
+  } catch {
+    // ignore
+  }
+  window.VT_I18N = Object.freeze({
+    getLang: () => currentUiLang,
+    setLang: (lang) => setUiLang(lang, { sync: true }),
+    t: tUi,
+    languages: VT_LANGUAGES,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Profile Avatar Circle & Account Settings Modal (window.VT_PROFILE_UI)
+// ---------------------------------------------------------------------------
+
+function isSafeAvatarDataUri(raw) {
+  return typeof raw === "string" && raw.length <= MAX_AVATAR_CHARS && SAFE_AVATAR_RE.test(raw);
+}
+
+function getUserInitials(user) {
+  if (!user || typeof user !== "object") return "VT";
+  const full = typeof user.full_name === "string" ? user.full_name.trim() : "";
+  if (full) {
+    const parts = full.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    if (parts[0].length >= 2) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+  const uname = typeof user.username === "string" ? user.username.trim().replace(/^@+/, "") : "";
+  if (uname.length >= 2) return uname.slice(0, 2).toUpperCase();
+  const mail = typeof user.email === "string" ? user.email.trim() : "";
+  if (mail.length >= 2) return mail.slice(0, 2).toUpperCase();
+  return "VT";
+}
+
+function resizeAvatarFile(file, size = 160) {
+  return new Promise((resolve, reject) => {
+    if (!file || typeof file !== "object") {
+      reject(new Error("Select an image file."));
+      return;
+    }
+    const allowed = new Set(["image/png", "image/jpeg", "image/webp"]);
+    if (!allowed.has(file.type)) {
+      reject(new Error("Please choose a PNG, JPEG, or WebP image."));
+      return;
+    }
+    if (typeof file.size === "number" && file.size > 10 * 1024 * 1024) {
+      reject(new Error("Image file is too large (max 10 MB before resize)."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not decode image file."));
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas image processing is unavailable."));
+            return;
+          }
+          const srcW = img.naturalWidth || img.width || size;
+          const srcH = img.naturalHeight || img.height || size;
+          const side = Math.min(srcW, srcH);
+          const sx = Math.max(0, Math.floor((srcW - side) / 2));
+          const sy = Math.max(0, Math.floor((srcH - side) / 2));
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+
+          let dataUrl = canvas.toDataURL("image/webp", 0.85);
+          if (!dataUrl.startsWith("data:image/webp;base64,")) {
+            dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          }
+          if (dataUrl.length > MAX_AVATAR_CHARS) {
+            dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          }
+          if (!isSafeAvatarDataUri(dataUrl)) {
+            reject(new Error("Resized image exceeds maximum allowed size."));
+            return;
+          }
+          resolve(dataUrl);
+        } catch {
+          reject(new Error("Could not process profile image."));
+        }
+      };
+      img.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAvatarVisual(container, user, avatarOverride) {
+  container.textContent = "";
+  const url = avatarOverride !== undefined ? avatarOverride : user && user.avatar_url;
+  if (isSafeAvatarDataUri(url)) {
+    container.append(
+      el("img", {
+        className: "vt-avatar-img",
+        src: url,
+        alt: (user && (user.full_name || user.username || user.email)) || "Profile avatar",
+        draggable: "false",
+      })
+    );
+  } else {
+    container.append(el("span", { className: "vt-avatar-init", textContent: getUserInitials(user) }));
+  }
+}
+
+function unmountProfileAvatar() {
+  if (typeof document === "undefined") return;
+  const host = document.getElementById("vtProfileBtn");
+  if (!host) return;
+  if (host.dataset.vtProfileManaged === "dynamic") {
+    host.remove();
+  } else {
+    host.hidden = true;
+    host.textContent = "";
+  }
+}
+
+function mountProfileAvatar(user, targetEl = null) {
+  if (typeof document === "undefined") return null;
+  if (!user || !user.id) {
+    unmountProfileAvatar();
+    return null;
+  }
+
+  ensureAuthExtraStyles();
+  let host = targetEl || document.getElementById("vtProfileBtn");
+  let btn = null;
+
+  if (!host) {
+    const lgo = document.getElementById("lgo");
+    if (!lgo || !lgo.parentNode) return null;
+    btn = el("button", {
+      id: "vtProfileBtn",
+      type: "button",
+      className: "vt-profile-btn",
+    });
+    btn.dataset.vtProfileManaged = "dynamic";
+    lgo.parentNode.insertBefore(btn, lgo);
+    host = btn;
+  } else if (host.tagName === "BUTTON") {
+    btn = host;
+    btn.classList.add("vt-profile-btn");
+    if (!btn.hasAttribute("type")) btn.setAttribute("type", "button");
+    btn.hidden = false;
+  } else {
+    host.hidden = false;
+    btn = host.querySelector("button.vt-profile-btn");
+    if (!btn) {
+      host.textContent = "";
+      btn = el("button", { type: "button", className: "vt-profile-btn" });
+      host.append(btn);
+    }
+  }
+
+  if (btn.dataset.vtProfileBound !== "1") {
+    btn.dataset.vtProfileBound = "1";
+    btn.addEventListener("click", () => {
+      if (activeUser) openProfileSettingsModal(activeUser);
+    });
+  }
+
+  const labelName = user.full_name || user.username || user.email || "Account";
+  const fullyVerified = Boolean(user.email_verified && user.phone_verified);
+  btn.setAttribute("aria-label", `Account settings (${labelName})`);
+  btn.setAttribute("title", fullyVerified ? `${labelName} · Verified` : `${labelName} · Verification pending`);
+
+  renderAvatarVisual(btn, user);
+  btn.append(
+    el("span", {
+      className: fullyVerified ? "vt-avatar-dot is-verified" : "vt-avatar-dot is-pending",
+      "aria-hidden": "true",
+    })
+  );
+
+  return btn;
+}
+
+function openProfileSettingsModal(user) {
+  const targetUser = user || activeUser;
+  if (!targetUser || !targetUser.id) return;
+  if (document.getElementById("vtProfileModalOv")) return;
+
+  ensureAuthExtraStyles();
+  let current = Object.assign({}, targetUser);
+  let stagedAvatar = current.avatar_url ?? null;
+  let avatarDirty = false;
+
+  const { dialog, close } = createAccessibleModal({
+    id: "vtProfileModalOv",
+    labelledBy: "vtProfileTitle",
+    dismissible: true,
+  });
+
+  const title = el("h2", { id: "vtProfileTitle", className: "vt-modal-h", textContent: tUi("account_settings") });
+  const closeBtn = el("button", {
+    type: "button",
+    className: "vt-modal-close",
+    "aria-label": "Close account settings",
+    textContent: "\u00d7",
+    onClick: () => close(),
+  });
+  const head = el("div", { className: "vt-modal-head" }, title, closeBtn);
+
+  const previewCircle = el("div", { className: "vt-prof-preview" });
+  const heroName = el("div", { className: "vt-prof-name" });
+  const heroHandle = el("span");
+  const heroPlan = el("span", { className: "vt-pill", textContent: (current.plan || "free").toUpperCase() });
+  const heroRole =
+    current.role === "admin" ? el("span", { className: "vt-pill vt-pill-acc", textContent: "Admin" }) : null;
+
+  const fileInput = el("input", {
+    id: "vtProfAvatarFile",
+    type: "file",
+    accept: "image/png,image/jpeg,image/webp",
+    hidden: true,
+    "aria-label": "Upload profile picture",
+  });
+  const uploadBtn = el("button", {
+    type: "button",
+    id: "vtProfUploadBtn",
+    className: "vt-btn-ghost vt-prof-photo-btn",
+    textContent: tUi("upload_photo"),
+    onClick: () => fileInput.click(),
+  });
+  const removePhotoBtn = el("button", {
+    type: "button",
+    id: "vtProfRemoveBtn",
+    className: "vt-btn-ghost vt-prof-photo-btn",
+    textContent: tUi("remove"),
+    onClick: () => {
+      stagedAvatar = null;
+      avatarDirty = true;
+      syncHero();
+      setStatus("Photo removed. Click Save changes to apply.", "note");
+    },
+  });
+
+  const hero = el(
+    "div",
+    { className: "vt-prof-hero" },
+    previewCircle,
+    el(
+      "div",
+      { className: "vt-prof-meta" },
+      heroName,
+      el("div", { className: "vt-prof-sub" }, heroHandle, heroPlan, heroRole),
+      el("div", { className: "vt-prof-photo-acts" }, uploadBtn, removePhotoBtn, fileInput)
+    )
+  );
+
+  const nameLabelSpan = el("span", { textContent: tUi("full_name") });
+  const userLabelSpan = el("span", { textContent: tUi("username") });
+  const emailLabelSpan = el("span", { textContent: tUi("email_address") });
+  const phoneLabelSpan = el("span", { textContent: tUi("phone_e164") });
+  const langLabelSpan = el("span", { textContent: tUi("interface_language") });
+  const reverifyNoteEl = el("p", { className: "vt-prof-note", textContent: tUi("reverify_note") });
+
+  const nameInput = el("input", {
+    id: "vtProfName",
+    name: "full_name",
+    type: "text",
+    autocomplete: "name",
+    value: current.full_name || "",
+    required: true,
+    "aria-describedby": "vtProfStatus",
+  });
+  const userInput = el("input", {
+    id: "vtProfUser",
+    name: "username",
+    type: "text",
+    autocomplete: "username",
+    autocapitalize: "none",
+    autocorrect: "off",
+    spellcheck: "false",
+    value: current.username || "",
+    required: true,
+    "aria-describedby": "vtProfStatus",
+  });
+  const emailInput = el("input", {
+    id: "vtProfEmail",
+    name: "email",
+    type: "email",
+    autocomplete: "email",
+    autocapitalize: "none",
+    autocorrect: "off",
+    spellcheck: "false",
+    value: current.email || "",
+    required: true,
+    "aria-describedby": "vtProfStatus",
+  });
+  const phoneInput = el("input", {
+    id: "vtProfPhone",
+    name: "phone",
+    type: "tel",
+    autocomplete: "tel",
+    placeholder: "+14155552671",
+    value: current.phone || "",
+    required: true,
+    "aria-describedby": "vtProfStatus",
+  });
+
+  const langSelect = el(
+    "select",
+    {
+      id: "vtProfLang",
+      name: "lang",
+      className: "vt-prof-select",
+      "aria-label": tUi("interface_language"),
+    },
+    ...VT_LANGUAGES.map((item) =>
+      el("option", {
+        value: item.code,
+        textContent: item.label,
+        selected: item.code === currentUiLang,
+      })
+    )
+  );
+  langSelect.value = currentUiLang;
+
+  const emailBadgeSlot = el("span");
+  const phoneBadgeSlot = el("span");
+  const statusEl = el("div", {
+    id: "vtProfStatus",
+    className: "vt-verify-msg",
+    role: "alert",
+    "aria-live": "polite",
+  });
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = kind ? `vt-verify-msg ${kind}` : "vt-verify-msg";
+  }
+
+  function renderVerifyBadge(slot, isVerified, channel) {
+    slot.textContent = "";
+    if (isVerified) {
+      slot.append(el("span", { className: "vt-pill vt-pill-ok", textContent: tUi("verified") }));
+    } else {
+      slot.append(
+        el("button", {
+          type: "button",
+          className: "vt-prof-vbtn",
+          textContent: channel === "email" ? tUi("verify_email") : tUi("verify_phone"),
+          onClick: () => {
+            close();
+            if (activeUser) openVerificationModal(activeUser);
+          },
+        })
+      );
+    }
+  }
+
+  function applyModalTranslations() {
+    title.textContent = tUi("account_settings");
+    uploadBtn.textContent = tUi("upload_photo");
+    removePhotoBtn.textContent = tUi("remove");
+    nameLabelSpan.textContent = tUi("full_name");
+    userLabelSpan.textContent = tUi("username");
+    emailLabelSpan.textContent = tUi("email_address");
+    phoneLabelSpan.textContent = tUi("phone_e164");
+    langLabelSpan.textContent = tUi("interface_language");
+    langSelect.setAttribute("aria-label", tUi("interface_language"));
+    reverifyNoteEl.textContent = tUi("reverify_note");
+    signOutBtn.textContent = tUi("sign_out");
+    cancelBtn.textContent = tUi("cancel");
+    if (!saveBtn.disabled) saveBtn.textContent = tUi("save_changes");
+    renderVerifyBadge(emailBadgeSlot, Boolean(current.email_verified), "email");
+    renderVerifyBadge(phoneBadgeSlot, Boolean(current.phone_verified), "phone");
+  }
+
+  function syncHero() {
+    renderAvatarVisual(previewCircle, current, stagedAvatar);
+    heroName.textContent = current.full_name || current.username || current.email || "Account";
+    heroHandle.textContent = current.username ? `@${current.username}` : current.email || "";
+    removePhotoBtn.disabled = !stagedAvatar;
+    renderVerifyBadge(emailBadgeSlot, Boolean(current.email_verified), "email");
+    renderVerifyBadge(phoneBadgeSlot, Boolean(current.phone_verified), "phone");
+  }
+
+  langSelect.addEventListener("change", () => {
+    setUiLang(langSelect.value, { sync: true });
+    applyModalTranslations();
+    setStatus(tUi("language_updated"), "ok");
+  });
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+    setStatus("Processing image…", "note");
+    uploadBtn.disabled = true;
+    try {
+      stagedAvatar = await resizeAvatarFile(file, 160);
+      avatarDirty = true;
+      syncHero();
+      setStatus("Photo ready. Click Save changes to apply.", "note");
+    } catch (err) {
+      setStatus((err && err.message) || "Could not process image.", "err");
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  });
+
+  const formInputs = [nameInput, userInput, emailInput, phoneInput];
+  for (const inp of formInputs) {
+    inp.addEventListener("input", () => {
+      inp.removeAttribute("aria-invalid");
+      if (statusEl.classList.contains("err")) setStatus("", "");
+    });
+  }
+
+  const signOutBtn = el("button", {
+    type: "button",
+    id: "vtProfSignOutBtn",
+    className: "vt-btn-ghost vt-btn-danger",
+    textContent: tUi("sign_out"),
+    onClick: () => {
+      close();
+      performRealLogout();
+    },
+  });
+  const cancelBtn = el("button", {
+    type: "button",
+    className: "vt-btn-ghost",
+    textContent: tUi("cancel"),
+    onClick: () => close(),
+  });
+  const saveBtn = el("button", {
+    type: "submit",
+    id: "vtProfSaveBtn",
+    className: "pri",
+    textContent: tUi("save_changes"),
+  });
+
+  function showFieldErr(msg, target) {
+    setStatus(msg, "err");
+    if (target) {
+      target.setAttribute("aria-invalid", "true");
+      target.focus();
+    }
+  }
+
+  const form = el(
+    "form",
+    {
+      className: "vt-cp-form",
+      novalidate: true,
+      onSubmit: async (ev) => {
+        ev.preventDefault();
+        setStatus("", "");
+        for (const inp of formInputs) inp.removeAttribute("aria-invalid");
+
+        const full_name = nameInput.value.trim();
+        const username = userInput.value.trim();
+        const emailRaw = emailInput.value.trim();
+        const phone = normalizePhoneInput(phoneInput.value);
+
+        if (full_name.length < 2 || full_name.length > 100) {
+          return showFieldErr("Full name must be between 2 and 100 characters.", nameInput);
+        }
+        if (!USERNAME_RE.test(username)) {
+          return showFieldErr("Username must be 3–24 characters using letters, numbers, and underscores only.", userInput);
+        }
+        const emailCheck = validateEmail(emailRaw);
+        if (!emailCheck.ok) {
+          return showFieldErr(emailCheck.error, emailInput);
+        }
+        if (!PHONE_E164_RE.test(phone)) {
+          return showFieldErr("Phone must be in international E.164 format (e.g. +14155552671).", phoneInput);
+        }
+
+        const payload = {
+          full_name,
+          username,
+          email: emailCheck.email,
+          phone,
+        };
+        if (avatarDirty) {
+          payload.avatar_url = stagedAvatar;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = tUi("saving");
+        try {
+          const res = await apiJson("/api/auth/profile", {
+            method: "POST",
+            body: payload,
+          });
+          if (!res.ok) {
+            showFieldErr((res.data && res.data.error) || "Could not update profile.");
+            return;
+          }
+          current = res.data.user;
+          activeUser = res.data.user;
+          stagedAvatar = current.avatar_url ?? null;
+          avatarDirty = false;
+          syncHero();
+          mountProfileAvatar(activeUser);
+          setStatus(tUi("profile_saved"), "ok");
+          safeToast("Profile updated");
+        } catch {
+          showFieldErr("Could not reach the server. Please try again.");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = tUi("save_changes");
+        }
+      },
+    },
+    el(
+      "div",
+      { className: "vt-field-row" },
+      el("label", { className: "vt-field" }, nameLabelSpan, nameInput),
+      el("label", { className: "vt-field" }, userLabelSpan, userInput)
+    ),
+    el(
+      "label",
+      { className: "vt-field" },
+      el("div", { className: "vt-prof-field-head" }, emailLabelSpan, emailBadgeSlot),
+      emailInput
+    ),
+    el(
+      "label",
+      { className: "vt-field" },
+      el("div", { className: "vt-prof-field-head" }, phoneLabelSpan, phoneBadgeSlot),
+      phoneInput
+    ),
+    el("label", { className: "vt-field" }, langLabelSpan, langSelect),
+    reverifyNoteEl,
+    statusEl,
+    el(
+      "div",
+      { className: "vt-prof-acts" },
+      signOutBtn,
+      el("div", { className: "vt-prof-acts-right" }, cancelBtn, saveBtn)
+    )
+  );
+
+  syncHero();
+  dialog.append(head, hero, form);
+  setTimeout(() => closeBtn.focus(), 20);
+}
+
+if (typeof window !== "undefined") {
+  window.VT_PROFILE_UI = Object.freeze({
+    mount: (user, targetEl) => mountProfileAvatar(user || activeUser, targetEl || null),
+    unmount: () => unmountProfileAvatar(),
+    update: (user) => {
+      if (user) activeUser = user;
+      return mountProfileAvatar(activeUser);
+    },
+    openModal: (user) => openProfileSettingsModal(user || activeUser),
+    closeModal: () => {
+      const ov = document.getElementById("vtProfileModalOv");
+      if (ov) ov.remove();
+    },
+    getUser: () => activeUser,
+    getInitials: getUserInitials,
+    resizeAvatarFile,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1271,6 +2298,7 @@ function adaptUserForTerminal(user) {
     email: user.email,
     username: user.username,
     full_name: user.full_name,
+    avatar_url: user.avatar_url ?? null,
     role: user.role,
     plan: user.plan,
     profile_completed: Boolean(user.profile_completed),
@@ -1312,6 +2340,7 @@ function applySignedInSession(user, { forceVerifyModal = false } = {}) {
   }
 
   mountAdminBadge(user);
+  mountProfileAvatar(user);
   wireRealLogout();
   window.vtOpenVerificationModal = () => {
     if (activeUser) openVerificationModal(activeUser);
@@ -1349,6 +2378,7 @@ async function performRealLogout() {
     // Proceed with local clear even if offline
   }
   activeUser = null;
+  unmountProfileAvatar();
   const adm = document.getElementById("vtAdminBtn");
   if (adm) adm.remove();
   if (typeof window.authClear === "function") {
@@ -1911,22 +2941,31 @@ function isExplicitAuthRouteHash(rawHash) {
   );
 }
 
+function isLocalTestOrigin() {
+  if (typeof window === "undefined" || !window.location) return false;
+  const h = String(window.location.hostname || "").toLowerCase();
+  return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
+}
+
 async function initD1Auth() {
+  const isLocal = isLocalTestOrigin();
   let provRes;
   try {
     provRes = await apiJson("/api/auth/providers");
   } catch {
-    // Offline or static local harness: if user explicitly navigated to #/signup, still mount the signup tabs
-    if (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash)) {
+    // Fail closed on any non-localhost origin so live hosts can NEVER accept prototype credentials.
+    if (!isLocal || (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash))) {
       enhanceAuthScreen();
+      wireRealLogout();
     }
     return;
   }
 
   if (!provRes.ok || !provRes.data || !provRes.data.providers || provRes.data.providers.email !== true) {
-    // 404 / 503 / DB not bound: silently fall back to existing local flow unless user explicitly navigated to #/signup
-    if (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash)) {
+    // Fail closed on live origins: NEVER fall back to prototype local login when DB is unbound.
+    if (!isLocal || (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash))) {
       enhanceAuthScreen();
+      wireRealLogout();
     }
     return;
   }

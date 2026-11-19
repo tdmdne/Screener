@@ -32,6 +32,10 @@ const MIGRATION_0003_SQL = readFileSync(
   join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
   "utf8"
 );
+const MIGRATION_0004_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0004_user_avatar.sql"),
+  "utf8"
+);
 
 const BASE_ORIGIN = "https://terminal.vektor.test";
 const BASE_TIME = Date.UTC(2026, 10, 19, 12, 0, 0); // 2026-11-19T12:00:00Z
@@ -45,6 +49,7 @@ function createD1TestDb() {
   sqlite.exec("PRAGMA foreign_keys = ON;");
   sqlite.exec(MIGRATION_0001_SQL);
   sqlite.exec(MIGRATION_0003_SQL);
+  sqlite.exec(MIGRATION_0004_SQL);
 
   return {
     _sqlite: sqlite,
@@ -1473,5 +1478,307 @@ describe("ACC — Mandatory Terms Consent & 6-Digit Email/Phone OTP Verification
     const row = await db.prepare("SELECT email, email_verified_at FROM users WHERE id = ?").bind(userId).first();
     assert.equal(row.email, "swapped@example.com");
     assert.equal(row.email_verified_at, null, "swapped email must NOT be marked verified");
+  });
+});
+
+describe("ACC — Profile Avatar & Account Settings (POST/PATCH /api/auth/profile)", () => {
+  const VALID_PNG_URI =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+  const VALID_WEBP_URI =
+    "data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=";
+
+  it("updates full_name, username, avatar_url via POST and PATCH, clears avatar, and persists in /api/auth/me", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    let now = BASE_TIME;
+    const opts = { nowMs: () => now };
+
+    // Unauthenticated -> 401
+    const unauth = await req(env, "POST", "/api/auth/profile", {
+      body: { full_name: "No Auth" },
+      options: opts,
+    });
+    assert.equal(unauth.status, 401);
+
+    const reg = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ email: "tyler@example.com", username: "tyler_dev", full_name: "Tyler Young" }),
+      options: opts,
+    });
+    assert.equal(reg.status, 201);
+    const regJson = await reg.json();
+    assert.equal(regJson.user.avatar_url, null);
+    const cookie = extractCookiePair(reg);
+
+    // Cross-origin CSRF -> 403
+    const csrfBad = await req(env, "PATCH", "/api/auth/profile", {
+      cookie,
+      origin: "https://evil.example",
+      body: { full_name: "Hacked Name" },
+      options: opts,
+    });
+    assert.equal(csrfBad.status, 403);
+
+    // POST /api/auth/profile updates full_name, username, and PNG avatar_url
+    now += 5_000;
+    const upd1 = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: {
+        full_name: "Tyler Quant",
+        username: "tyler_quant",
+        avatar_url: VALID_PNG_URI,
+      },
+      options: opts,
+    });
+    assert.equal(upd1.status, 200);
+    const u1 = (await upd1.json()).user;
+    assert.equal(u1.full_name, "Tyler Quant");
+    assert.equal(u1.username, "tyler_quant");
+    assert.equal(u1.avatar_url, VALID_PNG_URI);
+
+    // GET /api/auth/me returns updated avatar_url
+    const me1 = await req(env, "GET", "/api/auth/me", { cookie, options: opts });
+    assert.equal(me1.status, 200);
+    assert.equal((await me1.json()).user.avatar_url, VALID_PNG_URI);
+
+    // PATCH /api/auth/profile accepts WebP avatar_url
+    now += 5_000;
+    const upd2 = await req(env, "PATCH", "/api/auth/profile", {
+      cookie,
+      body: { avatar_url: VALID_WEBP_URI },
+      options: opts,
+    });
+    assert.equal(upd2.status, 200);
+    assert.equal((await upd2.json()).user.avatar_url, VALID_WEBP_URI);
+
+    // Clearing avatar_url with null or empty string works
+    const clr1 = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { avatar_url: null },
+      options: opts,
+    });
+    assert.equal(clr1.status, 200);
+    assert.equal((await clr1.json()).user.avatar_url, null);
+
+    const setAgain = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { avatar_url: VALID_PNG_URI },
+      options: opts,
+    });
+    assert.equal(setAgain.status, 200);
+
+    const clr2 = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { avatar_url: "" },
+      options: opts,
+    });
+    assert.equal(clr2.status, 200);
+    assert.equal((await clr2.json()).user.avatar_url, null);
+  });
+
+  it("rejects SVG, external HTTPS, javascript:, and oversized avatar URLs", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    const opts = { nowMs: () => BASE_TIME };
+
+    const reg = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ email: "sec@example.com", username: "sec_user" }),
+      options: opts,
+    });
+    const cookie = extractCookiePair(reg);
+
+    const badAvatars = [
+      "data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+PC9zdmc+",
+      "data:image/svg+xml,<svg onload=alert(1)>",
+      "https://attacker.example/avatar.png",
+      "http://attacker.example/avatar.jpg",
+      "javascript:alert(1)",
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+      "data:image/png;base64," + "A".repeat(128 * 1024),
+    ];
+
+    for (const avatar_url of badAvatars) {
+      const r = await req(env, "POST", "/api/auth/profile", {
+        cookie,
+        body: { avatar_url },
+        options: opts,
+      });
+      assert.equal(r.status, 400, `Expected 400 for unsafe avatar_url: ${avatar_url.slice(0, 48)}`);
+    }
+
+    // Request body > 192 KB -> 413
+    const huge = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: JSON.stringify({ avatar_url: "data:image/png;base64," + "A".repeat(200 * 1024) }),
+      headers: { "Content-Type": "application/json" },
+      options: opts,
+    });
+    assert.equal(huge.status, 413);
+  });
+
+  it("resets email_verified_at / phone_verified_at and consumes active OTPs when email or phone changes", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    let now = BASE_TIME;
+    const sent = [];
+    const opts = {
+      nowMs: () => now,
+      sendCodeImpl: async (payload) => {
+        sent.push(payload);
+      },
+    };
+
+    const reg = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({
+        email: "verifyme@example.com",
+        username: "verify_user",
+        phone: "+14155550101",
+      }),
+      options: opts,
+    });
+    assert.equal(reg.status, 201);
+    const cookie = extractCookiePair(reg);
+
+    // Verify both email and phone first
+    await req(env, "POST", "/api/auth/verify/send", { cookie, body: { channel: "email" }, options: opts });
+    const emailCode = sent[sent.length - 1].code;
+    const ce = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: emailCode },
+      options: opts,
+    });
+    assert.equal(ce.status, 200);
+
+    await req(env, "POST", "/api/auth/verify/send", { cookie, body: { channel: "phone" }, options: opts });
+    const phoneCode = sent[sent.length - 1].code;
+    const cp = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "phone", code: phoneCode },
+      options: opts,
+    });
+    assert.equal(cp.status, 200);
+    const verifiedUser = (await cp.json()).user;
+    assert.equal(verifiedUser.email_verified, true);
+    assert.equal(verifiedUser.phone_verified, true);
+
+    // Updating only full_name preserves both verification flags
+    now += 10_000;
+    const nameOnly = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { full_name: "Still Verified" },
+      options: opts,
+    });
+    assert.equal(nameOnly.status, 200);
+    const uNameOnly = (await nameOnly.json()).user;
+    assert.equal(uNameOnly.email_verified, true);
+    assert.equal(uNameOnly.phone_verified, true);
+
+    // Changing email resets email_verified to false while keeping phone_verified true
+    now += 10_000;
+    const emailChange = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { email: "newemail@example.com" },
+      options: opts,
+    });
+    assert.equal(emailChange.status, 200);
+    const uEmailChanged = (await emailChange.json()).user;
+    assert.equal(uEmailChanged.email, "newemail@example.com");
+    assert.equal(uEmailChanged.email_verified, false);
+    assert.equal(uEmailChanged.phone_verified, true);
+
+    // Send a new email OTP, then change email again -> prior email OTP must be consumed
+    now += 65_000;
+    const sendNewEmailOtp = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(sendNewEmailOtp.status, 200);
+    const staleEmailOtp = sent[sent.length - 1].code;
+
+    now += 5_000;
+    const emailChange2 = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { email: "third@example.com" },
+      options: opts,
+    });
+    assert.equal(emailChange2.status, 200);
+
+    const tryStaleEmailOtp = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: staleEmailOtp },
+      options: opts,
+    });
+    assert.equal(tryStaleEmailOtp.status, 400);
+
+    // Changing phone resets phone_verified to false and consumes any active phone OTP
+    now += 5_000;
+    const phoneChange = await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { phone: "+14155550199" },
+      options: opts,
+    });
+    assert.equal(phoneChange.status, 200);
+    const uPhoneChanged = (await phoneChange.json()).user;
+    assert.equal(uPhoneChanged.phone, "+14155550199");
+    assert.equal(uPhoneChanged.phone_verified, false);
+
+    // Send phone OTP, then change phone again -> prior phone OTP must be consumed
+    now += 65_000;
+    const sendPhoneOtp2 = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "phone" },
+      options: opts,
+    });
+    assert.equal(sendPhoneOtp2.status, 200);
+    const stalePhoneOtp = sent[sent.length - 1].code;
+
+    now += 5_000;
+    await req(env, "POST", "/api/auth/profile", {
+      cookie,
+      body: { phone: "+14155550200" },
+      options: opts,
+    });
+    const tryStalePhoneOtp = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "phone", code: stalePhoneOtp },
+      options: opts,
+    });
+    assert.equal(tryStalePhoneOtp.status, 400);
+  });
+
+  it("returns 409 on duplicate canonical email or case-insensitive username", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    const opts = { nowMs: () => BASE_TIME };
+
+    const regA = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ email: "alpha@example.com", username: "alpha_one" }),
+      options: opts,
+    });
+    assert.equal(regA.status, 201);
+
+    const regB = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ email: "beta@example.com", username: "beta_two" }),
+      options: opts,
+    });
+    assert.equal(regB.status, 201);
+    const cookieB = extractCookiePair(regB);
+
+    // Duplicate email via +tag canonical collision -> 409
+    const dupEmail = await req(env, "POST", "/api/auth/profile", {
+      cookie: cookieB,
+      body: { email: "Alpha+alias@example.com" },
+      options: opts,
+    });
+    assert.equal(dupEmail.status, 409);
+
+    // Duplicate username (case-insensitive) -> 409
+    const dupUser = await req(env, "POST", "/api/auth/profile", {
+      cookie: cookieB,
+      body: { username: "ALPHA_ONE" },
+      options: opts,
+    });
+    assert.equal(dupUser.status, 409);
   });
 });

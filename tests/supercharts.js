@@ -1,5 +1,5 @@
 const {launch}=require("./harness");const assert=require("assert");
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{S.wlx.groups[0].syms=["BTCUSDT","ETHUSDT","SOLUSDT"];S.alerts=[{id:1,sym:"BTCUSDT",price:150,dir:"above",on:true,fired:false}];save();openChart("BTCUSDT","1H")});
 await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);const ws0=await P.evaluate(()=>{window.__b=BNWS.ws;return __WS.length});

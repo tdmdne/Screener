@@ -1088,7 +1088,7 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 </style><link rel="stylesheet" href="src/98_institutional.css"><link rel="stylesheet" href="src/landing.css"></head><body>
 <div class="wrap">
 <header>
-  <h1 style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-size:17px;font-weight:700;letter-spacing:-0.3px" onclick="goHome()" title="Home">
+  <h1 style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-size:17px;font-weight:700;letter-spacing:-0.3px" onclick="goHome()" title="Home — Vektor Terminal">
   <svg width="36" height="22" viewBox="-6 -4 412 246" fill="none" style="flex-shrink:0;overflow:visible">
   <path d="M2 2 L66 2 L132 120 L161 70 L223 70 L132 234 Z" fill="currentColor"/>
   <path d="M198 2 L398 2 L371 50 L306 51 L306 233 L253 233 L253 74 L266 51 L172 50 Z" fill="currentColor"/>
@@ -1096,26 +1096,30 @@ th .h{display:inline-flex;align-items:center;gap:3px}
   <span>Vektor Terminal</span>
 </h1>
   <div class="vt-dd-wrap" id="vtFeatWrap">
-    <button type="button" class="theme-btn vt-dd-btn" id="vtFeatBtn" onclick="vtTogFeatMenu(event)" aria-haspopup="menu" aria-expanded="false" title="Switch workspace or page">
+    <button type="button" class="theme-btn vt-dd-btn" id="vtFeatBtn" onclick="vtTogFeatMenu(event)" aria-haspopup="menu" aria-expanded="false" title="Products &amp; Workspaces">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg>
       <b id="vtFeatCur" class="vt-dd-cur">Workspace</b>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
     </button>
-    <div id="vtFeatMenu" class="vt-dd-menu" role="menu" aria-label="Features"></div>
+    <div id="vtFeatMenu" class="vt-dd-menu" role="menu" aria-label="Products and Workspaces"></div>
   </div>
   <nav class="vnav" id="vnav" aria-label="Pages"></nav>
   <span class="tag" id="tag">Prototype · sample data</span>
   <span class="mut" id="dst"></span>
-  <div class="vt-dd-wrap" id="vtWebSetWrap">
-    <button type="button" class="theme-btn vt-dd-btn" id="vtWebSetBtn" onclick="vtTogSetMenu(event)" aria-haspopup="menu" aria-expanded="false" title="Settings, Theme &amp; Account">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.79 1.01 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-      <span>Menu</span>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
-    <div id="vtWebSetMenu" class="vt-dd-menu vt-dd-right" role="menu" aria-label="Settings and Account"></div>
+  <div class="vt-hdr-right" id="vtHdrRight">
+    <div class="srch"><input id="sq" placeholder="Search symbol (Ctrl+K)" autocomplete="off" onfocus="srch()" oninput="VT_SR_STATE.idx=0;srch()" onkeydown="srchKey(event)" onblur="setTimeout(hideSrBox,160)"><div id="sr"></div></div>
+    <button type="button" id="sumb" class="theme-btn" onclick="if(typeof vtSumM==='function')vtSumM()" title="Today’s session summary">Today</button>
+    <div class="vt-dd-wrap" id="vtWebSetWrap">
+      <button type="button" class="theme-btn vt-dd-btn" id="vtWebSetBtn" onclick="vtTogSetMenu(event)" aria-haspopup="menu" aria-expanded="false" title="Settings, Appearance &amp; Account">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.79 1.01 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        <span>Settings</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="vtWebSetMenu" class="vt-dd-menu vt-dd-right" role="menu" aria-label="Settings and Account"></div>
+    </div>
+    <button type="button" id="vtProfileBtn" class="vt-avatar-btn" onclick="vtOpenProfileModal()" title="Profile &amp; Account" aria-label="VT — Profile &amp; Account"><span id="vtAvatarInit">VT</span></button>
+    <button id="lgo" class="theme-btn" onclick="authSignOut()" title="Log out">Log out</button>
   </div>
-  <button id="thm" class="theme-btn" onclick="togTheme()" title="Switch light / dark theme"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><span>Light</span></button>
-  <button id="lgo" class="theme-btn" onclick="authSignOut()" title="Log out">Log out</button>
   <div class="mode-icons" id="uim" title="Layout mode" hidden style="display:none!important">
     <button class="mode-btn" onclick="setUI('phone')" data-m="phone" title="Phone layout" aria-label="Phone layout">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
@@ -1127,7 +1131,6 @@ th .h{display:inline-flex;align-items:center;gap:3px}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </button>
   </div>
-  <div class="srch"><input id="sq" placeholder="Search symbol (Ctrl+K)" autocomplete="off" onfocus="srch()" oninput="VT_SR_STATE.idx=0;srch()" onkeydown="srchKey(event)" onblur="setTimeout(hideSrBox,160)"><div id="sr"></div></div>
 </header>
 <div class="ws"><div class="side">
 <div class="wl" id="wl"></div>
@@ -1490,8 +1493,9 @@ const ar=id=>S.sort.id===id?(S.sort.dir<0?VT_IC.dn:VT_IC.up):"";
 const dirOf=id=>S.sort.id===id?(S.sort.dir<0?"desc":"asc"):"";
 let h=`<tr><th><span class="h" data-dir="${dirOf("sym")}" onclick="srt('sym')">Symbol${ar("sym")}</span></th>`;
 vis.forEach(c=>{h+=`<th><span class="h" data-dir="${dirOf(c.id)}" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">${VT_IC.gear}</button></th>`});
-const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols,S.evcTf,S.dir,S.preset,S.virt,S.rows]);if(sig!==S._sig){S.page=0;S._sig=sig}
+const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols,S.evcTf,S.dir,S.preset,S.virt,S.rows,S.scrF]);if(sig!==S._sig){S.page=0;S._sig=sig}
 let R=[];try{R=rows(vis)}catch(e){console.error("rows error:",e);R=[]}
+if(typeof vtApplyScrFilters==="function"){try{R=vtApplyScrFilters(R)}catch(e){console.error("scrFilter error:",e)}}
 if(window._vtNavUntil&&Date.now()<window._vtNavUntil&&window._vtNavSig===(S._sig+"|"+(S.preset||""))&&PGL&&PGL.length){
   const byS=new Map(R.map(r=>[r&&r.s&&r.s[0],r]));const seen=new Set();const kept=[];
   for(const k of PGL){const x=byS.get(k);if(x){kept.push(x);seen.add(k)}}
@@ -1510,7 +1514,7 @@ const tblEl=document.getElementById("t");if(tblEl)tblEl.innerHTML="<thead>"+h+"<
 }
 const cntEl=document.getElementById("cnt");if(cntEl)cntEl.textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";
 const pgEl=document.getElementById("pg");if(pgEl)pgEl.innerHTML=pages>1&&!VW?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>${VT_IC.chevLeft} Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ${VT_IC.chevRight}</button>`:"";
-const tagEl=document.getElementById("tag");if(tagEl)tagEl.textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";
+const tagEl=document.getElementById("tag");if(tagEl)tagEl.textContent=isLive()?"Live · auto-scan":"Offline sample data";
 try{renderWL()}catch(e){console.error("renderWL error:",e)}
 try{renderPresets()}catch(e){console.error("renderPresets error:",e)}
 try{kick()}catch(e){console.error("kick error:",e)}
@@ -1610,37 +1614,134 @@ function delCol(){S.cols=S.cols.filter(x=>x.id!==ed);save();closeM();render()}
 function openCols(){modal(`<h3>Columns</h3><div class="list">${S.cols.map(c=>`<div class="li"><label class="chk"><input type="checkbox" ${c.hide?"":"checked"} onchange="togCol('${c.id}')">${label(c)}</label><button onclick="openEd('${c.id}')" title="Edit column" aria-label="Edit ${esc(label(c))}">${VT_IC.gear}</button></div>`).join("")}</div><div class="row"><select id="addT">${Object.keys(TY).map(k=>`<option value="${k}">${TY[k]}</option>`).join("")}</select><button onclick="addCol()">Add</button></div><div class="row"><span class="sp"></span><button class="pri" onclick="closeM()">Done</button></div>`)}
 function togCol(id){const c=S.cols.find(x=>x.id===id);c.hide=!c.hide;save();render()}
 function addCol(){const t=document.getElementById("addT").value,c=mk("c"+Date.now(),t);S.cols.push(c);save();render();openEd(c.id)}
+const VT_PRESET_GUIDE={
+  P1:"Strictest filter — requires full EMA alignment across timeframes plus measurable price expansion.",
+  P2:"Strong trend filter — requires EMA alignment together with a directional price change.",
+  P3:"Moderate filter — requires a directional price change with partial EMA alignment.",
+  P4:"Broad directional filter — includes any ticker showing a directional price change.",
+  P5:"Unfiltered scan — displays all available markets in the selected asset class."
+};
+function vtScrF(){return S.scrF=Object.assign({rsiMin:"",rsiMax:"",ema:"any",rvolMin:"",atrMin:"",atrMax:"",chgMin:"",chgMax:"",pxMin:"",pxMax:"",minScore:"",p1Sound:false},S.scrF||{})}
+function vtApplyScrFilters(R){
+  const f=vtScrF();
+  const hasAny=f.rsiMin!==""||f.rsiMax!==""||f.ema!=="any"||f.rvolMin!==""||f.atrMin!==""||f.atrMax!==""||f.chgMin!==""||f.chgMax!==""||f.pxMin!==""||f.pxMax!==""||f.minScore!=="";
+  if(!hasAny)return R;
+  const num=v=>v===""||v==null?null:(isFinite(+v)?+v:null);
+  const rMin=num(f.rsiMin),rMax=num(f.rsiMax),rvMin=num(f.rvolMin),aMin=num(f.atrMin),aMax=num(f.atrMax),cMin=num(f.chgMin),cMax=num(f.chgMax),pMin=num(f.pxMin),pMax=num(f.pxMax),ms=num(f.minScore);
+  const tf=(typeof VT_EVC!=="undefined"&&VT_EVC[S.evcTf||"H"]&&VT_EVC[S.evcTf||"H"].e)||"1H";
+  return R.filter(r=>{
+    const s=r&&r.s;if(!s)return false;
+    const px=+s[2];
+    if(pMin!=null&&!(px>=pMin))return false;
+    if(pMax!=null&&!(px<=pMax))return false;
+    const a=candles(s,tf);
+    if((rMin!=null||rMax!=null||f.ema!=="any"||aMin!=null||aMax!=null||rvMin!=null)&&a&&a.length>=20){
+      const cl=a.map(x=>x.c);
+      if(rMin!=null||rMax!=null){
+        const rv=rsiArr(cl,14);const last=rv[rv.length-1];
+        if(last==null||(rMin!=null&&last<rMin)||(rMax!=null&&last>rMax))return false;
+      }
+      if(f.ema!=="any"){
+        const e20=emaArr(cl,20),e50=emaArr(cl,50);
+        const cL=cl[cl.length-1],v20=e20[e20.length-1],v50=e50[e50.length-1];
+        if(f.ema==="bull"&&!(cL>v20&&v20>v50))return false;
+        if(f.ema==="bear"&&!(cL<v20&&v20<v50))return false;
+      }
+      if(aMin!=null||aMax!=null){
+        const at=atrArr(a,14);const lv=at[at.length-1];const ap=lv!=null&&px>0?(lv/px)*100:null;
+        if(ap==null||(aMin!=null&&ap<aMin)||(aMax!=null&&ap>aMax))return false;
+      }
+      if(rvMin!=null){
+        const vs=a.slice(-20).map(x=>+x.v||0),avg=vs.reduce((p,q)=>p+q,0)/(vs.length||1);
+        const curV=+a[a.length-1].v||0;const rvol=avg>0?curV/avg:0;
+        if(!(rvol>=rvMin))return false;
+      }
+    }
+    if(cMin!=null||cMax!=null){
+      const d1=candles(s,"1D");const chg=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null;
+      if(chg==null||(cMin!=null&&chg<cMin)||(cMax!=null&&chg>cMax))return false;
+    }
+    if(ms!=null){
+      const sc=typeof vektorScore==="function"?vektorScore(s,S.dir||"long",S.evcTf||"H"):null;
+      const val=sc&&isFinite(sc.score)?sc.score:null;
+      if(val==null||val<ms)return false;
+    }
+    return true;
+  });
+}
 function scrSetM(){
   const mkts=Object.keys(MK);
   const layouts=[...Object.keys(BI),...Object.keys(P)];
-  modal(`<div class="vt-scrset" role="dialog" aria-modal="true" aria-labelledby="scrset_h"><h3 id="scrset_h">Screener Settings</h3>
-  <p class="mut" style="font-size:12.5px">Customize your multi-asset scanner, liquidity filters, scoring level, and table layout.</p>
-  <div class="pset"><div class="g2">
-    <label>Asset class<select id="ss_mkt">${mkts.map(k=>`<option value="${k}" ${S.mkt===k?"selected":""}>${MK[k]}</option>`).join("")}</select></label>
-    <label>Saved layout<select id="ss_lay"><option value="">Custom layout</option>${layouts.map(n=>`<option value="${esc(n)}" ${S.cur===n?"selected":""}>${esc(n)}</option>`).join("")}</select></label>
+  const f=vtScrF();
+  const curPre=S.preset||"P5";
+  const allCols=(S.cols||[]);
+  modal(`<div class="vt-scrset vt-scrset-pro" role="dialog" aria-modal="true" aria-labelledby="scrset_h">
+  <h3 id="scrset_h">Screener Settings &amp; Filter Builder</h3>
+  <p class="mut" style="font-size:12.5px">Configure market scope, P1–P5 scan tiers, technical momentum filters, visible columns, and sorting preferences. Rule-based filters on past price data; not investment advice.</p>
+
+  <div class="vt-ss-sec">
+    <div class="vt-ss-sh">1. Market, Timeframe &amp; Preset (P1–P5)</div>
+    <div class="g2">
+      <label>Asset class<select id="ss_mkt">${mkts.map(k=>`<option value="${k}" ${S.mkt===k?"selected":""}>${MK[k]}</option>`).join("")}</select><small class="vt-hint">Choose which asset universe to scan (All, Crypto, Stocks, FX, Futures).</small></label>
+      <label>Saved layout<select id="ss_lay"><option value="">Custom layout</option>${layouts.map(n=>`<option value="${esc(n)}" ${S.cur===n?"selected":""}>${esc(n)}</option>`).join("")}</select><small class="vt-hint">Load a built-in or saved column &amp; filter workspace.</small></label>
+    </div>
+    <div class="g2" style="margin-top:8px">
+      <label>Timeframe level (H/M/L)<select id="ss_evc"><option value="H" ${(S.evcTf||"H")==="H"?"selected":""}>H (1H entry · 1D validation)</option><option value="M" ${S.evcTf==="M"?"selected":""}>M (15m entry · 1H validation)</option><option value="L" ${S.evcTf==="L"?"selected":""}>L (1m entry · 15m validation)</option></select><small class="vt-hint">Sets the entry and higher-timeframe candle intervals used for scanning.</small></label>
+      <label>Scan direction<select id="ss_dir"><option value="long" ${(S.dir||"long")==="long"?"selected":""}>Long (Bullish alignment)</option><option value="short" ${S.dir==="short"?"selected":""}>Short (Bearish alignment)</option></select><small class="vt-hint">Evaluate EMA alignment and expansion for bullish or bearish setups.</small></label>
+    </div>
+    <div style="margin-top:8px">
+      <label>Strictness tier (P1–P5)<select id="ss_pre" onchange="const g=document.getElementById('ss_pre_guide');if(g)g.textContent=VT_PRESET_GUIDE[this.value]||''">${Object.entries(PRESETS).map(([k,p])=>`<option value="${k}" ${curPre===k?"selected":""}>${k} — ${esc(p.desc)}</option>`).join("")}</select><small class="vt-hint" id="ss_pre_guide">${esc(VT_PRESET_GUIDE[curPre]||"")}</small></label>
+    </div>
   </div>
-  <div class="g2" style="margin-top:8px">
-    <label>Timeframe level (H/M/L)<select id="ss_evc"><option value="H" ${(S.evcTf||"H")==="H"?"selected":""}>H (1H entry · 1D validation)</option><option value="M" ${S.evcTf==="M"?"selected":""}>M (15m entry · 1H validation)</option><option value="L" ${S.evcTf==="L"?"selected":""}>L (1m entry · 15m validation)</option></select></label>
-    <label>Preset direction<select id="ss_dir"><option value="long" ${(S.dir||"long")==="long"?"selected":""}>Long (Bullish alignment)</option><option value="short" ${S.dir==="short"?"selected":""}>Short (Bearish alignment)</option></select></label>
+
+  <div class="vt-ss-sec">
+    <div class="vt-ss-sh">2. Technical &amp; Momentum Filters</div>
+    <div class="g2">
+      <label>RSI (14) range<div class="vt-rng"><input id="ss_rsimin" type="number" min="0" max="100" step="1" placeholder="Min (0)" value="${esc(String(f.rsiMin))}"><input id="ss_rsimax" type="number" min="0" max="100" step="1" placeholder="Max (100)" value="${esc(String(f.rsiMax))}"></div><small class="vt-hint">Filter tickers whose 14-period RSI sits inside this momentum zone.</small></label>
+      <label>EMA alignment (20 / 50)<select id="ss_ema"><option value="any" ${f.ema==="any"?"selected":""}>Any alignment</option><option value="bull" ${f.ema==="bull"?"selected":""}>Bullish (Price &gt; EMA 20 &gt; EMA 50)</option><option value="bear" ${f.ema==="bear"?"selected":""}>Bearish (Price &lt; EMA 20 &lt; EMA 50)</option></select><small class="vt-hint">Require price and moving averages to align in the trend direction.</small></label>
+    </div>
+    <div class="g2" style="margin-top:8px">
+      <label>Relative Volume (RVOL) min<input id="ss_rvol" type="number" min="0" step="0.1" placeholder="e.g. 1.5" value="${esc(String(f.rvolMin))}"><small class="vt-hint">Only show instruments trading above their 20-bar average volume.</small></label>
+      <label>ATR / Volatility % range<div class="vt-rng"><input id="ss_atrmin" type="number" min="0" step="0.1" placeholder="Min %" value="${esc(String(f.atrMin))}"><input id="ss_atrmax" type="number" min="0" step="0.1" placeholder="Max %" value="${esc(String(f.atrMax))}"></div><small class="vt-hint">Filter by 14-bar average true range as a percentage of price.</small></label>
+    </div>
+    <div class="g2" style="margin-top:8px">
+      <label>24h / Session change %<div class="vt-rng"><input id="ss_chgmin" type="number" step="0.5" placeholder="Min %" value="${esc(String(f.chgMin))}"><input id="ss_chgmax" type="number" step="0.5" placeholder="Max %" value="${esc(String(f.chgMax))}"></div><small class="vt-hint">Focus on instruments moving inside a specific daily percentage band.</small></label>
+      <label>Price range ($)<div class="vt-rng"><input id="ss_pxmin" type="number" min="0" step="any" placeholder="Min $" value="${esc(String(f.pxMin))}"><input id="ss_pxmax" type="number" min="0" step="any" placeholder="Max $" value="${esc(String(f.pxMax))}"></div><small class="vt-hint">Exclude instruments below or above your preferred unit price.</small></label>
+    </div>
+    <div class="g2" style="margin-top:8px">
+      <label>Minimum Vektor score (0–100)<input id="ss_mscore" type="number" min="0" max="100" step="1" placeholder="Any" value="${esc(String(f.minScore))}"><small class="vt-hint">Show only tickers meeting or exceeding this rule-based composite score.</small></label>
+      <label>Default sort column<select id="ss_sort"><option value="sym" ${S.sort.id==="sym"?"selected":""}>Symbol (A–Z)</option>${allCols.map(c=>`<option value="${esc(c.id)}" ${S.sort.id===c.id?"selected":""}>${esc(label(c))}</option>`).join("")}</select><small class="vt-hint">Choose which metric orders the screener table by default.</small></label>
+    </div>
   </div>
-  <div class="g2" style="margin-top:8px">
-    <label>Strictness tier (P1–P5)<select id="ss_pre">${Object.entries(PRESETS).map(([k,p])=>`<option value="${k}" ${(S.preset||"P5")===k?"selected":""}>${k} — ${esc(p.desc)}</option>`).join("")}</select></label>
-    <label>Rows per page (paged mode)<select id="ss_rows">${[20,50,100].map(n=>`<option value="${n}" ${(S.rows||20)===n?"selected":""}>${n} rows</option>`).join("")}</select></label>
+
+  <div class="vt-ss-sec">
+    <div class="vt-ss-sh">3. Column Visibility (${allCols.filter(c=>!c.hide).length} of ${allCols.length} shown)</div>
+    <small class="vt-hint" style="display:block;margin-bottom:6px">Toggle which data columns appear in the screener table.</small>
+    <div class="vt-col-grid">${allCols.map(c=>`<label class="vt-col-chk"><input type="checkbox" data-sscol="${esc(c.id)}" ${c.hide?"":"checked"}><span>${esc(label(c))}</span></label>`).join("")}</div>
   </div>
-  <div class="g2" style="margin-top:8px">
-    <label>Account size ($)<input id="ss_acct" type="number" min="100" step="1000" value="${S.acct||300000}"></label>
-    <label>Liquidity multiplier (×)<input id="ss_mult" type="number" min="1" step="1" value="${S.mult||10}"></label>
-  </div></div>
-  <label class="chk" style="margin-top:6px"><input type="checkbox" id="ss_dv" ${S.dvOn?"checked":""}> Filter by minimum dollar volume ($${((S.acct||300000)*(S.mult||10)).toLocaleString()} cutoff)</label>
-  <label class="chk"><input type="checkbox" id="ss_nv" ${S.hideNV?"checked":""}> Hide unquoted / zero-volume tickers</label>
-  <label class="chk"><input type="checkbox" id="ss_virt" ${S.virt!==false?"checked":""}> Continuous virtualized scrolling on desktop (uncheck for pagination)</label>
-  <div class="row" style="flex-wrap:wrap;margin-top:6px">
-    <button type="button" onclick="openCols()">Manage Columns (${S.cols.filter(c=>!c.hide).length})</button>
+
+  <div class="vt-ss-sec">
+    <div class="vt-ss-sh">4. Liquidity, Display &amp; Alert Preferences</div>
+    <div class="g2">
+      <label>Account size ($)<input id="ss_acct" type="number" min="100" step="1000" value="${S.acct||300000}"><small class="vt-hint">Used with the liquidity multiplier to set your minimum dollar-volume cutoff.</small></label>
+      <label>Liquidity multiplier (×)<input id="ss_mult" type="number" min="1" step="1" value="${S.mult||10}"><small class="vt-hint">Requires daily dollar volume ≥ Account Size × Multiplier when enabled.</small></label>
+    </div>
+    <div class="g2" style="margin-top:8px">
+      <label>Rows per page (paged mode)<select id="ss_rows">${[20,50,100].map(n=>`<option value="${n}" ${(S.rows||20)===n?"selected":""}>${n} rows</option>`).join("")}</select><small class="vt-hint">Number of tickers shown per page when continuous scrolling is off.</small></label>
+      <label style="justify-content:center"><span class="chk" style="margin:0"><input type="checkbox" id="ss_p1snd" ${f.p1Sound?"checked":""}> Play sound on new P1 scan match</span><small class="vt-hint">Plays a subtle chime when a ticker enters tier P1 during live scans.</small></label>
+    </div>
+    <label class="chk" style="margin-top:6px"><input type="checkbox" id="ss_dv" ${S.dvOn?"checked":""}> Filter by minimum dollar volume ($${((S.acct||300000)*(S.mult||10)).toLocaleString()} cutoff)</label>
+    <label class="chk"><input type="checkbox" id="ss_nv" ${S.hideNV?"checked":""}> Hide unquoted / zero-volume tickers</label>
+    <label class="chk"><input type="checkbox" id="ss_virt" ${S.virt!==false?"checked":""}> Continuous virtualized scrolling on desktop (uncheck for pagination)</label>
+  </div>
+
+  <div class="row" style="flex-wrap:wrap;margin-top:8px">
+    <button type="button" onclick="openCols()">Edit Column Formulas</button>
     <button type="button" onclick="closeM();miniToggle()">${S.mini&&S.mini.on?"Switch to Table View":"Switch to Mini-Charts"}</button>
     <button type="button" onclick="saveCur()">Save Layout</button>
     <button type="button" onclick="xfer()">Export / Import</button>
   </div>
-  <div class="row" style="margin-top:6px"><button type="button" onclick="pick('Higher timeframe scan');closeM()">Reset Defaults</button><span class="sp"></span><button type="button" onclick="closeM()">Cancel</button><button type="button" class="pri" onclick="scrSetSave()">Apply Settings</button></div></div>`);
+  <div class="row" style="margin-top:8px"><button type="button" onclick="S.scrF={};pick('Higher timeframe scan');closeM()">Reset Defaults</button><span class="sp"></span><button type="button" onclick="closeM()">Cancel</button><button type="button" class="pri" onclick="scrSetSave()">Apply Settings</button></div></div>`);
 }
 function scrSetSave(){
   const g=id=>document.getElementById(id);
@@ -1656,6 +1757,26 @@ function scrSetSave(){
   S.dvOn=!!g("ss_dv").checked;
   S.hideNV=!!g("ss_nv").checked;
   S.virt=!!g("ss_virt").checked;
+  const sortId=g("ss_sort")&&g("ss_sort").value;
+  if(sortId&&sortId!==S.sort.id)S.sort={id:sortId,dir:sortId==="sym"?1:-1};
+  S.scrF={
+    rsiMin:(g("ss_rsimin")||{}).value||"",
+    rsiMax:(g("ss_rsimax")||{}).value||"",
+    ema:(g("ss_ema")||{}).value||"any",
+    rvolMin:(g("ss_rvol")||{}).value||"",
+    atrMin:(g("ss_atrmin")||{}).value||"",
+    atrMax:(g("ss_atrmax")||{}).value||"",
+    chgMin:(g("ss_chgmin")||{}).value||"",
+    chgMax:(g("ss_chgmax")||{}).value||"",
+    pxMin:(g("ss_pxmin")||{}).value||"",
+    pxMax:(g("ss_pxmax")||{}).value||"",
+    minScore:(g("ss_mscore")||{}).value||"",
+    p1Sound:!!(g("ss_p1snd")&&g("ss_p1snd").checked)
+  };
+  document.querySelectorAll("[data-sscol]").forEach(cb=>{
+    const col=(S.cols||[]).find(c=>c.id===cb.dataset.sscol);
+    if(col)col.hide=!cb.checked;
+  });
   S.page=0;
   save();closeM();render();toast("Screener settings applied");
 }
@@ -1796,6 +1917,52 @@ function vtApplyHistoryPrepend(sym,tf,added){
     }
   }catch(e){console.error("vtApplyHistoryPrepend error:",e);vtHistGuard=0;if(typeof SC!=="undefined"&&SC)SC._histGuard=0}
 }
+const VT_CHART_TYPES=[
+  {id:"candles",label:"Candles",ic:'<path d="M7 4v16M17 4v16"/><rect x="5" y="8" width="4" height="8" rx=".6" fill="currentColor"/><rect x="15" y="7" width="4" height="6" rx=".6"/>'},
+  {id:"hollow",label:"Hollow Candles",ic:'<path d="M7 4v4M7 16v4M17 4v3M17 13v7"/><rect x="5" y="8" width="4" height="8" rx=".6"/><rect x="15" y="7" width="4" height="6" rx=".6"/>'},
+  {id:"bars",label:"OHLC Bars",ic:'<path d="M7 5v14M4 9h3M7 15h3M17 4v16M14 13h3M17 7h3"/>'},
+  {id:"line",label:"Line",ic:'<path d="M3 16l5-5 4 3 9-9"/>'},
+  {id:"area",label:"Area",ic:'<path d="M3 16l5-5 4 3 9-9v14H3z" fill="currentColor" fill-opacity=".18"/><path d="M3 16l5-5 4 3 9-9"/>'},
+  {id:"heikin",label:"Heikin Ashi",ic:'<path d="M7 5v14M17 4v16"/><rect x="5" y="9" width="4" height="6" rx=".8" fill="currentColor"/><rect x="15" y="6" width="4" height="9" rx=".8" fill="currentColor"/>'}
+];
+function vtToHeikinAshi(D){
+  const out=[];
+  for(let i=0;i<D.length;i++){
+    const b=D[i];
+    const hc=(b.open+b.high+b.low+b.close)/4;
+    const ho=i===0?(b.open+b.close)/2:(out[i-1].open+out[i-1].close)/2;
+    const hh=Math.max(b.high,ho,hc);
+    const hl=Math.min(b.low,ho,hc);
+    out.push({time:b.time,open:ho,high:hh,low:hl,close:hc});
+  }
+  return out;
+}
+function vtChartTypeBtnHTML(cur,fnName,btnId){
+  const ct=VT_CHART_TYPES.find(x=>x.id===(cur||"candles"))||VT_CHART_TYPES[0];
+  return `<div style="position:relative;display:inline-flex"><button type="button" id="${btnId}" class="vt-ctype-btn" onclick="${fnName}(event)" title="Chart style: ${ct.label}" aria-label="Chart style: ${ct.label}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ct.ic}</svg><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="${btnId}_menu" class="vt-pop-ov vt-ctype-menu" role="menu" style="display:none"></div></div>`;
+}
+function vtTogChartTypeMenu(ev){
+  if(ev)ev.stopPropagation();
+  const btn=document.getElementById("vt_ctype_btn"),m=document.getElementById("vt_ctype_btn_menu");
+  if(!btn||!m)return;
+  const open=m.style.display==="block";
+  if(open){m.style.display="none";btn.setAttribute("aria-expanded","false");return}
+  const cur=S.chart.type||"candles";
+  m.innerHTML=VT_CHART_TYPES.map(t=>`<button type="button" role="menuitem" class="vt-pop-item vt-ctype-item ${cur===t.id?"on":""}" onclick="vtSetChartType('${t.id}')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.ic}</svg><span>${t.label}</span></button>`).join("");
+  const r=btn.getBoundingClientRect();
+  m.style.position="fixed";m.style.top=Math.round(r.bottom+6)+"px";m.style.left=Math.max(8,Math.min(window.innerWidth-190,Math.round(r.left)))+"px";
+  m.style.display="block";btn.setAttribute("aria-expanded","true");
+}
+function vtSetChartType(t){
+  S.chart.type=t;save();
+  const m=document.getElementById("vt_ctype_btn_menu");if(m)m.style.display="none";
+  drawChart();
+}
+function vtSyncUndoBtns(){
+  const u=typeof UNDO!=="undefined"&&UNDO.length>0,r=typeof REDO!=="undefined"&&REDO.length>0;
+  ["vt_undo_btn","bt_undo_btn"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!u});
+  ["vt_redo_btn","bt_redo_btn"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!r});
+}
 function drawChart(opts){try{const _opts=opts||{};killCharts();const C=S.chart,cp=document.getElementById("cp");if(!cp)return;
 if(!SYMS.length){cp.innerHTML=`<p class="mut vt-skel" role="status">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
@@ -1805,7 +1972,7 @@ const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c
 const cpxVal=(rawCandles&&rawCandles.length&&rawCandles[rawCandles.length-1].c!=null)?rawCandles[rawCandles.length-1].c:(d1&&d1.length&&d1[d1.length-1].c!=null?d1[d1.length-1].c:s[2]);
 if(cpxVal!=null&&isFinite(cpxVal))s[2]=cpxVal;
 const qt=(cpxVal!=null?` <b id="cpx">${fp(cpxVal)}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
-cp.innerHTML=`<div class="cpb"><div class="row top"><button type="button" class="vt-symbtn" onclick="syOpen()" title="Search symbol (start typing or Ctrl+K)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>${esc(s[0])}</span><span class="mut" style="font-weight:500">${esc(MK[s[1]]||s[1])}</span></button>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" aria-label="Market status" style="background:none;border:none;cursor:pointer">${VT_IC.pulse}</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist" aria-label="Toggle watchlist">${wlAll().includes(s[0])?VT_IC.starOn:VT_IC.starOff}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button type="button" id="vt_chmore_btn" onclick="vtTogChartMore(event)" title="More chart actions (Templates, Scripts, Locate)" aria-label="More chart actions" aria-haspopup="menu"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button><div id="vt_chmore" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:196px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"></div></div><div style="position:relative"><button onclick="snapMenu(event)" title="Snapshot" aria-label="Snapshot">${VT_IC.cam}</button><div id="snapdrop" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:154px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset chart view" aria-label="Reset chart view">${VT_IC.refresh}</button></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
+cp.innerHTML=`<div class="cpb"><div class="row top"><button type="button" class="vt-symbtn" onclick="syOpen()" title="Search symbol (start typing or Ctrl+K)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>${esc(s[0])}</span><span class="mut" style="font-weight:500">${esc(MK[s[1]]||s[1])}</span></button>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" aria-label="Market status" style="background:none;border:none;cursor:pointer">${VT_IC.pulse}</button>`:""}<div style="position:relative">${tfHTML()}</div>${vtChartTypeBtnHTML(C.type,"vtTogChartTypeMenu","vt_ctype_btn")}<button type="button" id="vt_undo_btn" class="vt-ur-btn" onclick="doUndo()" title="Undo drawing (Ctrl+Z)" aria-label="Undo drawing" ${typeof UNDO!=="undefined"&&UNDO.length?"":"disabled"}><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" id="vt_redo_btn" class="vt-ur-btn" onclick="doRedo()" title="Redo drawing (Ctrl+Y)" aria-label="Redo drawing" ${typeof REDO!=="undefined"&&REDO.length?"":"disabled"}><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist" aria-label="Toggle watchlist">${wlAll().includes(s[0])?VT_IC.starOn:VT_IC.starOff}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button type="button" id="vt_chmore_btn" onclick="vtTogChartMore(event)" title="More chart actions (Templates, Scripts, Locate)" aria-label="More chart actions" aria-haspopup="menu"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button><div id="vt_chmore" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:196px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"></div></div><div style="position:relative"><button onclick="snapMenu(event)" title="Snapshot" aria-label="Snapshot">${VT_IC.cam}</button><div id="snapdrop" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:154px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset chart view" aria-label="Reset chart view">${VT_IC.refresh}</button></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="vt_favbar_host"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 const cvEl=document.getElementById("cv");if(!cvEl)return;
 if(!window.LightweightCharts){cvEl.innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
 const p=pal(),L=window.LightweightCharts,T0="rgba(0,0,0,0)";
@@ -1839,10 +2006,11 @@ const a=rawCandles,{st,T,cl,pts,D}=vtBuildChartData(s,C.tf,C,d1,a);
 const meta={sym:s[0],tf:C.tf,overlaySer:null,overlayType:C.type,candleSer:null,prevLine:null,indSeries:[],rsiSer:null};
 const prec=s[2]<10?4:2,pF={type:"price",precision:prec,minMove:s[2]<10?0.0001:0.01};
 const so={priceLineVisible:C.pLine,lastValueVisible:C.pLabel,priceLineColor:C.pLineCol||"",priceFormat:pF};
-if(C.type==="line"){const os=ch.addLineSeries(Object.assign({color:C.lineCol,lineWidth:C.lineW},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os}
-else if(C.type==="area"){const os=ch.addAreaSeries(Object.assign({lineColor:C.lineCol,lineWidth:C.lineW,topColor:C.lineCol+"66",bottomColor:C.lineCol+"05"},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os}
-else if(C.type==="bars"){const os=ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so));os.setData(D);ms(os);meta.overlaySer=os}
-const h=C.type==="hollow";const cser=ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(D);ms(cser);meta.candleSer=cser;
+if(C.type==="line"){const os=ch.addLineSeries(Object.assign({color:C.lineCol||"#2962ff",lineWidth:C.lineW||2},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os;meta.candleSer=os}
+else if(C.type==="area"){const lc=C.lineCol||"#2962ff";const os=ch.addAreaSeries(Object.assign({lineColor:lc,lineWidth:C.lineW||2,topColor:lc+"55",bottomColor:lc+"05"},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os;meta.candleSer=os}
+else if(C.type==="bars"){const os=ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so));os.setData(D);ms(os);meta.overlaySer=os;meta.candleSer=os}
+else if(C.type==="heikin"){const cser=ch.addCandlestickSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(vtToHeikinAshi(D));ms(cser);meta.candleSer=cser}
+else{const h=C.type==="hollow";const cser=ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(D);ms(cser);meta.candleSer=cser}
 // previous day close line
 if(C.prevClose==="line"||C.prevClose==="val"){
   const pc=d1&&d1.length>1?d1[d1.length-2].c:null;
@@ -1887,6 +2055,7 @@ try{
 try{if(ch&&typeof ch.priceScale==="function")ch.priceScale("right").applyOptions({autoScale:true})}catch(_e){}
 vtLastPlotT[s[0]+"|"+C.tf]=D.length?D[D.length-1].time:0;
 try{initDraw(a,T,st)}catch(e){console.error("initDraw error:",e)}
+try{if(typeof vtRenderFavBars==="function")vtRenderFavBars()}catch(_e){}
 if(typeof vtAfterDraw==="function"){try{vtAfterDraw(s,a,T)}catch(e){console.error(e)}}
 if(typeof vtRenderGapBadge==="function"){try{vtRenderGapBadge()}catch(e){}}
 if(typeof vtPrefetchAdjacent==="function"){try{vtPrefetchAdjacent(s,C.tf)}catch(e){}}
@@ -2000,11 +2169,98 @@ const ms=x=>(MS=x),N2=/^(trend|ray|ext|rect|fib|long|short|arrow|prange|drange)$
 const DT={cross:"Cursor",trend:"Trend line",ray:"Ray",ext:"Extended line",hline:"Horizontal line",hray:"Horizontal ray",vline:"Vertical line",rect:"Rectangle",fib:"Fib retracement",long:"Long position",short:"Short position",text:"Text",note:"Note",arrow:"Arrow",path:"Path",curve:"Curve",brush:"Brush",prange:"Price Range",drange:"Date Range"};
 const LSTYLES=[{n:"Solid",d:[]},{n:"Dashed",d:[6,4]},{n:"Dotted",d:[2,3]},{n:"Dash-dot",d:[8,4,2,4]},{n:"Sparse dotted",d:[1,4]}];
 const IC={cross:'<path d="M12 4v16M4 12h16"/>',trend:'<path d="M5 19L19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>',ray:'<path d="M5 19L21 3"/><circle cx="5" cy="19" r="2"/>',ext:'<path d="M3 21L21 3"/><circle cx="9" cy="15" r="2"/><circle cx="15" cy="9" r="2"/>',hline:'<path d="M3 12h18"/><circle cx="12" cy="12" r="2"/>',hray:'<path d="M5 12h16"/><circle cx="5" cy="12" r="2"/>',vline:'<path d="M12 3v18"/><circle cx="12" cy="12" r="2"/>',rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',fib:'<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',long:'<rect x="5" y="4" width="14" height="8" fill="currentColor" fill-opacity=".3"/><rect x="5" y="12" width="14" height="8"/>',short:'<rect x="5" y="4" width="14" height="8"/><rect x="5" y="12" width="14" height="8" fill="currentColor" fill-opacity=".3"/>',text:'<path d="M6 6h12M12 6v13"/>',note:'<path d="M4 6h16v10H8l-4 4V6z"/>',arrow:'<path d="M5 19L19 5M19 5h-6M19 5v6"/>',path:'<path d="M4 18l5-6 4 3 7-9"/>',curve:'<path d="M4 16c4-8 12-8 16 0"/>',brush:'<path d="M4 20c2-4 4-8 6-10s4-2 6 0 2 6 4 10"/><path d="M14 6l4-4"/>',prange:'<path d="M4 8h16M4 16h16M12 8v8"/>',drange:'<path d="M8 4v16M16 4v16M8 12h8"/>',magnet:'<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z"/>',lock:'<rect x="6" y="11" width="12" height="9" rx="1"/><path d="M9 11V8a3 3 0 016 0v3"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>'};
-const TG=[["cross","trend","ray","ext","hline","hray","vline","arrow","brush"],["rect","fib"],["long","short","text","note","prange","drange"]];
-if(S.toolOrder&&S.toolOrder.length){const flat=S.toolOrder;TG.length=0;let g=[];flat.forEach((k,i)=>{g.push(k);if(g.length>=8||i===flat.length-1){TG.push(g);g=[]}})}
+const VT_DRAW_GROUPS=[
+  {id:"cursor",name:"Cursors",tools:["cross"]},
+  {id:"lines",name:"Trend Lines & Rays",tools:["trend","ray","ext","hline","hray","vline","arrow"]},
+  {id:"fib",name:"Fib & Channels",tools:["fib","path","curve"]},
+  {id:"shapes",name:"Shapes & Brush",tools:["rect","brush"]},
+  {id:"text",name:"Text & Annotations",tools:["text","note"]},
+  {id:"pos",name:"Long / Short Position",tools:["long","short"]},
+  {id:"meas",name:"Measure & Range",tools:["prange","drange"]}
+];
+const VT_TOOL_SHORT={cross:"Esc",trend:"Alt+T",hline:"Alt+H",vline:"Alt+V",fib:"Alt+F",rect:"Alt+R",long:"Alt+L",short:"Alt+S",text:"Alt+X"};
+S.favTools=Array.isArray(S.favTools)&&S.favTools.length?S.favTools:["trend","hline","fib","rect","long","short"];
+if(typeof S.favBarOn!=="boolean")S.favBarOn=true;
+S.groupTool=S.groupTool||{};
+const TG=VT_DRAW_GROUPS.map(g=>g.tools);
 const DL=()=>{S.dr=S.dr||{};return S.dr[S.chart.sym]=S.dr[S.chart.sym]||[]};
-function tbHTML(){const b=(k,t,on,fn)=>`<button class="${on?"on":""}" draggable="true" data-tool="${k}" title="${t}" onclick="${fn}" ondragstart="toolDrag(event,'${k}')" ondragover="toolOver(event,'${k}')" ondragleave="toolLeave(event)" ondrop="toolDrop(event,'${k}')"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg></button>`;
-return TG.map(g=>g.map(k=>b(k,DT[k],TOOL===k,`setTool('${k}')`)).join("")).join("<hr>")+"<hr>"+b("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+b("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+b("eye","Hide all drawings",HIDD,"togT('HIDD')")+b("trash","Remove all drawings",0,"clrD()")}
+function vtGroupCur(g){
+  if(g.tools.includes(TOOL))return TOOL;
+  const saved=S.groupTool&&S.groupTool[g.id];
+  return saved&&g.tools.includes(saved)?saved:g.tools[0];
+}
+function tbHTML(){
+  const util=(k,t,on,fn)=>`<button type="button" class="vt-rail-btn ${on?"on":""}" data-tool="${k}" title="${t}" aria-label="${t}" onclick="${fn}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg></button>`;
+  const grpHTML=VT_DRAW_GROUPS.map(g=>{
+    const cur=vtGroupCur(g);
+    const active=g.tools.includes(TOOL);
+    const multi=g.tools.length>1;
+    return `<div class="vt-rail-grp" data-gid="${g.id}"><button type="button" class="vt-rail-btn ${active?"on":""}" data-tool="${cur}" title="${DT[cur]}${VT_TOOL_SHORT[cur]?" ("+VT_TOOL_SHORT[cur]+")":""}" aria-label="${DT[cur]}" onclick="setTool('${cur}')"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[cur]}</svg></button>${multi?`<button type="button" class="vt-rail-fly" title="More ${g.name}" aria-label="More ${g.name}" onclick="vtOpenDrawFlyout(event,'${g.id}')">▸</button>`:""}</div>`;
+  }).join("");
+  const starBtn=`<button type="button" class="vt-rail-star ${S.favBarOn?"on":""}" data-fav-toggle="1" title="${S.favBarOn?"Hide":"Show"} favourite drawing tools bar" aria-label="${S.favBarOn?"Hide":"Show"} favourite drawing tools" aria-pressed="${S.favBarOn?"true":"false"}" onclick="vtToggleFavBar()"><svg viewBox="0 0 24 24" width="17" height="17" fill="${S.favBarOn?"currentColor":"none"}" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`;
+  return grpHTML+"<hr>"+util("magnet","Magnet mode (or hold Ctrl)",MAG,"togT('MAG')")+util("lock","Lock all drawings",LOCKD,"togT('LOCKD')")+util("eye","Hide all drawings",HIDD,"togT('HIDD')")+util("trash","Remove all drawings",0,"clrD()")+"<div class=\"vt-rail-sp\"></div>"+starBtn;
+}
+function vtCloseDrawFlyout(){const f=document.getElementById("vt_draw_flyout");if(f)f.remove()}
+function vtOpenDrawFlyout(ev,gid){
+  if(ev){ev.stopPropagation();ev.preventDefault()}
+  const existing=document.getElementById("vt_draw_flyout");
+  if(existing&&existing.dataset.gid===gid){existing.remove();return}
+  vtCloseDrawFlyout();
+  const g=VT_DRAW_GROUPS.find(x=>x.id===gid);if(!g)return;
+  const btn=ev&&ev.currentTarget?ev.currentTarget.closest(".vt-rail-grp"):null;
+  const r=btn?btn.getBoundingClientRect():{right:54,top:120};
+  const pop=document.createElement("div");
+  pop.id="vt_draw_flyout";pop.className="vt-draw-flyout";pop.dataset.gid=gid;pop.setAttribute("role","menu");
+  pop.style.left=Math.min(window.innerWidth-248,Math.round(r.right+6))+"px";
+  pop.style.top=Math.max(52,Math.min(window.innerHeight-280,Math.round(r.top)))+"px";
+  pop.innerHTML=`<div class="vt-df-hd">${esc(g.name)}</div>`+g.tools.map(k=>{
+    const fav=(S.favTools||[]).includes(k);
+    const sc=VT_TOOL_SHORT[k]||"";
+    return `<div class="vt-df-row ${TOOL===k?"on":""}"><button type="button" class="vt-df-pick" role="menuitem" onclick="vtPickGroupTool('${gid}','${k}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg><span>${esc(DT[k]||k)}</span>${sc?`<kbd>${sc}</kbd>`:""}</button><button type="button" class="vt-df-star ${fav?"on":""}" title="${fav?"Remove from":"Add to"} favourites" aria-label="${fav?"Unfavourite":"Favourite"} ${esc(DT[k]||k)}" onclick="vtToggleFavTool(event,'${k}','${gid}')">★</button></div>`;
+  }).join("");
+  document.body.appendChild(pop);
+}
+function vtPickGroupTool(gid,k){
+  S.groupTool=S.groupTool||{};S.groupTool[gid]=k;save();
+  vtCloseDrawFlyout();setTool(k);
+}
+function vtToggleFavTool(ev,k,gid){
+  if(ev)ev.stopPropagation();
+  S.favTools=Array.isArray(S.favTools)?S.favTools:[];
+  const i=S.favTools.indexOf(k);
+  if(i>=0)S.favTools.splice(i,1);else S.favTools.push(k);
+  save();vtRenderFavBars();
+  if(gid){vtCloseDrawFlyout();const grp=document.querySelector(`.vt-rail-grp[data-gid="${gid}"] .vt-rail-fly`);if(grp)vtOpenDrawFlyout({currentTarget:grp,stopPropagation(){},preventDefault(){}},gid)}
+}
+function vtToggleFavBar(){
+  S.favBarOn=!S.favBarOn;save();tbRef();vtRenderFavBars();
+}
+function vtRenderFavBars(){
+  const hosts=[document.getElementById("vt_favbar_host"),document.getElementById("bt_favbar_host")].filter(Boolean);
+  hosts.forEach(host=>{
+    if(!S.favBarOn||!S.favTools||!S.favTools.length){host.innerHTML="";return}
+    const pos=S.favBarPos||{x:null,y:10};
+    const style=pos.x!=null?`left:${pos.x}px;top:${pos.y}px;transform:none`:`left:50%;top:${pos.y}px;transform:translateX(-50%)`;
+    host.innerHTML=`<div class="vt-favbar" role="toolbar" aria-label="Favourite drawing tools" style="${style}"><span class="vt-fav-drag" title="Drag toolbar" aria-hidden="true">⋮⋮</span>${S.favTools.filter(k=>IC[k]).map(k=>`<button type="button" class="vt-fav-btn ${TOOL===k?"on":""}" data-tool="${k}" title="${esc(DT[k]||k)}" aria-label="${esc(DT[k]||k)}" onclick="setTool('${k}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg></button>`).join("")}</div>`;
+    const bar=host.querySelector(".vt-favbar"),handle=host.querySelector(".vt-fav-drag");
+    if(bar&&handle){
+      handle.onpointerdown=e=>{
+        e.preventDefault();e.stopPropagation();
+        const pr=host.parentElement.getBoundingClientRect(),br=bar.getBoundingClientRect();
+        const ox=e.clientX-br.left,oy=e.clientY-br.top;
+        handle.setPointerCapture&&handle.setPointerCapture(e.pointerId);
+        const mv=ev=>{
+          const nx=Math.max(6,Math.min(pr.width-br.width-6,Math.round(ev.clientX-pr.left-ox)));
+          const ny=Math.max(6,Math.min(pr.height-br.height-6,Math.round(ev.clientY-pr.top-oy)));
+          bar.style.left=nx+"px";bar.style.top=ny+"px";bar.style.transform="none";
+          S.favBarPos={x:nx,y:ny};
+        };
+        const up=()=>{window.removeEventListener("pointermove",mv);window.removeEventListener("pointerup",up);save()};
+        window.addEventListener("pointermove",mv);window.addEventListener("pointerup",up);
+      };
+    }
+  });
+}
 let dragTool=null;
 function toolDrag(e,k){dragTool=k;e.dataTransfer.setData("text",k)}
 function toolOver(e,k){e.preventDefault();if(dragTool&&dragTool!==k)e.currentTarget.style.boxShadow="inset 0 0 0 2px #2962ff"}
@@ -2113,8 +2369,8 @@ function resetLive(){
     ch.priceScale("right").applyOptions({autoScale:true,scaleMargins:{top:0.3,bottom:0.1}});
   }catch(e){console.error("resetLive error:",e)}
 }
-function setTool(t){TOOL=t;DRAFT=null;tbRef()}
-function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();dpe();dsel()}
+function setTool(t){TOOL=t;DRAFT=null;tbRef();vtRenderFavBars()}
+function tbRef(){const e=document.getElementById("tb");if(e)e.innerHTML=tbHTML();const bt=document.getElementById("bt_tb");if(bt)bt.innerHTML=tbHTML();dpe();dsel();vtSyncUndoBtns();vtRenderFavBars()}
 function tfStar(t){const i=S.tfFav.indexOf(t);if(i>=0)S.tfFav.splice(i,1);else S.tfFav.push(t);save();drawChart()}
 function tfPick(t){S.chart.tf=t;save();drawChart();if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&typeof vtSyncChartFeed==="function"&&S.chart.sym)vtSyncChartFeed(S.chart.sym,t);const m=document.getElementById("tfm");if(m)m.style.display="none"}
 function tfMenu(ev){const m=document.getElementById("tfm");if(!m)return;if(m.style.display==="block"){m.style.display="none";return}const btn=ev&&ev.currentTarget||m.previousElementSibling;if(btn){const r=btn.getBoundingClientRect();m.style.position="fixed";m.style.top=Math.round(r.bottom+6)+"px";m.style.left=Math.max(8,Math.min(window.innerWidth-210,Math.round(r.left)))+"px";m.style.maxHeight=Math.max(200,window.innerHeight-r.bottom-24)+"px"}m.style.display="block"}
@@ -2148,11 +2404,20 @@ for(const[cat,arr]of Object.entries(TF_CAT)){
 h+=`</div>`;
 return h}
 function togT(k){if(k==="MAG")MAG=!MAG;else if(k==="LOCKD"){LOCKD=!LOCKD;SELD=null}else HIDD=!HIDD;tbRef()}
-function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?")){S.dr[S.chart.sym]=[];SELD=null;save();tbRef()}}
+function clrD(){if(DL().length&&confirm("Remove all drawings on "+S.chart.sym+"?")){pushUndo();S.dr[S.chart.sym]=[];SELD=null;save();tbRef()}}
 let UNDO=[],REDO=[];
-function pushUndo(){UNDO.push(JSON.stringify(S.dr||{}));if(UNDO.length>50)UNDO.shift();REDO=[]}
-function doUndo(){if(!UNDO.length)return;REDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(UNDO.pop());SELD=null;save();tbRef()}
-function doRedo(){if(!REDO.length)return;UNDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(REDO.pop());SELD=null;save();tbRef()}
+function pushUndo(){UNDO.push(JSON.stringify(S.dr||{}));if(UNDO.length>50)UNDO.shift();REDO=[];vtSyncUndoBtns()}
+function doUndo(){if(!UNDO.length)return;REDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(UNDO.pop());SELD=null;save();tbRef();vtSyncUndoBtns()}
+function doRedo(){if(!REDO.length)return;UNDO.push(JSON.stringify(S.dr||{}));S.dr=JSON.parse(REDO.pop());SELD=null;save();tbRef();vtSyncUndoBtns()}
+document.addEventListener("keydown",e=>{
+  const ae=document.activeElement;
+  if(ae&&(/INPUT|SELECT|TEXTAREA/.test(ae.tagName||"")||ae.isContentEditable))return;
+  if((e.ctrlKey||e.metaKey)&&!e.altKey){
+    const k=String(e.key||"").toLowerCase();
+    if(k==="z"&&!e.shiftKey){if(UNDO.length){e.preventDefault();doUndo()}}
+    else if(k==="y"||(k==="z"&&e.shiftKey)){if(REDO.length){e.preventDefault();doRedo()}}
+  }
+});
 function delSel(){if(SELD){pushUndo();const L=DL(),i=L.indexOf(SELD);if(i>=0)L.splice(i,1);SELD=null;save();tbRef()}}
 function dpe(){const c=document.getElementById("dc");if(c){c.style.pointerEvents=(TOOL!=="cross"||SELD||DRAFT)&&!HIDD?"auto":"none";c.style.cursor=TOOL!=="cross"?"crosshair":"default"}}
 function dsel(){const e=document.getElementById("dsel");if(!e)return;if(!SELD){e.style.display="none";return}
@@ -2405,7 +2670,7 @@ host.addEventListener("pointerup",e=>{if(!host._d||TOOL!=="cross"||LOCKD||HIDD||
 const r=host.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=[...DL()].reverse().find(d=>hit(d,x,y));if(d&&d!==SELD){SELD=d;dpe();dsel()}});
 dpe();dsel();const my=ch;(function f(){if(ch!==my||!document.getElementById("dc"))return;paint();requestAnimationFrame(f)})()}
 const kmod=e=>{const m=[e.shiftKey,e.ctrlKey||e.metaKey];if(m[0]!==MOD[0]||m[1]!==MOD[1]){MOD=m;if(MX&&(DRAFT||DRG))dPos(MX[0],MX[1])}};
-document.addEventListener("click",e=>{if(!e.target.closest("#tfm")&&!e.target.closest(".tfb")){const m=document.getElementById("tfm");if(m)m.style.display="none"}if(!e.target.closest("#snapdrop")&&!e.target.closest('[onclick^="snapMenu"]')){const sd=document.getElementById("snapdrop");if(sd)sd.style.display="none"}if(!e.target.closest("#vt_chmore")&&!e.target.closest("#vt_chmore_btn")){const cm=document.getElementById("vt_chmore");if(cm)cm.style.display="none"}});
+document.addEventListener("click",e=>{if(!e.target.closest("#tfm")&&!e.target.closest(".tfb")){const m=document.getElementById("tfm");if(m)m.style.display="none"}if(!e.target.closest("#snapdrop")&&!e.target.closest('[onclick^="snapMenu"]')){const sd=document.getElementById("snapdrop");if(sd)sd.style.display="none"}if(!e.target.closest("#vt_chmore")&&!e.target.closest("#vt_chmore_btn")){const cm=document.getElementById("vt_chmore");if(cm)cm.style.display="none"}if(!e.target.closest("#vt_draw_flyout")&&!e.target.closest(".vt-rail-fly")){vtCloseDrawFlyout()}if(!e.target.closest(".vt-ctype-menu")&&!e.target.closest(".vt-ctype-btn")){document.querySelectorAll(".vt-ctype-menu").forEach(x=>x.style.display="none");document.querySelectorAll(".vt-ctype-btn").forEach(b=>b.setAttribute("aria-expanded","false"))}});
 let TFBUF="";
 function tfUnitName(u){return{s:"second",m:"minute",H:"hour",D:"day",W:"week",M:"month"}[u]||"minute"}
 function tfShow(){
@@ -2723,9 +2988,8 @@ function checkFailover(){
   if(silent>3000&&!FAILOVER.on){
     FAILOVER.on=true;FAILOVER.since=Date.now();
     FAILOVER.reason=BNWS.ws&&BNWS.ws.readyState!==1?"websocket down":"upstream silent";
-    // last-good 1m (and other) series already restored into LIVE from IndexedDB on boot
+    // last-good 1m (and other) series already restored into LIVE from IndexedDB on boot (silent fallback)
     status();
-    const tag=document.getElementById("tag");if(tag)tag.textContent="CACHED FAILOVER";
     tick();
   }
 }
@@ -2836,12 +3100,11 @@ if(BN.err&&!BN.list.length)add(YCR.map(w=>mk2(w,"yf",w.td)));
 SYMS=out.length?out:SAMPLE;}catch(e){console.error("setLive error:",e);if(!Array.isArray(SYMS)||!SYMS.length)SYMS=SAMPLE;}}
 function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";d.title="";if(typeof vtRenderGapBadge==="function")vtRenderGapBadge();return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
-const full=(FAILOVER.on?"Cached failover · ":"")+(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks… ":"")+(PGU.busy?"Loading stocks… ":"")+(n?"Syncing "+n+" feeds":"")+(BN.err?" · Crypto feed offline ("+BN.err+")":"")+(FHU.err?" · Finnhub: "+FHU.err:"")+(PGU.err?" · Polygon: "+PGU.err:"")+(Date.now()<BN.pause?" · Rate limit, pausing":"")+(ne?" · "+ne+" feed"+(ne===1?"":"s")+" offline ("+e+")":"")+(!n&&(snapOn()||lt)?" · Updated "+ago(snapOn()?SNAP.t:lt):"");
+const full=(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks… ":"")+(PGU.busy?"Loading stocks… ":"")+(n?"Syncing "+n+" feeds":"")+(BN.err?" · Crypto feed offline ("+BN.err+")":"")+(FHU.err?" · Finnhub: "+FHU.err:"")+(PGU.err?" · Polygon: "+PGU.err:"")+(Date.now()<BN.pause?" · Rate limit, pausing":"")+(ne?" · "+ne+" feed"+(ne===1?"":"s")+" offline ("+e+")":"")+(!n&&(snapOn()||lt)?" · Updated "+ago(snapOn()?SNAP.t:lt):"");
 d.title=full.replace(/^\s*·\s*/,"").trim();
 const hasUnavail=ne&&/feed unavailable/i.test(String(e||""));
 let calm="";
-if(FAILOVER.on)calm="Cached failover";
-else if(hasUnavail)calm=String(e);
+if(hasUnavail)calm=String(e);
 else if(BN.busy||FHU.busy||PGU.busy)calm="Syncing";
 else if(Date.now()<BN.pause)calm="Paused";
 else if(n>0)calm="Syncing";
@@ -2994,7 +3257,7 @@ if(S.data.polyKey){PGU.loaded=false;loadPGU()}
 function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;if(typeof VT_CANDLE_EDGE_CACHE!=="undefined")VT_CANDLE_EDGE_CACHE.clear();if(typeof VT_EDGE!=="undefined"){if(VT_EDGE.hasMoreHistory)VT_EDGE.hasMoreHistory.clear();if(VT_EDGE.historyBackfillInFlight)VT_EDGE.historyBackfillInFlight.clear()}try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){S.ui="auto";const w=innerWidth;UIM=w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
-function goHome(){go("workspace");S.chart.sym="";save();render();drawChart();toast("Home")}
+function goHome(){location.hash="#/"}
 function setUI(v){S.ui="auto";applyUI();render();drawChart()}
 addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{const o=UIM+"|"+document.documentElement.dataset.split;applyUI();if(UIM+"|"+document.documentElement.dataset.split!==o){render();drawChart()}},200)});
 function sync(){document.getElementById("q").value=S.q}
@@ -3271,6 +3534,76 @@ function vtPosDropdown(btn,menu,rightAlign){
     menu.style.right="auto";
   }
 }
+function vtIsExternalHash(raw){
+  const h=String(raw||"").trim().toLowerCase();
+  if(!h||h==="#"||h==="#/"||h==="#/home"||h==="#/landing"||h==="#/waitlist"||h==="#/pricing"||h==="#landing"||h==="#waitlist"||h==="#pricing")return true;
+  if(/^#\/?(features|products)\/[a-z0-9-]+$/.test(h))return true;
+  if(/^#\/?(auth|login|signin|signup|register)(\/|$)/.test(h))return true;
+  return false;
+}
+function vtSyncProfileAvatar(){
+  const iniEl=document.getElementById("vtAvatarInit"),btn=document.getElementById("vtProfileBtn");
+  const u=(typeof window!=="undefined"&&window.__VT_USER)||null;
+  const isG=typeof vtIsGuest==="function"&&vtIsGuest();
+  let label="VT",title="Profile & Account";
+  if(u&&(u.name||u.email)){
+    const src=String(u.name||u.email).trim();
+    const parts=src.split(/[\s@._-]+/).filter(Boolean);
+    label=(parts.length>=2?parts[0][0]+parts[1][0]:src.slice(0,2)).toUpperCase();
+    title="Account: "+src;
+  }else if(!isG&&typeof VT_UID==="string"&&VT_UID){
+    label=VT_UID.slice(0,2).toUpperCase();
+    title="Account: "+VT_UID;
+  }else{
+    label="G";
+    title="Guest session — Sign in";
+  }
+  if(iniEl)iniEl.textContent=label;
+  if(btn){btn.title=title;btn.setAttribute("aria-label",label+" — "+title)}
+}
+function vtOpenProfileModal(){
+  const isG=typeof vtIsGuest==="function"&&vtIsGuest();
+  const u=(typeof window!=="undefined"&&window.__VT_USER)||null;
+  const uid=(u&&(u.email||u.name))||(isG?"Guest session":(VT_UID||"Signed in"));
+  const role=u&&u.role?u.role:(isG?"guest":"member");
+  modal(`<div class="vt-prof-modal" role="dialog" aria-modal="true" aria-labelledby="vt_prof_h">
+    <h3 id="vt_prof_h">Account &amp; Profile</h3>
+    <div class="vt-prof-card">
+      <div class="vt-prof-av" aria-hidden="true">${esc((document.getElementById("vtAvatarInit")||{}).textContent||"VT")}</div>
+      <div class="vt-prof-meta"><b>${esc(uid)}</b><span class="mut">Role: ${esc(role)} · Free core tier</span></div>
+    </div>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      ${isG?`<button type="button" class="pri" onclick="closeM();if(typeof vtOpenAuthModal==='function')vtOpenAuthModal('signin');else location.hash='#/login'">Sign In</button><button type="button" onclick="closeM();if(typeof vtOpenAuthModal==='function')vtOpenAuthModal('signup');else location.hash='#/signup'">Create Account</button>`:`<button type="button" onclick="closeM();location.hash='#/legal/your-data'">Your Data &amp; Privacy</button><button type="button" class="danger" onclick="closeM();authSignOut()">Log Out</button>`}
+      <span class="sp"></span>
+      <button type="button" onclick="closeM()">Close</button>
+    </div>
+  </div>`);
+}
+function vtTogGridlines(){
+  const on=!(S.chart.showGridV!==false||S.chart.showGridH!==false);
+  S.chart.showGridV=on;S.chart.showGridH=on;save();drawChart();vtTogSetMenu();vtTogSetMenu();
+}
+function vtTogMagnetPref(){
+  S.chart.xhMode=S.chart.xhMode==="magnet"?"normal":"magnet";
+  MAG=S.chart.xhMode==="magnet";save();drawChart();tbRef();vtTogSetMenu();vtTogSetMenu();
+}
+function vtTogDensity(){
+  S.density=S.density==="compact"?"comfortable":"compact";
+  document.documentElement.dataset.density=S.density;
+  save();vtTogSetMenu();vtTogSetMenu();
+}
+function vtTogAlertSound(){
+  S.alertSound=S.alertSound===false?true:false;
+  save();toast("Alert sound "+(S.alertSound?"enabled":"muted"));vtTogSetMenu();vtTogSetMenu();
+}
+function vtTogAlertLines(){
+  S.chart.showAlertLines=S.chart.showAlertLines===false?true:false;
+  save();drawChart();vtTogSetMenu();vtTogSetMenu();
+}
+function vtTogAutoSave(){
+  S.autoSave=S.autoSave===false?true:false;
+  save();toast("Auto-save layout "+(S.autoSave?"enabled":"paused"));vtTogSetMenu();vtTogSetMenu();
+}
 function vtTogFeatMenu(ev){
   if(ev)ev.stopPropagation();
   const m=document.getElementById("vtFeatMenu"),b=document.getElementById("vtFeatBtn");
@@ -3279,7 +3612,7 @@ function vtTogFeatMenu(ev){
   vtCloseAllMenus();
   if(wasOpen)return;
   const cur=S.pageView||"workspace";
-  m.innerHTML=`<div class="vt-dd-sec">TERMINAL WORKSPACES</div><div class="vt-dd-grid">`+PAGES.map(([id,n,ic])=>`<a href="#/${id}" data-p="${id}" role="menuitem" class="vt-dd-item ${cur===id?"on":""}"${cur===id?' aria-current="page"':""} onclick="vtCloseAllMenus()"><span class="vt-dd-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></span><span class="vt-dd-txt"><b>${esc(n)}</b><small>${esc(VT_FEAT_DESC[id]||"")}</small></span></a>`).join("")+`</div><div class="vt-dd-foot"><button type="button" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus();syOpen()">Symbol Search (Ctrl+K)</button><button type="button" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus();if(typeof vtSumM==='function')vtSumM()">Today’s Session</button><a href="#/landing" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Landing &amp; Pricing</a></div>`;
+  m.innerHTML=`<div class="vt-dd-sec">TERMINAL WORKSPACES</div><div class="vt-dd-grid">`+PAGES.map(([id,n,ic])=>`<a href="#/${id}" data-p="${id}" role="menuitem" class="vt-dd-item ${cur===id?"on":""}"${cur===id?' aria-current="page"':""} onclick="vtCloseAllMenus()"><span class="vt-dd-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></span><span class="vt-dd-txt"><b>${esc(n)}</b><small>${esc(VT_FEAT_DESC[id]||"")}</small></span></a>`).join("")+`</div><div class="vt-dd-sec">PRODUCT OVERVIEWS</div><div class="vt-dd-overviews"><a href="#/features/supercharts" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">VektorCharts</a><a href="#/features/screener" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Screener</a><a href="#/features/replay" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Bar Replay</a><a href="#/features/journal" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Journal</a><a href="#/features/heatmaps" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Heatmaps</a><a href="#/features/script" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Vektor Script</a></div><div class="vt-dd-foot"><a href="#/" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">← Home</a><button type="button" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus();syOpen()">Symbol Search (Ctrl+K)</button><a href="#/pricing" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Pricing</a></div>`;
   vtPosDropdown(b,m,false);
   m.classList.add("open");
   b.setAttribute("aria-expanded","true");
@@ -3293,34 +3626,57 @@ function vtTogSetMenu(ev){
   if(wasOpen)return;
   const eff=getEffTheme();
   const isG=typeof vtIsGuest==="function"&&vtIsGuest();
+  const isAdm=!!(typeof window!=="undefined"&&window.__VT_USER&&window.__VT_USER.role==="admin");
   const uid=isG?"Guest session":(VT_UID||"Signed in");
+  const gridOn=S.chart.showGridV!==false||S.chart.showGridH!==false;
+  const magOn=S.chart.xhMode==="magnet"||MAG;
+  const dens=S.density==="compact"?"Compact":"Comfortable";
+  const sndOn=S.alertSound!==false;
+  const alOn=S.chart.showAlertLines!==false;
+  const autoOn=S.autoSave!==false;
   m.innerHTML=`<div class="vt-dd-sec">APPEARANCE</div>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="togTheme();vtCloseAllMenus()"><span>Theme: <b>${eff==="dark"?"Dark Mode":"Light Mode"}</b></span><span class="vt-dd-pill">Switch to ${eff==="dark"?"Light":"Dark"}</span></button>
-  <div class="vt-dd-sec">SETTINGS &amp; TOOLS</div>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();scrSetM()"><span>Screener Settings &amp; Filters</span><span class="mut">P1–P5 · Columns</span></button>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();setM()"><span>Chart &amp; Canvas Settings</span><span class="mut">Scales · Timezone</span></button>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();indM()"><span>Indicators &amp; Vektor Script</span><span class="mut">${S.chart.ind.length} active</span></button>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();tplM()"><span>Chart Templates</span><span class="mut">Save / Export</span></button>
-  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();alertsM()"><span>Price Alerts &amp; Sound</span><span class="mut">${(S.alerts||[]).length} alerts</span></button>
+  <button type="button" role="menuitem" id="vtSetThemeBtn" class="vt-dd-row" onclick="togTheme();vtTogSetMenu();vtTogSetMenu()"><span>Theme: <b>${eff==="dark"?"Dark":"Light"}</b></span><span class="vt-dd-pill">${eff==="dark"?"Switch to Light":"Switch to Dark"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogGridlines()"><span>Chart Gridlines</span><span class="vt-dd-pill ${gridOn?"on":""}">${gridOn?"On":"Off"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogMagnetPref()"><span>Crosshair Magnet</span><span class="vt-dd-pill ${magOn?"on":""}">${magOn?"On":"Off"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogDensity()"><span>Interface Density</span><span class="vt-dd-pill">${dens}</span></button>
+  <div class="vt-dd-sec">TRADING &amp; ALERTS</div>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogAlertSound()"><span>Sound Notifications</span><span class="vt-dd-pill ${sndOn?"on":""}">${sndOn?"On":"Muted"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogAlertLines()"><span>Price Alert Lines</span><span class="vt-dd-pill ${alOn?"on":""}">${alOn?"Visible":"Hidden"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtTogAutoSave()"><span>Auto-Save Layout</span><span class="vt-dd-pill ${autoOn?"on":""}">${autoOn?"On":"Off"}</span></button>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();scrSetM()"><span>Screener Settings &amp; Filters</span><span class="mut">P1–P5</span></button>
+  <div class="vt-dd-sec">NAVIGATION &amp; HELP</div>
   <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();if(typeof vtKbOpen==='function')vtKbOpen()"><span>Keyboard Shortcuts</span><span class="mut">?</span></button>
+  <a href="#/features/supercharts" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus()"><span>Knowledge Base &amp; Docs</span><span class="mut">Guides</span></a>
+  <a href="#/legal" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus()"><span>Legal &amp; Privacy Hub</span><span class="mut">Terms · Risk</span></a>
+  ${isAdm?`<button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();const ab=document.getElementById('vtAdminBtn');if(ab)ab.click()"><span>Admin Panel</span><span class="vt-dd-pill on">Admin</span></button>`:""}
   <div class="vt-dd-sec">ACCOUNT (${esc(uid)})</div>
+  <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();const pb=document.getElementById('vtProfileBtn');if(pb)pb.click()"><span>Profile Settings</span><span class="mut">Account</span></button>
   ${isG?`<button type="button" role="menuitem" class="vt-dd-row pri" onclick="vtCloseAllMenus();if(typeof vtOpenAuthModal==='function')vtOpenAuthModal('signin');else vtShowSignIn()"><span>Sign In to Account</span></button>
   <button type="button" role="menuitem" class="vt-dd-row" onclick="vtCloseAllMenus();if(typeof vtOpenAuthModal==='function')vtOpenAuthModal('signup');else{location.hash='#/signup';vtShowSignIn()}"><span>Create New Account</span><span class="vt-dd-pill">Free</span></button>`
-  :`<button type="button" role="menuitem" class="vt-dd-row danger" onclick="vtCloseAllMenus();authSignOut()"><span>Log Out (${esc(uid)})</span></button>`}
-  <div class="vt-dd-foot"><a href="#/legal/privacy" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Privacy</a><a href="#/legal/your-data" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Your Data</a><a href="#/legal/risk" role="menuitem" class="vt-dd-sub" onclick="vtCloseAllMenus()">Risk Disclaimer</a></div>`;
+  :`<button type="button" role="menuitem" class="vt-dd-row danger" onclick="vtCloseAllMenus();authSignOut()"><span>Log Out</span></button>`}`;
   vtPosDropdown(b,m,true);
   m.classList.add("open");
   b.setAttribute("aria-expanded","true");
 }
 document.addEventListener("click",e=>{if(!e.target.closest||!e.target.closest(".vt-dd-wrap"))vtCloseAllMenus()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")vtCloseAllMenus()});
+window.addEventListener("vt:auth-changed",()=>{try{vtSyncProfileAvatar()}catch(_e){}});
 let ROUTER=false;
 function routerInit(){if(ROUTER)return;ROUTER=true;
   const nav=document.getElementById("vnav");if(nav)nav.innerHTML=navHTML();
-  const saved=lsGet("vt_page")||S.pageView,p=pageOf(location.hash)||(PAGE_IDS.includes(saved)?saved:"workspace");
-  if(pageOf(location.hash)!==p)history.replaceState(null,"","#/"+p);
+  if(S.density)document.documentElement.dataset.density=S.density;
+  vtSyncProfileAvatar();
+  const saved=lsGet("vt_page")||S.pageView;
+  const isExt=vtIsExternalHash(location.hash);
+  const p=pageOf(location.hash)||(PAGE_IDS.includes(saved)?saved:"workspace");
+  if(!isExt&&pageOf(location.hash)!==p)history.replaceState(null,"","#/"+p);
   showPage(p,true);
-  addEventListener("hashchange",()=>{const q=pageOf(location.hash);if(q)showPage(q);else history.replaceState(null,"","#/"+(S.pageView||"workspace"))});
+  addEventListener("hashchange",()=>{
+    if(vtIsExternalHash(location.hash))return;
+    const q=pageOf(location.hash);
+    if(q)showPage(q);
+    else history.replaceState(null,"","#/"+(S.pageView||"workspace"));
+  });
 }
 // placeholder for pages that haven't been built yet
 function stubPage(id,title,blurb){PAGE_HOOK[id]=PAGE_HOOK[id]||{enter(){const el=document.getElementById("pv-"+id);if(el&&!el.dataset.built){el.dataset.built=1;el.innerHTML=`<div class="pgw"><div class="pgh"><h2>${title}</h2></div><div class="vcard stub">${blurb}</div></div>`}}}}
@@ -5437,7 +5793,11 @@ function btLiveStats(){
 function btRenderChart(){
   const D=BT.D,ses=BT.ses;if(!D||!BT.ser)return;
   const i=BT.rp.i;
-  BT.ser.setData(D.D.slice(0,i));
+  const sl=D.D.slice(0,i);
+  const ct=BT.chartType||"candles";
+  if(ct==="line"||ct==="area")BT.ser.setData(sl.map(x=>({time:x.time,value:x.close})));
+  else if(ct==="heikin")BT.ser.setData(vtToHeikinAshi(sl));
+  else BT.ser.setData(sl);
   BT.plines.forEach(l=>{try{BT.ser.removePriceLine(l)}catch(e){}});
   BT.plines=[];
   const mk=[];
@@ -5496,6 +5856,12 @@ function btRenderDesk(){
   if(hPnl){hPnl.textContent=ses&&ses.pos?jrUsd(st.unrealized):"$0.00";hPnl.className="bt-stat-v "+(ses&&ses.pos?jrCls(st.unrealized):"")}
   const hWr=document.getElementById("bt_hdr_wr");
   if(hWr){hWr.textContent=st.st.n?jrPct(st.st.winRate):"\u2013"}
+  const bBal=document.getElementById("bt_bar_bal");
+  if(bBal){bBal.textContent=jrAbs(st.equity)}
+  const bPnl=document.getElementById("bt_bar_pnl");
+  if(bPnl){bPnl.textContent=ses&&ses.pos?jrUsd(st.unrealized):"$0.00";bPnl.className="bt-bar-v "+(ses&&ses.pos?jrCls(st.unrealized):"")}
+  const tSym=document.getElementById("bt_top_sym");if(tSym)tSym.textContent=B.sym;
+  const tTf=document.getElementById("bt_tf_s");if(tTf)tTf.value=B.tf;
   document.querySelectorAll("#pv-backtest [data-qrisk]").forEach(btn=>{btn.classList.toggle("on",Math.abs((+btn.dataset.qrisk)-B.riskPct)<0.001)});
 
   const actHost=document.getElementById("bt_poshost");if(!actHost)return;
@@ -5691,110 +6057,247 @@ async function btReplayInit(resetSession){
   host.innerHTML="";
   if(!window.LightweightCharts){host.innerHTML=`<p class="mut">Chart library failed to load.</p>`;return}
   BT.ch=LightweightCharts.createChart(host,vtChartOpts(B.tf));
-  BT.ser=BT.ch.addCandlestickSeries(vtCandleOpts(s));
+  const ct=B.chartType||BT.chartType||"candles";BT.chartType=ct;
+  const co=vtCandleOpts(s);
+  if(ct==="line")BT.ser=BT.ch.addLineSeries({color:"#2962ff",lineWidth:2});
+  else if(ct==="area")BT.ser=BT.ch.addAreaSeries({lineColor:"#2962ff",lineWidth:2,topColor:"rgba(41,98,255,0.28)",bottomColor:"rgba(41,98,255,0.02)"});
+  else if(ct==="bars")BT.ser=BT.ch.addBarSeries({upColor:co.upColor||"#10b981",downColor:co.downColor||"#f43f5e"});
+  else if(ct==="hollow")BT.ser=BT.ch.addCandlestickSeries(Object.assign({},co,{upColor:"rgba(0,0,0,0)"}));
+  else BT.ser=BT.ch.addCandlestickSeries(co);
   btRefreshAll();
   try{BT.ch.timeScale().fitContent()}catch(e){}
+}
+function btTogChartTypeMenu(ev){
+  if(ev)ev.stopPropagation();
+  const btn=document.getElementById("bt_ctype_btn"),m=document.getElementById("bt_ctype_btn_menu");
+  if(!btn||!m)return;
+  const open=m.style.display==="block";
+  if(open){m.style.display="none";btn.setAttribute("aria-expanded","false");return}
+  const cur=BT.chartType||btCfg().chartType||"candles";
+  m.innerHTML=VT_CHART_TYPES.map(t=>`<button type="button" role="menuitem" class="vt-pop-item vt-ctype-item ${cur===t.id?"on":""}" onclick="btSetChartType('${t.id}')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.ic}</svg><span>${t.label}</span></button>`).join("");
+  const r=btn.getBoundingClientRect();
+  m.style.position="fixed";m.style.top=Math.round(r.bottom+6)+"px";m.style.left=Math.max(8,Math.min(window.innerWidth-190,Math.round(r.left)))+"px";
+  m.style.display="block";btn.setAttribute("aria-expanded","true");
+}
+function btSetChartType(t){
+  const B=btCfg();B.chartType=t;BT.chartType=t;save();
+  const m=document.getElementById("bt_ctype_btn_menu");if(m)m.style.display="none";
+  const btn=document.getElementById("bt_ctype_btn");
+  const ct=VT_CHART_TYPES.find(x=>x.id===t)||VT_CHART_TYPES[0];
+  if(btn)btn.innerHTML=`<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ct.ic}</svg><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+  btReplayInit(false);
+}
+function btSetPage(mode){
+  BT.page=mode==="session"?"session":"setup";
+  const p1=document.getElementById("bt_setup_page"),p2=document.getElementById("bt_session_page");
+  if(p1)p1.hidden=BT.page==="session";
+  if(p2)p2.hidden=BT.page!=="session";
+  if(BT.page==="session"){
+    const tb=document.getElementById("bt_tb");if(tb)tb.innerHTML=tbHTML();
+    if(typeof vtRenderFavBars==="function")vtRenderFavBars();
+    if(typeof vtSyncUndoBtns==="function")vtSyncUndoBtns();
+    setTimeout(()=>{if(BT.ch&&BT.D){try{BT.ch.timeScale().fitContent()}catch(_e){}}},60);
+  }else{
+    btStop();
+  }
+}
+function btToggleDrawer(tab){
+  const dr=document.getElementById("bt_drawer");if(!dr)return;
+  if(tab&&!dr.hidden&&BT.tab===tab){dr.hidden=true;return}
+  dr.hidden=false;
+  if(tab)btSetTab(tab);
 }
 function btBuild(){
   const el=document.getElementById("pv-backtest");if(!el)return;
   const B=btCfg();
+  if(!B.leverage)B.leverage=100;
+  if(!B.endAt)B.endAt="";
+  if(!BT.page)BT.page="setup";
   const brackets=[["atr2","ATR 1:2"],["atr3","ATR 1:3"],["pct12","1% / 2%"],["none","Manual"]];
-  el.innerHTML=`<div class="pgw bt">
-    <div class="pgh bt-pgh">
-      <h2>Bar Replay</h2>
-      <span class="bt-win-badge" id="bt_win"></span>
-      <span class="sp"></span>
-      <div class="bt-hdr-stats" aria-label="Session telemetry">
-        <span class="bt-stat"><span class="bt-stat-k">Equity</span><b class="bt-stat-v" id="bt_hdr_eq">${jrAbs(B.bal)}</b></span>
-        <span class="bt-stat"><span class="bt-stat-k">Open P&amp;L</span><b class="bt-stat-v" id="bt_hdr_pnl">$0.00</b></span>
-        <span class="bt-stat"><span class="bt-stat-k">Win Rate</span><b class="bt-stat-v" id="bt_hdr_wr">\u2013</b></span>
-      </div>
-    </div>
-    <section class="vcard bt-setup-card" id="bt_setup_card" aria-label="Replay session setup">
-      <div class="bt-setup-bar">
-        <span class="bt-setup-sum" id="bt_sum">${esc(B.sym)} \u00b7 ${esc(B.tf)} \u00b7 ${jrAbs(B.bal)} \u00b7 ${esc(String(B.riskPct))}% risk</span>
-        <span class="sp"></span>
-        <button type="button" id="bt_setup_tog" aria-expanded="true" aria-controls="bt_f">Session Setup</button>
-      </div>
-      <div class="bt-setup" id="bt_f">
-        <label class="bt-symw">Symbol<input id="bt_sym" value="${esc(B.sym)}" list="bt_syms" autocomplete="off"></label>
-        <datalist id="bt_syms">${(typeof SYMS!=="undefined"?SYMS:[]).slice(0,500).map(s=>`<option value="${esc(s[0])}">`).join("")}</datalist>
-        <label>TF<select id="bt_tf">${["1m","5m","15m","1H","4H","1D"].map(x=>`<option value="${x}"${B.tf===x?" selected":""}>${x}</option>`).join("")}</select></label>
-        <label>Start<input id="bt_start" type="datetime-local" value="${esc(B.startAt)}"></label>
-        <div class="bt-qpos" role="group" aria-label="Quick start position">
-          <button type="button" data-qpos="0.2" title="Jump to 20% of replay window">20%</button>
-          <button type="button" data-qpos="0.5" title="Jump to 50% of replay window">50%</button>
-          <button type="button" data-qpos="0.75" title="Jump to 75% of replay window">75%</button>
+  const qSyms=[["GBP/USD","GBPUSD"],["EUR/USD","EURUSD"],["XAU/USD","XAUUSD"],["BTC/USD","BTCUSDT"],["SPY","SPY"],["AAPL","AAPL"]];
+  const bals=[1000,10000,50000,100000];
+  const levs=[10,30,50,100,500];
+  const tfs=["1m","5m","15m","1H","4H","1D"];
+  el.innerHTML=`<div class="pgw bt bt-2page">
+    <section id="bt_setup_page" class="bt-setup-page" aria-label="Backtest session setup"${BT.page==="session"?" hidden":""}>
+      <div class="bt-wiz-card vcard">
+        <div class="bt-wiz-hd">
+          <span class="bt-wiz-eyebrow">VEKTOR BACKTEST LAB</span>
+          <h2>Configure Replay Session</h2>
+          <p class="mut">Select your instrument, historical window, account size, and leverage to launch the full-screen trading cockpit.</p>
         </div>
-        <label>Bal ($)<input id="bt_bal" type="number" step="100" min="100" value="${esc(String(B.bal))}" inputmode="decimal"></label>
-        <label>Risk %<input id="bt_risk" type="number" step="0.1" min="0.05" max="100" value="${esc(String(B.riskPct))}" inputmode="decimal"></label>
-        <label>Fee %<input id="bt_fee" type="number" step="0.01" min="0" max="5" value="${esc(String(B.feePct))}" inputmode="decimal"></label>
-        <button type="button" class="pri" id="bt_reset">New Session</button>
+        <div class="bt-wiz-grid" id="bt_f">
+          <div class="bt-wiz-sec bt-wiz-full">
+            <label for="bt_sym">Asset / Symbol</label>
+            <input id="bt_sym" value="${esc(B.sym)}" list="bt_syms" autocomplete="off" placeholder="Search symbol (e.g. BTCUSDT, EURUSD, AAPL)">
+            <datalist id="bt_syms">${(typeof SYMS!=="undefined"?SYMS:[]).slice(0,500).map(s=>`<option value="${esc(s[0])}">`).join("")}</datalist>
+            <div class="bt-chips" role="group" aria-label="Quick symbol presets">
+              ${qSyms.map(([lbl,sym])=>`<button type="button" class="bt-chip ${B.sym===sym?"on":""}" data-qsym="${sym}">${lbl}</button>`).join("")}
+            </div>
+          </div>
+          <div class="bt-wiz-sec">
+            <label for="bt_start">Start Date</label>
+            <input id="bt_start" type="datetime-local" value="${esc(B.startAt)}">
+          </div>
+          <div class="bt-wiz-sec">
+            <label for="bt_end">End Date (optional)</label>
+            <input id="bt_end" type="datetime-local" value="${esc(B.endAt||"")}">
+          </div>
+          <div class="bt-wiz-sec bt-wiz-full">
+            <label for="bt_tf">Timeframe</label>
+            <div class="bt-tf-row">
+              <select id="bt_tf" class="bt-tf-sel">${tfs.map(x=>`<option value="${x}"${B.tf===x?" selected":""}>${x}</option>`).join("")}</select>
+              <div class="bt-chips" role="group" aria-label="Timeframe presets">
+                ${tfs.map(x=>`<button type="button" class="bt-chip ${B.tf===x?"on":""}" data-qtf="${x}">${x}</button>`).join("")}
+              </div>
+            </div>
+          </div>
+          <div class="bt-wiz-sec bt-wiz-full">
+            <label for="bt_bal">Account Size ($)</label>
+            <div class="bt-bal-row">
+              <input id="bt_bal" type="number" step="100" min="100" value="${esc(String(B.bal))}" inputmode="decimal">
+              <div class="bt-chips" role="group" aria-label="Account size presets">
+                ${bals.map(v=>`<button type="button" class="bt-chip ${+B.bal===v?"on":""}" data-qbal="${v}">$${v.toLocaleString()}</button>`).join("")}
+              </div>
+            </div>
+          </div>
+          <div class="bt-wiz-sec bt-wiz-full">
+            <span class="bt-sublbl">Leverage</span>
+            <div class="bt-chips" role="group" aria-label="Leverage presets">
+              ${levs.map(v=>`<button type="button" class="bt-chip ${+B.leverage===v?"on":""}" data-qlev="${v}">1:${v}</button>`).join("")}
+            </div>
+          </div>
+          <div class="bt-wiz-sec">
+            <label for="bt_risk">Risk per Trade (%)</label>
+            <input id="bt_risk" type="number" step="0.1" min="0.05" max="100" value="${esc(String(B.riskPct))}" inputmode="decimal">
+          </div>
+          <div class="bt-wiz-sec">
+            <label for="bt_fee">Commission / Fee (%)</label>
+            <input id="bt_fee" type="number" step="0.01" min="0" max="5" value="${esc(String(B.feePct))}" inputmode="decimal">
+          </div>
+        </div>
+        <p class="vsmsg err" id="bt_err" role="alert"></p>
+        <div class="bt-wiz-foot">
+          <button type="button" id="bt_reset">Reset Defaults</button>
+          <span class="sp"></span>
+          <button type="button" class="pri bt-start-cta" id="bt_start_session">Start Backtest Session →</button>
+        </div>
       </div>
-      <p class="vsmsg err" id="bt_err" role="alert"></p>
     </section>
-    <div class="bt-work">
-      <section class="vcard bt-chartcard" aria-labelledby="bt_rph">
-        <div class="bt-chart-top"><h3 id="bt_rph" class="vh">Replay chart</h3><div class="bt-ohlc" id="bt_ohlc"></div><span class="sp"></span><span class="mut bt-meta" id="bt_meta"></span></div>
-        <div id="bt_cv" class="btcv"><p class="mut vt-skel" role="status">Loading replay chart\u2026</p></div>
-        <div class="btrpc bt-dockbar" role="group" aria-label="Replay controls">
-          <div class="bt-tgrp">
-            <button type="button" class="bt-ic" id="bt_rs" title="Jump to start" aria-label="Jump to start">${BT_IC.start}</button>
+
+    <section id="bt_session_page" class="bt-session-page" aria-label="Backtest chart cockpit"${BT.page==="session"?"":" hidden"}>
+      <div class="bt-topbar" role="toolbar" aria-label="Backtest chart toolbar">
+        <div class="bt-tb-left">
+          <button type="button" class="bt-sym-pill" id="bt_top_sym_btn" onclick="btSetPage('setup')" title="Change symbol or session settings"><b id="bt_top_sym">${esc(B.sym)}</b></button>
+          <select id="bt_tf_s" class="bt-tb-sel" aria-label="Replay timeframe">${tfs.map(x=>`<option value="${x}"${B.tf===x?" selected":""}>${x}</option>`).join("")}</select>
+          ${vtChartTypeBtnHTML(B.chartType||"candles","btTogChartTypeMenu","bt_ctype_btn")}
+          <button type="button" class="bt-tb-btn" onclick="indM()" title="Indicators"><i>fx</i> Indicators</button>
+          <button type="button" class="bt-tb-btn pri-soft" id="bt_open_pos_btn" title="Open or manage position">Open Position</button>
+          <button type="button" class="bt-tb-btn" id="bt_quick_place_btn" title="Quick market Buy / Sell">Quick Place</button>
+          <button type="button" class="bt-tb-btn" id="bt_goto_btn" title="Jump to bar position">Go To</button>
+          <button type="button" class="bt-tb-btn" id="bt_rs" title="Rewind to start" aria-label="Rewind to start">⏮ Rewind</button>
+          <button type="button" id="bt_undo_btn" class="vt-ur-btn" onclick="doUndo()" title="Undo drawing (Ctrl+Z)" aria-label="Undo drawing" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+          <button type="button" id="bt_redo_btn" class="vt-ur-btn" onclick="doRedo()" title="Redo drawing (Ctrl+Y)" aria-label="Redo drawing" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+        </div>
+        <div class="bt-tb-right">
+          <button type="button" class="bt-tb-btn" id="bt_save_btn" title="Save &amp; export session CSV">Save</button>
+          <button type="button" class="bt-tb-btn" onclick="setM()" title="Chart settings" aria-label="Chart settings">${VT_IC.gear}</button>
+          <button type="button" class="bt-tb-btn" id="bt_fs_btn" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶ Fullscreen</button>
+        </div>
+      </div>
+
+      <div class="bt-stage">
+        <div class="tbar bt-rail" id="bt_tb" aria-label="Drawing tools">${tbHTML()}</div>
+        <div class="bt-canvas-wrap">
+          <div class="bt-ohlc-bar"><div class="bt-ohlc" id="bt_ohlc"></div><span class="mut bt-meta" id="bt_meta"></span></div>
+          <div id="bt_favbar_host"></div>
+          <div class="bt-rp-pill" id="bt_rp_pill" role="group" aria-label="Replay playback controls">
+            <span class="bt-pill-drag" id="bt_rp_drag" title="Drag playback controls" aria-hidden="true">⋮⋮</span>
+            <label class="bt-spd-wrap" aria-label="Replay speed"><select id="bt_spd">${[1,2,4,8,16].map(v=>`<option value="${v}"${+B.speed===v?" selected":""}>${v}x</option>`).join("")}</select></label>
             <button type="button" class="bt-ic" id="bt_rb" title="Step back 1 bar (Left Arrow)" aria-label="Step back one bar">${BT_IC.back}</button>
-            <button type="button" class="bt-ic pri" id="bt_rp" title="Play / Pause (Space)" aria-label="Play">${BT_IC.play}<span>Play</span></button>
+            <button type="button" class="bt-ic pri" id="bt_rp" title="Play / Pause (Space)" aria-label="Play">${BT_IC.play}</button>
             <button type="button" class="bt-ic" id="bt_rf" title="Step forward 1 bar (Right Arrow)" aria-label="Step forward one bar">${BT_IC.fwd}</button>
             <button type="button" class="bt-ic" id="bt_re" title="Jump to end" aria-label="Jump to the end">${BT_IC.end}</button>
+            <input type="range" id="bt_rr" min="1" max="1" value="1" aria-label="Replay position">
+            <span class="mut bt-rpinfo" id="bt_rpinfo" role="status" aria-live="off"></span>
           </div>
-          <label class="btspd">Speed<select id="bt_spd">${[1,2,4,8,16].map(v=>`<option value="${v}"${+B.speed===v?" selected":""}>${v}x</option>`).join("")}</select></label>
-          <input type="range" id="bt_rr" min="1" max="1" value="1" aria-label="Replay position">
-          <span class="mut bt-rpinfo" id="bt_rpinfo" role="status" aria-live="off"></span>
-        </div>
-      </section>
-      <aside class="vcard bt-desk" id="bt_desk" aria-label="Order ticket">
-        <div class="jrch"><h3>Order Ticket</h3><span class="sp"></span><span class="vt-pill">Paper</span></div>
-        <div class="bt-balbar">
-          <div><div class="k">Equity</div><div class="v" id="bt_equity_hdr">${jrAbs(B.bal)}</div></div>
-          <div><div class="k">Open P&amp;L</div><div class="v" id="bt_unreal_hdr">\u2013</div></div>
-        </div>
-        <div>
-          <span class="bt-sublbl">Risk per trade</span>
-          <div class="bt-qpos bt-risk-pills" role="group" aria-label="Quick risk preset">
-            <button type="button" data-qrisk="0.5" class="${Math.abs(B.riskPct-0.5)<0.001?"on":""}">0.5%</button>
-            <button type="button" data-qrisk="1" class="${Math.abs(B.riskPct-1)<0.001?"on":""}">1%</button>
-            <button type="button" data-qrisk="2" class="${Math.abs(B.riskPct-2)<0.001?"on":""}">2%</button>
+          <div id="bt_quick_pill" class="bt-quick-pill" hidden>
+            <button type="button" class="bt-buy" onclick="btPlaceOrder('long')">Buy Market</button>
+            <button type="button" class="bt-sell" onclick="btPlaceOrder('short')">Sell Market</button>
+            <button type="button" class="bt-qp-x" onclick="document.getElementById('bt_quick_pill').hidden=true" aria-label="Close quick place">×</button>
           </div>
+          <div id="bt_cv" class="btcv"><p class="mut vt-skel" role="status">Loading replay chart\u2026</p></div>
+          <aside class="vcard bt-desk bt-desk-pop" id="bt_desk" aria-label="Order ticket" hidden>
+            <div class="jrch"><h3>Order Ticket</h3><span class="sp"></span><span class="vt-pill">1:${esc(String(B.leverage))}</span><button type="button" class="bt-desk-x" onclick="document.getElementById('bt_desk').hidden=true" aria-label="Close order ticket">×</button></div>
+            <div class="bt-balbar">
+              <div><div class="k">Equity</div><div class="v" id="bt_equity_hdr">${jrAbs(B.bal)}</div></div>
+              <div><div class="k">Open P&amp;L</div><div class="v" id="bt_unreal_hdr">\u2013</div></div>
+            </div>
+            <div>
+              <span class="bt-sublbl">Risk per trade</span>
+              <div class="bt-qpos bt-risk-pills" role="group" aria-label="Quick risk preset">
+                <button type="button" data-qrisk="0.5" class="${Math.abs(B.riskPct-0.5)<0.001?"on":""}">0.5%</button>
+                <button type="button" data-qrisk="1" class="${Math.abs(B.riskPct-1)<0.001?"on":""}">1%</button>
+                <button type="button" data-qrisk="2" class="${Math.abs(B.riskPct-2)<0.001?"on":""}">2%</button>
+              </div>
+            </div>
+            <div>
+              <span class="bt-sublbl">SL / TP bracket</span>
+              <div class="bt-presets">${brackets.map(([k,n])=>`<button type="button" data-brk="${k}" class="${B.bracket===k?"on":""}">${esc(n)}</button>`).join("")}</div>
+            </div>
+            <div class="bt-orderf">
+              <label>Stop Loss<input id="bt_sl" type="number" step="any" placeholder="Auto" inputmode="decimal"></label>
+              <label>Take Profit<input id="bt_tp" type="number" step="any" placeholder="Auto" inputmode="decimal"></label>
+            </div>
+            <div id="bt_poshost"></div>
+          </aside>
         </div>
-        <div>
-          <span class="bt-sublbl">SL / TP bracket</span>
-          <div class="bt-presets">${brackets.map(([k,n])=>`<button type="button" data-brk="${k}" class="${B.bracket===k?"on":""}">${esc(n)}</button>`).join("")}</div>
-        </div>
-        <div class="bt-orderf">
-          <label>Stop Loss<input id="bt_sl" type="number" step="any" placeholder="Auto" inputmode="decimal"></label>
-          <label>Take Profit<input id="bt_tp" type="number" step="any" placeholder="Auto" inputmode="decimal"></label>
-        </div>
-        <div id="bt_poshost"></div>
-      </aside>
-    </div>
-    <section class="vcard btres" aria-labelledby="bt_rh">
-      <div class="jrch">
-        <h3 id="bt_rh">Session Drawer</h3>
-        <div class="seg" id="bt_tabs" role="tablist" aria-label="Backtest views">
-          <button type="button" id="bt_tab_pos" data-bttab="positions" role="tab" aria-selected="${BT.tab==="positions"}" class="${BT.tab==="positions"?"on":""}" onclick="btSetTab('positions')">Active Position (<span id="bt_cnt_pos">0</span>)</button>
-          <button type="button" id="bt_tab_hist" data-bttab="history" role="tab" aria-selected="${BT.tab==="history"}" class="${BT.tab==="history"?"on":""}" onclick="btSetTab('history')">Trade History (<span id="bt_cnt_hist">0</span>)</button>
-          <button type="button" id="bt_tab_eq" data-bttab="equity" role="tab" aria-selected="${BT.tab==="equity"}" class="${BT.tab==="equity"?"on":""}" onclick="btSetTab('equity')">Equity Curve</button>
-        </div>
-        <span class="sp"></span>
-        <button type="button" id="bt_csv" disabled title="Export replay trades to CSV">Export CSV</button>
       </div>
-      <div id="bt_out"></div>
+
+      <section class="vcard btres bt-drawer" id="bt_drawer" aria-labelledby="bt_rh" hidden>
+        <div class="jrch">
+          <h3 id="bt_rh">Session Drawer</h3>
+          <div class="seg" id="bt_tabs" role="tablist" aria-label="Backtest views">
+            <button type="button" id="bt_tab_pos" data-bttab="positions" role="tab" aria-selected="${BT.tab==="positions"}" class="${BT.tab==="positions"?"on":""}" onclick="btSetTab('positions')">Active Position (<span id="bt_cnt_pos">0</span>)</button>
+            <button type="button" id="bt_tab_hist" data-bttab="history" role="tab" aria-selected="${BT.tab==="history"}" class="${BT.tab==="history"?"on":""}" onclick="btSetTab('history')">Trade History (<span id="bt_cnt_hist">0</span>)</button>
+            <button type="button" id="bt_tab_eq" data-bttab="equity" role="tab" aria-selected="${BT.tab==="equity"}" class="${BT.tab==="equity"?"on":""}" onclick="btSetTab('equity')">Equity Curve</button>
+          </div>
+          <span class="sp"></span>
+          <button type="button" id="bt_csv" disabled title="Export replay trades to CSV">Export CSV</button>
+          <button type="button" class="bt-desk-x" onclick="document.getElementById('bt_drawer').hidden=true" aria-label="Close session drawer">×</button>
+        </div>
+        <div id="bt_out"></div>
+      </section>
+
+      <div class="bt-statusbar" role="status" aria-label="Backtest session status bar">
+        <div class="bt-sb-left">
+          <svg width="26" height="16" viewBox="-6 -4 412 246" fill="none" aria-hidden="true"><path d="M2 2 L66 2 L132 120 L161 70 L223 70 L132 234 Z" fill="currentColor"/><path d="M198 2 L398 2 L371 50 L306 51 L306 233 L253 233 L253 74 L266 51 L172 50 Z" fill="currentColor"/></svg>
+          <span class="bt-sb-brand">VEKTOR</span>
+        </div>
+        <div class="bt-sb-right">
+          <button type="button" class="bt-sb-ic" onclick="btToggleDrawer('positions')" title="Active Positions" aria-label="Toggle Active Positions drawer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg></button>
+          <button type="button" class="bt-sb-ic" onclick="btToggleDrawer('history')" title="Trade History" aria-label="Toggle Trade History drawer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+          <button type="button" class="bt-sb-ic" onclick="btToggleDrawer('equity')" title="Equity Curve" aria-label="Toggle Equity Curve drawer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg></button>
+          <span class="bt-sb-stat">Balance: <b id="bt_bar_bal">${jrAbs(B.bal)}</b></span>
+          <span class="bt-sb-stat">Open Profit/Loss: <b id="bt_bar_pnl" class="bt-bar-v">$0.00</b></span>
+          <button type="button" class="bt-exit-btn" id="bt_exit_session">Exit Session</button>
+        </div>
+      </div>
     </section>
   </div>`;
 
   const q=id=>document.getElementById(id);
-  const stog=q("bt_setup_tog"),scard=q("bt_setup_card");
-  if(stog&&scard){stog.onclick=()=>{const col=scard.classList.toggle("collapsed");stog.setAttribute("aria-expanded",String(!col))}}
-  q("bt_sym").onchange=e=>{const v=e.target.value.trim().toUpperCase();if(!v)return;B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save();btStop();btReplayInit(true)};
-  q("bt_tf").onchange=e=>{B.tf=e.target.value;save();btStop();btReplayInit(true)};
+  q("bt_sym").onchange=e=>{const v=e.target.value.trim().toUpperCase();if(!v)return;B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save();el.querySelectorAll("[data-qsym]").forEach(x=>x.classList.toggle("on",x.dataset.qsym===v));btStop();btReplayInit(true)};
+  el.querySelectorAll("[data-qsym]").forEach(btn=>btn.onclick=()=>{
+    const v=btn.dataset.qsym;q("bt_sym").value=v;B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save();
+    el.querySelectorAll("[data-qsym]").forEach(x=>x.classList.toggle("on",x===btn));btStop();btReplayInit(true);
+  });
+  q("bt_tf").onchange=e=>{B.tf=e.target.value;if(q("bt_tf_s"))q("bt_tf_s").value=B.tf;el.querySelectorAll("[data-qtf]").forEach(x=>x.classList.toggle("on",x.dataset.qtf===B.tf));save();btStop();btReplayInit(true)};
+  q("bt_tf_s").onchange=e=>{B.tf=e.target.value;if(q("bt_tf"))q("bt_tf").value=B.tf;el.querySelectorAll("[data-qtf]").forEach(x=>x.classList.toggle("on",x.dataset.qtf===B.tf));save();btStop();btReplayInit(true)};
+  el.querySelectorAll("[data-qtf]").forEach(btn=>btn.onclick=()=>{
+    const v=btn.dataset.qtf;B.tf=v;if(q("bt_tf"))q("bt_tf").value=v;if(q("bt_tf_s"))q("bt_tf_s").value=v;
+    el.querySelectorAll("[data-qtf]").forEach(x=>x.classList.toggle("on",x===btn));save();btStop();btReplayInit(true);
+  });
   q("bt_start").onchange=async e=>{
     B.startAt=e.target.value;save();btStop();
     const sec=Math.floor(Date.parse(B.startAt)/1000);
@@ -5805,20 +6308,33 @@ function btBuild(){
     }
     if(BT.D){btNewSession(BT.D,B,btFindStartIdx(BT.D,B.startAt));btRefreshAll()}
   };
-  el.querySelectorAll("[data-qpos]").forEach(btn=>btn.onclick=()=>{
-    if(!BT.D||!BT.D.a.length)return;btStop();
-    const idx=Math.max(1,Math.min(BT.D.a.length,Math.round(BT.D.a.length*(+btn.dataset.qpos))));
-    B.startAt=btIso(BT.D.a[idx-1].t);save();
-    if(q("bt_start"))q("bt_start").value=B.startAt;
-    btNewSession(BT.D,B,idx);btRefreshAll();
+  q("bt_end").onchange=e=>{B.endAt=e.target.value;save()};
+  q("bt_bal").onchange=e=>{B.bal=Math.max(100,+e.target.value||10000);el.querySelectorAll("[data-qbal]").forEach(x=>x.classList.toggle("on",+x.dataset.qbal===B.bal));save();if(BT.ses){BT.ses.startBal=B.bal;btRefreshAll()}};
+  el.querySelectorAll("[data-qbal]").forEach(btn=>btn.onclick=()=>{
+    const v=+btn.dataset.qbal;B.bal=v;if(q("bt_bal"))q("bt_bal").value=String(v);
+    el.querySelectorAll("[data-qbal]").forEach(x=>x.classList.toggle("on",x===btn));save();if(BT.ses){BT.ses.startBal=v;btRefreshAll()}
   });
-  q("bt_bal").onchange=e=>{B.bal=Math.max(100,+e.target.value||10000);save();if(BT.ses){BT.ses.startBal=B.bal;btRefreshAll()}};
+  el.querySelectorAll("[data-qlev]").forEach(btn=>btn.onclick=()=>{
+    const v=+btn.dataset.qlev;B.leverage=v;el.querySelectorAll("[data-qlev]").forEach(x=>x.classList.toggle("on",x===btn));save();
+  });
   q("bt_risk").onchange=e=>{B.riskPct=Math.max(0.05,Math.min(100,+e.target.value||1));save();if(BT.ses){BT.ses.riskPct=B.riskPct;btRefreshAll()}};
   el.querySelectorAll("[data-qrisk]").forEach(btn=>btn.onclick=()=>{
     const r=+btn.dataset.qrisk||1;B.riskPct=r;if(q("bt_risk"))q("bt_risk").value=String(r);save();if(BT.ses){BT.ses.riskPct=r;btRefreshAll()}
   });
   q("bt_fee").onchange=e=>{B.feePct=Math.max(0,+e.target.value||0);save();if(BT.ses){BT.ses.feePct=B.feePct;btRefreshAll()}};
   q("bt_reset").onclick=()=>{btStop();btNewSession(BT.D,B,btFindStartIdx(BT.D,B.startAt));if(q("bt_sl"))q("bt_sl").value="";if(q("bt_tp"))q("bt_tp").value="";btRefreshAll();toast("Replay session reset")};
+  q("bt_start_session").onclick=async()=>{
+    const v=(q("bt_sym").value||"").trim().toUpperCase();
+    if(v){B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save()}
+    btSetPage("session");
+    await btReplayInit(true);
+  };
+  q("bt_exit_session").onclick=()=>{btSetPage("setup")};
+  q("bt_open_pos_btn").onclick=()=>{const d=q("bt_desk");if(d)d.hidden=!d.hidden};
+  q("bt_quick_place_btn").onclick=()=>{const qp=q("bt_quick_pill");if(qp)qp.hidden=!qp.hidden};
+  q("bt_goto_btn").onclick=()=>{if(!BT.D||!BT.D.a.length)return;btStop();const mid=Math.max(1,Math.floor(BT.D.a.length*0.5));btSeek(mid);toast("Jumped to 50% of replay window")};
+  q("bt_save_btn").onclick=()=>{const c=q("bt_csv");if(c&&!c.disabled)c.click();else toast("Session state saved")};
+  q("bt_fs_btn").onclick=()=>{const sp=q("bt_session_page");if(!sp)return;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else sp.requestFullscreen&&sp.requestFullscreen().catch(()=>{})};
   q("bt_rs").onclick=()=>{btStop();btSeek(1)};
   q("bt_rb").onclick=()=>{btStop();btSeek(BT.rp.i-1)};
   q("bt_rf").onclick=()=>{btStop();btSeek(BT.rp.i+1)};
@@ -5833,6 +6349,22 @@ function btBuild(){
     btRenderDesk();
   });
   ["bt_sl","bt_tp"].forEach(id=>{const inp=q(id);if(inp)inp.oninput=()=>{if(!BT.ses||!BT.ses.pos)btRenderDesk()}});
+  // Draggable Replay Playback Pill
+  const pill=q("bt_rp_pill"),pdrag=q("bt_rp_drag");
+  if(pill&&pdrag){
+    pdrag.onpointerdown=e=>{
+      e.preventDefault();
+      const pr=pill.parentElement.getBoundingClientRect(),br=pill.getBoundingClientRect();
+      const ox=e.clientX-br.left,oy=e.clientY-br.top;
+      const mv=ev=>{
+        const nx=Math.max(6,Math.min(pr.width-br.width-6,Math.round(ev.clientX-pr.left-ox)));
+        const ny=Math.max(6,Math.min(pr.height-br.height-6,Math.round(ev.clientY-pr.top-oy)));
+        pill.style.left=nx+"px";pill.style.top=ny+"px";pill.style.right="auto";
+      };
+      const up=()=>{window.removeEventListener("pointermove",mv);window.removeEventListener("pointerup",up)};
+      window.addEventListener("pointermove",mv);window.addEventListener("pointerup",up);
+    };
+  }
 
   if(!BT.kbBound){
     BT.kbBound=true;
@@ -6079,18 +6611,29 @@ liability:["Disclaimer of Liability",()=>`<h1>Disclaimer of Liability</h1>${LG_M
 <p>Nothing here excludes or limits liability that cannot be excluded under the law of England and Wales, including for death or personal injury caused by negligence, or for fraud, and nothing affects your statutory rights as a consumer under the Consumer Rights Act 2015 and other applicable law. Those statutory remedies are not excluded.</p>`]};
 const LG_ORDER=["terms","privacy","cookies","your-data","risk","data","liability","refunds","about","accessibility"];
 function legalDoc(){const m=/^#\/legal\/([a-z-]+)/.exec(location.hash);return m&&LEGAL[m[1]]?m[1]:null}
+const LG_DESC={
+  terms:"Service scope, acceptable use, subscriptions, and statutory consumer rights.",
+  privacy:"UK GDPR lawful bases, data processors, retention windows, and your privacy rights.",
+  cookies:"Strictly necessary storage, optional preferences, and browser cache controls.",
+  "your-data":"Export or delete your local workspace data and manage privacy requests.",
+  risk:"Important risk warning: Vektor Terminal provides tools and data, not financial advice.",
+  data:"Market data providers, feeds, attributions, and routing transparency.",
+  liability:"Service availability, limitation of liability, and statutory protections.",
+  refunds:"Plan pricing, 14-day cancellation rights, trial terms, and refund procedures.",
+  about:"Operator details, company registration, and direct contact information.",
+  accessibility:"WCAG 2.2 AA commitment, keyboard navigation, and accessibility feedback."
+};
 function legalRender(){let el=document.getElementById("pv-legal");if(!el)return;const d=legalDoc();
-const nav=`<nav aria-label="Legal">${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<a href="#/legal/${k}" class="${k===d?"on":""}">${LEGAL[k][0]}</a>`).join("")}</nav>`;
-const body=d?LEGAL[d][1]():`<h1>Legal</h1>${LG_META()}<div class="riskbox"><b>Risk warning:</b> trading CFDs, FX and crypto carries a high risk of losing money. Nothing on this site is financial advice. <a href="#/legal/risk">Read the risk disclaimer</a>.</div><ul>${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<li><a href="#/legal/${k}">${LEGAL[k][0]}</a></li>`).join("")}</ul>`;
+const nav=`<nav aria-label="Legal"><div class="lgl-nav-hd"><a href="#/legal" class="lgl-hub-lnk${!d?" on":""}">Legal Hub</a></div>${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<a href="#/legal/${k}" class="${k===d?"on":""}">${LEGAL[k][0]}</a>`).join("")}<div class="lgl-nav-ft"><button type="button" class="lgl-ck-btn" onclick="vtBanner(true)">Cookie settings</button><a href="#/workspace" class="lgl-ret-lnk">← Back to Terminal</a></div></nav>`;
+const hubBody=`<div class="lgl-hero"><span class="lgl-eyebrow">LEGAL &amp; COMPLIANCE HUB</span><h1>Legal, Privacy &amp; Risk Disclosures</h1><p class="lgl-sub">Clear, transparent policies governing your use of Vektor Terminal, market data attributions, and data protection under UK GDPR.</p></div>${LG_META()}<div class="riskbox"><b>Risk warning:</b> trading CFDs, FX and crypto carries a high risk of losing money. Nothing on this site is financial advice. <a href="#/legal/risk">Read the risk disclaimer</a>.</div><ul class="lgl-grid">${LG_ORDER.filter(k=>LEGAL[k]).map(k=>`<li class="lgl-card"><a href="#/legal/${k}"><b>${LEGAL[k][0]}</b><span class="lgl-desc">${esc(LG_DESC[k]||"")}</span></a></li>`).join("")}</ul>`;
+const body=d?`<div class="lgl-crumb"><a href="#/legal">← Legal &amp; Compliance Hub</a></div>`+LEGAL[d][1]():hubBody;
 el.innerHTML=`<div class="pgw"><div class="lgl">${nav}<article class="lgldoc vcard">${body}</article></div></div>`;
 if(d&&LEGAL[d][2]){try{LEGAL[d][2](el.querySelector("article"))}catch(e){console.error(e)}}
-if(d)document.title=LEGAL[d][0]+" \u00b7 Vektor Terminal";el.scrollTop=0}
+document.title=(d?LEGAL[d][0]:"Legal & Privacy Hub")+" \u00b7 Vektor Terminal";el.scrollTop=0}
 PAGE_HOOK.legal={enter:legalRender,sub:legalRender};
 function vtFooterBuild(){const w=document.querySelector(".wrap");if(!w)return;
 if(!document.getElementById("pv-legal")){const pv=document.createElement("div");pv.className="pv";pv.id="pv-legal";const last=[...w.querySelectorAll(".pv")].pop();if(last)last.after(pv);else w.appendChild(pv)}
-const old=w.querySelector("footer.vfoot");if(old)old.remove();const f=document.createElement("footer");f.className="vfoot";
-f.innerHTML=`<span class="risk"><b>Risk warning:</b> trading CFDs, FX and crypto carries a high risk of losing money. Nothing here is financial advice. <a href="#/legal/risk">Risk disclaimer</a></span>`+LG_ORDER.filter(k=>k!=="risk"&&LEGAL[k]).map(k=>`<a href="#/legal/${k}">${LEGAL[k][0]}</a>`).join("")+`<button type="button" class="lnk" id="vft_ck" onclick="vtBanner(true)">Cookie settings</button>`;
-w.appendChild(f)}
+const old=w.querySelector("footer.vfoot");if(old)old.remove();}
 // ---------- UK GDPR / PECR mechanisms: storage consent banner + log, privacy centre (export, delete, rights requests) ----------
 const VT_POLICY_V="1.1";             // bump when the cookie/privacy notice changes materially: everyone is asked again
 const VT_CONSENT_MAX_AGE=365*864e5;  // and again after 12 months
@@ -6640,50 +7183,10 @@ function vtMakeGapBadgeEl(sym, tf, id) {
 
 function vtRenderGapBadge() {
   if (typeof document === "undefined") return;
-  const cm = document.querySelector(".cm");
-  vtBindGapContainerDelegation(cm);
   const curBadge = document.getElementById("vt_gap_badge");
-  const hasActive = typeof S !== "undefined" && S && S.chart && S.chart.sym && S.chart.tf;
-  const showMain = !!(cm && hasActive && vtIsChartPaused(S.chart.sym, S.chart.tf));
-
-  if (showMain) {
-    if (!curBadge || curBadge.parentElement !== cm) {
-      if (curBadge && curBadge.parentElement) curBadge.parentElement.removeChild(curBadge);
-      cm.appendChild(vtMakeGapBadgeEl(S.chart.sym, S.chart.tf, "vt_gap_badge"));
-    } else {
-      curBadge.style.display = "flex";
-      const curBtn = typeof curBadge.querySelector === "function" ? curBadge.querySelector("button") : null;
-      vtSyncGapBadgeAttrs(curBadge, curBtn, S.chart.sym, S.chart.tf);
-    }
-  } else if (curBadge && curBadge.parentElement) {
-    curBadge.parentElement.removeChild(curBadge);
-  }
-
-  const cvB = document.getElementById("cvB");
-  vtBindGapContainerDelegation(cvB);
+  if (curBadge && curBadge.parentElement) curBadge.parentElement.removeChild(curBadge);
   const curBadgeB = document.getElementById("vt_gap_badge_b");
-  const hasPaneB =
-    hasActive &&
-    typeof SC !== "undefined" &&
-    SC &&
-    S.pageView === "chart" &&
-    S.sc &&
-    S.sc.panes === 2 &&
-    S.sc.tfB;
-  const showPaneB = !!(cvB && hasPaneB && vtIsChartPaused(S.chart.sym, S.sc.tfB));
-
-  if (showPaneB) {
-    if (!curBadgeB || curBadgeB.parentElement !== cvB) {
-      if (curBadgeB && curBadgeB.parentElement) curBadgeB.parentElement.removeChild(curBadgeB);
-      cvB.appendChild(vtMakeGapBadgeEl(S.chart.sym, S.sc.tfB, "vt_gap_badge_b"));
-    } else {
-      curBadgeB.style.display = "flex";
-      const curBtnB = typeof curBadgeB.querySelector === "function" ? curBadgeB.querySelector("button") : null;
-      vtSyncGapBadgeAttrs(curBadgeB, curBtnB, S.chart.sym, S.sc.tfB);
-    }
-  } else if (curBadgeB && curBadgeB.parentElement) {
-    curBadgeB.parentElement.removeChild(curBadgeB);
-  }
+  if (curBadgeB && curBadgeB.parentElement) curBadgeB.parentElement.removeChild(curBadgeB);
 }
 
 function vtSetChartGap(sym, tf, on) {

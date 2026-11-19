@@ -3,6 +3,7 @@
 
 import {
   MAX_PAYLOAD_BYTES,
+  MAX_PROFILE_BODY_BYTES,
   OAUTH_STATE_COOKIE_NAME,
   SESSION_COOKIE_NAME,
   base64UrlToBytes,
@@ -32,6 +33,7 @@ import {
   saveUserData,
   sendVerificationCode,
   setUserRoleOrStatus,
+  updateUserProfile,
 } from "./auth.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -559,6 +561,24 @@ export async function handleAuthRequest(request, env, options = {}) {
     if (!bodyRes.ok) return jsonResponse({ ok: false, error: bodyRes.error }, bodyRes.status);
 
     const res = await completeProfile(db, user.id, bodyRes.data, { nowMs });
+    if (!res.ok) return jsonResponse({ ok: false, error: res.error }, res.status);
+    return jsonResponse({ ok: true, user: res.user });
+  }
+
+  // -------------------------------------------------------------------------
+  // PATCH / POST /api/auth/profile
+  // -------------------------------------------------------------------------
+  if (pathname === "/api/auth/profile") {
+    if (method !== "PATCH" && method !== "POST") {
+      return jsonResponse({ ok: false, error: "Method not allowed." }, 405);
+    }
+    const user = await getSessionUser(db, sessionToken, { nowMs });
+    if (!user) return jsonResponse({ ok: false, error: "Unauthorized." }, 401);
+
+    const bodyRes = await readBoundedJson(request, MAX_PROFILE_BODY_BYTES);
+    if (!bodyRes.ok) return jsonResponse({ ok: false, error: bodyRes.error }, bodyRes.status);
+
+    const res = await updateUserProfile(db, user.id, bodyRes.data, { nowMs });
     if (!res.ok) return jsonResponse({ ok: false, error: res.error }, res.status);
     return jsonResponse({ ok: true, user: res.user });
   }

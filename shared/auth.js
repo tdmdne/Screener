@@ -16,6 +16,8 @@ export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 export const LOCKOUT_MAX_FAILS = 5;
 export const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 export const MAX_PAYLOAD_BYTES = 512 * 1024; // 512 KB
+export const MAX_AVATAR_URL_CHARS = 128 * 1024; // 128 KB max base64 data URI
+export const MAX_PROFILE_BODY_BYTES = 192 * 1024; // 192 KB max profile update request body
 export const TERMS_VERSION = "2026-11";
 export const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
@@ -48,6 +50,7 @@ const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const PHONE_E164_RE = /^\+[1-9]\d{6,14}$/;
 const OTP_CODE_RE = /^\d{6}$/;
 const CONTROL_CHARS_RE = /[\x00-\x1F\x7F]/;
+const AVATAR_DATA_URI_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 
 const RESERVED_USERNAMES = new Set([
   "admin",
@@ -388,6 +391,27 @@ export function validatePhone(value) {
   return { ok: true, value: trimmed };
 }
 
+export function validateAvatarUrl(raw) {
+  if (raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Avatar must be a PNG, JPEG, or WebP data URI." };
+  }
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (trimmed.length > MAX_AVATAR_URL_CHARS) {
+    return { ok: false, error: "Avatar image exceeds maximum allowed size (128 KB)." };
+  }
+  const match = AVATAR_DATA_URI_RE.exec(trimmed);
+  if (!match) {
+    return { ok: false, error: "Avatar must be a safe base64 PNG, JPEG, or WebP data URI." };
+  }
+  const b64 = match[2];
+  if (b64.length < 4 || b64.length % 4 !== 0) {
+    return { ok: false, error: "Avatar base64 data is malformed." };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export function validatePassword(value) {
   if (typeof value !== "string") return { ok: false, error: "Password is required." };
   if (value.length < 10 || value.length > 128) {
@@ -460,6 +484,7 @@ export function sanitizeUser(row) {
     username: row.username ?? null,
     dob: row.dob ?? null,
     phone: row.phone ?? null,
+    avatar_url: row.avatar_url ?? null,
     profile_completed: Boolean(row.profile_completed),
     email_verified: Boolean(row.email_verified_at),
     phone_verified: Boolean(row.phone_verified_at),
@@ -520,7 +545,7 @@ export async function getSessionUser(db, token, { nowMs = Date.now() } = {}) {
   const tokenHash = await sha256Hex(token);
   const row = await db
     .prepare(
-      `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone,
+      `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone, u.avatar_url,
               u.profile_completed, u.terms_accepted_at, u.terms_version,
               u.email_verified_at, u.phone_verified_at,
               u.role, u.plan, u.created_at, u.updated_at, u.disabled_at,
@@ -844,7 +869,7 @@ export async function registerUser(db, input, { env = {}, ip = null, ua = null, 
   const session = await createSession(db, id, { ip, ua, nowMs });
   const created = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+      `SELECT id, email, full_name, username, dob, phone, avatar_url, profile_completed,
               terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
@@ -887,7 +912,7 @@ export async function loginUser(db, input, { ip = null, ua = null, nowMs = Date.
 
   const user = await db
     .prepare(
-      `SELECT id, email, password_hash, full_name, username, dob, phone,
+      `SELECT id, email, password_hash, full_name, username, dob, phone, avatar_url,
               profile_completed, terms_accepted_at, terms_version,
               email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
@@ -1116,7 +1141,7 @@ export async function findOrCreateOAuthUser(
   // 1) Existing linked OAuth account
   const linked = await db
     .prepare(
-      `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone,
+      `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone, u.avatar_url,
               u.profile_completed, u.terms_accepted_at, u.terms_version,
               u.email_verified_at, u.phone_verified_at,
               u.role, u.plan, u.created_at, u.updated_at, u.disabled_at
@@ -1146,7 +1171,7 @@ export async function findOrCreateOAuthUser(
 
   const existing = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone,
+      `SELECT id, email, full_name, username, dob, phone, avatar_url,
               profile_completed, terms_accepted_at, terms_version,
               email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
@@ -1210,7 +1235,7 @@ export async function findOrCreateOAuthUser(
 
   const created = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+      `SELECT id, email, full_name, username, dob, phone, avatar_url, profile_completed,
               terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
@@ -1295,7 +1320,178 @@ export async function completeProfile(db, userId, input, { nowMs = Date.now() } 
 
   const updated = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+      `SELECT id, email, full_name, username, dob, phone, avatar_url, profile_completed,
+              terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
+         FROM users WHERE id = ?`
+    )
+    .bind(userId)
+    .first();
+
+  if (!updated) {
+    return { ok: false, status: 404, error: "User not found." };
+  }
+  return { ok: true, status: 200, user: sanitizeUser(updated) };
+}
+
+export async function updateUserProfile(db, userId, input, { nowMs = Date.now() } = {}) {
+  if (!userId) {
+    return { ok: false, status: 401, error: "Unauthorized." };
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, status: 400, error: "Invalid profile update payload." };
+  }
+
+  const hasFullName = input.full_name !== undefined;
+  const hasUsername = input.username !== undefined;
+  const hasEmail = input.email !== undefined;
+  const hasPhone = input.phone !== undefined;
+  const hasAvatar = input.avatar_url !== undefined;
+
+  if (!hasFullName && !hasUsername && !hasEmail && !hasPhone && !hasAvatar) {
+    return { ok: false, status: 400, error: "No profile fields provided to update." };
+  }
+
+  const existing = await db
+    .prepare(
+      `SELECT id, email, canonical_email, full_name, username, username_lower, dob, phone, avatar_url,
+              profile_completed, terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
+         FROM users WHERE id = ?`
+    )
+    .bind(userId)
+    .first();
+
+  if (!existing) {
+    return { ok: false, status: 404, error: "User not found." };
+  }
+
+  let nextFullName = existing.full_name;
+  let nextUsername = existing.username;
+  let nextUsernameLower = existing.username_lower;
+  let nextEmail = existing.email;
+  let nextCanonicalEmail = existing.canonical_email;
+  let nextPhone = existing.phone;
+  let nextAvatarUrl = existing.avatar_url ?? null;
+
+  if (hasFullName) {
+    const nameCheck = validateFullName(input.full_name);
+    if (!nameCheck.ok) return { ok: false, status: 400, error: nameCheck.error };
+    nextFullName = nameCheck.value;
+  }
+
+  if (hasUsername) {
+    const userCheck = validateUsername(input.username);
+    if (!userCheck.ok) return { ok: false, status: 400, error: userCheck.error };
+    if (userCheck.lower !== existing.username_lower) {
+      const conflict = await db
+        .prepare("SELECT id FROM users WHERE username_lower = ? AND id != ?")
+        .bind(userCheck.lower, userId)
+        .first();
+      if (conflict) {
+        return { ok: false, status: 409, error: "That username is already taken." };
+      }
+    }
+    nextUsername = userCheck.value;
+    nextUsernameLower = userCheck.lower;
+  }
+
+  if (hasEmail) {
+    const emailCheck = validateAndNormalizeEmail(input.email);
+    if (!emailCheck.ok) return { ok: false, status: 400, error: emailCheck.error };
+    if (emailCheck.canonical !== existing.canonical_email || emailCheck.email !== existing.email) {
+      const conflict = await db
+        .prepare("SELECT id FROM users WHERE (canonical_email = ? OR email = ?) AND id != ?")
+        .bind(emailCheck.canonical, emailCheck.email, userId)
+        .first();
+      if (conflict) {
+        return { ok: false, status: 409, error: "An account with that email already exists." };
+      }
+    }
+    nextEmail = emailCheck.email;
+    nextCanonicalEmail = emailCheck.canonical;
+  }
+
+  if (hasPhone) {
+    const phoneCheck = validatePhone(input.phone);
+    if (!phoneCheck.ok) return { ok: false, status: 400, error: phoneCheck.error };
+    nextPhone = phoneCheck.value;
+  }
+
+  if (hasAvatar) {
+    const avatarCheck = validateAvatarUrl(input.avatar_url);
+    if (!avatarCheck.ok) return { ok: false, status: 400, error: avatarCheck.error };
+    nextAvatarUrl = avatarCheck.value;
+  }
+
+  const emailChanged = nextEmail !== existing.email || nextCanonicalEmail !== existing.canonical_email;
+  const phoneChanged = nextPhone !== existing.phone;
+  const nextEmailVerifiedAt = emailChanged ? null : existing.email_verified_at;
+  const nextPhoneVerifiedAt = phoneChanged ? null : existing.phone_verified_at;
+
+  try {
+    await db
+      .prepare(
+        `UPDATE users
+            SET full_name = ?,
+                username = ?,
+                username_lower = ?,
+                email = ?,
+                canonical_email = ?,
+                phone = ?,
+                avatar_url = ?,
+                email_verified_at = ?,
+                phone_verified_at = ?,
+                updated_at = ?
+          WHERE id = ?`
+      )
+      .bind(
+        nextFullName,
+        nextUsername,
+        nextUsernameLower,
+        nextEmail,
+        nextCanonicalEmail,
+        nextPhone,
+        nextAvatarUrl,
+        nextEmailVerifiedAt,
+        nextPhoneVerifiedAt,
+        nowMs,
+        userId
+      )
+      .run();
+
+    if (emailChanged) {
+      await db
+        .prepare(
+          `UPDATE verification_codes
+              SET consumed_at = ?
+            WHERE user_id = ? AND channel = 'email' AND consumed_at IS NULL`
+        )
+        .bind(nowMs, userId)
+        .run();
+    }
+
+    if (phoneChanged) {
+      await db
+        .prepare(
+          `UPDATE verification_codes
+              SET consumed_at = ?
+            WHERE user_id = ? AND channel = 'phone' AND consumed_at IS NULL`
+        )
+        .bind(nowMs, userId)
+        .run();
+    }
+  } catch (err) {
+    const msg = String(err?.message ?? "");
+    if (msg.includes("UNIQUE")) {
+      return { ok: false, status: 409, error: "Email or username is already in use." };
+    }
+    throw err;
+  }
+
+  const updated = await db
+    .prepare(
+      `SELECT id, email, full_name, username, dob, phone, avatar_url, profile_completed,
               terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
@@ -1697,7 +1893,7 @@ export async function confirmVerificationCode(db, userId, channel, code, { nowMs
 
   const userRow = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+      `SELECT id, email, full_name, username, dob, phone, avatar_url, profile_completed,
               terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
               role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`

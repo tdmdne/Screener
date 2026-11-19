@@ -3,7 +3,7 @@
 // bottom-sheet editor, drawing tools via pointer events (drag-draw and tap-tap), WebSockets untouched.
 const {launch}=require("./harness");const assert=require("assert");
 const PAGES=["workspace","chart","screener","heatmap","calendar","journal","calc","backtest"];
-async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.base);
+async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.alerts=[];S.dr={};save();openChart("BTCUSDT","1H")});
 await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(800);
 assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.ui),"phone");

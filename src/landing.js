@@ -3,7 +3,7 @@
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const EMAIL_QUICK_RE = /^[A-Za-z0-9!*+\-=?^_.]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
-const HOME_HASHES = new Set(["#/landing", "#/waitlist", "#landing", "#waitlist"]);
+const HOME_HASHES = new Set(["", "#", "#/", "#/home", "#/landing", "#/waitlist", "#landing", "#waitlist"]);
 const PRICING_HASHES = new Set(["#/pricing", "#pricing"]);
 
 const WORKSPACE_TABS = [
@@ -1439,10 +1439,9 @@ export function mountLanding(container, options = {}) {
   const headerAuthBtn = el("button", {
     type: "button",
     className: "vl-btn vl-btn-ghost",
-    text: isAdmin ? "Open Terminal" : "Sign in",
-    onClick: () => (isAdmin ? triggerEnterTerminal() : triggerSignIn()),
+    text: "Sign in",
+    onClick: triggerSignIn,
   });
-  authBtnNodes.add(headerAuthBtn);
 
   const headerSignUpBtn = el("button", {
     type: "button",
@@ -1451,11 +1450,12 @@ export function mountLanding(container, options = {}) {
     onClick: triggerSignUp,
   });
 
-  const headerJoinBtn = el("button", {
+  const headerOpenBtn = el("button", {
     type: "button",
+    id: "vl-open-terminal",
     className: "vl-btn vl-btn-primary",
-    text: "Join Waitlist",
-    onClick: focusWaitlist,
+    text: "Open Terminal",
+    onClick: triggerEnterTerminal,
   });
 
   const header = el(
@@ -1471,12 +1471,12 @@ export function mountLanding(container, options = {}) {
           "a",
           {
             className: "vl-brand",
-            href: "#/landing",
+            href: "#/",
             onClick: (e) => {
               e.preventDefault();
               closeProductsMenu();
               if (currentRoute.view !== "home") {
-                navigateHash("#/landing");
+                navigateHash("#/");
               } else {
                 root.scrollTo({ top: 0, behavior: "smooth" });
               }
@@ -1492,7 +1492,7 @@ export function mountLanding(container, options = {}) {
           pricingNavLink
         )
       ),
-      el("div", { className: "vl-header-actions" }, headerAuthBtn, headerSignUpBtn, headerJoinBtn)
+      el("div", { className: "vl-header-actions" }, headerAuthBtn, headerSignUpBtn, headerOpenBtn)
     )
   );
 
@@ -1534,17 +1534,26 @@ export function mountLanding(container, options = {}) {
     heroForm.classList.add("vl-enter-form");
     activeEmailInput = heroEmailInput;
 
-    const heroAdminBar = el(
+    const heroCtaBar = el(
       "div",
-      { className: isAdmin ? "vl-admin-bar" : "vl-admin-bar vl-hidden" },
+      { className: "vl-admin-bar" },
       el("button", {
         type: "button",
-        className: "vl-btn vl-btn-secondary",
+        id: "vl-hero-open-terminal",
+        className: "vl-btn vl-btn-primary",
         text: "Open Terminal →",
         onClick: triggerEnterTerminal,
+      }),
+      el("a", {
+        className: "vl-btn vl-btn-secondary",
+        href: "#/features/supercharts",
+        text: "Explore Products",
+        onClick: (e) => {
+          e.preventDefault();
+          navigateHash("#/features/supercharts");
+        },
       })
     );
-    adminBarNodes.add(heroAdminBar);
 
     const heroSection = el(
       "section",
@@ -1572,7 +1581,7 @@ export function mountLanding(container, options = {}) {
           className: "vl-hero-micro vl-enter-micro",
           text: "Launching 1 March 2027 · Free core tier forever",
         }),
-        heroAdminBar
+        heroCtaBar
       )
     );
 
@@ -1879,17 +1888,31 @@ export function mountLanding(container, options = {}) {
     onClick: triggerSignUp,
   });
 
+  const makeLegalLink = (label, href) =>
+    el("a", {
+      className: "vl-footer-btn",
+      href,
+      text: label,
+      onClick: (e) => {
+        e.preventDefault();
+        window.location.hash = href;
+      },
+    });
+
   const footer = el(
     "footer",
     { className: "vl-footer" },
     el(
       "div",
       { className: "vl-wrap vl-footer-inner" },
-      el("span", { text: "Vektor Terminal · Launching 1 March 2027 · Free core tier forever" }),
+      el("span", { text: "Vektor Terminal · Free core tier forever · Not financial advice" }),
       el(
         "div",
         { className: "vl-footer-links" },
-        el("button", { type: "button", className: "vl-footer-btn", text: "Join Waitlist", onClick: focusWaitlist }),
+        makeLegalLink("Legal Hub", "#/legal"),
+        makeLegalLink("Privacy", "#/legal/privacy"),
+        makeLegalLink("Terms", "#/legal/terms"),
+        makeLegalLink("Risk Disclaimer", "#/legal/risk"),
         footerSignUpBtn,
         footerAuthBtn
       )
@@ -2070,9 +2093,7 @@ async function syncAutoLanding() {
         },
         onEnterTerminal: () => {
           unmountAutoLanding();
-          if (parseLandingRoute(window.location.hash)) {
-            window.location.hash = "#charts";
-          }
+          window.location.hash = "#/workspace";
         },
       });
     } else {

@@ -4,7 +4,7 @@ const {launch}=require("./harness");const assert=require("assert");const path=re
 const R=path.join(__dirname,"..");
 assert.deepStrictEqual(hashes(R+"/index.html"),BASE,"scoring functions must be unchanged");
 const BAD=/\b(best (markets?|quality)|is the best|guarantee[ds]?|proven|high[- ]probability|can't lose|sure win|winning trades)\b|stronger market cycles|accumulation\/manipulation/i;
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>go("workspace"));await P.waitForSelector("#vtna");
 const na=await P.textContent("#vtna");assert(/aren.t investment advice/.test(na)&&/past price data/.test(na),na);
 assert.strictEqual(await P.getAttribute("#vtna a","href"),"#/legal/risk");
@@ -22,6 +22,6 @@ const all=await P.evaluate(()=>document.body.innerText);assert(!BAD.test(all),(a
 // non-functional chart BUY/SELL overlay buttons removed per Tyler (19 Nov 2026)
 assert(!/SELL<\/button><button[^>]*>BUY<\/button>/.test(require("fs").readFileSync(R+"/index.html","utf8")));
 console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
-const h2=await launch({auth:false});const Q=h2.page;await Q.goto(h2.base);await Q.waitForSelector(".auhero h1");const hero=await Q.textContent(".auhero");
+const h2=await launch({auth:false});const Q=h2.page;await Q.goto(h2.base+"#/login");await Q.waitForSelector(".auhero h1");const hero=await Q.textContent(".auhero");
 assert(!BAD.test(hero)&&/investment advice/.test(hero),hero);await h2.close();
 console.log("CLAIMS OK")})().catch(e=>{console.error(e);process.exit(1)});

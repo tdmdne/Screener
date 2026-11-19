@@ -4,7 +4,7 @@ const {hashes,BASE,NAMES}=require("./scorefns");
 // the same check claims.js uses. A full baseline.html snapshot of index.html is not in the repo and
 // would drift with every unrelated UI change; the hashes are the maintained, self-contained fixture.
 assert.deepStrictEqual(hashes(path.join(__dirname,"../index.html")),BASE,"scoring functions must be unchanged");
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.mkt="CRY";save();render()});await P.waitForTimeout(2500);
 for(const fn of NAMES){const src=await P.evaluate(n=>typeof window[n]==="function"&&window[n].toString(),fn);assert(src,fn+" missing at runtime")}
 await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/screener"]');await P.waitForTimeout(600);

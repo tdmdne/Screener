@@ -4,13 +4,13 @@ const {launch}=require("./harness");const assert=require("assert");const fs=requ
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
 const PAGES=["workspace","chart","screener","heatmap","calendar","journal","calc","backtest","legal/privacy","legal/your-data"];
-(async()=>{for(const theme of ["dark","light"]){const h=await launch({colorScheme:theme});const P=h.page;await P.goto(h.base);
+(async()=>{for(const theme of ["dark","light"]){const h=await launch({colorScheme:theme});const P=h.page;await P.goto(h.base+"#/workspace");
   await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>openChart("BTCUSDT","1H"));
   for(const pg of PAGES){await P.evaluate(p=>{location.hash="#/"+p},pg);await P.waitForTimeout(700);const v=await axe(P);assert.deepStrictEqual(v,[],theme+" "+pg+": "+v.join(" | "))}
   await P.evaluate(()=>{location.hash="#/chart"});await P.waitForTimeout(500);
   for(const f of ["alertsM()","setM()","tplM()","presetInfo()","indM&&indM()"]){await P.evaluate(f);await P.waitForTimeout(250);const v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" "+f+": "+v.join(" | "));await P.evaluate(()=>closeM())}
   console.log(theme,"axe clean");assert.deepStrictEqual(h.errors,[]);await h.close()}
-const h=await launch();const P=h.page;await P.goto(h.base);await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
+const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{openChart("BTCUSDT","1H");go("workspace")});await P.waitForTimeout(500);
 // skip link is the first Tab stop and moves focus to the main landmark
 await P.evaluate(()=>document.activeElement&&document.activeElement.blur());await P.keyboard.press("Tab");

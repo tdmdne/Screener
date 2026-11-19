@@ -8,15 +8,16 @@ const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await
 const ready=P=>P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 const openLab=async(P)=>{
   await P.evaluate(()=>{location.hash="#/backtest"});
-  await P.waitForSelector("#bt_f");
+  await P.waitForSelector("#bt_setup_page #bt_f");
   await P.evaluate(()=>need(symOf("BTCUSDT"),"1H",true));
   await P.waitForFunction(()=>(candles(symOf("BTCUSDT"),"1H")||[]).length>=100);
   await P.fill("#bt_sym","BTCUSDT");await P.dispatchEvent("#bt_sym","change");
-  await P.waitForFunction(()=>BT.D&&BT.D.a.length>=25&&BT.ses&&BT.ses.sym==="BTCUSDT"&&BT.ser,null,{timeout:30000});
-  // fill() leaves focus on #bt_sym; a later blur can fire change and btReplayInit(true), resetting the session.
   await P.evaluate(()=>{const el=document.getElementById("bt_sym");if(!el)return;el.defaultValue=el.value;const h=el.onchange;el.onchange=null;el.blur();el.onchange=h});
+  // Click Start Backtest Session -> transitions smoothly to Page 2 Cockpit
+  await P.click("#bt_start_session");
+  await P.waitForFunction(()=>!document.getElementById("bt_session_page").hidden&&BT.D&&BT.D.a.length>=25&&BT.ses&&BT.ses.sym==="BTCUSDT"&&BT.ser,null,{timeout:30000});
 };
-(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base);await ready(P);
+(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base+"#/workspace");await ready(P);
 await openLab(P);
 assert(!(await P.$("#pv-backtest .stub")));
 assert(await P.evaluate(()=>typeof btBuild==="function"&&typeof btPlay==="function"&&typeof btSeek==="function"),"manual replay API (btBuild / btPlay / btSeek)");
@@ -68,6 +69,7 @@ await P.evaluate(()=>{const B=btCfg();B.bracket="none";if(document.getElementByI
   const i=Math.max(2,Math.min(BT.D.a.length-8,Math.floor(BT.D.a.length*0.4)));btNewSession(BT.D,B,i);const b=BT.D.a[i-1],entry=b.c;
   btPlaceOrder("long",entry*0.5,entry*1.0001);if(!BT.ses.pos)btPlaceOrder("long",entry*0.5,null);
   const start=BT.rp.i;btSeek(Math.min(BT.D.D.length,start+40));if(BT.ses.pos)btClosePos("manual");btRefreshAll()});
+await P.click('.bt-sb-ic[title="Trade History"]');
 await P.waitForSelector("#bt_out .jrkpis");
 const u=await P.evaluate(()=>({n:BT.ses.trades.length,k:document.querySelectorAll("#bt_out .kpi").length,rows:document.querySelectorAll("#bt_out tbody tr").length,meta:document.getElementById("bt_meta").textContent,eq:document.querySelector("#bt_out .kpi .v").textContent,stats:btLiveStats()}));
 assert(u.n>=1,"some trades "+u.n);assert.strictEqual(u.rows,u.n);assert.strictEqual(u.k,8);assert(/BTCUSDT 1H/.test(u.meta));assert(!!u.eq);
@@ -93,14 +95,18 @@ await P.evaluate(()=>document.getElementById("bt_re").click());assert.strictEqua
 await P.screenshot({path:__dirname+"/../shots/25_backtest.png"});
 // leaving the page stops replay (PAGE_HOOK.backtest.leave → btStop)
 await P.evaluate(()=>{document.getElementById("bt_rs").click();document.getElementById("bt_rp").click()});await P.evaluate(()=>{location.hash="#/workspace"});await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>BT.rp.on),false);
-await P.evaluate(()=>{location.hash="#/backtest"});await P.waitForSelector("#bt_f");await P.waitForTimeout(400);
-}else{await openLab(P)}
+await P.evaluate(()=>{location.hash="#/backtest"});await P.waitForSelector("#bt_session_page");await P.waitForTimeout(300);
+// Exit Session returns cleanly to Page 1 Setup Wizard
+await P.click("#bt_exit_session");await P.waitForTimeout(200);
+assert.strictEqual(await P.evaluate(()=>!document.getElementById("bt_setup_page").hidden&&document.getElementById("bt_session_page").hidden),true,"Exit Session returns to Page 1");
+await P.click("#bt_start_session");await P.waitForTimeout(300);
+}
 await P.waitForTimeout(600);const v=await axe(P,"#pv-backtest");
  // #bt_buy/#bt_sell contrast is a product a11y issue, not a broken test; a11y.js covers it.
  const rest=v.filter(x=>!/color-contrast .*#(bt_buy|bt_sell)\b/.test(x));
  assert.deepStrictEqual(rest,[],theme+" backtest axe: "+v.join(" | "));
 console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
-{const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base);await ready(P);await openLab(P);await P.waitForTimeout(400);
+{const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base+"#/workspace");await ready(P);await openLab(P);await P.waitForTimeout(400);
  const ph=await P.evaluate(()=>{const W=document.documentElement.clientWidth,el=document.getElementById("pv-backtest");
   const small=[...document.querySelectorAll("#pv-backtest button,#pv-backtest input,#pv-backtest select")].filter(e=>e.offsetParent&&!(e.type==="checkbox"&&e.closest("label"))&&e.type!=="range").map(e=>{const r=e.getBoundingClientRect();return[e.id||e.className,Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<43.5||x[2]<43.5);
   return{pageW:el?Math.ceil(el.scrollWidth):0,W,small}});

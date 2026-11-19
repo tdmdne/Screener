@@ -1,16 +1,15 @@
 // Legal pages: every #/legal route renders, footer links work, WebSockets survive, no placeholder/entity leaks, vt_page untouched.
 const {launch}=require("./harness");const assert=require("assert");
 const DOCS={terms:"Terms of Use",privacy:"Privacy Policy",cookies:"Cookies and Local Storage",risk:"Risk Disclaimer and Not Financial Advice",data:"Data Sources and Attributions",liability:"Disclaimer of Liability",refunds:"Refunds and Cancellation",about:"About and Contact",accessibility:"Accessibility statement","your-data":"Your data"};
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 const ws0=await P.evaluate(()=>{window.__w0=BNWS.ws;return __WS.length});
-// footer present with one-line risk disclaimer
-const ft=await P.evaluate(()=>{const f=document.querySelector("footer.vfoot");return f&&{t:f.textContent,links:[...f.querySelectorAll("a")].map(a=>a.getAttribute("href")),vis:f.offsetParent!==null}});
-assert(ft&&ft.vis&&/high risk/.test(ft.t)&&ft.links.includes("#/legal/risk")&&ft.links.length===10,JSON.stringify(ft));
-// no draft or solicitor framing on the main app or footer (or later on legal pages)
+// cluttered bottom footer bar removed from terminal; legal hub accessible via Settings dropdown
+assert.strictEqual(await P.evaluate(()=>!!document.querySelector("footer.vfoot")),false,"bottom legal footer bar should be removed");
+// no draft or solicitor framing on the main app (or later on legal pages)
 assert(!(await P.evaluate(()=>document.body.innerText)).includes("DRAFT"));
 assert(!(await P.evaluate(()=>document.body.innerText.toLowerCase())).includes("solicitor"));
-await P.click('footer.vfoot a[href="#/legal/privacy"]');await P.waitForTimeout(300);
+await P.click('#vtWebSetBtn');await P.click('#vtWebSetMenu a[href="#/legal"]');await P.waitForTimeout(300);
 assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"legal");
 for(const [k,t] of Object.entries(DOCS)){await P.evaluate(k=>{location.hash="#/legal/"+k},k);await P.waitForTimeout(250);
   const st=await P.evaluate(()=>{const e=document.getElementById("pv-legal");return{page:document.documentElement.dataset.page,hash:location.hash,vis:e.offsetParent!==null,

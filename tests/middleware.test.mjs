@@ -24,6 +24,7 @@ async function hit(p, method = "GET") {
 const ALLOWED = [
   "/", "/index.html", "/robots.txt", "/sitemap.xml", "/favicon.ico", "/favicon.svg", "/apple-touch-icon.png",
   "/src/auth_email_validation.js", "/src/watchlist_starter.js", "/src/48_vs_ui.css", "/shared/emailValidator.js",
+  "/vendor/lwc.js", "/vendor/h2c.js",
   "/data/manifest.json", "/data/c_1h.json", "/?utm=1", "/index.html?v=2",
   "/api", "/api/screener", "/api/news?symbol=X", "/api/ws-config",
 ];
@@ -34,7 +35,8 @@ const BLOCKED = [
   "/config.example.js", "/config.local.js", "/site.config.js", "/_routes.json", "/functions/_middleware.js",
   "/functions/api/[[path]].js", "/functions/api/%5B%5Bpath%5D%5D.js", "/worker/index.js", "/worker/wrangler.toml",
   "/client/services/dataService.js", "/tests/harness.js", "/scripts/run-tests.js", "/docs/PROXY_SETUP.md",
-  "/shared/package.json", "/src/", "/src", "/shared/", "/shared", "/index.html/", "/robots.txt/", "/index",
+  "/shared/package.json", "/src/", "/src", "/shared/", "/shared", "/vendor/", "/vendor", "/vendor/other.js",
+  "/index.html/", "/robots.txt/", "/index",
   "/AGENTS.MD", "/Index.html", "/SRC/auth_email_validation.js", "/Favicon.ico", "/data/", "/data/secret.txt",
   "/src/..%2fAGENTS.md", "/src/%2e%2e/AGENTS.md", "/%2e%2e/AGENTS.md", "/src/%252e%252e/AGENTS.md",
   "/src/%252e%252e%252fAGENTS.md", "/%2Egit/config", "/%2egit/config", "/.%67it/config",
@@ -71,17 +73,34 @@ await ok("isPublicPath on raw (un-normalised) paths", () => {
 
 let tracked = null;
 try { tracked = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean); } catch {}
-const PUBLIC_ROOT = new Set(["index.html", "robots.txt", "sitemap.xml", "favicon.ico", "favicon.svg", "apple-touch-icon.png"]);
+const PUBLIC_ROOT = new Set([
+  "index.html", "robots.txt", "sitemap.xml", "favicon.ico", "favicon.svg", "apple-touch-icon.png",
+  "vendor/lwc.js", "vendor/h2c.js",
+]);
+const CLIENT_SAFE_SHARED = new Set([
+  "shared/constants.js",
+  "shared/emailValidator.js",
+  "shared/instruments.js",
+  "shared/intervals.js",
+  "shared/schema.js",
+  "shared/symbolNormalizer.js",
+]);
 await ok("every tracked file outside the app is blocked", () => {
   if (!tracked) { console.log("  (git unavailable, skipped)"); return; }
-  const leaks = tracked.filter((f) => !PUBLIC_ROOT.has(f) && !/^(src|shared)\/[A-Za-z0-9_-]+\.(js|mjs|css)$/.test(f))
+  const leaks = tracked.filter((f) => !PUBLIC_ROOT.has(f) && !CLIENT_SAFE_SHARED.has(f) && !/^src\/[A-Za-z0-9_-]+\.(js|mjs|css)$/.test(f))
     .filter((f) => isPublicPath("/" + f) !== false);
   assert.deepEqual(leaks, []);
 });
-await ok("every tracked src/ and shared/ code file is allowed", () => {
+await ok("every tracked src/ and client-safe shared/ code file is allowed (server-only shared/ blocked)", () => {
   if (!tracked) return;
-  const miss = tracked.filter((f) => /^(src|shared)\/.*\.(js|mjs|css)$/.test(f)).filter((f) => isPublicPath("/" + f) !== true);
+  const miss = tracked
+    .filter((f) => /^src\/.*\.(js|mjs|css)$/.test(f) || CLIENT_SAFE_SHARED.has(f))
+    .filter((f) => isPublicPath("/" + f) !== true);
   assert.deepEqual(miss, []);
+  const serverSharedLeaks = tracked
+    .filter((f) => /^shared\/.*\.(js|mjs|css)$/.test(f) && !CLIENT_SAFE_SHARED.has(f))
+    .filter((f) => isPublicPath("/" + f) !== false);
+  assert.deepEqual(serverSharedLeaks, []);
 });
 
 await ok("every local asset index.html loads (and their relative imports) is allowed and exists", () => {

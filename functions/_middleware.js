@@ -34,6 +34,9 @@ export const PUBLIC_EXACT = new Set([
   "/shared/intervals.js",
   "/shared/schema.js",
   "/shared/symbolNormalizer.js",
+  // Self-hosted third-party bundles (exact allowlist only — never /vendor/*).
+  "/vendor/lwc.js",
+  "/vendor/h2c.js",
   // Optional market-data snapshot fetched by index.html (snapInit/snapTf) if published.
   "/data/manifest.json",
 ]);

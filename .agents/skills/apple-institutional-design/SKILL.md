@@ -31,6 +31,7 @@ Use this skill to audit any screen, modal, toolbar, table, chart, or mobile layo
   - Obsidian 3-tier dark surface scale: `--bg-0: #090a0d` (canvas), `--bg-1: #111318` (chrome/panels), `--bg-2: #181b22` (elevated/hover).
   - Crisp 1px hairline dividers (`rgba(255,255,255,0.07)` dark / `rgba(15,23,42,0.08)` light).
   - **One cohesive primary accent** (`--acc`); kill clashing hardcoded blues (`#2962ff`) and browser-default blue range sliders.
+  - **Glassy + Draggable + 4-Way Resizable Desktop Modals:** Desktop modals & settings popups use frosted obsidian/paper glass (`backdrop-filter: blur(20px) saturate(160%)`, hairline border, subtle inner highlight) and are draggable via header + 4-way/corner resizable via `src/window_manager.js` (mobile sheets remain untouched).
   - Semantic green/red reserved strictly for price deltas, PnL, and active buy/sell order direction.
   - Minimum WCAG AA contrast (`4.5:1` body, `3:1` large/UI components) across Dark AND Light themes.
 

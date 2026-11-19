@@ -10,8 +10,12 @@
     "/robots.txt",
     "/sitemap.xml",
     "/src/auth_email_validation.js",
+    "/src/auth_ui.js",
     "/src/watchlist_starter.js",
+    "/src/window_manager.js",
     "/src/98_institutional.css",
-    "/shared/emailValidator.js"
+    "/shared/emailValidator.js",
+    "/vendor/h2c.js",
+    "/vendor/lwc.js"
   ]
 }

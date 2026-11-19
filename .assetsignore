@@ -13,3 +13,7 @@ CHANGELOG.md
 config.local.js
 scripts
 site.config.js
+.agents
+workers
+migrations
+docs

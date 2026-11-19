@@ -19,8 +19,8 @@ await P.evaluate(()=>go("screener"));await P.waitForTimeout(300);assert(await P.
 await P.evaluate(()=>sxDrawer("BTCUSDT"));const dn=await P.textContent("#sxd .vtna");assert(/aren.t investment advice/.test(dn)&&/P1 strictest/.test(dn),dn);
 // whole visible UI (app + sign-in hero) free of the flagged phrases
 const all=await P.evaluate(()=>document.body.innerText);assert(!BAD.test(all),(all.match(BAD)||[])[0]);
-// BUY/SELL buttons untouched
-assert(/SELL<\/button><button[^>]*>BUY<\/button>/.test(require("fs").readFileSync(R+"/index.html","utf8")));
+// non-functional chart BUY/SELL overlay buttons removed per Tyler (19 Nov 2026)
+assert(!/SELL<\/button><button[^>]*>BUY<\/button>/.test(require("fs").readFileSync(R+"/index.html","utf8")));
 console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
 const h2=await launch({auth:false});const Q=h2.page;await Q.goto(h2.base);await Q.waitForSelector(".auhero h1");const hero=await Q.textContent(".auhero");
 assert(!BAD.test(hero)&&/investment advice/.test(hero),hero);await h2.close();

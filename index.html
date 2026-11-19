@@ -1155,10 +1155,12 @@ th .h{display:inline-flex;align-items:center;gap:3px}
     <p class="note">Prototype: sign-in isn’t connected to a server yet.</p>
   </form>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="vendor/h2c.js"></script>
+<script src="vendor/lwc.js"></script>
 <script type="module" src="src/auth_email_validation.js"></script>
 <script type="module" src="src/watchlist_starter.js"></script>
+<script type="module" src="src/auth_ui.js"></script>
+<script type="module" src="src/window_manager.js"></script>
 <script>
 // Safe storage: localStorage/sessionStorage throw SecurityError in sandboxed contexts
 const memStore = {};
@@ -1773,13 +1775,6 @@ if(C.prevClose==="line"||C.prevClose==="val"){
   if(pc){const pl=ch.addLineSeries({color:"#787b86",lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:C.prevClose==="val",crosshairMarkerVisible:false});pl.setData([{time:T(0),value:pc},{time:T(a.length-1),value:pc}]);meta.prevLine=pl}
 }
 // plus button on price scale: TradingView-style hover "+" (see vtPlusAttach), attached in vtAfterDraw
-// buy/sell buttons
-if(C.showBuySell&&cvEl.parentElement){
-  const leftPad=C.scalePlace==="left"?90:8;
-  const bs=document.createElement("div");bs.style.cssText=`position:absolute;top:8px;left:${leftPad}px;display:flex;gap:4px;z-index:5`;
-  bs.innerHTML=`<button style="background:#f23645;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">SELL</button><button style="background:#089981;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">BUY</button>`;
-  cvEl.parentElement.appendChild(bs);
-}
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
 C.ind.filter(d=>!d.hidden&&d.t!=="atr").forEach(d=>{try{
 if(d.t==="ema"){const sr=ls(d.col,d.w||2);sr.setData(pts(emaArr(cl,d.len)));meta.indSeries.push({d,kind:"ema",ser:sr})}
@@ -1824,7 +1819,7 @@ if(typeof vtPrefetchAdjacent==="function"){try{vtPrefetchAdjacent(s,C.tf)}catch(
 // transparent single-line institutional indicator legend (pointer-events:none container so chart right-clicks pass through)
 if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
   try{
-    const topPos=C.showBuySell?"42px":"6px";
+    const topPos="6px";
     const leftPad=C.scalePlace==="left"?"72px":"8px";
     const idv=document.createElement("div");
     idv.id="vt_ind_legend";
@@ -2431,7 +2426,6 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +tp("status",sec("INSTRUMENT")
 +ck("showMktStatus","Open market status")
 +ck("showVol","Volume")
-+ck("showBuySell","Buy/sell buttons")
 +sec("INDICATORS")
 +ck("indTitles","Indicator titles"))
 +tp("scales",sl("scalePlace","Scales placement",[["auto","Auto"],["left","Left"],["right","Right"]])

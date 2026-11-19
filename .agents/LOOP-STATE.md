@@ -22,9 +22,11 @@
 - [x] All **58/58 test suites PASS** (`minicharts.js` 4.9ms, `motion.js` 7.7ms, `a11y.js` dark+light clean, `mobile.js` + `mobile_qa.js` 0 overflow & ≥44px targets, `postool`, `backtest`, `journal`, `screener`, `heatmap`, `supercharts`, `signin`, `layout`, `sweep`, `jai`)
 - [ ] Pass 3 `qa-auditor` final visual screenshot verification (`1440×900` & `375×812`)
 
-### Phase 3 — Auth/OAuth UI & Zero-Egress Cutover (NEXT)
-- [ ] **Auth UI (`src/auth_ui.js` + `index.html`):** Wire real `/api/auth/login`, `/api/auth/register` (`full_name`, `username`, `dob` 18+, `phone` E.164, `email`, strong `password`), `/api/auth/providers` (Google & Apple buttons), `/api/auth/complete-profile` modal, `/api/auth/logout`, and `/api/me/import` one-time legacy `scr2~*` migration
-- [ ] **Zero-Egress Cutover (Tasks 11–15, 20):** Self-host `/vendor/` (`lightweight-charts`, `html2canvas`), wire `?thin=1` / production feed to `src/data_service.js` (`/api/bootstrap` + `/ws`), strip legacy direct Binance/CoinGecko/Finnhub/Polygon/BYO-key calls & client maths, verify strict `VT_STRICT_MANDATE=1` passes
+### Phase 3 — Auth/OAuth UI & Zero-Egress Cutover
+- [x] **Auth UI (`src/auth_ui.js` + `index.html`):** Real `/api/auth/login`, `/api/auth/register` (`full_name`, `username`, `dob` 18+, `phone` E.164, `email`, strong `password`), `/api/auth/providers` (Google & Apple buttons), `/api/auth/complete-profile` modal, `/api/auth/logout`, Admin panel (`#vtAdminBtn`), and `/api/me/import` post-200 legacy `scr2~*` migration — **Security PASS + 8/8 Tests Green**
+- [x] **Self-Hosted `/vendor/` & Window Manager:** `vendor/lwc.js` + `vendor/h2c.js` exact-allowlisted (0 `cdn.jsdelivr.net` egress), fake chart BUY/SELL buttons removed, glassy draggable 4-way resizable desktop modals (`src/window_manager.js`) verified via Playwright
+- [ ] **Zero-Egress Legacy Cutover (Tasks 11–15, 20):** Wire `index.html` live feeds onto `src/data_service.js` (`/api/bootstrap` + `/ws`), strip legacy Binance/CoinGecko/Finnhub/Polygon/BYO-key calls & client maths, pass strict `VT_STRICT_MANDATE=1`
+- [ ] **Custom UI/Motion Skills Pass:** Ready for Tyler's custom UI/motion skills (plus expanded skeleton loaders)
 
 ### Phase 4 — Final Cloudflare Preview & Push-to-Main Confirmation
 - [ ] Deploy Cloudflare Pages preview (`wrangler pages deploy` preview branch) & verify live

@@ -1,23 +1,15 @@
-name = "vektor-terminal"
-main = "worker.js"
+name = "screener"
 compatibility_date = "2024-11-01"
+pages_build_output_dir = "."
 
-[assets]
-directory = "."
-binding = "ASSETS"
-run_worker_first = ["/api/*", "/ws"]
+[vars]
+ALLOWED_ORIGINS = "https://vektorterminal.com,https://www.vektorterminal.com,https://screener-cso.pages.dev,https://feat-phase-a-backend-core.screener-cso.pages.dev"
 
-[[kv_namespaces]]
-binding = "SCREENER_KV"
-id = "REPLACE_WITH_YOUR_SCREENER_KV_NAMESPACE_ID"
+[[d1_databases]]
+binding = "DB"
+database_name = "tdm-screener"
+database_id = "cdc126d2-681e-43f9-bfa8-8293a3bf3651"
 
-[[durable_objects.bindings]]
-name = "MARKET_RELAY"
-class_name = "MarketRelayDO"
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["MarketRelayDO"]
-
-[triggers]
-crons = ["* * * * *"]
+[[services]]
+binding = "MARKET_SERVICE"
+service = "vektor-market"

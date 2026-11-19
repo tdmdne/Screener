@@ -19,6 +19,7 @@
 - 18 Nov: AGENTS.md §6 Institutional UI/UX standard + recurring UI Audit phase (TradingView/Tradovate/FX Replay benchmark).
 - 19 Nov: Phase 1+2 checkpoint on `feat/phase-a-backend-core` — full backend pipeline (`workers/market/` + `MarketHub` DO live w/ 50ms CPU cap, `shared/market/*`, `shared/vs/`, `shared/protocol.js`, `shared/alerts.js`, `shared/replay.js`, `shared/journal.js`), D1 Auth/OAuth/Admin RBAC live on `tdm-screener`, both security re-audits PASS, institutional UI overhaul (`src/98_institutional.css`), all 58/58 test suites green.
 - 19 Nov: Phase 3A/3B on `feat/phase-a-backend-core` — `src/auth_ui.js` (security PASS: D1 Login/Signup/OAuth/Complete-Profile/Admin panel), self-hosted `/vendor/lwc.js` + `/vendor/h2c.js` (0 CDN egress), removed fake chart BUY/SELL overlay buttons, added glassy draggable 4-way resizable desktop modals (`src/window_manager.js`), preview live at `feat-phase-a-backend-core.screener-cso.pages.dev`.
+- 19 Nov: Neon Gatekeeper audit complete — salvaged pre-launch D1 Waitlist (`shared/waitlist.js`, `migrations/0002_waitlist.sql`, 7/7 tests green), staged landing/products UI (`src/landing.js`, `src/landing.css`), and 36 skill packs; codified Neon/Argon delegation protocol (`AGENTS.md` §7) and queued scoped monolith-cutover tickets `ARGON-01`..`ARGON-05` in `DISPATCH.md`.
 
 ## Elite trial rules (Tyler, confirmed)
 - 7 days, Elite only, card upfront, converts to paid after 7 days.

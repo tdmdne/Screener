@@ -1,7 +1,7 @@
 # LOOP-STATE — Vektor Terminal
 
 **Active Branch:** `feat/phase-a-backend-core`  
-**Current Iteration:** Iteration 3 — Phase 1 & 2 Complete (58/58 Green, Security PASS, Cloudflare Live) → Starting Phase 3 (Auth UI + Zero-Egress Cutover)  
+**Current Iteration:** Iteration 4 — Neon Gatekeeper Audit Complete (Waitlist 7/7 + 36 Skills Salvaged) → Scoped Tickets `ARGON-01`..`ARGON-05` Queued in `DISPATCH.md`  
 **Cloudflare Auth:** Connected (`tdmltd2026@gmail.com` / `a194413a6dac0210959f978ba97903e1`); Workers Paid ($5/mo) active with `50 ms` hard CPU cap; `vektorterminal.com` allowlisted on `vektor-market`.
 
 ## Queue

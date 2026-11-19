@@ -101,3 +101,11 @@ The browser is a **dumb terminal, a presentation layer only**.
 - **§0 still wins:** UI polish is presentation only. It must never add client-side data processing.
 - **UI Audit workflow:** before any feature is marked complete, run a UI review pass. Playwright takes screenshots and runs DOM checks (desktop 1440×900 and phone 375×812) on the live or preview site. Claude (Sonnet, fresh session) reviews them against the benchmark, then fixes the problems in small single-task PRs that name the files and line ranges. A full-app audit runs once per phase. Findings go to `docs/ui/AUDIT-<date>.md`, with a 1-line summary in STATE.md.
 
+## 7. NEON ORCHESTRATOR & ARGON DELEGATION PROTOCOL (Tyler, 19 Nov 2026)
+- **Role separation:** **Gemini 4 Neon** is the **Lead Orchestrator & Final Gatekeeper**. **Gemini 4 Argon** is the **Execution Engine** operating on a separate 5-hour quota pool.
+- **Token conservation on Neon:** Neon must never spawn large swarms of subagents for routine multi-file edits, monolith stripping, or broad searches on its own 5-hour pool. Neon focuses strictly on architecture, diff review, security/mandate auditing, and approval.
+- **Scoped ticket dispatch (`DISPATCH.md`):** Neon assigns heavy/grunt execution work to Argon by writing scoped job tickets in `DISPATCH.md` under `## Assigned to Argon (READY_FOR_BUILD)` with exact file paths, line ranges, skill references, and acceptance criteria.
+- **Argon branch isolation:** When Argon runs, it must branch off the active working branch into `argon` (`git checkout -b argon`), execute the `READY_FOR_BUILD` tickets in `DISPATCH.md`, commit cleanly on `argon` (never touching or pushing to `main`), and log every commit hash, modified file, test result, and edge case in `ARGON_HANDOFF.md`.
+- **Gatekeeper review on Neon resume:** Whenever Neon resumes, Neon must inspect `git diff ..argon` and read `ARGON_HANDOFF.md` + `DISPATCH.md` to review, cherry-pick (`KEEP`), or discard (`REJECT / DROP`) Argon's changes—logging the decision in `DISPATCH.md` before queuing the next tickets.
+
+

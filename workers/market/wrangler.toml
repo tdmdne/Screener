@@ -5,6 +5,7 @@
 name = "vektor-market"
 main = "index.js"
 compatibility_date = "2025-11-01"
+workers_dev = false
 
 # Hard per-invocation CPU cap on Workers Paid so runaway requests can never rack up CPU bills.
 [limits]
@@ -14,7 +15,7 @@ cpu_ms = 50
 TD_PER_MIN = "8"
 TD_PER_DAY = "800"
 TD_WS_MAX = "8"
-ALLOWED_ORIGINS = "https://vektorterminal.com,https://www.vektorterminal.com,https://screener-cso.pages.dev,http://127.0.0.1,http://localhost"
+ALLOWED_ORIGINS = "https://vektorterminal.com,https://www.vektorterminal.com,https://feat-phase-a-backend-core.screener-cso.pages.dev,https://screener-cso.pages.dev"
 
 [[kv_namespaces]]
 binding = "MARKET_KV"

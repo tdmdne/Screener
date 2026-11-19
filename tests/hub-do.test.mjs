@@ -965,33 +965,35 @@ await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MA
   );
   await hub.ready();
 
-  // Attacker connects and views 2 bogus symbols filling all TD_WS_MAX=2 slots
+  // Attacker connects (unauthenticated) and views 2 bogus unknown symbols -> MUST NOT occupy TD_WS_MAX slots!
   await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
   const attackerWs = serverSockets[0];
   await hub.webSocketMessage(attackerWs, JSON.stringify({ op: "view", watchlist: ["BOGUS1", "BOGUS2"] }));
   await ctx.flushWaitUntil();
 
-  // Ephemeral subs MUST NOT be persisted to SQLite `subs`
+  // Unknown symbols from unauthenticated client MUST NOT be subscribed upstream or persisted to SQLite `subs`
   assert.deepEqual(hub.store.getSubs(), []);
   assert.equal(hub.desiredSubs.size, 0);
-  assert.deepEqual([...hub.ephemeralSubs].sort(), ["BOGUS1", "BOGUS2"]);
-
-  // Feed a tick so CandleBuilder holds state for BOGUS1
-  hub.ingestTick({ s: "BOGUS1", c: 10, t: Date.now() });
-  assert.ok(hub.candles.getCurrent("BOGUS1", "1m"));
-
-  // Attacker disconnects -> ephemeral subs immediately evicted, upstream unsubscribed, caches cleared!
-  await hub.webSocketClose(attackerWs);
   assert.equal(hub.ephemeralSubs.size, 0);
-  assert.equal(hub.tdToInternal.has("BOGUS1"), false);
-  assert.equal(hub.candles.getCurrent("BOGUS1", "1m"), null);
+  await hub.webSocketClose(attackerWs);
 
-  // Legitimate client connects and gets full access to both TD_WS_MAX slots!
+  // Legitimate client connects and views known universe symbols -> gets ephemeral slots, evicted cleanly on disconnect
   await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
   const legitWs = serverSockets[1];
   await hub.webSocketMessage(legitWs, JSON.stringify({ op: "view", watchlist: ["EURUSD", "GBPUSD"] }));
+  assert.deepEqual(hub.store.getSubs(), []);
+  assert.equal(hub.desiredSubs.size, 0);
   assert.deepEqual([...hub.ephemeralSubs].sort(), ["EURUSD", "GBPUSD"]);
+
+  // Feed a tick so CandleBuilder holds state for EURUSD
+  hub.ingestTick({ s: "EURUSD", c: 1.09, t: Date.now() });
+  assert.ok(hub.candles.getCurrent("EURUSD", "1m"));
+
+  // Client disconnects -> ephemeral subs immediately evicted, upstream unsubscribed, caches cleared!
   await hub.webSocketClose(legitWs);
+  assert.equal(hub.ephemeralSubs.size, 0);
+  assert.equal(hub.tdToInternal.has("EUR/USD"), false);
+  assert.equal(hub.candles.getCurrent("EURUSD", "1m"), null);
 
   // Also test explicit unsubscribeUpstream clears tdToInternal & candles
   hub.subscribeUpstream(["AAPL"]);
@@ -1007,6 +1009,7 @@ await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MA
 
 await test("Fix #5: IndicatorTracker refcounts & unregisters on view change/disconnect + never double-counts open forming bar", async () => {
   const baseSec = 1700000040; // aligned to 60s
+  let fakeNow = (baseSec + 10 * 60 + 10) * 1000;
   const { sql } = createSqliteDb();
   const ctx = createMockDoCtx(sql);
   const timers = createFakeTimers();
@@ -1016,7 +1019,7 @@ await test("Fix #5: IndicatorTracker refcounts & unregisters on view change/disc
     ctx,
     { TWELVEDATA_KEY: "KEY" },
     {
-      now: () => (baseSec + 10 * 60 + 10) * 1000,
+      now: () => fakeNow,
       setTimer: timers.setTimer,
       clearTimer: timers.clearTimer,
       setTimeout: timers.setTimeout,
@@ -1069,7 +1072,8 @@ await test("Fix #5: IndicatorTracker refcounts & unregisters on view change/disc
   const actualEma = hub.indicators.getLast("AAPL", "1m", { type: "ema", period: 5 });
   assert.ok(Math.abs(actualEma - expectedEma) < 1e-12, `EMA mismatch: ${actualEma} vs ${expectedEma}`);
 
-  // Client A switches view away -> refcount drops to 1, indicator still tracked for Client B
+  // Client A switches view away (past 500ms view cooldown) -> refcount drops to 1, indicator still tracked for Client B
+  fakeNow += 1000;
   await hub.webSocketMessage(wsA, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m", ind: [] } }));
   assert.equal(hub.indicatorRefs.get("AAPL|1m|ema:5").count, 1);
   assert.notEqual(hub.indicators.getLast("AAPL", "1m", { type: "ema", period: 5 }), undefined);
@@ -1309,6 +1313,226 @@ await test("Fix #11 & #12: Real status.asOf provenance, accurate KV hasMore, pre
   assert.equal(errState.type, "error");
   assert.equal(errState.code, "STATE_BUILD_ERROR");
   hub.buildBootstrapState = origBuild;
+
+  hub.destroy();
+});
+
+await test("Task 17 End-to-End: MarketHub evaluates alerts offline (0 browser sockets) and broadcasts valid Protocol v2 alert frames when connected", async () => {
+  let fakeNow = Date.UTC(2026, 10, 19, 16, 0, 0);
+  const { sql } = createSqliteDb();
+  const ctx = createMockDoCtx(sql);
+  const timers = createFakeTimers();
+  let serverWs = null;
+
+  const hub = new MarketHub(
+    ctx,
+    { TWELVEDATA_KEY: "KEY" },
+    {
+      now: () => fakeNow,
+      setTimer: timers.setTimer,
+      clearTimer: timers.clearTimer,
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
+      openUpstreamWs: async () => new FakeWebSocket("up-alerts"),
+      createWebSocketPair: () => {
+        serverWs = new FakeWebSocket("srv-alerts");
+        return [new FakeWebSocket("cli-alerts"), serverWs];
+      },
+    }
+  );
+  await hub.ready();
+
+  // 1. Register an offline cross_up alert on EURUSD with 0 browser sockets open
+  hub.alerts.addAlert({
+    id: "offline-eur-cross",
+    sym: "EURUSD",
+    condition: "cross_up",
+    target: 1.095,
+    mode: "once",
+  });
+
+  // Verify /hub/stats exposes alertsCount
+  const stats1 = await (await hub.fetch(new Request("https://market-hub/hub/stats"))).json();
+  assert.equal(stats1.alertsCount, 1);
+  assert.equal(stats1.clients, 0);
+
+  // Feed two upstream ticks while 0 browser sockets are connected (1.094 -> 1.096 crosses 1.095)
+  const r1 = hub.ingestTick({ s: "EURUSD", c: 1.094, t: fakeNow });
+  assert.equal(r1.accepted, true);
+  assert.equal(r1.alerts.length, 0);
+
+  fakeNow += 5_000;
+  const r2 = hub.ingestTick({ s: "EURUSD", c: 1.096, t: fakeNow });
+  assert.equal(r2.accepted, true);
+  assert.equal(r2.alerts.length, 1);
+  assert.equal(r2.alerts[0].id, "offline-eur-cross");
+  assert.equal(r2.alerts[0].price, 1.096);
+
+  // Confirm offline crossing is persisted in the evaluator log and alert disarmed
+  const logOffline = hub.alerts.getLog({ sym: "EURUSD" });
+  assert.equal(logOffline.length, 1);
+  assert.equal(logOffline[0].id, "offline-eur-cross");
+  assert.equal(hub.alerts.getAlert("offline-eur-cross").armed, false);
+
+  // 2. Connect a browser client subscribed to EURUSD and register a live alert + bar-close alert
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  await hub.webSocketMessage(
+    serverWs,
+    JSON.stringify({ op: "view", watchlist: ["EURUSD"] })
+  );
+  const seqBeforeAlert = JSON.parse(serverWs.sent.at(-1)).seq;
+
+  hub.alerts.addAlert({
+    id: "live-eur-above",
+    sym: "EURUSD",
+    condition: "above",
+    target: 1.097,
+    mode: "once",
+  });
+  hub.alerts.addAlert({
+    id: "bar-close-eur",
+    sym: "EURUSD",
+    condition: "above",
+    target: 1.095,
+    onBarClose: true,
+    mode: "once",
+  });
+
+  const stats2 = await (await hub.fetch(new Request("https://market-hub/hub/stats"))).json();
+  assert.equal(stats2.alertsCount, 3);
+  assert.equal(stats2.clients, 1);
+
+  // Tick crosses live-eur-above (1.0975 >= 1.097) -> broadcasts Protocol v2 alert frame immediately
+  fakeNow += 5_000;
+  hub.ingestTick({ s: "EURUSD", c: 1.0975, t: fakeNow });
+
+  const liveFrames = serverWs.sent.map((s) => JSON.parse(s));
+  const liveAlertFrame = liveFrames.find((f) => f.type === "alert" && f.id === "live-eur-above");
+  assert.ok(liveAlertFrame, "expected live Protocol v2 alert frame on connected socket");
+  assert.equal(validateServerFrame(liveAlertFrame, { lastSeq: seqBeforeAlert }).ok, true);
+  assert.equal(checkLiveFrameBudget(liveAlertFrame).ok, true);
+  assert.equal(liveAlertFrame.sym, "EURUSD");
+  assert.equal(liveAlertFrame.price, 1.0975);
+  assert.equal(serverWs.deserializeAttachment().seq, liveAlertFrame.seq);
+
+  // Next minute tick closes the 1m bar -> triggers onBarClose alert and broadcasts Protocol v2 alert frame
+  fakeNow += 65_000;
+  hub.ingestTick({ s: "EURUSD", c: 1.0972, t: fakeNow });
+  await ctx.flushWaitUntil();
+
+  const allFrames = serverWs.sent.map((s) => JSON.parse(s));
+  const barAlertFrame = allFrames.find((f) => f.type === "alert" && f.id === "bar-close-eur");
+  assert.ok(barAlertFrame, "expected onBarClose Protocol v2 alert frame on bar close");
+  assert.equal(validateServerFrame(barAlertFrame, { lastSeq: liveAlertFrame.seq }).ok, true);
+  assert.equal(checkLiveFrameBudget(barAlertFrame).ok, true);
+
+  hub.destroy();
+});
+
+await test("Audit HIGH #1 & HIGH #3: Cross-tenant alert isolation (fail-closed) + per-client view cooldown + bootstrap TTL cache", async () => {
+  let fakeNow = Date.UTC(2026, 10, 19, 17, 0, 0);
+  const { sql } = createSqliteDb();
+  const ctx = createMockDoCtx(sql);
+  const timers = createFakeTimers();
+  const serverSockets = [];
+
+  const hub = new MarketHub(
+    ctx,
+    { TWELVEDATA_KEY: "KEY", TD_WS_MAX: "4" },
+    {
+      now: () => fakeNow,
+      setTimer: timers.setTimer,
+      clearTimer: timers.clearTimer,
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
+      openUpstreamWs: async () => new FakeWebSocket("up-audit"),
+      createWebSocketPair: () => {
+        const srv = new FakeWebSocket(`srv-audit-${serverSockets.length}`);
+        serverSockets.push(srv);
+        return [new FakeWebSocket(`cli-audit-${serverSockets.length}`), srv];
+      },
+    }
+  );
+  await hub.ready();
+
+  // Seed 1 bar so bootstrap builds real records
+  const t0 = Math.floor(fakeNow / 1000);
+  hub.store.upsertBar("EURUSD", "1m", { t: t0 - 60, o: 1.09, h: 1.092, l: 1.089, c: 1.091, v: 50 });
+
+  // Connect 3 sockets: unauthenticated, user-alice, user-bob
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  const [wsAnon, wsAlice, wsBob] = serverSockets;
+
+  const idAlice = wsAlice.deserializeAttachment().id;
+  const idBob = wsBob.deserializeAttachment().id;
+  hub.core.clients.get(idAlice).userId = "user-alice";
+  hub.core.clients.get(idBob).userId = "user-bob";
+
+  for (const ws of [wsAnon, wsAlice, wsBob]) {
+    await hub.webSocketMessage(ws, JSON.stringify({ op: "view", watchlist: ["EURUSD"] }));
+  }
+
+  // HIGH #3: Rapid second `view` within 500ms -> RATE_LIMITED error frame
+  fakeNow += 100;
+  await hub.webSocketMessage(wsAnon, JSON.stringify({ op: "view", watchlist: ["EURUSD", "GBPUSD"] }));
+  const rateLimitFrame = JSON.parse(wsAnon.sent.at(-1));
+  assert.equal(rateLimitFrame.type, "error");
+  assert.equal(rateLimitFrame.code, "RATE_LIMITED");
+
+  // After 500ms cooldown passes -> view succeeds
+  fakeNow += 500;
+  await hub.webSocketMessage(wsAnon, JSON.stringify({ op: "view", watchlist: ["EURUSD"] }));
+  assert.equal(JSON.parse(wsAnon.sent.at(-1)).type, "state");
+
+  // HIGH #1: Register a user-owned alert for user-alice and trigger it
+  hub.alerts.addAlert({
+    id: "alice-private-alert",
+    sym: "EURUSD",
+    condition: "above",
+    target: 1.095,
+    mode: "once",
+    userId: "user-alice",
+  });
+
+  fakeNow += 1000;
+  hub.ingestTick({ s: "EURUSD", c: 1.096, t: fakeNow });
+
+  const anonAlerts = wsAnon.sent.map((s) => JSON.parse(s)).filter((f) => f.type === "alert");
+  const bobAlerts = wsBob.sent.map((s) => JSON.parse(s)).filter((f) => f.type === "alert");
+  const aliceAlerts = wsAlice.sent.map((s) => JSON.parse(s)).filter((f) => f.type === "alert");
+
+  assert.equal(anonAlerts.length, 0, "user-owned alert MUST NOT broadcast to unauthenticated socket");
+  assert.equal(bobAlerts.length, 0, "user-owned alert MUST NOT broadcast to another user's socket");
+  assert.equal(aliceAlerts.length, 1, "user-owned alert MUST deliver to owner socket");
+  assert.equal(aliceAlerts[0].id, "alice-private-alert");
+  assert.equal("userId" in aliceAlerts[0], false, "userId MUST NEVER appear on the wire alert frame");
+
+  // HIGH #3: Bootstrap records cache avoids repeated SQLite scans within 1500ms TTL, invalidated on closed bar
+  let buildRealCalls = 0;
+  const origBuildReal = hub._buildRealRecords.bind(hub);
+  hub._buildRealRecords = () => {
+    buildRealCalls += 1;
+    return origBuildReal();
+  };
+  hub._invalidateBootstrapCache();
+  await hub.buildBootstrapState({}, 1);
+  await hub.buildBootstrapState({}, 2);
+  assert.equal(buildRealCalls, 1, "repeated buildBootstrapState within 1500ms must hit cache");
+
+  // Advance past 1500ms TTL -> cache refreshes
+  fakeNow += 1600;
+  await hub.buildBootstrapState({}, 3);
+  assert.equal(buildRealCalls, 2);
+
+  // Closing a 1m bar immediately invalidates bootstrap cache
+  fakeNow += 65_000;
+  hub.ingestTick({ s: "EURUSD", c: 1.097, t: fakeNow });
+  await ctx.flushWaitUntil();
+  const callsAfterClose = buildRealCalls;
+  await hub.buildBootstrapState({}, 4);
+  assert.equal(buildRealCalls, callsAfterClose + 1, "closed bar must invalidate bootstrap cache");
 
   hub.destroy();
 });

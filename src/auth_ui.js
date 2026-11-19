@@ -11,10 +11,41 @@ const PHONE_E164_RE = /^\+[1-9]\d{6,14}$/;
 const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 let activeUser = null;
-let providers = { email: false, google: false, apple: false };
+let providers = { email: false, google: false, apple: false, email_verify: false, phone_verify: false };
 let d1AuthLive = false;
 let authUiMounted = false;
 let currentMode = "signin"; // "signin" | "signup"
+
+function ensureAuthExtraStyles() {
+  if (typeof document === "undefined" || document.getElementById("vtVerifyStyles")) return;
+  const style = document.createElement("style");
+  style.id = "vtVerifyStyles";
+  style.textContent = [
+    ".vt-terms-row{display:flex;align-items:flex-start;gap:9px;margin:2px 0 4px;padding:8px 10px;background:var(--bg-0);border:1px solid var(--line-1);border-radius:var(--r-sm);font-size:12px;line-height:1.45;color:var(--mut);}",
+    ".vt-terms-row input[type=\"checkbox\"]{margin:2px 0 0;width:16px;height:16px;min-height:16px;flex-shrink:0;accent-color:var(--acc);cursor:pointer;}",
+    ".vt-terms-row input[aria-invalid=\"true\"]{outline:2px solid var(--r);outline-offset:1px;}",
+    ".vt-terms-row a{color:var(--acc);font-weight:500;text-decoration:underline;text-underline-offset:2px;}",
+    ".vt-terms-row a:hover{color:var(--acc-hover);}",
+    ".vt-verify-grid{display:flex;flex-direction:column;gap:12px;margin:12px 0;}",
+    ".vt-verify-card{padding:14px;background:var(--bg-0);border:1px solid var(--line-2);border-radius:var(--r-md);display:flex;flex-direction:column;gap:10px;}",
+    ".vt-verify-card.is-ok{border-color:color-mix(in srgb,var(--g) 40%,var(--line-2));}",
+    ".vt-verify-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}",
+    ".vt-verify-title{font-size:13.5px;font-weight:600;color:var(--fg);margin:0;letter-spacing:-0.01em;}",
+    ".vt-verify-target{font-size:12px;color:var(--mut);font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);word-break:break-all;}",
+    ".vt-otp-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+    ".vt-otp-input{width:136px;min-height:40px;padding:7px 10px;background:var(--bg-1);color:var(--fg);border:1px solid var(--line-2);border-radius:var(--r-sm);font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:16px;font-weight:600;letter-spacing:0.24em;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;}",
+    ".vt-otp-input:focus{border-color:var(--acc);outline:none;}",
+    ".vt-otp-input[aria-invalid=\"true\"]{border-color:var(--r);}",
+    ".vt-otp-send{min-height:40px;padding:0 12px;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;}",
+    ".vt-otp-verify{min-height:40px;padding:0 14px;font-size:12.5px;white-space:nowrap;}",
+    ".vt-verify-msg{font-size:12px;line-height:1.4;min-height:0;}",
+    ".vt-verify-msg.err{color:var(--r);}",
+    ".vt-verify-msg.ok{color:var(--g);}",
+    ".vt-verify-msg.note{color:var(--mut);}",
+    "@media (max-width:520px){.vt-field-row{grid-template-columns:1fr;}}",
+  ].join("\n");
+  document.head.append(style);
+}
 
 // ---------------------------------------------------------------------------
 // Safe DOM Helpers (zero innerHTML)
@@ -467,6 +498,311 @@ function cleanCompleteProfileQuery() {
   } catch {
     // ignore
   }
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Verify Email & Phone Modal (6-Digit OTP)
+// ---------------------------------------------------------------------------
+
+function openVerificationModal(user) {
+  if (!user || !user.id) return;
+  if (document.getElementById("vtVerifyModalOv") || document.getElementById("vtCompleteProfileOv")) return;
+
+  ensureAuthExtraStyles();
+  const dismissKey = `vt_verify_dismissed_${user.id}`;
+  const timers = [];
+
+  function clearTimers() {
+    while (timers.length) {
+      clearInterval(timers.pop());
+    }
+  }
+
+  let current = Object.assign({}, user);
+
+  const { dialog, close } = createAccessibleModal({
+    id: "vtVerifyModalOv",
+    labelledBy: "vtVerifyTitle",
+    dismissible: true,
+    onClose: () => {
+      clearTimers();
+      try {
+        window.sessionStorage.setItem(dismissKey, "1");
+      } catch {
+        // ignore
+      }
+    },
+  });
+
+  const title = el("h2", { id: "vtVerifyTitle", className: "vt-modal-h", textContent: "Verify your contact details" });
+  const closeBtn = el("button", {
+    type: "button",
+    className: "vt-modal-close",
+    "aria-label": "Close verification dialog",
+    textContent: "\u00d7",
+    onClick: () => close(),
+  });
+  const head = el("div", { className: "vt-modal-head" }, title, closeBtn);
+  const sub = el("p", {
+    className: "vt-modal-sub",
+    textContent: "Confirm your email address and phone number with a 6-digit code to secure your account.",
+  });
+
+  const footerBtn = el("button", {
+    type: "button",
+    id: "vtVerifyLaterBtn",
+    className: "vt-btn-ghost",
+    textContent: "Verify later",
+    onClick: () => close(),
+  });
+
+  function syncFooterState() {
+    if (current.email_verified && current.phone_verified) {
+      footerBtn.className = "pri";
+      footerBtn.textContent = "Continue to terminal";
+      safeToast("Email and phone verified");
+    }
+  }
+
+  function buildChannelCard({ channel, label, target, initiallyVerified }) {
+    let verified = Boolean(initiallyVerified);
+    let cooldownLeft = 0;
+    let intervalId = null;
+
+    const badge = el("span", {
+      id: `vtVerifyBadge_${channel}`,
+      className: verified ? "vt-pill vt-pill-ok" : "vt-pill",
+      textContent: verified ? "Verified" : "Pending",
+    });
+
+    const cardHead = el(
+      "div",
+      { className: "vt-verify-head" },
+      el(
+        "div",
+        null,
+        el("h3", { className: "vt-verify-title", textContent: label }),
+        el("div", { className: "vt-verify-target", textContent: target || "Not set" })
+      ),
+      badge
+    );
+
+    const msgEl = el("div", {
+      id: `vtVerifyMsg_${channel}`,
+      className: "vt-verify-msg",
+      role: "alert",
+      "aria-live": "polite",
+    });
+
+    const codeInput = el("input", {
+      id: `vtVerifyCode_${channel}`,
+      type: "text",
+      inputmode: "numeric",
+      autocomplete: "one-time-code",
+      maxlength: "6",
+      pattern: "[0-9]{6}",
+      placeholder: "000000",
+      className: "vt-otp-input",
+      "aria-label": `${label} 6-digit code`,
+      "aria-describedby": `vtVerifyMsg_${channel}`,
+    });
+
+    codeInput.addEventListener("input", () => {
+      const cleaned = codeInput.value.replace(/\D+/g, "").slice(0, 6);
+      if (codeInput.value !== cleaned) codeInput.value = cleaned;
+      codeInput.removeAttribute("aria-invalid");
+      if (msgEl.classList.contains("err")) {
+        msgEl.textContent = "";
+        msgEl.className = "vt-verify-msg";
+      }
+    });
+
+    const sendBtn = el("button", {
+      type: "button",
+      id: `vtVerifySend_${channel}`,
+      className: "vt-btn-ghost vt-otp-send",
+      textContent: "Send code",
+    });
+
+    const verifyBtn = el("button", {
+      type: "button",
+      id: `vtVerifyConfirm_${channel}`,
+      className: "pri vt-otp-verify",
+      textContent: "Verify",
+    });
+
+    const controls = el("div", { className: "vt-otp-row" }, sendBtn, codeInput, verifyBtn);
+    const card = el("div", { className: verified ? "vt-verify-card is-ok" : "vt-verify-card" }, cardHead);
+
+    function setMsg(text, kind) {
+      msgEl.textContent = text;
+      msgEl.className = kind ? `vt-verify-msg ${kind}` : "vt-verify-msg";
+    }
+
+    function startCooldown(seconds) {
+      cooldownLeft = Math.max(1, Math.floor(seconds));
+      sendBtn.disabled = true;
+      sendBtn.textContent = `Resend in ${cooldownLeft}s`;
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        cooldownLeft -= 1;
+        if (cooldownLeft <= 0) {
+          clearInterval(intervalId);
+          intervalId = null;
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Resend";
+        } else {
+          sendBtn.textContent = `Resend in ${cooldownLeft}s`;
+        }
+      }, 1000);
+      timers.push(intervalId);
+    }
+
+    function markVerified(updatedUser) {
+      verified = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      if (updatedUser) {
+        current = updatedUser;
+        activeUser = updatedUser;
+      } else if (channel === "email") {
+        current.email_verified = true;
+      } else {
+        current.phone_verified = true;
+      }
+      badge.className = "vt-pill vt-pill-ok";
+      badge.textContent = "Verified";
+      card.classList.add("is-ok");
+      controls.remove();
+      setMsg("Confirmed.", "ok");
+      syncFooterState();
+    }
+
+    sendBtn.addEventListener("click", async () => {
+      if (verified || cooldownLeft > 0) return;
+      setMsg("", "");
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending…";
+      try {
+        const res = await apiJson("/api/auth/verify/send", {
+          method: "POST",
+          body: { channel },
+        });
+        if (res.ok) {
+          if (res.data && res.data.already_verified) {
+            markVerified(null);
+            return;
+          }
+          setMsg("Code sent. Enter the 6-digit code below.", "note");
+          startCooldown((res.data && res.data.cooldown_sec) || 60);
+          codeInput.focus();
+          return;
+        }
+        if (res.status === 503 && res.data && res.data.code === "PROVIDER_UNCONFIGURED") {
+          setMsg("Verification service pending setup", "note");
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send code";
+          return;
+        }
+        if (res.status === 429) {
+          const wait = Number(res.retryAfter);
+          if (Number.isFinite(wait) && wait > 0 && wait <= 120) {
+            startCooldown(wait);
+          } else {
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Resend";
+          }
+          setMsg((res.data && res.data.error) || "Please wait before requesting another code.", "err");
+          return;
+        }
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send code";
+        setMsg((res.data && res.data.error) || "Could not send verification code.", "err");
+      } catch {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send code";
+        setMsg("Could not reach the server. Try again.", "err");
+      }
+    });
+
+    async function handleVerify() {
+      if (verified) return;
+      const code = codeInput.value.replace(/\D+/g, "");
+      if (!/^\d{6}$/.test(code)) {
+        codeInput.setAttribute("aria-invalid", "true");
+        codeInput.focus();
+        setMsg("Enter the 6-digit verification code.", "err");
+        return;
+      }
+      setMsg("", "");
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Checking…";
+      try {
+        const res = await apiJson("/api/auth/verify/confirm", {
+          method: "POST",
+          body: { channel, code },
+        });
+        if (!res.ok) {
+          codeInput.setAttribute("aria-invalid", "true");
+          codeInput.focus();
+          setMsg((res.data && res.data.error) || "Invalid verification code.", "err");
+          return;
+        }
+        markVerified(res.data && res.data.user ? res.data.user : null);
+      } catch {
+        setMsg("Could not reach the server. Try again.", "err");
+      } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = "Verify";
+      }
+    }
+
+    verifyBtn.addEventListener("click", handleVerify);
+    codeInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        handleVerify();
+      }
+    });
+
+    if (!verified) {
+      if (!target) {
+        sendBtn.disabled = true;
+        verifyBtn.disabled = true;
+        codeInput.disabled = true;
+        setMsg("Complete your profile to add a phone number first.", "note");
+      }
+      card.append(controls, msgEl);
+    } else {
+      card.append(msgEl);
+    }
+
+    return card;
+  }
+
+  const grid = el(
+    "div",
+    { className: "vt-verify-grid" },
+    buildChannelCard({
+      channel: "email",
+      label: "Email verification",
+      target: current.email,
+      initiallyVerified: current.email_verified,
+    }),
+    buildChannelCard({
+      channel: "phone",
+      label: "Phone verification",
+      target: current.phone,
+      initiallyVerified: current.phone_verified,
+    })
+  );
+
+  const acts = el("div", { className: "vt-modal-acts" }, footerBtn);
+  dialog.append(head, sub, grid, acts);
+  syncFooterState();
+  setTimeout(() => closeBtn.focus(), 20);
 }
 
 // ---------------------------------------------------------------------------
@@ -938,10 +1274,24 @@ function adaptUserForTerminal(user) {
     role: user.role,
     plan: user.plan,
     profile_completed: Boolean(user.profile_completed),
+    email_verified: Boolean(user.email_verified),
+    phone_verified: Boolean(user.phone_verified),
   };
 }
 
-function applySignedInSession(user) {
+function maybeOpenVerificationModal(user) {
+  if (!user || !user.id || user.profile_completed === false) return;
+  if (user.email_verified && user.phone_verified) return;
+  const dismissKey = `vt_verify_dismissed_${user.id}`;
+  try {
+    if (window.sessionStorage.getItem(dismissKey) === "1") return;
+  } catch {
+    // ignore
+  }
+  openVerificationModal(user);
+}
+
+function applySignedInSession(user, { forceVerifyModal = false } = {}) {
   activeUser = user;
   const adapted = adaptUserForTerminal(user);
 
@@ -963,12 +1313,28 @@ function applySignedInSession(user) {
 
   mountAdminBadge(user);
   wireRealLogout();
+  window.vtOpenVerificationModal = () => {
+    if (activeUser) openVerificationModal(activeUser);
+  };
 
   if (user.profile_completed === false) {
     openCompleteProfileModal(user);
   } else {
     cleanCompleteProfileQuery();
-    setTimeout(() => maybeOfferLegacyImport(user), 350);
+    if (!user.email_verified || !user.phone_verified) {
+      if (forceVerifyModal) {
+        try {
+          window.sessionStorage.removeItem(`vt_verify_dismissed_${user.id}`);
+        } catch {
+          // ignore
+        }
+        openVerificationModal(user);
+      } else {
+        setTimeout(() => maybeOpenVerificationModal(user), 250);
+      }
+    } else {
+      setTimeout(() => maybeOfferLegacyImport(user), 350);
+    }
   }
 }
 
@@ -1052,6 +1418,7 @@ function enhanceAuthScreen() {
   if (!form || !idEl || !pwEl || !btn || !errEl) return;
 
   authUiMounted = true;
+  ensureAuthExtraStyles();
   form.classList.add("vt-d1-auth");
 
   // Update subtitle and prototype note to reflect live D1 Auth
@@ -1213,16 +1580,37 @@ function enhanceAuthScreen() {
     rDigit.classList.toggle("ok", r.digit);
   });
 
+  const suTerms = el("input", {
+    id: "vtSuTerms",
+    name: "terms_accepted",
+    type: "checkbox",
+    required: true,
+    "aria-describedby": "vtSuErr",
+  });
+  const suTermsWrap = el(
+    "div",
+    { className: "vt-terms-row" },
+    suTerms,
+    el(
+      "span",
+      null,
+      el("label", { for: "vtSuTerms", textContent: "I agree to the " }),
+      el("a", { href: "#/legal/terms", textContent: "Terms of Service" }),
+      " and ",
+      el("a", { href: "#/legal/privacy", textContent: "Privacy Policy" })
+    )
+  );
+
   const suErr = el("div", { id: "vtSuErr", className: "auth-err", role: "alert", "aria-live": "polite" });
   const suBtn = el("button", { type: "submit", id: "vtSuBtn", className: "pri", textContent: "Create account" });
 
-  const suInputs = [suName, suUser, suDob, suPhone, suEmail, suPw];
+  const suInputs = [suName, suUser, suDob, suPhone, suEmail, suPw, suTerms];
   const clearSuErr = () => {
     suErr.textContent = "";
     for (const inp of suInputs) inp.removeAttribute("aria-invalid");
   };
   for (const inp of suInputs) {
-    inp.addEventListener("input", clearSuErr);
+    inp.addEventListener(inp === suTerms ? "change" : "input", clearSuErr);
   }
 
   suEmail.addEventListener("blur", () => {
@@ -1238,8 +1626,12 @@ function enhanceAuthScreen() {
   const signUpWrap = el(
     "div",
     { id: "vtSignUpFields", className: "vt-auth-panel", role: "tabpanel", hidden: true },
-    el("label", { className: "vt-field" }, el("span", { textContent: "Full name" }), suName),
-    el("label", { className: "vt-field" }, el("span", { textContent: "Username" }), suUser),
+    el(
+      "div",
+      { className: "vt-field-row" },
+      el("label", { className: "vt-field" }, el("span", { textContent: "Full name" }), suName),
+      el("label", { className: "vt-field" }, el("span", { textContent: "Username" }), suUser)
+    ),
     el(
       "div",
       { className: "vt-field-row" },
@@ -1254,6 +1646,7 @@ function enhanceAuthScreen() {
       el("span", { className: "pw" }, suPw, suPwTog)
     ),
     pwRulesList,
+    suTermsWrap,
     suErr,
     suBtn,
     el(
@@ -1438,13 +1831,16 @@ function enhanceAuthScreen() {
     if (!pwRules.len || !pwRules.upper || !pwRules.lower || !pwRules.digit) {
       return showSuError("Password must be 10+ characters with uppercase, lowercase, and a number.", suPw);
     }
+    if (!suTerms.checked) {
+      return showSuError("You must accept the Terms of Service and Privacy Policy to create an account.", suTerms);
+    }
 
     suBtn.disabled = true;
     suBtn.textContent = "Creating account…";
     try {
       const res = await apiJson("/api/auth/register", {
         method: "POST",
-        body: { full_name, username, dob, phone, email: emailCheck.email, password },
+        body: { full_name, username, dob, phone, email: emailCheck.email, password, terms_accepted: true },
       });
       if (!res.ok) {
         const msg =
@@ -1455,7 +1851,7 @@ function enhanceAuthScreen() {
         return;
       }
       suPw.value = "";
-      applySignedInSession(res.data.user);
+      applySignedInSession(res.data.user, { forceVerifyModal: true });
     } catch {
       showSuError("Could not reach the authentication server. Please try again.");
     } finally {
@@ -1540,6 +1936,8 @@ async function initD1Auth() {
     email: Boolean(provRes.data.providers.email),
     google: Boolean(provRes.data.providers.google),
     apple: Boolean(provRes.data.providers.apple),
+    email_verify: Boolean(provRes.data.providers.email_verify),
+    phone_verify: Boolean(provRes.data.providers.phone_verify),
   };
 
   enhanceAuthScreen();

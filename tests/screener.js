@@ -7,7 +7,7 @@ assert.deepStrictEqual(hashes(path.join(__dirname,"../index.html")),BASE,"scorin
 (async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.mkt="CRY";save();render()});await P.waitForTimeout(2500);
 for(const fn of NAMES){const src=await P.evaluate(n=>typeof window[n]==="function"&&window[n].toString(),fn);assert(src,fn+" missing at runtime")}
-await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(600);
+await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/screener"]');await P.waitForTimeout(600);
 let st=await P.evaluate(()=>({th:document.querySelectorAll("#t thead th").length,rows:document.querySelectorAll("#t tbody tr[data-s]").length,pro:document.querySelectorAll("#t tbody td[data-l=Tier]").length,bar:!!document.querySelector("#sxbar").offsetParent,scroll:(()=>{const w=document.querySelector(".side>.tw");return w.scrollWidth-w.clientWidth})()}));
 console.log(JSON.stringify(st));assert(st.th>=12&&st.rows>0&&st.pro===st.rows&&st.bar&&st.scroll<=2);
 // the Cycle (S01-S04) pills are gone
@@ -32,5 +32,5 @@ await P.click('#t tbody tr[data-s="SOLUSDT"] td.sy');await P.waitForTimeout(300)
 st=await P.evaluate(()=>({page:S.pageView,sym:S.chart.sym,ch:!!ch,drawer:document.getElementById("sxd").classList.contains("open"),pro:document.querySelectorAll("#t td[data-l=Tier]").length}));
 console.log(JSON.stringify(st));assert(st.page==="chart"&&st.sym==="SOLUSDT"&&st.ch&&!st.drawer&&st.pro===0);
 // layout picker works (built-in layout)
-await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(300);await P.selectOption("#sxlay","Trend grid");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>S.cur),"Trend grid");
+await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/screener"]');await P.waitForTimeout(300);await P.selectOption("#sxlay","Trend grid");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>S.cur),"Trend grid");
 console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);await h.close();console.log("SCREENER OK")})().catch(e=>{console.error(e);process.exit(1)});

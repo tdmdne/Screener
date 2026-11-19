@@ -16,6 +16,12 @@ export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 export const LOCKOUT_MAX_FAILS = 5;
 export const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 export const MAX_PAYLOAD_BYTES = 512 * 1024; // 512 KB
+export const TERMS_VERSION = "2026-11";
+export const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+export const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
+export const VERIFICATION_HOURLY_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+export const VERIFICATION_HOURLY_MAX = 5;
+export const VERIFICATION_MAX_ATTEMPTS = 5;
 
 export const ALLOWED_NAMESPACES = Object.freeze([
   "watchlists",
@@ -30,14 +36,17 @@ const ALLOWED_NAMESPACE_SET = new Set(ALLOWED_NAMESPACES);
 export const ALLOWED_ROLES = Object.freeze(["user", "admin"]);
 export const ALLOWED_PLANS = Object.freeze(["free", "pro", "elite"]);
 export const ALLOWED_OAUTH_PROVIDERS = Object.freeze(["google", "apple"]);
+export const ALLOWED_VERIFICATION_CHANNELS = Object.freeze(["email", "phone"]);
 
 const ALLOWED_ROLE_SET = new Set(ALLOWED_ROLES);
 const ALLOWED_PLAN_SET = new Set(ALLOWED_PLANS);
 const ALLOWED_OAUTH_PROVIDER_SET = new Set(ALLOWED_OAUTH_PROVIDERS);
+const ALLOWED_VERIFICATION_CHANNEL_SET = new Set(ALLOWED_VERIFICATION_CHANNELS);
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,24}$/;
 const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const PHONE_E164_RE = /^\+[1-9]\d{6,14}$/;
+const OTP_CODE_RE = /^\d{6}$/;
 const CONTROL_CHARS_RE = /[\x00-\x1F\x7F]/;
 
 const RESERVED_USERNAMES = new Set([
@@ -452,6 +461,10 @@ export function sanitizeUser(row) {
     dob: row.dob ?? null,
     phone: row.phone ?? null,
     profile_completed: Boolean(row.profile_completed),
+    email_verified: Boolean(row.email_verified_at),
+    phone_verified: Boolean(row.phone_verified_at),
+    terms_accepted_at: row.terms_accepted_at ?? null,
+    terms_version: row.terms_version ?? null,
     role: row.role,
     plan: row.plan,
     created_at: row.created_at,
@@ -508,7 +521,9 @@ export async function getSessionUser(db, token, { nowMs = Date.now() } = {}) {
   const row = await db
     .prepare(
       `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone,
-              u.profile_completed, u.role, u.plan, u.created_at, u.updated_at, u.disabled_at,
+              u.profile_completed, u.terms_accepted_at, u.terms_version,
+              u.email_verified_at, u.phone_verified_at,
+              u.role, u.plan, u.created_at, u.updated_at, u.disabled_at,
               s.expires_at AS session_expires_at, s.last_seen_at AS session_last_seen_at
          FROM sessions s
          JOIN users u ON u.id = s.user_id
@@ -765,6 +780,14 @@ export async function registerUser(db, input, { env = {}, ip = null, ua = null, 
   const phoneCheck = validatePhone(input.phone);
   if (!phoneCheck.ok) return { ok: false, status: 400, error: phoneCheck.error };
 
+  if (input.terms_accepted !== true) {
+    return {
+      ok: false,
+      status: 400,
+      error: "You must accept the Terms of Service and Privacy Policy to create an account.",
+    };
+  }
+
   const existingEmail = await db
     .prepare("SELECT id FROM users WHERE canonical_email = ? OR email = ?")
     .bind(emailCheck.canonical, emailCheck.email)
@@ -790,8 +813,8 @@ export async function registerUser(db, input, { env = {}, ip = null, ua = null, 
       .prepare(
         `INSERT INTO users
           (id, email, canonical_email, password_hash, full_name, username, username_lower, dob, phone,
-           profile_completed, role, plan, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'free', ?, ?)`
+           profile_completed, terms_accepted_at, terms_version, role, plan, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'free', ?, ?)`
       )
       .bind(
         id,
@@ -803,6 +826,8 @@ export async function registerUser(db, input, { env = {}, ip = null, ua = null, 
         userCheck.lower,
         dobCheck.value,
         phoneCheck.value,
+        nowMs,
+        TERMS_VERSION,
         role,
         nowMs,
         nowMs
@@ -819,7 +844,9 @@ export async function registerUser(db, input, { env = {}, ip = null, ua = null, 
   const session = await createSession(db, id, { ip, ua, nowMs });
   const created = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed, role, plan, created_at, updated_at, disabled_at
+      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+              terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
     )
     .bind(id)
@@ -861,7 +888,9 @@ export async function loginUser(db, input, { ip = null, ua = null, nowMs = Date.
   const user = await db
     .prepare(
       `SELECT id, email, password_hash, full_name, username, dob, phone,
-              profile_completed, role, plan, created_at, updated_at, disabled_at
+              profile_completed, terms_accepted_at, terms_version,
+              email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
          FROM users WHERE canonical_email = ?`
     )
     .bind(emailCheck.canonical)
@@ -1088,7 +1117,9 @@ export async function findOrCreateOAuthUser(
   const linked = await db
     .prepare(
       `SELECT u.id, u.email, u.full_name, u.username, u.dob, u.phone,
-              u.profile_completed, u.role, u.plan, u.created_at, u.updated_at, u.disabled_at
+              u.profile_completed, u.terms_accepted_at, u.terms_version,
+              u.email_verified_at, u.phone_verified_at,
+              u.role, u.plan, u.created_at, u.updated_at, u.disabled_at
          FROM oauth_accounts oa
          JOIN users u ON u.id = oa.user_id
         WHERE oa.provider = ? AND oa.provider_user_id = ?`
@@ -1116,7 +1147,9 @@ export async function findOrCreateOAuthUser(
   const existing = await db
     .prepare(
       `SELECT id, email, full_name, username, dob, phone,
-              profile_completed, role, plan, created_at, updated_at, disabled_at
+              profile_completed, terms_accepted_at, terms_version,
+              email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
          FROM users WHERE canonical_email = ?`
     )
     .bind(emailCheck.canonical)
@@ -1125,6 +1158,23 @@ export async function findOrCreateOAuthUser(
   if (existing) {
     if (existing.disabled_at != null) {
       return { ok: false, status: 403, error: "Account is disabled." };
+    }
+    if (existing.email_verified_at == null) {
+      // Pre-account takeover defense: clear any attacker-set password, mark email verified
+      // by the trusted OAuth provider, and revoke all prior sessions before linking.
+      await db
+        .prepare(
+          `UPDATE users
+              SET password_hash = NULL,
+                  email_verified_at = ?,
+                  updated_at = ?
+            WHERE id = ? AND email_verified_at IS NULL`
+        )
+        .bind(nowMs, nowMs, existing.id)
+        .run();
+      await revokeAllUserSessions(db, existing.id);
+      existing.email_verified_at = nowMs;
+      existing.updated_at = nowMs;
     }
     await db
       .prepare(
@@ -1144,10 +1194,10 @@ export async function findOrCreateOAuthUser(
     .prepare(
       `INSERT INTO users
         (id, email, canonical_email, password_hash, full_name, username, username_lower, dob, phone,
-         profile_completed, role, plan, created_at, updated_at)
-       VALUES (?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, 0, 'user', 'free', ?, ?)`
+         profile_completed, email_verified_at, role, plan, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, 0, ?, 'user', 'free', ?, ?)`
     )
-    .bind(id, emailCheck.email, emailCheck.canonical, safeName, nowMs, nowMs)
+    .bind(id, emailCheck.email, emailCheck.canonical, safeName, nowMs, nowMs, nowMs)
     .run();
 
   await db
@@ -1160,7 +1210,9 @@ export async function findOrCreateOAuthUser(
 
   const created = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed, role, plan, created_at, updated_at, disabled_at
+      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+              terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
     )
     .bind(id)
@@ -1194,16 +1246,45 @@ export async function completeProfile(db, userId, input, { nowMs = Date.now() } 
     return { ok: false, status: 409, error: "That username is already taken." };
   }
 
+  const existingUser = await db
+    .prepare("SELECT phone FROM users WHERE id = ?")
+    .bind(userId)
+    .first();
+  if (!existingUser) {
+    return { ok: false, status: 404, error: "User not found." };
+  }
+  const phoneChanged = existingUser.phone !== phoneCheck.value;
+
   try {
-    await db
-      .prepare(
-        `UPDATE users
-            SET full_name = ?, username = ?, username_lower = ?, dob = ?, phone = ?,
-                profile_completed = 1, updated_at = ?
-          WHERE id = ?`
-      )
-      .bind(nameCheck.value, userCheck.value, userCheck.lower, dobCheck.value, phoneCheck.value, nowMs, userId)
-      .run();
+    if (phoneChanged) {
+      await db
+        .prepare(
+          `UPDATE users
+              SET full_name = ?, username = ?, username_lower = ?, dob = ?, phone = ?,
+                  phone_verified_at = NULL, profile_completed = 1, updated_at = ?
+            WHERE id = ?`
+        )
+        .bind(nameCheck.value, userCheck.value, userCheck.lower, dobCheck.value, phoneCheck.value, nowMs, userId)
+        .run();
+      await db
+        .prepare(
+          `UPDATE verification_codes
+              SET consumed_at = ?
+            WHERE user_id = ? AND channel = 'phone' AND consumed_at IS NULL`
+        )
+        .bind(nowMs, userId)
+        .run();
+    } else {
+      await db
+        .prepare(
+          `UPDATE users
+              SET full_name = ?, username = ?, username_lower = ?, dob = ?, phone = ?,
+                  profile_completed = 1, updated_at = ?
+            WHERE id = ?`
+        )
+        .bind(nameCheck.value, userCheck.value, userCheck.lower, dobCheck.value, phoneCheck.value, nowMs, userId)
+        .run();
+    }
   } catch (err) {
     const msg = String(err?.message ?? "");
     if (msg.includes("UNIQUE")) {
@@ -1214,7 +1295,9 @@ export async function completeProfile(db, userId, input, { nowMs = Date.now() } 
 
   const updated = await db
     .prepare(
-      `SELECT id, email, full_name, username, dob, phone, profile_completed, role, plan, created_at, updated_at, disabled_at
+      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+              terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
          FROM users WHERE id = ?`
     )
     .bind(userId)
@@ -1224,6 +1307,408 @@ export async function completeProfile(db, userId, input, { nowMs = Date.now() } 
     return { ok: false, status: 404, error: "User not found." };
   }
   return { ok: true, status: 200, user: sanitizeUser(updated) };
+}
+
+// ---------------------------------------------------------------------------
+// Email & Phone 6-Digit OTP Verification
+// ---------------------------------------------------------------------------
+
+export function isEmailVerifyConfigured(env) {
+  return Boolean(
+    env &&
+      typeof env.RESEND_API_KEY === "string" &&
+      env.RESEND_API_KEY.trim() &&
+      typeof env.EMAIL_FROM === "string" &&
+      env.EMAIL_FROM.trim()
+  );
+}
+
+export function isPhoneVerifyConfigured(env) {
+  return Boolean(
+    env &&
+      typeof env.TWILIO_ACCOUNT_SID === "string" &&
+      env.TWILIO_ACCOUNT_SID.trim() &&
+      typeof env.TWILIO_AUTH_TOKEN === "string" &&
+      env.TWILIO_AUTH_TOKEN.trim() &&
+      typeof env.TWILIO_FROM === "string" &&
+      env.TWILIO_FROM.trim()
+  );
+}
+
+/**
+ * Generates an unbiased cryptographic 6-digit numeric OTP ("000000"–"999999")
+ * using rejection sampling over crypto.getRandomValues.
+ */
+export function generateVerificationCode() {
+  const range = 1_000_000;
+  const maxUint32 = 0x100000000;
+  const limit = maxUint32 - (maxUint32 % range);
+  const buf = new Uint32Array(1);
+  while (true) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) {
+      return String(buf[0] % range).padStart(6, "0");
+    }
+  }
+}
+
+export async function hashVerificationCode(code, userId, channel, target = "") {
+  return sha256Hex(`${code}:${userId}:${channel}:${target}`);
+}
+
+export async function sendVerificationCode(
+  db,
+  user,
+  channel,
+  { env = {}, nowMs = Date.now(), fetchImpl = globalThis.fetch, sendCodeImpl = null } = {}
+) {
+  if (!user || !user.id) {
+    return { ok: false, status: 401, error: "Unauthorized." };
+  }
+  if (!ALLOWED_VERIFICATION_CHANNEL_SET.has(channel)) {
+    return { ok: false, status: 400, error: "Channel must be 'email' or 'phone'." };
+  }
+
+  const target = channel === "email" ? user.email : user.phone;
+  if (typeof target !== "string" || !target.trim()) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        channel === "email"
+          ? "No email address on file."
+          : "No phone number on file. Complete your profile first.",
+    };
+  }
+
+  if (channel === "email" && user.email_verified) {
+    return { ok: true, status: 200, channel, already_verified: true };
+  }
+  if (channel === "phone" && user.phone_verified) {
+    return { ok: true, status: 200, channel, already_verified: true };
+  }
+
+  const hasCustomSender = typeof sendCodeImpl === "function";
+  if (!hasCustomSender) {
+    if (channel === "email" && !isEmailVerifyConfigured(env)) {
+      return {
+        ok: false,
+        status: 503,
+        error: "Email verification provider is not configured yet.",
+        code: "PROVIDER_UNCONFIGURED",
+      };
+    }
+    if (channel === "phone" && !isPhoneVerifyConfigured(env)) {
+      return {
+        ok: false,
+        status: 503,
+        error: "SMS verification provider is not configured yet.",
+        code: "PROVIDER_UNCONFIGURED",
+      };
+    }
+  }
+
+  // Max 5 codes/hour per (user_id, channel)
+  const hourly = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt, MIN(created_at) AS oldest
+         FROM verification_codes
+        WHERE user_id = ? AND channel = ? AND created_at > ?`
+    )
+    .bind(user.id, channel, nowMs - VERIFICATION_HOURLY_WINDOW_MS)
+    .first();
+
+  if (Number(hourly?.cnt ?? 0) >= VERIFICATION_HOURLY_MAX) {
+    const oldest = Number(hourly.oldest ?? nowMs);
+    const retryAfterSec = Math.max(
+      1,
+      Math.ceil((VERIFICATION_HOURLY_WINDOW_MS - (nowMs - oldest)) / 1000)
+    );
+    return {
+      ok: false,
+      status: 429,
+      error: "Hourly verification code limit reached. Please try again later.",
+      retryAfterSec,
+    };
+  }
+
+  const code = generateVerificationCode();
+  const codeHash = await hashVerificationCode(code, user.id, channel, target);
+  const id = crypto.randomUUID();
+  const expiresAt = nowMs + VERIFICATION_CODE_TTL_MS;
+  const cooldownCutoff = nowMs - VERIFICATION_RESEND_COOLDOWN_MS;
+
+  // Atomic cooldown-guarded insert BEFORE outbound delivery to close concurrent SMS/email pumping races.
+  const insRes = await db
+    .prepare(
+      `INSERT INTO verification_codes
+        (id, user_id, channel, target, code_hash, attempts, expires_at, consumed_at, created_at)
+       SELECT ?, ?, ?, ?, ?, 0, ?, NULL, ?
+        WHERE NOT EXISTS (
+          SELECT 1 FROM verification_codes
+           WHERE user_id = ? AND channel = ? AND created_at > ?
+        )`
+    )
+    .bind(
+      id,
+      user.id,
+      channel,
+      target,
+      codeHash,
+      expiresAt,
+      nowMs,
+      user.id,
+      channel,
+      cooldownCutoff
+    )
+    .run();
+
+  if (Number(insRes?.meta?.changes ?? 0) !== 1) {
+    const latest = await db
+      .prepare(
+        `SELECT created_at
+           FROM verification_codes
+          WHERE user_id = ? AND channel = ?
+          ORDER BY created_at DESC
+          LIMIT 1`
+      )
+      .bind(user.id, channel)
+      .first();
+    const retryAfterSec = latest
+      ? Math.max(1, Math.ceil((VERIFICATION_RESEND_COOLDOWN_MS - (nowMs - Number(latest.created_at))) / 1000))
+      : Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000);
+    return {
+      ok: false,
+      status: 429,
+      error: "Please wait before requesting another verification code.",
+      retryAfterSec,
+    };
+  }
+
+  // Invalidate any prior active code for (user_id, channel) while preserving rows for hourly rate limits.
+  await db
+    .prepare(
+      `UPDATE verification_codes
+          SET consumed_at = ?
+        WHERE user_id = ? AND channel = ? AND id != ? AND consumed_at IS NULL`
+    )
+    .bind(nowMs, user.id, channel, id)
+    .run();
+
+  const markUndelivered = async () => {
+    await db
+      .prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
+      .bind(nowMs, id)
+      .run();
+  };
+
+  try {
+    if (hasCustomSender) {
+      await sendCodeImpl({ channel, target, code, userId: user.id, expiresAt });
+    } else if (channel === "email") {
+      const resp = await fetchImpl("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: env.EMAIL_FROM.trim(),
+          to: [target],
+          subject: "Your Vektor Terminal verification code",
+          text: `Your Vektor Terminal verification code is ${code}. It expires in 10 minutes. If you did not request this code, you can ignore this message.`,
+        }),
+      });
+      if (!resp || !resp.ok) {
+        await markUndelivered();
+        return { ok: false, status: 502, error: "Unable to send verification email. Please try again." };
+      }
+    } else {
+      const sid = env.TWILIO_ACCOUNT_SID.trim();
+      const auth = btoa(`${sid}:${env.TWILIO_AUTH_TOKEN.trim()}`);
+      const resp = await fetchImpl(
+        `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            From: env.TWILIO_FROM.trim(),
+            To: target,
+            Body: `Your Vektor Terminal verification code is ${code}. It expires in 10 minutes.`,
+          }).toString(),
+        }
+      );
+      if (!resp || !resp.ok) {
+        await markUndelivered();
+        return { ok: false, status: 502, error: "Unable to send verification SMS. Please try again." };
+      }
+    }
+  } catch {
+    await markUndelivered();
+    return {
+      ok: false,
+      status: 502,
+      error:
+        channel === "email"
+          ? "Unable to send verification email. Please try again."
+          : "Unable to send verification SMS. Please try again.",
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    channel,
+    expires_at: expiresAt,
+    cooldown_sec: Math.floor(VERIFICATION_RESEND_COOLDOWN_MS / 1000),
+  };
+}
+
+export async function confirmVerificationCode(db, userId, channel, code, { nowMs = Date.now() } = {}) {
+  if (!userId) {
+    return { ok: false, status: 401, error: "Unauthorized." };
+  }
+  if (!ALLOWED_VERIFICATION_CHANNEL_SET.has(channel)) {
+    return { ok: false, status: 400, error: "Channel must be 'email' or 'phone'." };
+  }
+  if (typeof code !== "string" || !OTP_CODE_RE.test(code)) {
+    return { ok: false, status: 400, error: "Enter a valid 6-digit verification code." };
+  }
+
+  const currentUser = await db
+    .prepare("SELECT email, phone FROM users WHERE id = ?")
+    .bind(userId)
+    .first();
+  if (!currentUser) {
+    return { ok: false, status: 404, error: "User not found." };
+  }
+  const currentTarget = channel === "email" ? currentUser.email : currentUser.phone;
+  if (typeof currentTarget !== "string" || !currentTarget.trim()) {
+    return { ok: false, status: 400, error: "No verification target on file." };
+  }
+
+  const latest = await db
+    .prepare(
+      `SELECT id, target, code_hash, attempts, expires_at, consumed_at
+         FROM verification_codes
+        WHERE user_id = ? AND channel = ? AND consumed_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1`
+    )
+    .bind(userId, channel)
+    .first();
+
+  if (!latest) {
+    return { ok: false, status: 400, error: "No active verification code found. Request a new code." };
+  }
+  if (latest.target !== currentTarget) {
+    await db
+      .prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
+      .bind(nowMs, latest.id)
+      .run();
+    return { ok: false, status: 400, error: "Verification target changed. Request a new code." };
+  }
+  if (Number(latest.expires_at) <= nowMs) {
+    await db
+      .prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
+      .bind(nowMs, latest.id)
+      .run();
+    return { ok: false, status: 400, error: "Verification code has expired. Request a new code." };
+  }
+  if (Number(latest.attempts) >= VERIFICATION_MAX_ATTEMPTS) {
+    await db
+      .prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
+      .bind(nowMs, latest.id)
+      .run();
+    return {
+      ok: false,
+      status: 429,
+      error: "Too many incorrect attempts. Request a new verification code.",
+    };
+  }
+
+  // Atomically increment attempts before verifying the hash
+  const updated = await db
+    .prepare(
+      `UPDATE verification_codes
+          SET attempts = attempts + 1
+        WHERE id = ? AND consumed_at IS NULL AND expires_at > ? AND attempts < ?
+       RETURNING id, target, code_hash, attempts`
+    )
+    .bind(latest.id, nowMs, VERIFICATION_MAX_ATTEMPTS)
+    .first();
+
+  if (!updated) {
+    return { ok: false, status: 400, error: "Verification code is no longer active. Request a new code." };
+  }
+
+  const candidateHash = await hashVerificationCode(code, userId, channel, currentTarget);
+  if (!constantTimeEqual(candidateHash, updated.code_hash)) {
+    if (Number(updated.attempts) >= VERIFICATION_MAX_ATTEMPTS) {
+      await db
+        .prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
+        .bind(nowMs, updated.id)
+        .run();
+      return {
+        ok: false,
+        status: 429,
+        error: "Too many incorrect attempts. Request a new verification code.",
+      };
+    }
+    const remaining = VERIFICATION_MAX_ATTEMPTS - Number(updated.attempts);
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid verification code. ${remaining} ${remaining === 1 ? "attempt" : "attempts"} remaining.`,
+    };
+  }
+
+  const consumed = await db
+    .prepare(
+      `UPDATE verification_codes
+          SET consumed_at = ?
+        WHERE id = ? AND consumed_at IS NULL
+       RETURNING id`
+    )
+    .bind(nowMs, updated.id)
+    .first();
+
+  if (!consumed) {
+    return { ok: false, status: 400, error: "Verification code has already been used." };
+  }
+
+  const verifyRes =
+    channel === "email"
+      ? await db
+          .prepare("UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ? AND email = ?")
+          .bind(nowMs, nowMs, userId, currentTarget)
+          .run()
+      : await db
+          .prepare("UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ? AND phone = ?")
+          .bind(nowMs, nowMs, userId, currentTarget)
+          .run();
+
+  if (Number(verifyRes?.meta?.changes ?? 0) !== 1) {
+    return { ok: false, status: 409, error: "Verification target changed. Request a new code." };
+  }
+
+  const userRow = await db
+    .prepare(
+      `SELECT id, email, full_name, username, dob, phone, profile_completed,
+              terms_accepted_at, terms_version, email_verified_at, phone_verified_at,
+              role, plan, created_at, updated_at, disabled_at
+         FROM users WHERE id = ?`
+    )
+    .bind(userId)
+    .first();
+
+  if (!userRow) {
+    return { ok: false, status: 404, error: "User not found." };
+  }
+  return { ok: true, status: 200, user: sanitizeUser(userRow) };
 }
 
 export function decodeUtf8(bytes) {

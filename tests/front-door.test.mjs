@@ -7,11 +7,72 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 
 import { isPublicPath } from "../functions/_middleware.js";
 import { onRequest as onWsRequest } from "../functions/ws.js";
 import { onRequest as onApiRequest } from "../functions/api/[[path]].js";
+import { SESSION_COOKIE_NAME, createSession } from "../shared/auth.js";
 import { PROVENANCE } from "../shared/protocol.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MIGRATION_0001_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0001_auth_and_user_data.sql"),
+  "utf8"
+);
+const MIGRATION_0003_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
+  "utf8"
+);
+
+function createTestAuthDb() {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec("PRAGMA foreign_keys = ON;");
+  sqlite.exec(MIGRATION_0001_SQL);
+  sqlite.exec(MIGRATION_0003_SQL);
+  return {
+    prepare(sql) {
+      let bound = [];
+      const stmt = sqlite.prepare(sql);
+      const handle = {
+        bind(...args) {
+          bound = args.map((v) => (v === undefined ? null : v));
+          return handle;
+        },
+        async first() {
+          const r = stmt.get(...bound);
+          return r === undefined ? null : r;
+        },
+        async all() {
+          return { results: stmt.all(...bound), success: true };
+        },
+        async run() {
+          const info = stmt.run(...bound);
+          return { success: true, meta: { changes: info.changes } };
+        },
+      };
+      return handle;
+    },
+  };
+}
+
+async function seedSessionCookie(db, role = "admin") {
+  const id = `u-${role}-${Math.random().toString(36).slice(2, 8)}`;
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO users (id, email, canonical_email, password_hash, full_name, username, username_lower,
+                          profile_completed, role, plan, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, 1, ?, 'free', ?, ?)`
+    )
+    .bind(id, `${id}@vektor.test`, `${id}@vektor.test`, `User ${role}`, id, id.toLowerCase(), role, now, now)
+    .run();
+  const { token } = await createSession(db, id, { nowMs: now });
+  return `${SESSION_COOKIE_NAME}=${token}`;
+}
 
 const SECRET_TD = "td_secret_DO_NOT_LEAK_987654321";
 const SECRET_FH = "fh_secret_DO_NOT_LEAK_123456789";
@@ -123,9 +184,14 @@ describe("functions/ws.js + _middleware.js — same-origin /ws routing", () => {
 });
 
 describe("functions/api/[[path]].js — MARKET_SERVICE forwarding", () => {
-  it("forwards /api/bootstrap, /api/bars, and /api/hub/stats to env.MARKET_SERVICE", async () => {
+  it("forwards /api/bootstrap, /api/bars, and admin-authenticated /api/hub/stats to env.MARKET_SERVICE", async () => {
+    const db = createTestAuthDb();
+    const adminCookie = await seedSessionCookie(db, "admin");
+    const userCookie = await seedSessionCookie(db, "user");
+
     const calls = [];
     const env = {
+      DB: db,
       MARKET_SERVICE: {
         async fetch(req) {
           const u = new URL(req.url);
@@ -138,15 +204,35 @@ describe("functions/api/[[path]].js — MARKET_SERVICE forwarding", () => {
       },
     };
 
-    for (const target of [
-      "/api/bootstrap?sym=BTCUSDT&tf=1H",
-      "/api/bars?symbol=EURUSD&tf=15m&limit=100",
-      "/api/hub/stats",
+    // Audit LOW #6: /api/hub/stats requires admin session (401 unauthenticated / no DB, 403 non-admin)
+    const noDbRes = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/hub/stats"),
+      env: { MARKET_SERVICE: env.MARKET_SERVICE },
+    });
+    assert.equal(noDbRes.status, 401);
+
+    const anonStatsRes = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/hub/stats"),
+      env,
+    });
+    assert.equal(anonStatsRes.status, 401);
+
+    const userStatsRes = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/hub/stats", {
+        headers: { Cookie: userCookie },
+      }),
+      env,
+    });
+    assert.equal(userStatsRes.status, 403);
+    assert.equal(calls.length, 0, "unauthenticated/non-admin /api/hub/stats must not hit MARKET_SERVICE");
+
+    for (const [target, headers] of [
+      ["/api/bootstrap?sym=BTCUSDT&tf=1H", { Origin: "https://screener-cso.pages.dev" }],
+      ["/api/bars?symbol=EURUSD&tf=15m&limit=100", { Origin: "https://screener-cso.pages.dev" }],
+      ["/api/hub/stats", { Origin: "https://screener-cso.pages.dev", Cookie: adminCookie }],
     ]) {
       const res = await onApiRequest({
-        request: new Request("https://screener-cso.pages.dev" + target, {
-          headers: { Origin: "https://screener-cso.pages.dev" },
-        }),
+        request: new Request("https://screener-cso.pages.dev" + target, { headers }),
         env,
       });
       assert.equal(res.status, 200);
@@ -164,10 +250,16 @@ describe("functions/api/[[path]].js — MARKET_SERVICE forwarding", () => {
   });
 
   it("returns 503 UNAVAILABLE (never synthetic data) when MARKET_SERVICE is unbound", async () => {
-    for (const target of ["/api/bootstrap?sym=BTCUSDT&tf=1H", "/api/bars?symbol=BTCUSDT&tf=1H", "/api/hub/stats"]) {
+    const db = createTestAuthDb();
+    const adminCookie = await seedSessionCookie(db, "admin");
+    for (const [target, headers] of [
+      ["/api/bootstrap?sym=BTCUSDT&tf=1H", {}],
+      ["/api/bars?symbol=BTCUSDT&tf=1H", {}],
+      ["/api/hub/stats", { Cookie: adminCookie }],
+    ]) {
       const res = await onApiRequest({
-        request: new Request("https://screener-cso.pages.dev" + target),
-        env: { TWELVEDATA_KEY: SECRET_TD, FINNHUB_API_KEY: SECRET_FH },
+        request: new Request("https://screener-cso.pages.dev" + target, { headers }),
+        env: { DB: db, TWELVEDATA_KEY: SECRET_TD, FINNHUB_API_KEY: SECRET_FH },
       });
       assert.equal(res.status, 503);
       assert.equal(res.headers.get("x-provenance"), PROVENANCE.UNAVAILABLE);
@@ -542,7 +634,7 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
 
     // No Origin header -> no ACAO header (never '*'), Vary: Origin present
     const resNoOrigin = await onApiRequest({
-      request: new Request("https://screener-cso.pages.dev/api/hub/stats"),
+      request: new Request("https://screener-cso.pages.dev/api/bootstrap"),
       env,
     });
     assert.equal(resNoOrigin.status, 200);
@@ -551,7 +643,7 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
 
     // Allowlisted Origin -> echoed cleanly
     const resAllowed = await onApiRequest({
-      request: new Request("https://screener-cso.pages.dev/api/hub/stats", {
+      request: new Request("https://screener-cso.pages.dev/api/bootstrap", {
         headers: { Origin: "https://app.vektor.example" },
       }),
       env,
@@ -561,7 +653,7 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
 
     // Disallowed Origin -> no ACAO, even if upstream returned '*' (and '*' in ALLOWED_ORIGINS is ignored!)
     const resDisallowed = await onApiRequest({
-      request: new Request("https://screener-cso.pages.dev/api/hub/stats?mode=wildcard", {
+      request: new Request("https://screener-cso.pages.dev/api/bootstrap?mode=wildcard", {
         headers: { Origin: "https://evil.example" },
       }),
       env,
@@ -583,7 +675,7 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
 
     // Stricter upstream ACAO is NEVER overwritten
     const resStrict = await onApiRequest({
-      request: new Request("https://screener-cso.pages.dev/api/hub/stats?mode=strict", {
+      request: new Request("https://screener-cso.pages.dev/api/bootstrap?mode=strict", {
         headers: { Origin: "https://screener-cso.pages.dev" },
       }),
       env,
@@ -838,5 +930,230 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
     assert.equal(isPublicPath("/shared/replay.js"), false);
     assert.equal(isPublicPath("/shared/emailValidator.js"), true);
     assert.equal(isPublicPath("/ws"), "ws");
+  });
+
+  it("handles POST /api/replay/simulate with strict validation, 405/413/CORS, and stop-before-target tie-breaking", async () => {
+    // 1. 405 on non-POST
+    const res405 = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", { method: "GET" }),
+      env: {},
+    });
+    assert.equal(res405.status, 405);
+    assert.equal(res405.headers.get("allow"), "POST, OPTIONS");
+
+    // 2. 413 on oversized body (> 512 KB)
+    const hugeReplay = JSON.stringify({ bars: [], pad: "R".repeat(520 * 1024) });
+    const res413Body = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: hugeReplay,
+      }),
+      env: {},
+    });
+    assert.equal(res413Body.status, 413);
+
+    // 3. 413 on > 500 actions
+    const tooManyActions = Array.from({ length: 501 }, () => ({ type: "step", n: 1 }));
+    const res413Actions = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          symbol: "BTCUSDT",
+          tf: "1H",
+          bars: sampleBars(5),
+          actions: tooManyActions,
+        }),
+      }),
+      env: {},
+    });
+    assert.equal(res413Actions.status, 413);
+
+    // 4. 400 on malformed bars (boolean OHLC)
+    const resBadBar = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          symbol: "BTCUSDT",
+          tf: "1H",
+          bars: [[1763400000, true, 105, 95, 100, 10]],
+        }),
+      }),
+      env: {},
+    });
+    assert.equal(resBadBar.status, 400);
+
+    // 5. Valid replay simulation: conservative stop-before-target tie-breaking + strict CORS
+    const tieBars = [
+      { t: 1763400000, o: 100, h: 101, l: 99, c: 100, v: 50 },
+      // Bar 1 hits BOTH SL (95) and TP (110) -> must fill at SL (95), never TP!
+      { t: 1763403600, o: 100, h: 112, l: 94, c: 108, v: 80 },
+      { t: 1763407200, o: 108, h: 110, l: 107, c: 109, v: 60 },
+    ];
+    const simPayload = {
+      symbol: "BTCUSDT",
+      tf: "1H",
+      bars: tieBars,
+      startIndex: 0,
+      balance: 10000,
+      riskPct: 1,
+      feePct: 0,
+      actions: [
+        { type: "open", side: "long", orderType: "market", qty: 10, sl: 95, tp: 110 },
+        { type: "step", n: 1 },
+      ],
+    };
+
+    const resOk = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://screener-cso.pages.dev",
+        },
+        body: JSON.stringify(simPayload),
+      }),
+      env: {},
+    });
+    assert.equal(resOk.status, 200);
+    assert.equal(resOk.headers.get("access-control-allow-origin"), "https://screener-cso.pages.dev");
+    const simData = await resOk.json();
+    assert.equal(simData.ok, true);
+    assert.equal(simData.window.symbol, "BTCUSDT");
+    assert.equal(simData.window.currentIndex, 1);
+    assert.equal(simData.openPositions.length, 0);
+    assert.equal(simData.pendingOrders.length, 0);
+    assert.equal(simData.trades.length, 1);
+    assert.equal(simData.trades[0].exit, 95, "Tie-break must stop out at SL (95) before TP (110)");
+    assert.equal(simData.trades[0].why, "stop");
+    assert.equal(simData.trades[0].pnl, -50);
+    assert.equal(simData.equity, 9950);
+    assert.equal(simData.openPnl, 0);
+    assert.equal(simData.stats.losses, 1);
+
+    // 6. Strict CORS: evil origin must NOT receive ACAO header
+    const resEvilCors = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/replay/simulate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://evil.example",
+        },
+        body: JSON.stringify(simPayload),
+      }),
+      env: {},
+    });
+    assert.equal(resEvilCors.status, 200);
+    assert.equal(resEvilCors.headers.get("access-control-allow-origin"), null);
+  });
+
+  it("handles POST /api/alerts/evaluate with strict validation, 405/413/CORS, and crossing evaluation", async () => {
+    // 1. 405 on non-POST
+    const res405 = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", { method: "GET" }),
+      env: {},
+    });
+    assert.equal(res405.status, 405);
+    assert.equal(res405.headers.get("allow"), "POST, OPTIONS");
+
+    // 2. 413 on oversized body (> 256 KB)
+    const hugeAlerts = JSON.stringify({ alerts: [], pad: "A".repeat(260 * 1024) });
+    const res413Body = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: hugeAlerts,
+      }),
+      env: {},
+    });
+    assert.equal(res413Body.status, 413);
+
+    // 3. 413 on > 500 alerts
+    const tooManyAlerts = Array.from({ length: 501 }, (_, i) => ({
+      id: `a${i}`,
+      sym: "BTCUSDT",
+      condition: "above",
+      target: 100000,
+    }));
+    const res413Count = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ alerts: tooManyAlerts }),
+      }),
+      env: {},
+    });
+    assert.equal(res413Count.status, 413);
+
+    // 4. 400 on invalid prevPrices (non-positive / boolean)
+    const resBadPrev = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ alerts: [], prevPrices: { BTCUSDT: true } }),
+      }),
+      env: {},
+    });
+    assert.equal(resBadPrev.status, 400);
+
+    // 5. Valid cross_up alert evaluation + strict CORS
+    const alertPayload = {
+      alerts: [
+        { id: "btc-break", sym: "BTCUSDT", condition: "cross_up", target: 100000, mode: "once" },
+        { id: "eth-bar", sym: "ETHUSDT", condition: "below", target: 3000, onBarClose: true, mode: "once" },
+      ],
+      prevPrices: { BTCUSDT: 99500 },
+      ticks: [
+        { s: "BTCUSDT", c: 99900, t: 1763400000000 },
+        { s: "BTCUSDT", c: 100250, t: 1763400005000 },
+        { s: "BTCUSDT", c: 100500, t: 1763400010000 }, // already disarmed (mode=once)
+      ],
+      bars: [
+        { sym: "ETHUSDT", o: 3050, h: 3060, l: 2980, c: 2990, t: 1763400060 },
+      ],
+    };
+
+    const resOk = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://screener-cso.pages.dev",
+        },
+        body: JSON.stringify(alertPayload),
+      }),
+      env: {},
+    });
+    assert.equal(resOk.status, 200);
+    assert.equal(resOk.headers.get("access-control-allow-origin"), "https://screener-cso.pages.dev");
+    const evalData = await resOk.json();
+    assert.equal(evalData.ok, true);
+    assert.equal(evalData.triggered.length, 2);
+    assert.equal(evalData.triggered[0].id, "btc-break");
+    assert.equal(evalData.triggered[0].price, 100250);
+    assert.equal(evalData.triggered[1].id, "eth-bar");
+    assert.equal(evalData.frames.length, 2);
+    assert.equal(evalData.frames[0].v, 2);
+    assert.equal(evalData.frames[0].type, "alert");
+    assert.equal(evalData.frames[0].sym, "BTCUSDT");
+    assert.equal(evalData.state.alerts.length, 2);
+    assert.equal(evalData.state.alerts.find((a) => a.id === "btc-break").armed, false);
+
+    // 6. Strict CORS: evil origin gets no ACAO header
+    const resEvilCors = await onApiRequest({
+      request: new Request("https://screener-cso.pages.dev/api/alerts/evaluate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://evil.example",
+        },
+        body: JSON.stringify(alertPayload),
+      }),
+      env: {},
+    });
+    assert.equal(resEvilCors.status, 200);
+    assert.equal(resEvilCors.headers.get("access-control-allow-origin"), null);
   });
 });

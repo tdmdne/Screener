@@ -147,7 +147,7 @@ export class HubCore {
    * Register a browser client connection.
    * @param {string} id
    * @param {(payload:string)=>void} send
-   * @param {{startSeq?:number}} [opts]
+   * @param {{startSeq?:number, userId?:string|null}} [opts]
    */
   addClient(id, send, opts = {}) {
     this.clients.set(id, {
@@ -155,6 +155,7 @@ export class HubCore {
       send,
       syms: new Set(),
       seq: createSequencer(opts.startSeq || 0),
+      userId: typeof opts.userId === "string" && opts.userId.trim() ? opts.userId.trim() : null,
     });
     this._timer();
   }

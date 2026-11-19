@@ -24,8 +24,12 @@ import { handleAuthRequest } from "../shared/authRoutes.js";
 import { onRequest as onApiRequest } from "../functions/api/[[path]].js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATION_SQL = readFileSync(
+const MIGRATION_0001_SQL = readFileSync(
   join(__dirname, "..", "migrations", "0001_auth_and_user_data.sql"),
+  "utf8"
+);
+const MIGRATION_0003_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
   "utf8"
 );
 
@@ -39,7 +43,8 @@ const BASE_TIME = Date.UTC(2026, 10, 19, 12, 0, 0); // 2026-11-19T12:00:00Z
 function createD1TestDb() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
-  sqlite.exec(MIGRATION_SQL);
+  sqlite.exec(MIGRATION_0001_SQL);
+  sqlite.exec(MIGRATION_0003_SQL);
 
   return {
     _sqlite: sqlite,
@@ -123,6 +128,7 @@ function validUserPayload(overrides = {}) {
     username: "alice_trader",
     dob: "1995-06-15",
     phone: "+14155552671",
+    terms_accepted: true,
     ...overrides,
   };
 }
@@ -536,7 +542,13 @@ describe("ACC — Google & Apple OAuth Start/Callback, Profile Completion & /api
     // No DB at all
     const provNoDb = await req({}, "GET", "/api/auth/providers");
     assert.equal(provNoDb.status, 200);
-    assert.deepEqual((await provNoDb.json()).providers, { email: false, google: false, apple: false });
+    assert.deepEqual((await provNoDb.json()).providers, {
+      email: false,
+      google: false,
+      apple: false,
+      email_verify: false,
+      phone_verify: false,
+    });
 
     const loginNoDb = await req({}, "POST", "/api/auth/login", {
       body: { email: "a@b.com", password: "VektorStrong2026!" },
@@ -550,7 +562,13 @@ describe("ACC — Google & Apple OAuth Start/Callback, Profile Completion & /api
     const db = createD1TestDb();
     const provDbOnly = await req({ DB: db }, "GET", "/api/auth/providers");
     assert.equal(provDbOnly.status, 200);
-    assert.deepEqual((await provDbOnly.json()).providers, { email: true, google: false, apple: false });
+    assert.deepEqual((await provDbOnly.json()).providers, {
+      email: true,
+      google: false,
+      apple: false,
+      email_verify: false,
+      phone_verify: false,
+    });
 
     const googleUnconf = await req({ DB: db }, "GET", "/api/auth/oauth/google");
     assert.equal(googleUnconf.status, 503);
@@ -571,7 +589,13 @@ describe("ACC — Google & Apple OAuth Start/Callback, Profile Completion & /api
 
     // 1) Providers shows google: true
     const prov = await req(env, "GET", "/api/auth/providers", { options: opts });
-    assert.deepEqual((await prov.json()).providers, { email: true, google: true, apple: false });
+    assert.deepEqual((await prov.json()).providers, {
+      email: true,
+      google: true,
+      apple: false,
+      email_verify: false,
+      phone_verify: false,
+    });
 
     // 2) Start Google OAuth
     const start = await req(env, "GET", "/api/auth/oauth/google?return_to=/charts", { options: opts });
@@ -1002,7 +1026,13 @@ describe("ACC — Security Review Regression Tests", () => {
     assert.equal(resAllowed.status, 200);
     assert.equal(resAllowed.headers.get("access-control-allow-origin"), "https://trusted.vektor.test");
     assert.ok(resAllowed.headers.get("vary").toLowerCase().includes("origin"));
-    assert.deepEqual((await resAllowed.json()).providers, { email: true, google: false, apple: false });
+    assert.deepEqual((await resAllowed.json()).providers, {
+      email: true,
+      google: false,
+      apple: false,
+      email_verify: false,
+      phone_verify: false,
+    });
 
     const reqEvil = new Request("https://terminal.vektor.test/api/auth/providers", {
       method: "GET",
@@ -1011,5 +1041,437 @@ describe("ACC — Security Review Regression Tests", () => {
     const resEvil = await onApiRequest({ request: reqEvil, env });
     assert.equal(resEvil.status, 200);
     assert.equal(resEvil.headers.get("access-control-allow-origin"), null);
+  });
+});
+
+describe("ACC — Mandatory Terms Consent & 6-Digit Email/Phone OTP Verification", () => {
+  it("rejects registration (400) without strict terms_accepted === true and stores consent timestamp + version when true", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    const opts = { nowMs: () => BASE_TIME };
+
+    for (const badTerms of [undefined, false, null, "true", 1]) {
+      const payload = validUserPayload({ email: `terms_${String(badTerms)}@example.com`, username: `t_${String(badTerms).replace(/\W/g, "")}` });
+      if (badTerms === undefined) delete payload.terms_accepted;
+      else payload.terms_accepted = badTerms;
+
+      const res = await req(env, "POST", "/api/auth/register", { body: payload, options: opts });
+      assert.equal(res.status, 400, `Expected 400 for terms_accepted=${JSON.stringify(badTerms)}`);
+      const json = await res.json();
+      assert.equal(json.ok, false);
+      assert.ok(json.error.includes("Terms of Service"));
+    }
+
+    const okRes = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ terms_accepted: true }),
+      options: opts,
+    });
+    assert.equal(okRes.status, 201);
+    const okJson = await okRes.json();
+    assert.equal(okJson.user.terms_accepted_at, BASE_TIME);
+    assert.equal(okJson.user.terms_version, "2026-11");
+    assert.equal(okJson.user.email_verified, false);
+    assert.equal(okJson.user.phone_verified, false);
+
+    const dbRow = db._sqlite
+      .prepare("SELECT terms_accepted_at, terms_version, email_verified_at, phone_verified_at FROM users WHERE email = ?")
+      .get("alice@example.com");
+    assert.equal(dbRow.terms_accepted_at, BASE_TIME);
+    assert.equal(dbRow.terms_version, "2026-11");
+    assert.equal(dbRow.email_verified_at, null);
+    assert.equal(dbRow.phone_verified_at, null);
+
+    const cookie = extractCookiePair(okRes);
+    const me = await req(env, "GET", "/api/auth/me", { cookie, options: opts });
+    assert.equal(me.status, 200);
+    const meJson = await me.json();
+    assert.equal(meJson.user.terms_accepted_at, BASE_TIME);
+    assert.equal(meJson.user.email_verified, false);
+    assert.equal(meJson.user.phone_verified, false);
+  });
+
+  it("returns clean 503 PROVIDER_UNCONFIGURED when email/SMS secrets are absent without leaking OTPs", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    const opts = { nowMs: () => BASE_TIME };
+
+    const reg = await req(env, "POST", "/api/auth/register", { body: validUserPayload(), options: opts });
+    const cookie = extractCookiePair(reg);
+
+    for (const channel of ["email", "phone"]) {
+      const res = await req(env, "POST", "/api/auth/verify/send", {
+        cookie,
+        body: { channel },
+        options: opts,
+      });
+      assert.equal(res.status, 503);
+      const rawText = await res.text();
+      assert.equal(/\b\d{6}\b/.test(rawText), false, "Response must never leak a 6-digit OTP");
+      const json = JSON.parse(rawText);
+      assert.equal(json.ok, false);
+      assert.equal(json.code, "PROVIDER_UNCONFIGURED");
+    }
+
+    const rowCount = db._sqlite.prepare("SELECT COUNT(*) AS cnt FROM verification_codes").get();
+    assert.equal(rowCount.cnt, 0);
+
+    // Providers endpoint reflects configured email_verify & phone_verify flags accurately
+    const provFull = await req(
+      {
+        DB: db,
+        RESEND_API_KEY: "re_test_123",
+        EMAIL_FROM: "verify@vektor.test",
+        TWILIO_ACCOUNT_SID: "AC123",
+        TWILIO_AUTH_TOKEN: "tok_456",
+        TWILIO_FROM: "+14155550100",
+      },
+      "GET",
+      "/api/auth/providers",
+      { options: opts }
+    );
+    assert.equal(provFull.status, 200);
+    assert.deepEqual((await provFull.json()).providers, {
+      email: true,
+      google: false,
+      apple: false,
+      email_verify: true,
+      phone_verify: true,
+    });
+  });
+
+  it("enforces email & phone OTP send, 60s cooldown (429), max-5-attempts lockout, valid confirm, and no replay", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    let now = BASE_TIME;
+    const dispatched = [];
+    const sendCodeImpl = async (payload) => {
+      dispatched.push(payload);
+    };
+    const opts = { nowMs: () => now, sendCodeImpl };
+
+    const reg = await req(env, "POST", "/api/auth/register", { body: validUserPayload(), options: opts });
+    assert.equal(reg.status, 201);
+    const regJson = await reg.json();
+    const cookie = extractCookiePair(reg);
+
+    // Unauthenticated -> 401; cross-origin -> 403
+    const unauth = await req(env, "POST", "/api/auth/verify/send", { body: { channel: "email" }, options: opts });
+    assert.equal(unauth.status, 401);
+    const csrfBad = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      origin: "https://evil.attacker.test",
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(csrfBad.status, 403);
+
+    // 1) Send email OTP
+    const sendEmail1 = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(sendEmail1.status, 200);
+    const sendEmail1Text = await sendEmail1.text();
+    assert.equal(dispatched.length, 1);
+    const emailCode1 = dispatched[0].code;
+    assert.match(emailCode1, /^\d{6}$/);
+    assert.equal(sendEmail1Text.includes(emailCode1), false, "API response must never echo OTP");
+
+    // Verify DB stores ONLY sha256Hex(code:userId:channel:target), never raw code
+    const expectedHash = await sha256Hex(`${emailCode1}:${regJson.user.id}:email:${regJson.user.email}`);
+    const codeRow = db._sqlite.prepare("SELECT code_hash, attempts, consumed_at FROM verification_codes").get();
+    assert.equal(codeRow.code_hash, expectedHash);
+    assert.notEqual(codeRow.code_hash, emailCode1);
+    assert.equal(codeRow.attempts, 0);
+    assert.equal(codeRow.consumed_at, null);
+
+    // 2) Immediate resend within 60s -> 429 + Retry-After
+    now += 15_000;
+    const cooldownRes = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(cooldownRes.status, 429);
+    assert.ok(Number(cooldownRes.headers.get("Retry-After")) >= 45);
+
+    // 3) 4 wrong attempts -> 400 each; 5th wrong attempt -> 429 and invalidates code
+    const wrongCode = emailCode1 === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 4; i++) {
+      const bad = await req(env, "POST", "/api/auth/verify/confirm", {
+        cookie,
+        body: { channel: "email", code: wrongCode },
+        options: opts,
+      });
+      assert.equal(bad.status, 400);
+    }
+    const fifthFail = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: wrongCode },
+      options: opts,
+    });
+    assert.equal(fifthFail.status, 429);
+
+    // Even the real emailCode1 is now invalidated -> 400
+    const afterLockout = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: emailCode1 },
+      options: opts,
+    });
+    assert.equal(afterLockout.status, 400);
+
+    // 4) Advance past 60s cooldown, resend email OTP, and verify successfully
+    now += 50_000;
+    const sendEmail2 = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(sendEmail2.status, 200);
+    const emailCode2 = dispatched[1].code;
+
+    const confirmEmail = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: emailCode2 },
+      options: opts,
+    });
+    assert.equal(confirmEmail.status, 200);
+    const confirmEmailJson = await confirmEmail.json();
+    assert.equal(confirmEmailJson.user.email_verified, true);
+    assert.equal(confirmEmailJson.user.phone_verified, false);
+
+    // Replay of consumed emailCode2 -> 400
+    const replayEmail = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: emailCode2 },
+      options: opts,
+    });
+    assert.equal(replayEmail.status, 400);
+
+    // 5) Phone OTP send & confirm
+    const sendPhone = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "phone" },
+      options: opts,
+    });
+    assert.equal(sendPhone.status, 200);
+    const phoneCode = dispatched[2].code;
+    assert.equal(dispatched[2].channel, "phone");
+    assert.equal(dispatched[2].target, "+14155552671");
+
+    const confirmPhone = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "phone", code: phoneCode },
+      options: opts,
+    });
+    assert.equal(confirmPhone.status, 200);
+
+    // /api/auth/me reflects both email_verified and phone_verified
+    const me = await req(env, "GET", "/api/auth/me", { cookie, options: opts });
+    assert.equal(me.status, 200);
+    const meJson = await me.json();
+    assert.equal(meJson.user.email_verified, true);
+    assert.equal(meJson.user.phone_verified, true);
+
+    // Replay of consumed phone code -> 400
+    const replayPhone = await req(env, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "phone", code: phoneCode },
+      options: opts,
+    });
+    assert.equal(replayPhone.status, 400);
+  });
+
+  it("enforces max 5 verification codes per hour and dispatches via Resend & Twilio fetchImpl", async () => {
+    const db = createD1TestDb();
+    const env = {
+      DB: db,
+      RESEND_API_KEY: "re_live_mock",
+      EMAIL_FROM: "security@vektor.test",
+      TWILIO_ACCOUNT_SID: "AC999",
+      TWILIO_AUTH_TOKEN: "twilio_secret_mock",
+      TWILIO_FROM: "+14155550100",
+    };
+    let now = BASE_TIME;
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ id: "msg_ok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const opts = { nowMs: () => now, fetchImpl };
+
+    const reg = await req(env, "POST", "/api/auth/register", { body: validUserPayload(), options: opts });
+    const cookie = extractCookiePair(reg);
+
+    // Send 5 email codes spaced 65s apart -> all succeed via Resend
+    for (let i = 0; i < 5; i++) {
+      const r = await req(env, "POST", "/api/auth/verify/send", {
+        cookie,
+        body: { channel: "email" },
+        options: opts,
+      });
+      assert.equal(r.status, 200, `Expected 200 on hourly send #${i + 1}`);
+      now += 65_000;
+    }
+    assert.equal(calls.length, 5);
+    assert.equal(calls[0].url, "https://api.resend.com/emails");
+    assert.equal(calls[0].init.headers.Authorization, "Bearer re_live_mock");
+
+    // 6th email code within the hour -> 429
+    const sixth = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(sixth.status, 429);
+    assert.ok(Number(sixth.headers.get("Retry-After")) > 0);
+
+    // Phone channel has independent quota and dispatches via Twilio
+    const phoneSend = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "phone" },
+      options: opts,
+    });
+    assert.equal(phoneSend.status, 200);
+    assert.equal(calls.length, 6);
+    assert.equal(calls[5].url, "https://api.twilio.com/2010-04-01/Accounts/AC999/Messages.json");
+    assert.ok(calls[5].init.headers.Authorization.startsWith("Basic "));
+  });
+
+  it("Audit HIGH #2: OAuth auto-linking an unverified email clears attacker password_hash and revokes attacker sessions", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    let now = BASE_TIME;
+    const opts = { nowMs: () => now };
+
+    // 1. Attacker pre-registers victim's email with a known password -> unverified account + active session
+    const victimEmail = "victim.oauth@gmail.com";
+    const attackerPassword = "AttackerPassword123!";
+    const reg = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({
+        email: victimEmail,
+        username: "victim_pre",
+        password: attackerPassword,
+      }),
+      options: opts,
+    });
+    assert.equal(reg.status, 201);
+    const attackerCookie = extractCookiePair(reg);
+    assert.ok(attackerCookie);
+
+    // Verify attacker's session is currently active and email is unverified
+    const meBefore = await req(env, "GET", "/api/auth/me", { cookie: attackerCookie, options: opts });
+    assert.equal(meBefore.status, 200);
+    const meBeforeBody = await meBefore.json();
+    assert.equal(meBeforeBody.user.email_verified, false);
+
+    // 2. Victim signs in via Google OAuth (verified email)
+    now += 10_000;
+    const oauthRes = await findOrCreateOAuthUser(
+      db,
+      "google",
+      {
+        providerUserId: "google-victim-sub-999",
+        email: victimEmail,
+        emailVerified: true,
+        fullName: "Real Victim",
+      },
+      { nowMs: now }
+    );
+    assert.equal(oauthRes.ok, true);
+    assert.equal(oauthRes.user.id, meBeforeBody.user.id);
+    assert.equal(oauthRes.user.email_verified, true);
+
+    // 3. Attacker's pre-existing session MUST be revoked
+    const meAfter = await req(env, "GET", "/api/auth/me", { cookie: attackerCookie, options: opts });
+    assert.equal(meAfter.status, 401);
+
+    // 4. Attacker's password MUST be cleared (NULL) so password login fails
+    const pwRow = await db.prepare("SELECT password_hash, email_verified_at FROM users WHERE id = ?").bind(oauthRes.user.id).first();
+    assert.equal(pwRow.password_hash, null);
+    assert.equal(pwRow.email_verified_at, now);
+
+    const attackerLogin = await req(env, "POST", "/api/auth/login", {
+      body: { email: victimEmail, password: attackerPassword },
+      options: opts,
+    });
+    assert.equal(attackerLogin.status, 401);
+  });
+
+  it("Audit MEDIUM #5 & LOW #7: confirmVerificationCode target-swap TOCTOU returns 409 & atomic cooldown blocks resend without sending", async () => {
+    const db = createD1TestDb();
+    const env = { DB: db };
+    let now = BASE_TIME;
+    const sent = [];
+    const opts = {
+      nowMs: () => now,
+      sendCodeImpl: async (payload) => {
+        sent.push(payload);
+      },
+    };
+
+    const reg = await req(env, "POST", "/api/auth/register", {
+      body: validUserPayload({ email: "toctou@example.com", username: "toctou_u" }),
+      options: opts,
+    });
+    assert.equal(reg.status, 201);
+    const cookie = extractCookiePair(reg);
+    const regBody = await reg.json();
+    const userId = regBody.user.id;
+
+    // LOW #7: Send first code -> succeeds; immediate resend within 60s -> 429 before sendCodeImpl
+    const s1 = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(s1.status, 200);
+    assert.equal(sent.length, 1);
+    const code1 = sent[0].code;
+
+    now += 5_000;
+    const s2 = await req(env, "POST", "/api/auth/verify/send", {
+      cookie,
+      body: { channel: "email" },
+      options: opts,
+    });
+    assert.equal(s2.status, 429);
+    assert.equal(sent.length, 1, "rate-limited resend must NOT invoke outbound sender");
+
+    // MEDIUM #5: Simulate target swap between initial SELECT and final UPDATE in confirmVerificationCode
+    const origPrepare = db.prepare.bind(db);
+    let swapped = false;
+    const racingDb = {
+      prepare(sql) {
+        const handle = origPrepare(sql);
+        if (sql.includes("UPDATE users SET email_verified_at")) {
+          const origRun = handle.run.bind(handle);
+          handle.run = async () => {
+            if (!swapped) {
+              swapped = true;
+              await origPrepare("UPDATE users SET email = ? WHERE id = ?")
+                .bind("swapped@example.com", userId)
+                .run();
+            }
+            return origRun();
+          };
+        }
+        return handle;
+      },
+    };
+
+    const confirmRes = await req({ DB: racingDb }, "POST", "/api/auth/verify/confirm", {
+      cookie,
+      body: { channel: "email", code: code1 },
+      options: opts,
+    });
+    assert.equal(confirmRes.status, 409);
+    const row = await db.prepare("SELECT email, email_verified_at FROM users WHERE id = ?").bind(userId).first();
+    assert.equal(row.email, "swapped@example.com");
+    assert.equal(row.email_verified_at, null, "swapped email must NOT be marked verified");
   });
 });

@@ -30,6 +30,10 @@ const WAITLIST_MIGRATION_SQL = readFileSync(
   join(__dirname, "..", "migrations", "0002_waitlist.sql"),
   "utf8"
 );
+const VERIFY_MIGRATION_SQL = readFileSync(
+  join(__dirname, "..", "migrations", "0003_verification_and_consent.sql"),
+  "utf8"
+);
 
 const BASE_ORIGIN = "https://terminal.vektor.test";
 const BASE_TIME = Date.UTC(2026, 10, 19, 14, 0, 0);
@@ -39,6 +43,7 @@ function createD1TestDb() {
   sqlite.exec("PRAGMA foreign_keys = ON;");
   sqlite.exec(AUTH_MIGRATION_SQL);
   sqlite.exec(WAITLIST_MIGRATION_SQL);
+  sqlite.exec(VERIFY_MIGRATION_SQL);
 
   return {
     _sqlite: sqlite,
@@ -274,6 +279,7 @@ describe("WAITLIST — Validation, Canonical Deduplication, Security & Admin RBA
         username: "reg_member",
         dob: "1994-03-10",
         phone: "+14155550101",
+        terms_accepted: true,
       },
       { env, nowMs: BASE_TIME }
     );
@@ -304,6 +310,7 @@ describe("WAITLIST — Validation, Canonical Deduplication, Security & Admin RBA
         username: "tyler_admin",
         dob: "1992-05-20",
         phone: "+14155550102",
+        terms_accepted: true,
         admin_bootstrap_secret: env.ADMIN_BOOTSTRAP_SECRET,
       },
       { env, nowMs: BASE_TIME }

@@ -32,7 +32,7 @@ const ALLOWED = [
 const BLOCKED = [
   "/AGENTS.md", "/CLAUDE.md", "/SETUP.md", "/CHANGELOG.md", "/.assetsignore", "/.env.example", "/.gitignore",
   "/.git/config", "/.git/HEAD", "/worker.js", "/server.js", "/wrangler.toml", "/package.json", "/bun.lock",
-  "/config.example.js", "/config.local.js", "/site.config.js", "/_routes.json", "/functions/_middleware.js",
+  "/config.example.js", "/config.local.js", "/site.config.js", "/_routes.json", "/_headers", "/functions/_middleware.js",
   "/functions/api/[[path]].js", "/functions/api/%5B%5Bpath%5D%5D.js", "/worker/index.js", "/worker/wrangler.toml",
   "/client/services/dataService.js", "/tests/harness.js", "/scripts/run-tests.js", "/docs/PROXY_SETUP.md",
   "/shared/package.json", "/src/", "/src", "/shared/", "/shared", "/vendor/", "/vendor", "/vendor/other.js",

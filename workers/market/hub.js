@@ -8,6 +8,7 @@
 // - Wires upstream ticks -> HubCore.onTick -> CandleBuilder -> MarketStore.upsertBar -> on bar close runs
 //   IndicatorTracker + buildScreenerSnapshot -> broadcasts Protocol v2 frames to Hibernation WS clients.
 // - Routes: GET /hub/stats, GET /api/bootstrap, GET /api/bars, GET /ws.
+import { createAlertEvaluator } from "../../shared/alerts.js";
 import { createCandleBuilder, mergeBars, normalizeTf } from "../../shared/market/candles.js";
 import {
   computeIndicator,
@@ -27,6 +28,7 @@ import {
   makeFrame,
   validateClientMessage,
 } from "../../shared/protocol.js";
+import { INSTRUMENT_BY_SYMBOL } from "../../shared/instruments.js";
 import { normSymbol, toTwelveSymbol } from "../../shared/schema.js";
 import { HubCore, tickToQuote } from "./hubCore.js";
 import { MAX_HOT_BARS, MarketStore, utcDayKey } from "./store.js";
@@ -43,6 +45,9 @@ export const LIVE_STALE_MS = 120_000;
 export const MAX_BOOTSTRAP_INDICATORS = 24;
 export const MIN_INDICATOR_PERIOD = 1;
 export const MAX_INDICATOR_PERIOD = 1000;
+export const VIEW_COOLDOWN_MS = 500;
+export const BOOTSTRAP_RECORDS_TTL_MS = 1_500;
+const MAX_SCREENER_CACHE_ENTRIES = 32;
 
 const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"]);
 const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap"]);
@@ -200,6 +205,9 @@ export class MarketHub {
       timeframes: opts.timeframes || HUB_TIMEFRAMES,
     });
     this.indicators = createIndicatorTracker();
+    this.alerts = createAlertEvaluator({
+      now: this.now,
+    });
 
     this.core = new HubCore(
       {
@@ -234,9 +242,12 @@ export class MarketHub {
     this.tdToInternal = new Map();    // "EUR/USD" -> "EURUSD"
     this.socketById = new Map();      // clientId -> server WebSocket
     this.clientViews = new Map();     // clientId -> { chart?, watchlist?, screener?, heatmap? }
+    this.clientLastViewAt = new Map();// clientId -> last accepted `view` op timestamp (ms)
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
+    this._recordsCache = null;        // { at: number, records: Array }
+    this._screenerCache = new Map();  // key -> { at: number, snap: object }
     this.barsClosed = 0;
     this._initializing = true;
 
@@ -310,11 +321,12 @@ export class MarketHub {
         this._persistAttachment(ws, att);
       }
       const startSeq = att && Number.isSafeInteger(att.seq) ? att.seq : 0;
+      const userId = att && typeof att.userId === "string" && att.userId.trim() ? att.userId.trim() : null;
       this.socketById.set(id, ws);
-      this.core.addClient(id, (msg) => ws.send(msg), { startSeq });
+      this.core.addClient(id, (msg) => ws.send(msg), { startSeq, userId });
       if (att && att.view && typeof att.view === "object") {
         this.clientViews.set(id, att.view);
-        const syms = this._symbolsFromView(att.view);
+        const syms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(att.view));
         if (syms.length) this.core.setClientSymbols(id, syms);
         this._syncClientIndicators(id, att.view);
       }
@@ -762,17 +774,32 @@ export class MarketHub {
    */
   ingestTick(rawTick) {
     const tick = this.core.onTick(rawTick, { acceptUnreferenced: true });
-    if (!tick) return { accepted: false, tick: null, closed: [], updated: [] };
+    if (!tick) return { accepted: false, tick: null, closed: [], updated: [], alerts: [] };
+
+    const alertTriggers = [];
+    const tickAlertRes = this.alerts.evaluateTick(tick);
+    if (tickAlertRes.triggers.length > 0) {
+      alertTriggers.push(...tickAlertRes.triggers);
+      this._broadcastAlerts(tickAlertRes.frames, tickAlertRes.triggers);
+    }
 
     const candleRes = this.candles.onTick(tick);
     if (candleRes.ignored) {
-      return { accepted: true, tick, closed: [], updated: [] };
+      return { accepted: true, tick, closed: [], updated: [], alerts: alertTriggers };
     }
 
     for (const evt of candleRes.closed) {
       this.store.upsertBar(evt.sym, evt.tf, evt.bar);
       this.barsClosed += 1;
       this._broadcastBar(evt.sym, evt.tf, evt.bar, true);
+
+      if (evt.tf === "1m") {
+        const barAlertRes = this.alerts.evaluateBar(evt.sym, evt.bar, tick.t);
+        if (barAlertRes.triggers.length > 0) {
+          alertTriggers.push(...barAlertRes.triggers);
+          this._broadcastAlerts(barAlertRes.frames, barAlertRes.triggers);
+        }
+      }
 
       const deltas = this.indicators.onBarClose(evt.sym, evt.tf, evt.bar);
       if (deltas.length) {
@@ -786,6 +813,7 @@ export class MarketHub {
     }
 
     if (candleRes.closed.length > 0) {
+      this._invalidateBootstrapCache();
       // Update screener & heatmap snapshot asynchronously (catch rejections so waitUntil never crashes)
       const work = Promise.resolve()
         .then(() => this.refreshScreenerSnapshot())
@@ -795,7 +823,7 @@ export class MarketHub {
       }
     }
 
-    return { accepted: true, tick, closed: candleRes.closed, updated: candleRes.updated };
+    return { accepted: true, tick, closed: candleRes.closed, updated: candleRes.updated, alerts: alertTriggers };
   }
 
   /**
@@ -939,13 +967,35 @@ export class MarketHub {
     }
   }
 
+  _invalidateBootstrapCache() {
+    this._recordsCache = null;
+    this._screenerCache.clear();
+  }
+
+  _getCachedRealRecords(now) {
+    if (
+      this._recordsCache &&
+      now >= this._recordsCache.at &&
+      now - this._recordsCache.at < BOOTSTRAP_RECORDS_TTL_MS
+    ) {
+      return this._recordsCache.records;
+    }
+    const records = this._buildRealRecords();
+    if (records.length > 0) {
+      this._recordsCache = { at: now, records };
+    } else {
+      this._recordsCache = null;
+    }
+    return records;
+  }
+
   /**
    * Build one valid Protocol v2 `state` payload from SQLite / KV snapshot (Task 9).
    * Guaranteed <= MAX_CHART_BARS (1,500), <= MAX_SCREENER_PAGE_ROWS (50), <= MAX_HEATMAP_TILES (100).
    */
   async buildBootstrapState(params = {}, seqOrFn = 1) {
     const now = this.now();
-    const records = this._buildRealRecords();
+    const records = this._getCachedRealRecords(now);
     const hasSqlData = records.length > 0;
 
     // Screener & Heatmap
@@ -971,17 +1021,28 @@ export class MarketHub {
     let fromKvFallback = false;
 
     if (hasSqlData) {
-      snap = buildScreenerSnapshot(records, {
-        preset,
-        evcTf,
-        dir,
-        market,
-        query,
-        page,
-        pageSize,
-        heatmap: { metric: hmMetric, tf: hmTf, n: hmN, size: hmSize, market: hmReq.market || market },
-        now,
-      });
+      const hmMarket = hmReq.market || market;
+      const cacheKey = `${preset}|${evcTf}|${dir}|${market}|${query}|${page}|${pageSize}|${hmMetric}|${hmTf}|${hmN}|${hmSize}|${hmMarket}`;
+      const cachedSnap = this._screenerCache.get(cacheKey);
+      if (cachedSnap && now >= cachedSnap.at && now - cachedSnap.at < BOOTSTRAP_RECORDS_TTL_MS) {
+        snap = cachedSnap.snap;
+      } else {
+        snap = buildScreenerSnapshot(records, {
+          preset,
+          evcTf,
+          dir,
+          market,
+          query,
+          page,
+          pageSize,
+          heatmap: { metric: hmMetric, tf: hmTf, n: hmN, size: hmSize, market: hmMarket },
+          now,
+        });
+        if (this._screenerCache.size >= MAX_SCREENER_CACHE_ENTRIES) {
+          this._screenerCache.clear();
+        }
+        this._screenerCache.set(cacheKey, { at: now, snap });
+      }
     } else {
       const sqlSnap = this.store.getSnapshot(SCREENER_SNAPSHOT_KEY);
       if (sqlSnap && sqlSnap.payload && Array.isArray(sqlSnap.payload.rows)) {
@@ -1303,6 +1364,7 @@ export class MarketHub {
       kvDailyLimit: this.store.kvDailyLimit,
       ticks: { ...this.core.stats },
       barsClosed: this.barsClosed,
+      alertsCount: this.alerts.listAlerts().length,
       now: this.now(),
     };
   }
@@ -1436,6 +1498,18 @@ export class MarketHub {
     }
 
     if (msg.op === "view") {
+      // Per-client cooldown on `view` updates to prevent DO CPU starvation via rapid state rebuilds.
+      const now = this.now();
+      const lastViewAt = this.clientLastViewAt.get(id);
+      if (lastViewAt !== undefined && now >= lastViewAt && now - lastViewAt < VIEW_COOLDOWN_MS) {
+        this._sendToClient(id, "error", {
+          code: "RATE_LIMITED",
+          message: `View updates are rate-limited (min interval ${VIEW_COOLDOWN_MS}ms)`,
+          fatal: false,
+        });
+        return;
+      }
+
       // Validate indicator specs & period bounds BEFORE mutating view or registering indicators.
       if (msg.chart && Array.isArray(msg.chart.ind)) {
         if (msg.chart.ind.length > MAX_BOOTSTRAP_INDICATORS) {
@@ -1458,6 +1532,8 @@ export class MarketHub {
         }
       }
 
+      this.clientLastViewAt.set(id, now);
+
       const prevView = this.clientViews.get(id) || att.view || {};
       const nextView = { ...prevView };
       if (msg.chart !== undefined) nextView.chart = msg.chart;
@@ -1468,8 +1544,8 @@ export class MarketHub {
       this.clientViews.set(id, nextView);
       att.view = nextView;
 
-      // Sync ephemeral client subscriptions & refcounted indicator registrations
-      const desiredSyms = this._symbolsFromView(nextView);
+      // Sync ephemeral client subscriptions (unauthenticated clients restricted to known universe) & refcounted indicators
+      const desiredSyms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(nextView));
       this.core.setClientSymbols(id, desiredSyms);
       this._syncClientIndicators(id, nextView);
 
@@ -1512,6 +1588,29 @@ export class MarketHub {
     this.core.removeClient(att.id);
     this.socketById.delete(att.id);
     this.clientViews.delete(att.id);
+    this.clientLastViewAt.delete(att.id);
+  }
+
+  /**
+   * Whether a symbol is part of the known seeded/configured universe (persisted subs, instrument catalog, or stored bars).
+   * Prevents unauthenticated WS clients from exhausting `TD_WS_MAX` upstream slots with arbitrary fake tickers.
+   */
+  _isKnownSymbol(sym) {
+    if (!sym) return false;
+    if (this.desiredSubs.has(sym)) return true;
+    if (INSTRUMENT_BY_SYMBOL.has(sym)) return true;
+    if (this.store.getBarCount(sym, "1m") > 0 || this.store.getBarCount(sym, "1D") > 0) return true;
+    return false;
+  }
+
+  /** Filter client view symbols so unauthenticated sockets can only subscribe upstream to known universe symbols. */
+  _filterUpstreamSymbolsForClient(clientId, syms) {
+    if (!Array.isArray(syms) || syms.length === 0) return [];
+    const client = this.core.clients.get(clientId);
+    if (client && typeof client.userId === "string" && client.userId) {
+      return syms;
+    }
+    return syms.filter((s) => this._isKnownSymbol(s));
   }
 
   _symbolsFromView(view) {
@@ -1613,6 +1712,35 @@ export class MarketHub {
           id: clientIndId,
           point: { t: d.t, v: d.value },
         });
+      }
+    }
+  }
+
+  _broadcastAlerts(frames, triggers = []) {
+    if (!frames || frames.length === 0 || this.core.clients.size === 0) return;
+    for (let i = 0; i < frames.length; i++) {
+      const item = frames[i];
+      if (!item || typeof item !== "object") continue;
+      const frame = item.frame && typeof item.frame === "object" ? item.frame : item;
+      const sym = normSymbol(frame.sym);
+      const payload = {
+        id: frame.id,
+        sym: frame.sym,
+        condition: frame.condition,
+        price: frame.price,
+        triggeredAt: frame.triggeredAt,
+      };
+      if (frame.message !== undefined) {
+        payload.message = frame.message;
+      }
+      // Read owner userId from zipped entry or paired trigger (NEVER placed on wire `payload`).
+      const rawOwner = item.userId ?? triggers[i]?.userId ?? frame.userId;
+      const ownerUserId = typeof rawOwner === "string" && rawOwner.trim() ? rawOwner.trim() : null;
+      for (const [id, client] of this.core.clients.entries()) {
+        if (!client || !client.syms || !client.syms.has(sym)) continue;
+        // Fail closed: user-owned alerts ONLY deliver to sockets authenticated as that exact owner.
+        if (ownerUserId && client.userId !== ownerUserId) continue;
+        this._sendToClient(id, "alert", payload);
       }
     }
   }

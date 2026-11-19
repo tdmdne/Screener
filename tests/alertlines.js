@@ -38,7 +38,7 @@ const dr=await P.evaluate(([id,y])=>{const a=S.alerts.find(x=>x.id===id);return{
 console.log("drag",JSON.stringify(dr));assert(!dr.modal&&dr.n===2&&Math.abs(dr.price-dr.exp)<=Math.abs(dr.exp)*1e-3&&dr.price>p3*0+0&&dr.price<p3,"drag moved price down");
 L=await lab("#cv",id3);assert(L&&Math.abs(L.top-L.want)<=1);
 // 6) Supercharts: both panes show the line; dock lists it and opens the editor
-await P.evaluate(()=>{S.sc.panes=2;save()});await P.click('#vnav a[data-p="chart"]');await P.waitForFunction(()=>SC.chB,null,{timeout:10000});await P.waitForTimeout(500);
+await P.evaluate(()=>{S.sc.panes=2;save()});await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/chart"]');await P.waitForFunction(()=>SC.chB,null,{timeout:10000});await P.waitForTimeout(500);
 L=await lab("#cv",id3);if(!L)console.log(await P.evaluate(id=>{const e=document.querySelector(`#cv .valb[data-al="${id}"]`);return JSON.stringify({e:!!e,d:e&&e.style.display,reg:VTAL.map(r=>[r.host.id,r.items.size,r.chart===ch]),y:MS.priceToCoordinate(S.alerts[1].price),h:document.getElementById("cv").clientHeight,a:S.alerts})},id3));assert(L&&Math.abs(L.top-L.want)<=1,"main pane");const LB=await lab("#cvB",id3);console.log("pane2",JSON.stringify(LB));assert(LB&&Math.abs(LB.top-LB.want)<=1,"pane 2");
 await P.screenshot({path:"shots/02c_chart_alertlines.png"});
 await P.click("#dkal .dka span[title='Edit alert'] >> nth=1");await P.waitForSelector("#vae_px");assert.strictEqual(+(await P.inputValue("#vae_px")),dr.price);await P.evaluate(()=>closeM());

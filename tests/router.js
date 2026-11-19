@@ -6,11 +6,11 @@ await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 assert.strictEqual(await P.evaluate(()=>location.hash),"#/workspace");
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(800);
 const before=await P.evaluate(()=>{window.__ws0=[BNWS.ws,BNKL.ws];return{n:__WS.length,rs:__WS.map(w=>w.readyState),live:Object.keys(LIVE).length}});
-for(const p of PAGES){await P.click(`#vnav a[data-p="${p}"]`);await P.waitForTimeout(400);
+for(const p of PAGES){await P.click('#vtFeatBtn');await P.click(`#vtFeatMenu a[href="#/${p}"]`);await P.waitForTimeout(400);
   const st=await P.evaluate(p=>{const r=document.documentElement;const vis=id=>{const e=document.getElementById(id);return !!e&&e.offsetParent!==null};
-    return{page:r.dataset.page,hash:location.hash,ls:localStorage.getItem("vt_page"),on:document.querySelector("#vnav a.on").dataset.p,
+    return{page:r.dataset.page,hash:location.hash,ls:localStorage.getItem("vt_page"),on:document.querySelector("#vnav a.on").dataset.p,featCur:document.getElementById("vtFeatCur").textContent,
       ws:vis("cp")&&document.getElementById("cp").offsetWidth>0,side:!!document.querySelector(".side").offsetParent,pv:vis("pv-"+p),title:document.title}},p);
-  assert.strictEqual(st.page,p);assert.strictEqual(st.hash,"#/"+p);assert.strictEqual(st.ls,p);assert.strictEqual(st.on,p);
+  assert.strictEqual(st.page,p);assert.strictEqual(st.hash,"#/"+p);assert.strictEqual(st.ls,p);assert.strictEqual(st.on,p);assert(st.featCur&&st.featCur.length>0);
   if(p==="workspace"){assert(st.ws&&st.side)}else if(p==="chart"){assert(st.ws&&!st.side)}else if(p==="screener"){assert(!st.ws&&st.side)}else{assert(st.pv&&!st.ws&&!st.side,JSON.stringify(st))}
   console.log("page",p,"ok",st.title);
 }

@@ -16,9 +16,11 @@ await P.evaluate(()=>{openChart("BTCUSDT","1H");go("workspace")});await P.waitFo
 await P.evaluate(()=>document.activeElement&&document.activeElement.blur());await P.keyboard.press("Tab");
 assert.strictEqual(await P.evaluate(()=>document.activeElement.className),"vt-skip");await P.keyboard.press("Enter");
 assert.strictEqual(await P.evaluate(()=>document.activeElement.getAttribute("role")),"main");assert.strictEqual(await P.evaluate(()=>document.querySelectorAll('[role="main"]').length),1);
-// nav by keyboard
-await P.focus('#vnav a[data-p="calc"]');await P.keyboard.press("Enter");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"calc");
-assert.strictEqual(await P.getAttribute('#vnav a[data-p="calc"]',"aria-current"),"page");await P.evaluate(()=>go("workspace"));await P.waitForTimeout(300);
+// nav by keyboard via desktop Features dropdown (#vtFeatBtn -> #vtFeatMenu)
+await P.focus('#vtFeatBtn');await P.keyboard.press("Enter");await P.waitForSelector('#vtFeatMenu.open');
+await P.focus('#vtFeatMenu a[href="#/calc"]');await P.keyboard.press("Enter");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"calc");
+await P.click('#vtFeatBtn');await P.waitForSelector('#vtFeatMenu.open');
+assert.strictEqual(await P.getAttribute('#vtFeatMenu a[href="#/calc"]',"aria-current"),"page");await P.keyboard.press("Escape");await P.evaluate(()=>go("workspace"));await P.waitForTimeout(300);
 // sortable header: focusable, Enter sorts, aria-sort exposed
 const hd=P.locator("#t thead span.h").first();assert.strictEqual(await hd.getAttribute("role"),"button");await hd.focus();await P.keyboard.press("Enter");await P.waitForTimeout(250);
 assert(await P.evaluate(()=>[...document.querySelectorAll("#t thead th")].some(th=>/ascending|descending/.test(th.getAttribute("aria-sort")||""))));

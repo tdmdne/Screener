@@ -577,6 +577,11 @@ header h1 svg {
   display: none;
 }
 
+/* Hide redundant horizontal #vnav bar on desktop (Features dropdown handles desktop wayfinding) */
+:root:not([data-ui="phone"]):not([data-ui="tablet"]) #vnav {
+  display: none !important;
+}
+
 #vnav {
   background: var(--bg-1);
   border: 1px solid var(--line-1);
@@ -605,7 +610,7 @@ header h1 svg {
   box-shadow: none;
 }
 
-@media (min-width: 1180px) {
+@media (min-width: 900px) {
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) header {
     flex-wrap: nowrap;
     height: 48px;
@@ -614,14 +619,20 @@ header h1 svg {
     margin-bottom: 6px;
     gap: 8px;
   }
-  :root:not([data-ui="phone"]):not([data-ui="tablet"]) .vnav {
-    order: 0;
-    flex: 0 1 auto;
+  :root:not([data-ui="phone"]):not([data-ui="tablet"]) #vtFeatBtn {
+    padding: 4px 10px;
+    gap: 6px;
+    background: var(--bg-1);
+    border-color: var(--line);
+  }
+  :root:not([data-ui="phone"]):not([data-ui="tablet"]) #vtFeatBtn:hover {
+    border-color: var(--acc);
+    background: var(--bg-2);
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .srch {
-    flex: 0 1 196px;
-    min-width: 158px;
-    max-width: 224px;
+    flex: 0 1 210px;
+    min-width: 164px;
+    max-width: 240px;
     margin-left: auto;
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .srch input {
@@ -644,20 +655,6 @@ header h1 svg {
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .mode-btn {
     padding: 3px 5px;
-  }
-}
-
-/* Compact medium desktop (1180-1360px): keep nav single-row */
-@media (min-width: 1180px) and (max-width: 1380px) {
-  :root:not([data-ui="phone"]):not([data-ui="tablet"]) header h1 span {
-    display: none;
-  }
-  :root:not([data-ui="phone"]):not([data-ui="tablet"]) #tag {
-    display: none;
-  }
-  :root:not([data-ui="phone"]):not([data-ui="tablet"]) .vnav a {
-    padding: 4px 7px;
-    font-size: 11.5px;
   }
 }
 
@@ -1097,7 +1094,7 @@ header h1 svg {
   font-weight: 700;
 }
 
-/* ---------- Backtest / Bar Replay: FX Replay-Grade Cockpit ---------- */
+/* ---------- Backtest / Bar Replay: FX Replay-Inspired Ergonomic Cockpit ---------- */
 .pgw.bt,
 .pgw.bt > *,
 .bt-work,
@@ -1112,11 +1109,49 @@ header h1 svg {
   max-width: 100%;
 }
 
-.bt-setup-card {
-  padding: 6px 10px;
+.pgw.bt {
+  gap: 8px;
 }
 
-@media (min-width: 1180px) {
+.bt-pgh {
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.bt-hdr-stats {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.bt-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.bt-stat-k {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mut);
+  font-weight: 600;
+}
+
+.bt-stat-v {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bt-setup-card {
+  padding: 5px 10px;
+}
+
+@media (min-width: 1100px) {
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup-bar {
     display: none;
   }
@@ -1125,6 +1160,7 @@ header h1 svg {
     flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
+    min-height: 32px;
     margin-top: 0;
     padding-top: 0;
     border-top: 0;
@@ -1135,11 +1171,14 @@ header h1 svg {
     align-items: center;
     gap: 5px;
     font-size: 11px;
+    font-weight: 600;
+    color: var(--mut);
     white-space: nowrap;
     flex-shrink: 0;
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup #bt_sym {
     width: 96px;
+    font-weight: 600;
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup #bt_tf {
     width: 60px;
@@ -1148,7 +1187,7 @@ header h1 svg {
     width: 158px;
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup #bt_bal {
-    width: 78px;
+    width: 82px;
   }
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup #bt_risk,
   :root:not([data-ui="phone"]):not([data-ui="tablet"]) .bt-setup #bt_fee {
@@ -1207,27 +1246,86 @@ header h1 svg {
 }
 
 .bt-work {
-  grid-template-columns: minmax(0, 1fr) minmax(276px, 316px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 268px;
   gap: 10px;
+  align-items: stretch;
 }
 
-/* Generous FX Replay chart viewport height on desktop */
+.bt-chartcard {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.bt-chart-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 30px;
+  padding: 4px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.bt-meta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Generous chart-first FX Replay canvas (~76-80% desktop viewport) */
 .btcv {
-  min-height: 520px;
-  height: calc(100vh - 235px);
-  max-height: 760px;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-sm);
+  flex: 1 1 auto;
+  min-height: 540px;
+  height: calc(100vh - 215px);
+  max-height: 820px;
+  border: 0;
+  border-radius: 0;
   background: var(--bg-0);
 }
 
 .bt-ohlc {
-  padding: 4px 10px;
-  background: var(--bg-2);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-sm);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   font-size: 11.5px;
-  gap: 4px 12px;
+  gap: 4px 11px;
+}
+
+/* Docked glass bottom playback bar anchored seamlessly under the chart */
+.btrpc.bt-dockbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 7px 10px;
+  margin: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-top: 1px solid var(--line-1);
+}
+
+.bt-rpinfo {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.bt-sublbl {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+  color: var(--mut);
 }
 
 .bt-qpos {
@@ -1239,6 +1337,35 @@ header h1 svg {
 .bt-qpos button {
   padding: 3px 8px;
   font-size: 11.5px;
+}
+
+.bt-risk-pills {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-0);
+}
+
+.bt-risk-pills button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--mut);
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.bt-risk-pills button.on {
+  background: var(--acc-soft);
+  color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+@media (min-width: 1100px) {
+  #bt_out .jrkpis.bt-kpis {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 6px;
+  }
 }
 
 /* Apple-sleek custom range scrubber (zero default browser blue) */
@@ -1413,12 +1540,30 @@ header h1 svg {
   }
 }
 
-/* Backtest mobile zero-overflow guarantees */
+/* Backtest mobile & tablet zero-overflow + touch-target guarantees */
 @media (max-width: 1024px) {
+  .bt-work {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .btcv {
     min-height: 320px;
     height: min(54vh, 420px);
   }
+}
+
+:root[data-ui="phone"] .bt-work,
+:root[data-ui="tablet"] .bt-work {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:root[data-ui="phone"] .bt-risk-pills button,
+:root[data-ui="tablet"] .bt-risk-pills button,
+:root[data-ui="phone"] .bt-presets button,
+:root[data-ui="tablet"] .bt-presets button,
+:root[data-ui="phone"] .bt-qpos button,
+:root[data-ui="tablet"] .bt-qpos button {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 :root[data-ui="phone"] .btcv {
@@ -2450,12 +2595,118 @@ body.vt-wm-resizing {
   display: none;
 }
 
+/* ---------- Page-by-Page Calm Institutional Layout Revamp ---------- */
+
+/* 1. VektorCharts (#/chart): maximize chart height (>= 78% desktop), crisp 38px toolbar, slim rail */
+:root[data-page="chart"]:not([data-ui="phone"]):not([data-ui="tablet"]) .cpb {
+  padding: 4px 6px;
+  gap: 4px;
+}
+
+:root[data-page="chart"]:not([data-ui="phone"]):not([data-ui="tablet"]) .cpb .row.top {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 0 4px;
+}
+
+:root[data-panes="2"]:not([data-ui="phone"]):not([data-ui="tablet"]) .cpb .row.top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+:root[data-page="chart"]:not([data-ui="phone"]):not([data-ui="tablet"]) #cv,
+:root[data-page="chart"]:not([data-ui="phone"]):not([data-ui="tablet"]) #cvB {
+  min-height: calc(100vh - 152px);
+  height: calc(100vh - 152px);
+}
+
+:root[data-page="chart"]:not([data-ui="phone"]):not([data-ui="tablet"]) .tbar {
+  width: 38px;
+  padding-right: 4px;
+}
+
+/* 2. Workspace (#/workspace): balanced uncluttered split with crisp separation */
+:root[data-page="workspace"]:not([data-ui="phone"]):not([data-ui="tablet"]) .ws {
+  gap: 10px;
+}
+
+/* 3. Screener (#/screener): clean 2-row header, generous vertical row height, zero horizontal scroll */
+:root[data-page="screener"]:not([data-ui="phone"]) #t th {
+  padding: 8px 6px;
+}
+
+:root[data-page="screener"]:not([data-ui="phone"]) #t td {
+  padding: 7px 6px;
+}
+
+:root[data-page="screener"] #sxbar .chip.on,
+:root[data-page="screener"] #sxbar button.on {
+  background: var(--acc-soft);
+  color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  font-weight: 700;
+}
+
+/* 4. Journal (#/journal): calm executive centered layout, balanced Equity + Calendar row */
+:root:not([data-ui="phone"]) .pgw.jr {
+  max-width: 1360px;
+  margin: 0 auto;
+  gap: 12px;
+}
+
+:root:not([data-ui="phone"]) .pgw.jr .vcard {
+  padding: 14px 16px;
+}
+
+:root:not([data-ui="phone"]) .pgw.jr .jrgrid {
+  gap: 12px;
+  align-items: stretch;
+}
+
+:root:not([data-ui="phone"]) .pgw.jr #jr_tbl td {
+  padding: 7px 9px;
+}
+
+/* 5. Heatmaps (#/heatmap): full-height treemap with zero footer collision */
+:root[data-page="heatmap"]:not([data-ui="phone"]):not([data-ui="tablet"]) .hmgrid {
+  min-height: 400px;
+  height: calc(100vh - 238px);
+  max-height: calc(100vh - 222px);
+}
+
+/* 6. Calendar (#/calendar) & Calculators (#/calc): centered 1120px institutional grid, generous whitespace */
+:root:not([data-ui="phone"]) .pgw.cal,
+:root:not([data-ui="phone"]) .pgw.calc-pg {
+  max-width: 1120px;
+  margin: 0 auto;
+  gap: 14px;
+}
+
+:root:not([data-ui="phone"]) .pgw.cal .vcard,
+:root:not([data-ui="phone"]) .pgw.calc-pg .vcard {
+  padding: 16px 18px;
+}
+
+:root:not([data-ui="phone"]) .pgw.calc-pg .vgrid {
+  gap: 14px;
+}
+
+.calc-sub {
+  margin: -2px 0 10px;
+  font-size: 12px;
+  color: var(--mut);
+  line-height: 1.4;
+}
+
 /* ---------- Reduced Transparency & High Contrast Fallbacks ---------- */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .ov .box,
   .vt-modal-card,
   .vt-auth-modal,
   .vpmenu,
+  .vt-dd-menu,
+  .btrpc.bt-dockbar,
   #vmore,
   .hmtip {
     background: var(--bg-1) !important;

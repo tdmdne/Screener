@@ -206,6 +206,7 @@ await test("Worker /health hides secrets and /td/* uses Cache API (zero KV write
   try {
     const env = {
       TWELVEDATA_KEY: secret,
+      INTERNAL_TD_SECRET: "internal-td-secret-test-001",
       ALLOWED_ORIGINS: "https://screener-cso.pages.dev",
       MARKET_KV: fakeKv,
       TD_BUDGET: {
@@ -213,6 +214,7 @@ await test("Worker /health hides secrets and /td/* uses Cache API (zero KV write
         get: () => budgetObj,
       },
     };
+    const internalHeaders = { "X-Vektor-Internal": env.INTERNAL_TD_SECRET };
 
     // Health check leaks zero secrets
     const hRes = await worker.fetch(
@@ -228,7 +230,9 @@ await test("Worker /health hides secrets and /td/* uses Cache API (zero KV write
 
     // First /td/price call -> MISS, cached in Cache API, ZERO KV writes
     const td1 = await worker.fetch(
-      new Request("https://vektor-market.example/td/price?symbol=eur/usd&apikey=ATTACKER_KEY"),
+      new Request("https://vektor-market.example/td/price?symbol=eur/usd&apikey=ATTACKER_KEY", {
+        headers: internalHeaders,
+      }),
       env
     );
     assert.equal(td1.status, 200);
@@ -238,7 +242,9 @@ await test("Worker /health hides secrets and /td/* uses Cache API (zero KV write
 
     // Second equivalent /td/price call -> HIT from Cache API, still 1 upstream call, 0 KV writes
     const td2 = await worker.fetch(
-      new Request("https://vektor-market.example/td/price?symbol=EUR/USD"),
+      new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
+        headers: internalHeaders,
+      }),
       env
     );
     assert.equal(td2.status, 200);
@@ -247,7 +253,10 @@ await test("Worker /health hides secrets and /td/* uses Cache API (zero KV write
     assert.equal(kvPutCalls, 0);
 
     // Disallowed /td/ route -> 404
-    const tdBad = await worker.fetch(new Request("https://vektor-market.example/td/billing"), env);
+    const tdBad = await worker.fetch(
+      new Request("https://vektor-market.example/td/billing", { headers: internalHeaders }),
+      env
+    );
     assert.equal(tdBad.status, 404);
   } finally {
     globalThis.fetch = prevFetch;
@@ -272,6 +281,7 @@ await test("Security Fix #8: /td/* rejects non-GET (405) and disallowed Origin (
   try {
     const env = {
       TWELVEDATA_KEY: "TD_SECRET_TEST",
+      INTERNAL_TD_SECRET: "internal-td-secret-test-002",
       ALLOWED_ORIGINS: "https://screener-cso.pages.dev",
       TD_BUDGET: {
         idFromName: (n) => n,
@@ -279,11 +289,42 @@ await test("Security Fix #8: /td/* rejects non-GET (405) and disallowed Origin (
       },
     };
 
+    // 0. Audit HIGH #4: Missing / mismatched X-Vektor-Internal or unset INTERNAL_TD_SECRET -> 403, 0 budget spent
+    const noSecretHeaderRes = await worker.fetch(
+      new Request("https://vektor-market.example/td/price?symbol=EUR/USD", { method: "GET" }),
+      env
+    );
+    assert.equal(noSecretHeaderRes.status, 403);
+    assert.equal(upstreamCalls, 0);
+    assert.equal(budgetObj.status().usedMin, 0);
+
+    const wrongSecretRes = await worker.fetch(
+      new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
+        method: "GET",
+        headers: { "X-Vektor-Internal": "wrong-secret" },
+      }),
+      env
+    );
+    assert.equal(wrongSecretRes.status, 403);
+    assert.equal(upstreamCalls, 0);
+    assert.equal(budgetObj.status().usedMin, 0);
+
+    const unsetEnvSecretRes = await worker.fetch(
+      new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
+        method: "GET",
+        headers: { "X-Vektor-Internal": "anything" },
+      }),
+      { ...env, INTERNAL_TD_SECRET: "" }
+    );
+    assert.equal(unsetEnvSecretRes.status, 403);
+    assert.equal(upstreamCalls, 0);
+    assert.equal(budgetObj.status().usedMin, 0);
+
     // 1. POST /td/price -> 405 Method Not Allowed, 0 budget spent, 0 upstream calls
     const postRes = await worker.fetch(
       new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
         method: "POST",
-        headers: { Origin: "https://screener-cso.pages.dev" },
+        headers: { Origin: "https://screener-cso.pages.dev", "X-Vektor-Internal": env.INTERNAL_TD_SECRET },
       }),
       env
     );
@@ -296,7 +337,7 @@ await test("Security Fix #8: /td/* rejects non-GET (405) and disallowed Origin (
     const evilOriginRes = await worker.fetch(
       new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
         method: "GET",
-        headers: { Origin: "https://evil-attacker.example" },
+        headers: { Origin: "https://evil-attacker.example", "X-Vektor-Internal": env.INTERNAL_TD_SECRET },
       }),
       env
     );
@@ -304,11 +345,11 @@ await test("Security Fix #8: /td/* rejects non-GET (405) and disallowed Origin (
     assert.equal(upstreamCalls, 0);
     assert.equal(budgetObj.status().usedMin, 0);
 
-    // 3. GET /td/price with allowed Origin -> 200 OK, 1 budget spent, 1 upstream call
+    // 3. GET /td/price with valid internal secret + allowed Origin -> 200 OK, 1 budget spent, 1 upstream call
     const okRes = await worker.fetch(
       new Request("https://vektor-market.example/td/price?symbol=EUR/USD", {
         method: "GET",
-        headers: { Origin: "https://screener-cso.pages.dev" },
+        headers: { Origin: "https://screener-cso.pages.dev", "X-Vektor-Internal": env.INTERNAL_TD_SECRET },
       }),
       env
     );

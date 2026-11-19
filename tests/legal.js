@@ -52,6 +52,6 @@ assert.strictEqual(await P.evaluate(()=>document.querySelectorAll("#pv-legal art
 await P.goto(h.base+"#/legal/cookies");await P.reload();await P.waitForFunction(()=>BOOTED);await P.waitForTimeout(300);
 assert.deepStrictEqual(await P.evaluate(()=>[document.documentElement.dataset.page,location.hash,document.querySelector("#pv-legal h1").textContent]),["legal","#/legal/cookies","Cookies and Local Storage"]);
 // back to a normal page via nav; WebSockets kept across in-page switches (checked before reload)
-await P.click('#vnav a[data-p="calc"]');await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>location.hash),"#/calc");
+await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/calc"]');await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>location.hash),"#/calc");
 console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);
 await h.close();console.log("LEGAL OK",ws0)})().catch(e=>{console.error(e);process.exit(1)});

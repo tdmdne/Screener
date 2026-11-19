@@ -12,6 +12,7 @@ import {
   buildSessionCookie,
   bytesToBase64Url,
   completeProfile,
+  confirmVerificationCode,
   constantTimeEqual,
   consumeOAuthState,
   createOAuthState,
@@ -21,12 +22,15 @@ import {
   getSessionUser,
   getUserData,
   importLegacyData,
+  isEmailVerifyConfigured,
+  isPhoneVerifyConfigured,
   listUsersAdmin,
   loginUser,
   parseCookies,
   registerUser,
   revokeSession,
   saveUserData,
+  sendVerificationCode,
   setUserRoleOrStatus,
 } from "./auth.js";
 
@@ -452,6 +456,8 @@ export async function handleAuthRequest(request, env, options = {}) {
         email: dbReady,
         google: dbReady && isGoogleConfigured(env),
         apple: dbReady && isAppleConfigured(env),
+        email_verify: dbReady && isEmailVerifyConfigured(env),
+        phone_verify: dbReady && isPhoneVerifyConfigured(env),
       },
     });
   }
@@ -553,6 +559,58 @@ export async function handleAuthRequest(request, env, options = {}) {
     if (!bodyRes.ok) return jsonResponse({ ok: false, error: bodyRes.error }, bodyRes.status);
 
     const res = await completeProfile(db, user.id, bodyRes.data, { nowMs });
+    if (!res.ok) return jsonResponse({ ok: false, error: res.error }, res.status);
+    return jsonResponse({ ok: true, user: res.user });
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/auth/verify/send
+  // -------------------------------------------------------------------------
+  if (pathname === "/api/auth/verify/send") {
+    if (method !== "POST") return jsonResponse({ ok: false, error: "Method not allowed." }, 405);
+    const user = await getSessionUser(db, sessionToken, { nowMs });
+    if (!user) return jsonResponse({ ok: false, error: "Unauthorized." }, 401);
+
+    const bodyRes = await readBoundedJson(request);
+    if (!bodyRes.ok) return jsonResponse({ ok: false, error: bodyRes.error }, bodyRes.status);
+
+    const channel = bodyRes.data && typeof bodyRes.data === "object" ? bodyRes.data.channel : null;
+    const res = await sendVerificationCode(db, user, channel, {
+      env,
+      nowMs,
+      fetchImpl,
+      sendCodeImpl: options.sendCodeImpl,
+    });
+    if (!res.ok) {
+      const headers = res.retryAfterSec ? { "Retry-After": String(res.retryAfterSec) } : null;
+      const errBody = { ok: false, error: res.error };
+      if (res.code) errBody.code = res.code;
+      return jsonResponse(errBody, res.status, headers);
+    }
+    const okBody = { ok: true, channel: res.channel };
+    if (res.already_verified) {
+      okBody.already_verified = true;
+    } else {
+      okBody.expires_at = res.expires_at;
+      okBody.cooldown_sec = res.cooldown_sec;
+    }
+    return jsonResponse(okBody, 200);
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/auth/verify/confirm
+  // -------------------------------------------------------------------------
+  if (pathname === "/api/auth/verify/confirm") {
+    if (method !== "POST") return jsonResponse({ ok: false, error: "Method not allowed." }, 405);
+    const user = await getSessionUser(db, sessionToken, { nowMs });
+    if (!user) return jsonResponse({ ok: false, error: "Unauthorized." }, 401);
+
+    const bodyRes = await readBoundedJson(request);
+    if (!bodyRes.ok) return jsonResponse({ ok: false, error: bodyRes.error }, bodyRes.status);
+
+    const channel = bodyRes.data && typeof bodyRes.data === "object" ? bodyRes.data.channel : null;
+    const code = bodyRes.data && typeof bodyRes.data === "object" ? bodyRes.data.code : null;
+    const res = await confirmVerificationCode(db, user.id, channel, code, { nowMs });
     if (!res.ok) return jsonResponse({ ok: false, error: res.error }, res.status);
     return jsonResponse({ ok: true, user: res.user });
   }

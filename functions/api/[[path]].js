@@ -4,6 +4,8 @@
 // - /api/auth/*, /api/me/*, /api/admin/*      -> server-side D1 auth/user/admin routes via shared/authRoutes.js
 // - /api/vs/run                               -> server-side Vektor Script execution via shared/vs/index.js
 // - /api/journal/stats                        -> server-side Journal/Prop analytics via shared/journal.js
+// - /api/replay/simulate                      -> server-side Bar Replay simulation via shared/replay.js
+// - /api/alerts/evaluate                      -> server-side Alert evaluation via shared/alerts.js
 // - /api/screener, /api/candles, /api/calendar, /api/news, etc. -> delegated to worker.js
 
 import worker, {
@@ -15,6 +17,7 @@ import worker, {
   fetchBinanceTickers,
 } from "../../worker.js";
 import { MAX_CHART_BARS, PROVENANCE } from "../../shared/protocol.js";
+import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
 import { VS_LIM, vsCompute } from "../../shared/vs/index.js";
@@ -29,6 +32,12 @@ import {
   rDistribution,
   tradeStats,
 } from "../../shared/journal.js";
+import {
+  MAX_REPLAY_BARS,
+  createReplaySession,
+  normalizeReplayBar,
+} from "../../shared/replay.js";
+import { createAlertEvaluator } from "../../shared/alerts.js";
 
 export {
   BINANCE_MIRRORS,
@@ -43,6 +52,14 @@ const MARKET_SERVICE_PATHS = new Set(["/api/bootstrap", "/api/bars", "/api/hub/s
 
 const VS_RUN_MAX_BYTES = 256 * 1024;
 const JOURNAL_STATS_MAX_BYTES = 1024 * 1024;
+const REPLAY_SIMULATE_MAX_BYTES = 512 * 1024;
+const REPLAY_MAX_ACTIONS = 500;
+const REPLAY_SIMULATE_MAX_BARS = Math.min(MAX_REPLAY_BARS, 5000);
+const REPLAY_MAX_CUMULATIVE_STEPS = REPLAY_SIMULATE_MAX_BARS * 2;
+const ALERTS_EVALUATE_MAX_BYTES = 256 * 1024;
+const ALERTS_MAX_ITEMS = 500;
+const ALERTS_MAX_EVAL_OPS = 25000;
+const ALERTS_MAX_TRIGGERS = 1000;
 const VS_MAX_INPUT_KEYS = 64;
 const JOURNAL_MAX_TRADES = Math.min(JR_TRADES_MAX, 10000);
 const JOURNAL_MAX_SETUP_LEN = 256;
@@ -739,6 +756,384 @@ async function handleJournalStats(request, env) {
   }
 }
 
+function parseStrictReplayBar(raw) {
+  if (Array.isArray(raw)) {
+    if (raw.length < 5 || raw.length > 6) return null;
+    for (let i = 0; i < 5; i++) {
+      if (!Number.isFinite(toStrictNumber(raw[i]))) return null;
+    }
+    if (raw.length === 6 && raw[5] !== undefined && raw[5] !== null && !Number.isFinite(toStrictNumber(raw[5]))) {
+      return null;
+    }
+  } else if (isPlainObject(raw)) {
+    const t = raw.t ?? raw.time;
+    const o = raw.o ?? raw.open;
+    const h = raw.h ?? raw.high;
+    const l = raw.l ?? raw.low;
+    const c = raw.c ?? raw.close;
+    const v = raw.v ?? raw.volume;
+    if (
+      !Number.isFinite(toStrictNumber(t)) ||
+      !Number.isFinite(toStrictNumber(o)) ||
+      !Number.isFinite(toStrictNumber(h)) ||
+      !Number.isFinite(toStrictNumber(l)) ||
+      !Number.isFinite(toStrictNumber(c))
+    ) {
+      return null;
+    }
+    if (v !== undefined && v !== null && !Number.isFinite(toStrictNumber(v))) {
+      return null;
+    }
+  } else {
+    return null;
+  }
+  return normalizeReplayBar(raw);
+}
+
+async function handleReplaySimulate(request, env) {
+  const errResp = (status, error, extraHeaders = {}) =>
+    jsonResponse({ ok: false, error }, status, { "cache-control": "no-store", ...extraHeaders }, request, env);
+
+  if (request.method !== "POST") {
+    return errResp(405, "Method not allowed; use POST", { allow: "POST, OPTIONS" });
+  }
+
+  const parsed = await readJsonBody(request, REPLAY_SIMULATE_MAX_BYTES);
+  if (!parsed.ok) {
+    return errResp(parsed.status, parsed.error);
+  }
+
+  const body = parsed.data;
+  if (!isPlainObject(body)) {
+    return errResp(400, "Request body must be a JSON object");
+  }
+
+  let symbol = "";
+  if (body.symbol !== undefined && body.symbol !== null) {
+    if (typeof body.symbol !== "string") {
+      return errResp(400, "symbol must be a string");
+    }
+    symbol = body.symbol.trim().toUpperCase();
+    if (symbol.length > 0 && !VS_SYMBOL_RE.test(symbol)) {
+      return errResp(400, "symbol contains invalid characters or exceeds 24 chars");
+    }
+  }
+
+  let tf = "1H";
+  if (body.tf !== undefined && body.tf !== null) {
+    if (typeof body.tf !== "string") {
+      return errResp(400, "tf must be a string");
+    }
+    const cleanTf = body.tf.trim();
+    if (!VS_ALLOWED_TFS.has(cleanTf)) {
+      return errResp(400, "tf is not a supported timeframe");
+    }
+    tf = cleanTf;
+  }
+
+  if (!Array.isArray(body.bars)) {
+    return errResp(400, "bars array is required");
+  }
+  if (body.bars.length > REPLAY_SIMULATE_MAX_BARS) {
+    return errResp(413, `Too many bars (max ${REPLAY_SIMULATE_MAX_BARS})`);
+  }
+
+  const normalizedBars = new Array(body.bars.length);
+  for (let i = 0; i < body.bars.length; i++) {
+    const b = parseStrictReplayBar(body.bars[i]);
+    if (!b) {
+      return errResp(400, `bars[${i}] is malformed or has invalid OHLC values`);
+    }
+    normalizedBars[i] = b;
+  }
+
+  let startIndex;
+  if (body.startIndex !== undefined && body.startIndex !== null) {
+    const si = toStrictNumber(body.startIndex);
+    if (!Number.isInteger(si) || si < 0) {
+      return errResp(400, "startIndex must be a non-negative integer");
+    }
+    startIndex = si;
+  }
+
+  let balance;
+  if (body.balance !== undefined && body.balance !== null) {
+    const bal = toStrictNumber(body.balance);
+    if (!Number.isFinite(bal) || bal <= 0) {
+      return errResp(400, "balance must be a positive finite number");
+    }
+    balance = bal;
+  }
+
+  let riskPct;
+  if (body.riskPct !== undefined && body.riskPct !== null) {
+    const rp = toStrictNumber(body.riskPct);
+    if (!Number.isFinite(rp) || rp <= 0 || rp > 100) {
+      return errResp(400, "riskPct must be a finite number in (0, 100]");
+    }
+    riskPct = rp;
+  }
+
+  let feePct;
+  if (body.feePct !== undefined && body.feePct !== null) {
+    const fp = toStrictNumber(body.feePct);
+    if (!Number.isFinite(fp) || fp < 0 || fp > 10) {
+      return errResp(400, "feePct must be a finite number in [0, 10]");
+    }
+    feePct = fp;
+  }
+
+  const actions = body.actions === undefined || body.actions === null ? [] : body.actions;
+  if (!Array.isArray(actions)) {
+    return errResp(400, "actions must be an array");
+  }
+  if (actions.length > REPLAY_MAX_ACTIONS) {
+    return errResp(413, `Too many actions (max ${REPLAY_MAX_ACTIONS})`);
+  }
+
+  const ALLOWED_ACTION_TYPES = new Set(["step", "seek", "open", "close", "cancel", "updateStops"]);
+  for (let i = 0; i < actions.length; i++) {
+    const act = actions[i];
+    if (!isPlainObject(act) || typeof act.type !== "string" || !ALLOWED_ACTION_TYPES.has(act.type)) {
+      return errResp(400, `actions[${i}] must be an object with a valid type`);
+    }
+  }
+
+  try {
+    const session = createReplaySession({
+      symbol,
+      tf,
+      bars: normalizedBars,
+      ...(startIndex !== undefined ? { startIndex } : {}),
+      ...(balance !== undefined ? { balance } : {}),
+      ...(riskPct !== undefined ? { riskPct } : {}),
+      ...(feePct !== undefined ? { feePct } : {}),
+    });
+
+    let curIdx = startIndex !== undefined
+      ? Math.max(0, Math.min(normalizedBars.length - 1, startIndex))
+      : 0;
+    let totalSteps = 0;
+
+    for (let i = 0; i < actions.length; i++) {
+      const act = actions[i];
+      if (act.type === "step") {
+        let n = 1;
+        if (act.n !== undefined && act.n !== null) {
+          const parsedN = toStrictNumber(act.n);
+          if (!Number.isInteger(parsedN)) {
+            return errResp(400, `actions[${i}].n must be an integer`);
+          }
+          n = parsedN;
+        }
+        const nextIdx = Math.max(0, Math.min(normalizedBars.length - 1, curIdx + n));
+        totalSteps += Math.abs(nextIdx - curIdx);
+        if (totalSteps > REPLAY_MAX_CUMULATIVE_STEPS) {
+          return errResp(413, `Replay cumulative step budget exceeded (max ${REPLAY_MAX_CUMULATIVE_STEPS})`);
+        }
+        curIdx = nextIdx;
+        session.step(n);
+      } else if (act.type === "seek") {
+        const rawTarget = act.index !== undefined ? act.index : act.target;
+        const parsedTarget = toStrictNumber(rawTarget);
+        if (!Number.isInteger(parsedTarget)) {
+          return errResp(400, `actions[${i}].index must be an integer`);
+        }
+        const nextIdx = Math.max(0, Math.min(normalizedBars.length - 1, parsedTarget));
+        totalSteps += Math.abs(nextIdx - curIdx);
+        if (totalSteps > REPLAY_MAX_CUMULATIVE_STEPS) {
+          return errResp(413, `Replay cumulative step budget exceeded (max ${REPLAY_MAX_CUMULATIVE_STEPS})`);
+        }
+        curIdx = nextIdx;
+        session.seek(parsedTarget);
+      } else if (act.type === "open") {
+        const src = isPlainObject(act.order) ? act.order : act;
+        const orderOpts = {
+          side: src.side,
+          type: isPlainObject(act.order) ? src.type : (src.orderType ?? src.kind ?? "market"),
+          entry: src.entry,
+          qty: src.qty,
+          riskPct: src.riskPct,
+          sl: src.sl,
+          tp: src.tp,
+        };
+        session.openOrder(orderOpts);
+      } else if (act.type === "close") {
+        const closeOpts = {};
+        if (act.price !== undefined && act.price !== null) {
+          const px = toStrictNumber(act.price);
+          if (!Number.isFinite(px) || px <= 0) {
+            return errResp(400, `actions[${i}].price must be a positive finite number`);
+          }
+          closeOpts.price = px;
+        }
+        if (act.reason !== undefined && act.reason !== null) {
+          if (typeof act.reason !== "string" || act.reason.length > 64) {
+            return errResp(400, `actions[${i}].reason must be a string <= 64 chars`);
+          }
+          closeOpts.reason = act.reason;
+        }
+        session.closePosition(act.id, closeOpts);
+      } else if (act.type === "cancel") {
+        if (typeof act.id !== "string" || !act.id.trim() || act.id.length > 64) {
+          return errResp(400, `actions[${i}].id must be a non-empty string`);
+        }
+        session.cancelOrder(act.id);
+      } else if (act.type === "updateStops") {
+        session.updateStops(act.id, { sl: act.sl, tp: act.tp });
+      }
+    }
+
+    const state = session.getState();
+    return jsonResponse(
+      {
+        ok: true,
+        window: state.window,
+        equity: state.equity,
+        openPnl: state.openPnl,
+        stats: state.stats,
+        openPositions: state.positions,
+        pendingOrders: state.pendingOrders,
+        trades: state.trades,
+      },
+      200,
+      { "cache-control": "no-store" },
+      request,
+      env
+    );
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message.slice(0, 200) : "Replay simulation failed";
+    return errResp(400, msg);
+  }
+}
+
+async function handleAlertsEvaluate(request, env) {
+  const errResp = (status, error, extraHeaders = {}) =>
+    jsonResponse({ ok: false, error }, status, { "cache-control": "no-store", ...extraHeaders }, request, env);
+
+  if (request.method !== "POST") {
+    return errResp(405, "Method not allowed; use POST", { allow: "POST, OPTIONS" });
+  }
+
+  const parsed = await readJsonBody(request, ALERTS_EVALUATE_MAX_BYTES);
+  if (!parsed.ok) {
+    return errResp(parsed.status, parsed.error);
+  }
+
+  const body = parsed.data;
+  if (!isPlainObject(body)) {
+    return errResp(400, "Request body must be a JSON object");
+  }
+
+  if (!Array.isArray(body.alerts)) {
+    return errResp(400, "alerts array is required");
+  }
+  if (body.alerts.length > ALERTS_MAX_ITEMS) {
+    return errResp(413, `Too many alerts (max ${ALERTS_MAX_ITEMS})`);
+  }
+  for (let i = 0; i < body.alerts.length; i++) {
+    if (!isPlainObject(body.alerts[i])) {
+      return errResp(400, `alerts[${i}] must be a plain object`);
+    }
+  }
+
+  const ticks = body.ticks === undefined || body.ticks === null ? [] : body.ticks;
+  if (!Array.isArray(ticks)) {
+    return errResp(400, "ticks must be an array");
+  }
+  if (ticks.length > ALERTS_MAX_ITEMS) {
+    return errResp(413, `Too many ticks (max ${ALERTS_MAX_ITEMS})`);
+  }
+  for (let i = 0; i < ticks.length; i++) {
+    if (!isPlainObject(ticks[i])) {
+      return errResp(400, `ticks[${i}] must be a plain object`);
+    }
+  }
+
+  const bars = body.bars === undefined || body.bars === null ? [] : body.bars;
+  if (!Array.isArray(bars)) {
+    return errResp(400, "bars must be an array");
+  }
+  if (bars.length > ALERTS_MAX_ITEMS) {
+    return errResp(413, `Too many bars (max ${ALERTS_MAX_ITEMS})`);
+  }
+  for (let i = 0; i < bars.length; i++) {
+    if (!isPlainObject(bars[i])) {
+      return errResp(400, `bars[${i}] must be a plain object`);
+    }
+  }
+
+  let cleanPrevPrices;
+  if (body.prevPrices !== undefined && body.prevPrices !== null) {
+    if (!isPlainObject(body.prevPrices)) {
+      return errResp(400, "prevPrices must be a plain object");
+    }
+    const entries = Object.entries(body.prevPrices);
+    if (entries.length > ALERTS_MAX_ITEMS) {
+      return errResp(413, `Too many prevPrices entries (max ${ALERTS_MAX_ITEMS})`);
+    }
+    cleanPrevPrices = Object.create(null);
+    for (const [k, v] of entries) {
+      if (FORBIDDEN_KEYS.has(k)) {
+        return errResp(400, `Forbidden key in prevPrices: ${k}`);
+      }
+      const px = toStrictNumber(v);
+      if (!Number.isFinite(px) || px <= 0) {
+        return errResp(400, `prevPrices.${k} must be a positive finite number`);
+      }
+      cleanPrevPrices[k] = px;
+    }
+  }
+
+  if (body.alerts.length * (ticks.length + bars.length) > ALERTS_MAX_EVAL_OPS) {
+    return errResp(413, `Alert evaluation work budget exceeded (max ${ALERTS_MAX_EVAL_OPS} alert-event ops)`);
+  }
+
+  try {
+    const evaluator = createAlertEvaluator({
+      alerts: body.alerts,
+      ...(cleanPrevPrices ? { prevPrices: cleanPrevPrices } : {}),
+    });
+
+    const triggered = [];
+    const frames = [];
+
+    for (const tick of ticks) {
+      const res = evaluator.evaluateTick(tick);
+      if (triggered.length + res.triggers.length > ALERTS_MAX_TRIGGERS) {
+        return errResp(413, `Too many triggered alerts in one request (max ${ALERTS_MAX_TRIGGERS})`);
+      }
+      if (res.triggers.length) triggered.push(...res.triggers);
+      if (res.frames.length) frames.push(...res.frames);
+    }
+
+    for (const bar of bars) {
+      const res = evaluator.evaluateBar(bar);
+      if (triggered.length + res.triggers.length > ALERTS_MAX_TRIGGERS) {
+        return errResp(413, `Too many triggered alerts in one request (max ${ALERTS_MAX_TRIGGERS})`);
+      }
+      if (res.triggers.length) triggered.push(...res.triggers);
+      if (res.frames.length) frames.push(...res.frames);
+    }
+
+    return jsonResponse(
+      {
+        ok: true,
+        triggered,
+        frames,
+        state: evaluator.snapshot(),
+      },
+      200,
+      { "cache-control": "no-store" },
+      request,
+      env
+    );
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message.slice(0, 200) : "Alert evaluation failed";
+    return errResp(400, msg);
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -788,6 +1183,38 @@ export async function onRequest(context) {
     }
   }
   if (MARKET_SERVICE_PATHS.has(pathname)) {
+    if (pathname === "/api/hub/stats") {
+      if (!env || !env.DB) {
+        return jsonResponse(
+          { ok: false, error: "Authentication required." },
+          401,
+          { "cache-control": "no-store" },
+          request,
+          env
+        );
+      }
+      const cookies = parseCookies(request.headers.get("Cookie"));
+      const token = cookies[SESSION_COOKIE_NAME] || null;
+      const user = token ? await getSessionUser(env.DB, token) : null;
+      if (!user) {
+        return jsonResponse(
+          { ok: false, error: "Authentication required." },
+          401,
+          { "cache-control": "no-store" },
+          request,
+          env
+        );
+      }
+      if (user.role !== "admin") {
+        return jsonResponse(
+          { ok: false, error: "Admin access required." },
+          403,
+          { "cache-control": "no-store" },
+          request,
+          env
+        );
+      }
+    }
     return handleMarketServiceForward(request, env);
   }
   if (pathname === "/api/vs/run") {
@@ -795,6 +1222,12 @@ export async function onRequest(context) {
   }
   if (pathname === "/api/journal/stats") {
     return handleJournalStats(request, env);
+  }
+  if (pathname === "/api/replay/simulate") {
+    return handleReplaySimulate(request, env);
+  }
+  if (pathname === "/api/alerts/evaluate") {
+    return handleAlertsEvaluate(request, env);
   }
 
   // Ensure secrets / environment bindings are passed correctly from Cloudflare secrets

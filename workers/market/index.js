@@ -430,6 +430,16 @@ export class TdBudget {
   }
 }
 
+function constantTimeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const maxLen = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
 /**
  * Proxy allowlisted `/td/*` requests through `TdBudget` DO and Cloudflare Cache API (NOT KV per miss!).
  */
@@ -440,6 +450,15 @@ async function handleTd(req, url, env, ctx) {
       405,
       { Allow: "GET, OPTIONS" }
     );
+  }
+
+  // Require internal shared secret (`X-Vektor-Internal`) matching `env.INTERNAL_TD_SECRET`
+  // so unauthenticated callers without an Origin header can NEVER drain paid Twelve Data REST quota.
+  const expectedSecret =
+    env && typeof env.INTERNAL_TD_SECRET === "string" ? env.INTERNAL_TD_SECRET.trim() : "";
+  const providedSecret = (req.headers.get("X-Vektor-Internal") || "").trim();
+  if (!expectedSecret || !providedSecret || !constantTimeEqual(providedSecret, expectedSecret)) {
+    return jsonResponse({ ok: false, error: "forbidden" }, 403);
   }
 
   // Reject disallowed browser Origins BEFORE Cache API, TdBudget, or upstream Twelve Data calls.

@@ -27,8 +27,8 @@ await P.waitForTimeout(300);await P.screenshot({path:"shots/03b_screener_drawer.
 // arrow key moves through rows and updates drawer
 await P.keyboard.press("ArrowDown");await P.waitForTimeout(300);assert.notStrictEqual(await P.evaluate(()=>SX.sym),"ETHUSDT");
 await P.keyboard.press("Escape");await P.waitForTimeout(250);assert(!(await P.evaluate(()=>document.getElementById("sxd").classList.contains("open"))));
-// open in supercharts from drawer
-await P.click('#t tbody tr[data-s="SOLUSDT"] td.sy');await P.waitForTimeout(300);await P.click('#sxd button:has-text("Open in Supercharts")');await P.waitForTimeout(800);
+// open in vektorcharts from drawer
+await P.click('#t tbody tr[data-s="SOLUSDT"] td.sy');await P.waitForTimeout(300);await P.click('#sxd button:has-text("Open in VektorCharts")');await P.waitForTimeout(800);
 st=await P.evaluate(()=>({page:S.pageView,sym:S.chart.sym,ch:!!ch,drawer:document.getElementById("sxd").classList.contains("open"),pro:document.querySelectorAll("#t td[data-l=Tier]").length}));
 console.log(JSON.stringify(st));assert(st.page==="chart"&&st.sym==="SOLUSDT"&&st.ch&&!st.drawer&&st.pro===0);
 // layout picker works (built-in layout)

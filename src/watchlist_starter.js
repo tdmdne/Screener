@@ -80,15 +80,18 @@ function renderClearControl() {
     if (existing) existing.remove();
     return;
   }
-  if (!head || existing) return;
-  const btn = document.createElement("button");
+  if (!head) return;
+  const btn = existing || document.createElement("button");
   btn.type = "button";
   btn.id = "vtWlClear";
   btn.className = "ib vt-wl-clear";
   btn.textContent = "Clear starter list";
   btn.title = "Remove the starter symbols (" + STARTER.join(", ") + ")";
-  btn.addEventListener("click", clearStarter);
-  head.appendChild(btn);
+  if (!btn.dataset.vtBound) {
+    btn.dataset.vtBound = "1";
+    btn.addEventListener("click", clearStarter);
+  }
+  if (!head.contains(btn)) head.appendChild(btn);
 }
 
 function addCharted() {

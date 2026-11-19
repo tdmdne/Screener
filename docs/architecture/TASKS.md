@@ -19,7 +19,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
 
 ## Phase A: Server pipeline (build on Workers Free)
 
-- [ ] **Task 1: Bring the data Worker into the repo and pick one hub.** *Claude Sonnet.*
+- [x] **Task 1: Bring the data Worker into the repo and pick one hub.** *Claude Sonnet.*
   - **Read:** `/workspace/task02/vm/worker.prod.js` (all 230 lines; Grok copies it in), `worker/hubCore.js` (1-96), `worker/hub.js` (1-65), `worker/wrangler.toml`.
   - **Do:**
     - Create `workers/market/index.js` from `worker.prod.js` unchanged.
@@ -32,7 +32,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - New `tests/market-canonical.test.mjs` covers `canonical()` and `allowedOrigin()`.
     - `npm test` passes.
 
-- [ ] **Task 2: DO ingestion hub with one upstream WebSocket.** *Claude **Opus** (core architecture).*
+- [x] **Task 2: DO ingestion hub with one upstream WebSocket.** *Claude **Opus** (core architecture).*
   - **Read:** `workers/market/hubCore.js`, `workers/market/index.js` 97-109 (budget helpers), `shared/schema.js`, `shared/constants.js`, AUDIT.md §3.4.
   - **Do:**
     - `workers/market/hub.js` exports a `MarketHub` DO (SQLite) holding **one** outbound WS to `wss://ws.twelvedata.com/v1/quotes/price` (key from `env.TWELVEDATA_KEY`, sent as the `X-TD-APIKEY` header).
@@ -47,7 +47,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - On a preview: 2 trial symbols stream for 30 min with ≤1 reconnect; `/hub/stats` shows them.
     - DO duration is visible in the dashboard and inside 13,000 GB-s/day.
 
-- [ ] **Task 3: Server candle builder.** *Claude Sonnet.*
+- [x] **Task 3: Server candle builder.** *Claude Sonnet.*
   - **Read:** `index.html` 1606-1625 (`updateLiveBar`), 6407-6423 (`vtMergeBars`), 6902-6984 (`vtApplyTwelveDataTick`), `shared/intervals.js`, `shared/schema.js`.
   - **Do:**
     - Pure module `shared/market/candles.js`: `applyTick(state, tick)` builds 1m bars.
@@ -60,7 +60,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - `tests/candles.test.mjs` has golden cases ported from the three client functions (same outputs for the same inputs).
     - No `Math.random`; no synthetic bars.
 
-- [ ] **Task 4: Bar and snapshot store.** *Claude Sonnet.*
+- [x] **Task 4: Bar and snapshot store.** *Claude Sonnet.*
   - **Read:** `workers/market/index.js` 111-171 (`handleTd`, KV pattern), AUDIT.md §3.3.
   - **Do:**
     - **Hot store in DO SQLite:** `bars(sym, tf, t, o, h, l, c, v, PRIMARY KEY(sym, tf, t))`, keeping the last 1,500 bars per sym/tf (trim on insert).
@@ -74,7 +74,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - On a preview: a cold start serves 1,500 bars for one symbol/tf from SQLite in one call.
     - KV writes per day are visible and under 900.
 
-- [ ] **Task 5: Server-side indicators.** *Claude Sonnet.*
+- [x] **Task 5: Server-side indicators.** *Claude Sonnet.*
   - **Read:** `index.html` 1295-1317 (`cc`, `ma`, `calc`), 1580-1587 (`emaArr`, `smaArr`, `atrArr`, `rsiArr`), 1637-1712 (how the chart applies them, including Bollinger offsets 1662-1673).
   - **Do:**
     - `shared/market/indicators.js` (pure, Float64Array), with incremental update on bar close.
@@ -83,7 +83,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - `tests/indicators.test.mjs` matches the client outputs to 1e-9 on recorded bars.
     - Per-bar-close CPU is measured and logged. If any invocation goes over 8 ms on Free, Grok flags D2 before continuing.
 
-- [ ] **Task 6: Vektor Script runtime on the server.** *Claude Sonnet* (a port with golden tests; Opus only if the sandbox design needs changing). 💷 **D2 must be approved before this goes live.**
+- [x] **Task 6: Vektor Script runtime on the server.** *Claude Sonnet* (a port with golden tests; Opus only if the sandbox design needs changing). 💷 **D2 must be approved before this goes live.**
   - **Read:** `index.html` 4196-4244 (`vsLex`, `vsParse`), 4250-4288 (`vsSMA`, `vsEMA`, `VS_FN`), 4289-4345 (`vsRun`), 4367-4368 (`vsCompute`); `src/47_vs_engine.js` (mirror; diff only).
   - **Do:**
     - Move the engine to `shared/vs/` (lexer, parser, runtime, builtins), unchanged semantics and limits (`VS_LIM`).
@@ -95,7 +95,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - A runaway script is stopped by the limits.
     - An error payload carries line, col and hint.
 
-- [ ] **Task 7: Server-side screener, P1–P5 and heatmap values.** *Claude Sonnet.* (Full universe needs 💷 D2 and 💷 D3.)
+- [x] **Task 7: Server-side screener, P1–P5 and heatmap values.** *Claude Sonnet.* (Full universe needs 💷 D2 and 💷 D3.)
   - **Read:** `index.html` 1327-1439 (`scoreSymbol`, `rows`, `scoreMarket`, `passesPreset`), 3609-3617 (`sxTier`, `sxPct`, `sxAdr`, `Expansion`/`Tier` columns), 3882-3891 (`hmTradedValue`, `hmChg`, `hmVal`); `worker.js` 123-169 (`buildScreenerSnapshot`, which simulates non-crypto).
   - **Do:**
     - `shared/market/screener.js`: per-symbol metrics, score, phase, expansion, tier, and the heatmap metric (% vs previous close for 1H/4H/1D/1W, momentum, score, traded value).
@@ -106,7 +106,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - The snapshot carries `source` and `asOf` per row.
     - No `source:"edge+sim"` anywhere.
 
-- [ ] **Task 8: Client WebSocket protocol and versioned payload schema.** *Claude **Opus**.*
+- [x] **Task 8: Client WebSocket protocol and versioned payload schema.** *Claude **Opus**.*
   - **Read:** `client/services/dataService.js` (1-125), `worker/hub.js` header (1-4), `shared/schema.js`, AUDIT.md §3.4 (size budget).
   - **Do:**
     - Write `shared/protocol.js` + `docs/architecture/PROTOCOL.md`, protocol `v: 2`.
@@ -121,7 +121,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
     - Fan-out test: 200 fake clients, coalesced, no frame over budget.
     - A Pages preview `/ws` handshake works same-origin.
 
-- [ ] **Task 9: One-request initial state.** *Claude Sonnet.*
+- [x] **Task 9: One-request initial state.** *Claude Sonnet.*
   - **Read:** `shared/protocol.js`, `workers/market/hub.js` (store accessors), `functions/api/[[path]].js` (1-69), `_routes.json`.
   - **Do:** `GET /api/bootstrap?chart=SYM:tf&wl=…&preset=…` returns one `state` payload (chart bars + indicator series + watchlist quotes + screener page 1 + heatmap) from the hub/KV snapshot.
   - **Accept:**
@@ -132,7 +132,7 @@ Evidence for every line range is in `docs/architecture/AUDIT.md`. The line numbe
 
 Before each step merges, Grok runs a preview with a network-egress check (Task 16's test).
 
-- [ ] **Task 10: Thin `dataService.js`.** *Claude Sonnet.*
+- [x] **Task 10: Thin `dataService.js`.** *Claude Sonnet.*
   - **Read:** `client/services/dataService.js` (1-125), `client/services/tickBuffer.js` (1-45), `shared/protocol.js`.
   - **Do:**
     - Rewrite as **render-only transport**: `bootstrap()` → `/api/bootstrap`; one `/ws`; `setView()`; `on(frameType, cb)`; reconnect with backoff; SSE fallback kept.
@@ -191,7 +191,7 @@ Before each step merges, Grok runs a preview with a network-egress check (Task 1
     - After sign-in on a device with old data, everything appears from the server and localStorage holds only prefs keys.
     - Iris updates the privacy and storage tables.
 
-- [ ] **Task 16: Mandate tests in CI.** *Claude Sonnet.*
+- [x] **Task 16: Mandate tests in CI.** *Claude Sonnet.*
   - **Read:** `scripts/run-tests.js`, `tests/harness.js`, `tests/README.md`.
   - **Do:**
     - `tests/egress.test.mjs`: headless load of `/`, `#/screener`, `#/heatmap`, `#/backtest`, `#/journal`; fail on any request whose origin isn't ours.
@@ -201,17 +201,17 @@ Before each step merges, Grok runs a preview with a network-egress check (Task 1
 
 ## Phase C: User tools server-side (D5, after the market path)
 
-- [ ] **Task 17: Server-side alerts.** *Claude Sonnet.* **Needs ACC.**
+- [x] **Task 17: Server-side alerts.** *Claude Sonnet.* **Needs ACC.**
   - **Read:** `index.html` 1889-1900 (`checkAlerts`), 2532 (`fin`).
   - **Do:** The hub evaluates alerts on ticks and bars and pushes `alert` frames. The alert log goes to D1. This unlocks alerts with the tab closed (KB "Known limitations").
   - **Accept:** An alert fires with no browser open, and shows on next load.
 
-- [ ] **Task 18: Replay and backtest fills server-side.** *Claude Sonnet.*
+- [x] **Task 18: Replay and backtest fills server-side.** *Claude Sonnet.*
   - **Read:** `index.html` 5018-5167 (`btOpenPnl`, `btSeek`), 3332-3353 (`posCalc`, `posState`); `src/54_backtest.js`.
   - **Do:** A replay session DO streams bars step by step and simulates fills with the same rules (stop before target on a tie). The client sends Long/Short/Close only. Backtesting stays free and unlimited (§3).
   - **Accept:** `tests/backtest.js` is green; CSV export is unchanged.
 
-- [ ] **Task 19: Journal and prop stats server-side.** *Claude Sonnet.* **Needs ACC.**
+- [x] **Task 19: Journal and prop stats server-side.** *Claude Sonnet.* **Needs ACC.**
   - **Read:** `src/50_journal_logic.js` (1-79), `index.html` 3766-3798.
   - **Do:** Move `tradeStats`/`propStatus`/`simChallenge` to `shared/journal.js`, exposed via `/api/me/journal/stats`.
   - **Accept:** `tests/journal.js` is green; the client shows server figures only.

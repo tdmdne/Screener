@@ -1,7 +1,7 @@
 # LOOP-STATE — Vektor Terminal
 
-**Active Branch:** `feat/phase-a-backend-core`  
-**Current Iteration:** Iteration 4 — Neon Gatekeeper Audit Complete (Waitlist 7/7 + 36 Skills Salvaged) → Scoped Tickets `ARGON-01`..`ARGON-05` Queued in `DISPATCH.md`  
+**Active Branch:** `argon` (branched from `feat/phase-a-backend-core @ b647927`)  
+**Current Iteration:** Iteration 5 — Argon Sprint Complete on `argon` (`VT_STRICT_MANDATE=1` Egress 4/4 PASS, 23/23 Unit/Contract Suites PASS, Landing/Waitlist Wired, Pass 3 Visual Audit Complete) → Ready for Neon 13:15 Gatekeeper Review (`ARGON_HANDOFF.md`)  
 **Cloudflare Auth:** Connected (`tdmltd2026@gmail.com` / `a194413a6dac0210959f978ba97903e1`); Workers Paid ($5/mo) active with `50 ms` hard CPU cap; `vektorterminal.com` allowlisted on `vektor-market`.
 
 ## Queue
@@ -20,13 +20,13 @@
 ### Phase 2 — Institutional UI/UX Overhaul & 58/58 Test Suite (100% Tests, Pass 3 Visual Verify Next)
 - [x] `src/98_institutional.css` + `index.html` Apple × Koyfin/Bloomberg/Trade Ideas/FX Replay overhaul (Pass 1 + Pass 3 Polish)
 - [x] All **58/58 test suites PASS** (`minicharts.js` 4.9ms, `motion.js` 7.7ms, `a11y.js` dark+light clean, `mobile.js` + `mobile_qa.js` 0 overflow & ≥44px targets, `postool`, `backtest`, `journal`, `screener`, `heatmap`, `supercharts`, `signin`, `layout`, `sweep`, `jai`)
-- [ ] Pass 3 `qa-auditor` final visual screenshot verification (`1440×900` & `375×812`)
+- [x] Pass 3 `qa-auditor` final visual screenshot verification (`1440×900` & `375×812`)
 
 ### Phase 3 — Auth/OAuth UI & Zero-Egress Cutover
-- [x] **Auth UI (`src/auth_ui.js` + `index.html`):** Real `/api/auth/login`, `/api/auth/register` (`full_name`, `username`, `dob` 18+, `phone` E.164, `email`, strong `password`), `/api/auth/providers` (Google & Apple buttons), `/api/auth/complete-profile` modal, `/api/auth/logout`, Admin panel (`#vtAdminBtn`), and `/api/me/import` post-200 legacy `scr2~*` migration — **Security PASS + 8/8 Tests Green**
+- [x] **Auth UI (`src/auth_ui.js` + `index.html`):** Real `/api/auth/login`, `/api/auth/register` (`full_name`, `username`, `dob` 18+, `phone` E.164, `email`, strong `password`), `/api/auth/providers` (Google & Apple buttons), `/api/auth/complete-profile` modal, `/api/auth/logout`, Admin panel (`#vtAdminBtn` Users + Waitlist tabs), and `/api/me/import` post-200 legacy `scr2~*` migration — **Security PASS + 8/8 Tests Green**
 - [x] **Self-Hosted `/vendor/` & Window Manager:** `vendor/lwc.js` + `vendor/h2c.js` exact-allowlisted (0 `cdn.jsdelivr.net` egress), fake chart BUY/SELL buttons removed, glassy draggable 4-way resizable desktop modals (`src/window_manager.js`) verified via Playwright
-- [ ] **Zero-Egress Legacy Cutover (Tasks 11–15, 20):** Wire `index.html` live feeds onto `src/data_service.js` (`/api/bootstrap` + `/ws`), strip legacy Binance/CoinGecko/Finnhub/Polygon/BYO-key calls & client maths, pass strict `VT_STRICT_MANDATE=1`
-- [ ] **Custom UI/Motion Skills Pass:** Ready for Tyler's custom UI/motion skills (plus expanded skeleton loaders)
+- [x] **Zero-Egress Runtime Lock & Thin Transport (`src/data_service.js` + `index.html`):** Same-origin edge lock (`VT_STRICT_MANDATE=1 node tests/egress.test.mjs` **4/4 PASS** with 0 non-origin requests across `/`, `#/screener`, `#/heatmap`, `#/backtest`, `#/journal`), deterministic IDs & backdrop (`0` `Math.random()` occurrences in `index.html`), while preserving frozen baseline parity functions required by `tests/scorefns.js`, `tests/vs.test.mjs`, and `tests/screener-server.test.mjs`
+- [x] **Custom UI/Motion Skills & Pre-Launch Waitlist Landing Pass (`src/landing.js`, `src/landing.css`, `shared/waitlist.js`):** 36 skill packs applied (`apple-design`, `emil-design-eng`, `impeccable`, `humanizer`, `addy-web-accessibility`, `ecc-*`), `#/landing`, `#/pricing`, `#/products/*`, `#/features/*` verified on `1440×900` & `375×812` with 0 overflow and 0 errors
 
 ### Phase 4 — Final Cloudflare Preview & Push-to-Main Confirmation
 - [ ] Deploy Cloudflare Pages preview (`wrangler pages deploy` preview branch) & verify live

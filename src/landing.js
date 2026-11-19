@@ -7,7 +7,7 @@ const HOME_HASHES = new Set(["#/landing", "#/waitlist", "#landing", "#waitlist"]
 const PRICING_HASHES = new Set(["#/pricing", "#pricing"]);
 
 const WORKSPACE_TABS = [
-  { id: "supercharts", label: "Supercharts", chrome: "BTC/USDT · 15m · Supercharts", slug: "supercharts" },
+  { id: "supercharts", label: "VektorCharts", chrome: "BTC/USDT · 15m · VektorCharts", slug: "supercharts" },
   { id: "screener", label: "Screener", chrome: "P1–P5 Multi-Asset Scanner", slug: "screener" },
   { id: "replay", label: "Bar Replay", chrome: "EUR/USD · 5m · Session Replay", slug: "replay" },
   { id: "journal", label: "Journal", chrome: "Executive Journal & Prop Limits", slug: "journal" },
@@ -16,10 +16,10 @@ const WORKSPACE_TABS = [
 const PRODUCTS = [
   {
     slug: "supercharts",
-    name: "Supercharts",
+    name: "VektorCharts",
     shortDesc: "Fast multi-chart layouts with edge-computed indicators and clean drawing tools.",
-    chrome: "BTC/USDT · 15m · Supercharts",
-    headline: "Supercharts built for clarity",
+    chrome: "BTC/USDT · 15m · VektorCharts",
+    headline: "VektorCharts built for clarity",
     subhead: "Edge-computed candles, synchronized multi-chart layouts, and crisp drawing tools without browser lag.",
     tierNote: "Free core tier includes 3 charts, 3 indicators, and 3 alerts.",
     highlights: [
@@ -244,7 +244,7 @@ const SCRIPT_LINES = [
   { num: "03", tokens: [{ cls: "vl-tok-kw", t: "const" }, { cls: "", t: " slow = " }, { cls: "vl-tok-fn", t: "ema" }, { cls: "", t: "(close, " }, { cls: "vl-tok-lit", t: "50" }, { cls: "", t: ")" }] },
   { num: "04", tokens: [{ cls: "vl-tok-kw", t: "const" }, { cls: "", t: " trendUp = fast > slow " }, { cls: "vl-tok-kw", t: "and" }, { cls: "", t: " low <= fast" }] },
   { num: "05", tokens: [{ cls: "vl-tok-kw", t: "const" }, { cls: "", t: " entry = trendUp " }, { cls: "vl-tok-kw", t: "and" }, { cls: "", t: " close > open" }] },
-  { num: "06", tokens: [{ cls: "vl-tok-fn", t: "plot" }, { cls: "", t: "(fast, color=" }, { cls: "vl-tok-str", t: '"#60a5fa"' }, { cls: "", t: ")" }] },
+  { num: "06", tokens: [{ cls: "vl-tok-fn", t: "plot" }, { cls: "", t: "(fast, color=" }, { cls: "vl-tok-str", t: '"#f59e0b"' }, { cls: "", t: ")" }] },
   { num: "07", tokens: [{ cls: "vl-tok-fn", t: "alertcondition" }, { cls: "", t: "(entry, title=" }, { cls: "vl-tok-str", t: '"Pullback Long"' }, { cls: "", t: ")" }] },
 ];
 
@@ -315,6 +315,8 @@ function buildBrandMark() {
     "svg",
     {
       class: "vl-brand-mark",
+      width: "24",
+      height: "24",
       viewBox: "0 0 24 24",
       fill: "none",
       "aria-hidden": "true",
@@ -341,7 +343,7 @@ function buildBrandMark() {
       y1: "7",
       x2: "12",
       y2: "11.5",
-      stroke: "#60a5fa",
+      stroke: "#9aa4b4",
       "stroke-width": "1.6",
     })
   );
@@ -352,6 +354,8 @@ function buildChevronSvg() {
     "svg",
     {
       class: "vl-chevron",
+      width: "12",
+      height: "12",
       viewBox: "0 0 12 12",
       fill: "none",
       "aria-hidden": "true",
@@ -369,6 +373,8 @@ function buildChevronSvg() {
 function buildProductIcon(slug) {
   const base = {
     class: "vl-prod-svg",
+    width: "16",
+    height: "16",
     viewBox: "0 0 16 16",
     fill: "none",
     "aria-hidden": "true",
@@ -441,9 +447,12 @@ function parseLandingRoute(rawHash) {
   if (PRICING_HASHES.has(hash)) {
     return { view: "home", section: "pricing" };
   }
-  const match = hash.match(/^#\/?features\/([a-z0-9-]+)$/);
-  if (match && PRODUCT_BY_SLUG.has(match[1])) {
-    return { view: "feature", slug: match[1] };
+  const match = hash.match(/^#\/?(?:features|products)\/([a-z0-9-]+)$/);
+  if (match) {
+    const rawSlug = match[1] === "vektorcharts" ? "supercharts" : match[1];
+    if (PRODUCT_BY_SLUG.has(rawSlug)) {
+      return { view: "feature", slug: rawSlug };
+    }
   }
   return null;
 }
@@ -471,7 +480,7 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
     class: "vl-chart-svg",
     viewBox: `0 0 ${width} ${height}`,
     role: "img",
-    "aria-label": showOrderLines ? "Bar replay candlestick chart" : "Supercharts candlestick chart",
+    "aria-label": showOrderLines ? "Bar replay candlestick chart" : "VektorCharts candlestick chart",
   });
 
   const levels = [80, 96, 112, 128, 144];
@@ -511,7 +520,7 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
     svgEl("path", {
       d: emaPts.join(" "),
       fill: "none",
-      stroke: "rgba(96, 165, 250, 0.72)",
+      stroke: "rgba(245, 158, 11, 0.78)",
       "stroke-width": "1.5",
     })
   );
@@ -572,7 +581,7 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
         y1: padT,
         x2: cutX.toFixed(1),
         y2: height - padB,
-        stroke: "#60a5fa",
+        stroke: "#9aa4b4",
         "stroke-width": "1.2",
         "stroke-dasharray": "4 3",
       })
@@ -587,7 +596,7 @@ function buildCandlestickSvg(bars, { splitIndex = null, showOrderLines = false }
       svgEl("line", { x1: padL, y1: tpY, x2: width - padR, y2: tpY, stroke: "#10b981", "stroke-width": "1", "stroke-dasharray": "3 3" })
     );
     svg.appendChild(
-      svgEl("line", { x1: padL, y1: entryY, x2: width - padR, y2: entryY, stroke: "#60a5fa", "stroke-width": "1" })
+      svgEl("line", { x1: padL, y1: entryY, x2: width - padR, y2: entryY, stroke: "#e2e8f0", "stroke-width": "1" })
     );
     svg.appendChild(
       svgEl("line", { x1: padL, y1: slY, x2: width - padR, y2: slY, stroke: "#ef4444", "stroke-width": "1", "stroke-dasharray": "3 3" })
@@ -922,7 +931,7 @@ function buildScriptView() {
     svgEl("path", {
       d: "M 0 64 L 30 56 L 60 60 L 90 42 L 120 48 L 150 30 L 180 34 L 210 18 L 240 12",
       fill: "none",
-      stroke: "#60a5fa",
+      stroke: "#e2e8f0",
       "stroke-width": "1.8",
     }),
     svgEl("circle", { cx: "90", cy: "42", r: "3.5", fill: "#10b981" }),
@@ -1147,9 +1156,22 @@ export function mountLanding(container, options = {}) {
       return;
     }
     if (typeof window !== "undefined") {
-      window.location.hash = "#auth";
+      window.location.hash = "#/login";
       if (typeof window.vtOpenAuthModal === "function") {
-        window.vtOpenAuthModal();
+        window.vtOpenAuthModal("signin");
+      }
+    }
+  };
+
+  const triggerSignUp = () => {
+    if (typeof options.onSignUp === "function") {
+      options.onSignUp();
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.location.hash = "#/signup";
+      if (typeof window.vtOpenAuthModal === "function") {
+        window.vtOpenAuthModal("signup");
       }
     }
   };
@@ -1310,6 +1332,7 @@ export function mountLanding(container, options = {}) {
 
   function closeProductsMenu({ returnFocus = false } = {}) {
     clearHoverTimer();
+    openedByClick = false;
     if (menuOpen) {
       menuOpen = false;
       productsTrigger.setAttribute("aria-expanded", "false");
@@ -1323,11 +1346,16 @@ export function mountLanding(container, options = {}) {
     }
   }
 
+  // Track whether menu was opened via hover or explicit click/keyboard
+  let openedByClick = false;
+
   productsTrigger.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (menuOpen) {
+    if (menuOpen && openedByClick) {
+      openedByClick = false;
       closeProductsMenu();
     } else {
+      openedByClick = true;
       openProductsMenu();
     }
   });
@@ -1373,7 +1401,7 @@ export function mountLanding(container, options = {}) {
   });
 
   productDropdownWrap.addEventListener("pointerleave", (e) => {
-    if (e.pointerType === "touch") return;
+    if (e.pointerType === "touch" || openedByClick) return;
     clearHoverTimer();
     hoverCloseTimer = window.setTimeout(() => {
       closeProductsMenu();
@@ -1416,6 +1444,13 @@ export function mountLanding(container, options = {}) {
   });
   authBtnNodes.add(headerAuthBtn);
 
+  const headerSignUpBtn = el("button", {
+    type: "button",
+    className: "vl-btn vl-btn-secondary",
+    text: "Create Account",
+    onClick: triggerSignUp,
+  });
+
   const headerJoinBtn = el("button", {
     type: "button",
     className: "vl-btn vl-btn-primary",
@@ -1457,7 +1492,7 @@ export function mountLanding(container, options = {}) {
           pricingNavLink
         )
       ),
-      el("div", { className: "vl-header-actions" }, headerAuthBtn, headerJoinBtn)
+      el("div", { className: "vl-header-actions" }, headerAuthBtn, headerSignUpBtn, headerJoinBtn)
     )
   );
 
@@ -1837,6 +1872,13 @@ export function mountLanding(container, options = {}) {
   });
   authBtnNodes.add(footerAuthBtn);
 
+  const footerSignUpBtn = el("button", {
+    type: "button",
+    className: "vl-footer-btn",
+    text: "Create Account",
+    onClick: triggerSignUp,
+  });
+
   const footer = el(
     "footer",
     { className: "vl-footer" },
@@ -1848,6 +1890,7 @@ export function mountLanding(container, options = {}) {
         "div",
         { className: "vl-footer-links" },
         el("button", { type: "button", className: "vl-footer-btn", text: "Join Waitlist", onClick: focusWaitlist }),
+        footerSignUpBtn,
         footerAuthBtn
       )
     )
@@ -1979,10 +2022,22 @@ async function syncAutoLanding() {
   const hash = (window.location.hash || "").toLowerCase();
   const parsedRoute = parseLandingRoute(hash);
   const explicitLanding = parsedRoute !== null;
-  const authHash = hash === "#auth" || hash.startsWith("#auth/") || hash === "#/auth";
+  const authHash =
+    hash === "#auth" ||
+    hash.startsWith("#auth/") ||
+    hash === "#/auth" ||
+    hash.startsWith("#/auth/") ||
+    hash === "#signup" ||
+    hash === "#/signup" ||
+    hash === "#register" ||
+    hash === "#/register" ||
+    hash === "#login" ||
+    hash === "#/login" ||
+    hash === "#signin" ||
+    hash === "#/signin";
   const gateActive = window.VT_WAITLIST_GATE === true;
 
-  // Never cover the auth screen so Admin Login always bypasses cleanly
+  // Never cover the auth screen so Sign In / Create Account always renders cleanly
   if (authHash) {
     unmountAutoLanding();
     return;
@@ -2001,9 +2056,16 @@ async function syncAutoLanding() {
         initialRoute: targetRoute,
         onSignIn: () => {
           unmountAutoLanding();
-          window.location.hash = "#auth";
+          window.location.hash = "#/login";
           if (typeof window.vtOpenAuthModal === "function") {
-            window.vtOpenAuthModal();
+            window.vtOpenAuthModal("signin");
+          }
+        },
+        onSignUp: () => {
+          unmountAutoLanding();
+          window.location.hash = "#/signup";
+          if (typeof window.vtOpenAuthModal === "function") {
+            window.vtOpenAuthModal("signup");
           }
         },
         onEnterTerminal: () => {

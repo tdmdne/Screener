@@ -517,13 +517,41 @@ function openAdminUsersModal() {
     wide: true,
   });
 
+  let activeTab = "users"; // "users" | "waitlist"
+
   const title = el("h2", { id: "vtAdminTitle", className: "vt-modal-h", textContent: "Admin · Users" });
   const countBadge = el("span", { className: "vt-count-pill", textContent: "Loading…" });
+  const tabUsersBtn = el("button", {
+    type: "button",
+    id: "vtAdminTabUsers",
+    className: "vt-btn-ghost on",
+    textContent: "Users",
+    onClick: () => {
+      activeTab = "users";
+      title.textContent = "Admin · Users";
+      tabUsersBtn.classList.add("on");
+      tabWaitlistBtn.classList.remove("on");
+      loadUsers();
+    },
+  });
+  const tabWaitlistBtn = el("button", {
+    type: "button",
+    id: "vtAdminTabWaitlist",
+    className: "vt-btn-ghost",
+    textContent: "Waitlist",
+    onClick: () => {
+      activeTab = "waitlist";
+      title.textContent = "Admin · Waitlist";
+      tabWaitlistBtn.classList.add("on");
+      tabUsersBtn.classList.remove("on");
+      loadWaitlist();
+    },
+  });
   const refreshBtn = el("button", {
     type: "button",
     className: "vt-btn-ghost",
     textContent: "Refresh",
-    onClick: () => loadUsers(),
+    onClick: () => (activeTab === "waitlist" ? loadWaitlist() : loadUsers()),
   });
   const closeBtn = el("button", {
     type: "button",
@@ -537,7 +565,7 @@ function openAdminUsersModal() {
     "div",
     { className: "vt-modal-head" },
     el("div", { className: "vt-modal-title-wrap" }, title, countBadge),
-    el("div", { className: "vt-modal-head-acts" }, refreshBtn, closeBtn)
+    el("div", { className: "vt-modal-head-acts" }, tabUsersBtn, tabWaitlistBtn, refreshBtn, closeBtn)
   );
 
   const note = el("p", {
@@ -649,6 +677,73 @@ function openAdminUsersModal() {
         return;
       }
       renderTable(Array.isArray(res.data.users) ? res.data.users : []);
+    } catch {
+      renderError("Could not reach the server.");
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  function renderWaitlistTable(entries, total) {
+    body.textContent = "";
+    const count = typeof total === "number" ? total : entries.length;
+    countBadge.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
+    if (!entries.length) {
+      body.append(el("div", { className: "vt-admin-empty" }, el("p", { textContent: "No waitlist entries yet." })));
+      return;
+    }
+
+    const thead = el(
+      "thead",
+      null,
+      el(
+        "tr",
+        null,
+        el("th", { scope: "col", textContent: "Email" }),
+        el("th", { scope: "col", textContent: "Canonical" }),
+        el("th", { scope: "col", textContent: "Source" }),
+        el("th", { scope: "col", textContent: "Signed up" })
+      )
+    );
+
+    const tbody = el("tbody");
+    for (const row of entries) {
+      const srcPill = el("span", {
+        className: "vt-pill",
+        textContent: row.source || "landing",
+      });
+      tbody.append(
+        el(
+          "tr",
+          null,
+          el("td", { className: "vt-mono", textContent: row.email || "—" }),
+          el("td", { className: "vt-mono", textContent: row.canonical_email || "—" }),
+          el("td", null, srcPill),
+          el("td", { className: "vt-mono", textContent: formatDateShort(row.created_at) })
+        )
+      );
+    }
+
+    const wrap = el("div", { className: "vt-admin-tw" }, el("table", { className: "vt-admin-tbl" }, thead, tbody));
+    body.append(wrap);
+  }
+
+  async function loadWaitlist() {
+    refreshBtn.disabled = true;
+    countBadge.textContent = "Loading…";
+    renderSkeleton();
+    try {
+      const res = await apiJson("/api/admin/waitlist?limit=100&offset=0");
+      if (!res.ok) {
+        renderError((res.data && res.data.error) || "Unable to load waitlist.");
+        return;
+      }
+      const list = Array.isArray(res.data.entries)
+        ? res.data.entries
+        : Array.isArray(res.data.waitlist)
+          ? res.data.waitlist
+          : [];
+      renderWaitlistTable(list, res.data.total);
     } catch {
       renderError("Could not reach the server.");
     } finally {
@@ -1007,7 +1102,19 @@ function enhanceAuthScreen() {
   if (idLabel) signInWrap.append(idLabel);
   if (pwLabel) signInWrap.append(pwLabel);
   if (remLabel) signInWrap.append(remLabel);
-  signInWrap.append(errEl, btn);
+  const toSignUpPrompt = el(
+    "p",
+    { className: "vt-auth-switch mut" },
+    "Don\u2019t have an account? ",
+    el("button", {
+      type: "button",
+      id: "vtSwitchToSignUp",
+      className: "lnk",
+      textContent: "Create an account",
+      onClick: () => setMode("signup"),
+    })
+  );
+  signInWrap.append(errEl, btn, toSignUpPrompt);
 
   // OAuth buttons right after primary button (before "or" / Guest)
   const oauthSection = buildOAuthSection();
@@ -1148,7 +1255,19 @@ function enhanceAuthScreen() {
     ),
     pwRulesList,
     suErr,
-    suBtn
+    suBtn,
+    el(
+      "p",
+      { className: "vt-auth-switch mut" },
+      "Already have an account? ",
+      el("button", {
+        type: "button",
+        id: "vtSwitchToSignIn",
+        className: "lnk",
+        textContent: "Sign in",
+        onClick: () => setMode("signin"),
+      })
+    )
   );
 
   signInWrap.after(signUpWrap);
@@ -1182,6 +1301,63 @@ function enhanceAuthScreen() {
 
   tabSignIn.addEventListener("click", () => setMode("signin"));
   tabSignUp.addEventListener("click", () => setMode("signup"));
+
+  // Expose direct mode switcher & hash routing for #/signup, #signup, #auth/signup, #/login, #auth
+  window.vtSetAuthMode = (mode) => {
+    setMode(mode === "signup" ? "signup" : "signin");
+  };
+  window.vtOpenAuthModal = (mode) => {
+    if (typeof window.vtShowSignIn === "function") {
+      window.vtShowSignIn();
+    } else {
+      document.documentElement.classList.add("locked");
+    }
+    if (mode === "signup" || mode === "signin") {
+      setMode(mode);
+    }
+  };
+
+  function isSignUpRouteHash(rawHash) {
+    const h = String(rawHash || "").toLowerCase();
+    return (
+      h === "#signup" ||
+      h === "#/signup" ||
+      h === "#register" ||
+      h === "#/register" ||
+      h === "#auth/signup" ||
+      h === "#/auth/signup"
+    );
+  }
+
+  function isSignInRouteHash(rawHash) {
+    const h = String(rawHash || "").toLowerCase();
+    return (
+      h === "#auth" ||
+      h === "#/auth" ||
+      h === "#login" ||
+      h === "#/login" ||
+      h === "#signin" ||
+      h === "#/signin" ||
+      h === "#auth/signin" ||
+      h === "#/auth/signin"
+    );
+  }
+
+  function syncAuthHashRoute() {
+    const h = String(window.location.hash || "").toLowerCase();
+    const isSignUpHash = isSignUpRouteHash(h);
+    const isSignInHash = isSignInRouteHash(h);
+    if (!isSignUpHash && !isSignInHash) return;
+    if (typeof window.vtShowSignIn === "function") {
+      window.vtShowSignIn();
+    } else {
+      document.documentElement.classList.add("locked");
+    }
+    setMode(isSignUpHash ? "signup" : "signin");
+  }
+
+  window.addEventListener("hashchange", syncAuthHashRoute);
+  syncAuthHashRoute();
 
   function showSuError(msg, target) {
     suErr.textContent = msg;
@@ -1319,17 +1495,43 @@ function enhanceAuthScreen() {
 // Bootstrap: Probe /api/auth/providers & /api/auth/me
 // ---------------------------------------------------------------------------
 
+function isExplicitAuthRouteHash(rawHash) {
+  const h = String(rawHash || "").toLowerCase();
+  return (
+    h === "#signup" ||
+    h === "#/signup" ||
+    h === "#register" ||
+    h === "#/register" ||
+    h === "#auth/signup" ||
+    h === "#/auth/signup" ||
+    h === "#auth" ||
+    h === "#/auth" ||
+    h === "#login" ||
+    h === "#/login" ||
+    h === "#signin" ||
+    h === "#/signin" ||
+    h === "#auth/signin" ||
+    h === "#/auth/signin"
+  );
+}
+
 async function initD1Auth() {
   let provRes;
   try {
     provRes = await apiJson("/api/auth/providers");
   } catch {
-    // Offline or static local harness: silently preserve existing local auth flow.
+    // Offline or static local harness: if user explicitly navigated to #/signup, still mount the signup tabs
+    if (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash)) {
+      enhanceAuthScreen();
+    }
     return;
   }
 
   if (!provRes.ok || !provRes.data || !provRes.data.providers || provRes.data.providers.email !== true) {
-    // 404 / 503 / DB not bound: silently fall back to existing local flow.
+    // 404 / 503 / DB not bound: silently fall back to existing local flow unless user explicitly navigated to #/signup
+    if (typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash)) {
+      enhanceAuthScreen();
+    }
     return;
   }
 
@@ -1348,11 +1550,20 @@ async function initD1Auth() {
     const meRes = await apiJson("/api/auth/me");
     if (meRes.ok && meRes.data && meRes.data.user) {
       applySignedInSession(meRes.data.user);
-    } else if (meRes.status === 401 && !(typeof window.vtIsGuest === "function" && window.vtIsGuest())) {
-      // Clear any stale pre-D1 local session marker so real server auth is strictly enforced
-      if (typeof window.authUser === "function" && window.authUser() && typeof window.authClear === "function") {
-        window.authClear();
-        document.documentElement.classList.add("locked");
+    } else if (meRes.status === 401) {
+      const explicitAuth = typeof window !== "undefined" && isExplicitAuthRouteHash(window.location.hash);
+      if (explicitAuth) {
+        if (typeof window.vtShowSignIn === "function") {
+          window.vtShowSignIn();
+        } else {
+          document.documentElement.classList.add("locked");
+        }
+      } else if (!(typeof window.vtIsGuest === "function" && window.vtIsGuest())) {
+        // Clear any stale pre-D1 local session marker so real server auth is strictly enforced
+        if (typeof window.authUser === "function" && window.authUser() && typeof window.authClear === "function") {
+          window.authClear();
+          document.documentElement.classList.add("locked");
+        }
       }
     }
   } catch {

@@ -13,8 +13,8 @@
   --vl-ink: #f4f6fa;
   --vl-ink-secondary: #9aa4b4;
   --vl-ink-muted: #7c879b;
-  --vl-signal: #60a5fa;
-  --vl-signal-dim: rgba(96, 165, 250, 0.14);
+  --vl-signal: #e2e8f0;
+  --vl-signal-dim: rgba(255, 255, 255, 0.08);
   --vl-up: #10b981;
   --vl-up-bg: rgba(16, 185, 129, 0.12);
   --vl-down: #ef4444;
@@ -53,8 +53,28 @@
   box-sizing: border-box;
 }
 
+.vl-root a,
+.vl-root a:visited,
+.vl-root a:hover,
+.vl-root a:active {
+  color: inherit;
+  text-decoration: none;
+}
+
+.vl-root h1::before,
+.vl-root h2::before,
+.vl-root h3::before {
+  display: none !important;
+  content: none !important;
+}
+
+.vl-root button,
+.vl-root input {
+  box-shadow: none;
+}
+
 .vl-root ::selection {
-  background: rgba(96, 165, 250, 0.28);
+  background: rgba(255, 255, 255, 0.18);
   color: var(--vl-ink);
 }
 
@@ -113,17 +133,23 @@
 }
 
 /* ==========================================================================
-   Sticky Header
+   Sticky Header & Apple Liquid Glass Products Dropdown
    ========================================================================== */
+
+.vl-hidden {
+  display: none !important;
+}
 
 .vl-header {
   position: sticky;
   top: 0;
   z-index: 40;
   height: 60px;
-  background: rgba(6, 7, 10, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  margin: 0;
+  padding: 0;
+  background: rgba(6, 7, 10, 0.82);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
   border-bottom: 1px solid var(--vl-border);
 }
 
@@ -133,6 +159,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.vl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
 }
 
 .vl-brand {
@@ -175,12 +208,152 @@
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   transition: color 160ms var(--vl-ease-out), background-color 160ms var(--vl-ease-out);
 }
 
 .vl-nav-link:hover {
   color: var(--vl-ink);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vl-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vl-chevron {
+  width: 12px;
+  height: 12px;
+  display: block;
+  flex-shrink: 0;
+  opacity: 0.72;
+  transition: transform 180ms var(--vl-ease-out), opacity 180ms var(--vl-ease-out);
+}
+
+.vl-products-trigger[aria-expanded="true"] {
+  color: var(--vl-ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.vl-products-trigger[aria-expanded="true"] .vl-chevron {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+.vl-glass-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: -12px;
+  width: 580px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(12, 16, 24, 0.86);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 28px 68px rgba(0, 0, 0, 0.68),
+    0 4px 16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  z-index: 90;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top left;
+  transition:
+    opacity 160ms var(--vl-ease-out),
+    transform 180ms var(--vl-ease-out),
+    visibility 160ms;
+}
+
+.vl-glass-menu[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.vl-glass-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.vl-glass-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--vl-ink);
+  border: 1px solid transparent;
+  transition:
+    background-color 140ms var(--vl-ease-out),
+    border-color 140ms var(--vl-ease-out);
+}
+
+.vl-glass-item:hover,
+.vl-glass-item:focus-visible {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.vl-glass-item-active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.vl-glass-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--vl-signal);
+}
+
+.vl-prod-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.vl-glass-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.vl-glass-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--vl-ink);
+  line-height: 1.25;
+}
+
+.vl-glass-desc {
+  font-size: 0.775rem;
+  color: var(--vl-ink-secondary);
+  line-height: 1.38;
+}
+
+.vl-glass-menu-foot {
+  margin-top: 8px;
+  padding: 10px 12px 2px;
+  border-top: 1px solid var(--vl-border);
+  font-size: 0.75rem;
+  color: var(--vl-ink-muted);
 }
 
 .vl-header-actions {
@@ -315,7 +488,7 @@
     90deg,
     transparent 0%,
     rgba(255, 255, 255, 0.06) 22%,
-    rgba(96, 165, 250, 0.28) 50%,
+    rgba(255, 255, 255, 0.22) 50%,
     rgba(255, 255, 255, 0.06) 78%,
     transparent 100%
   );
@@ -368,8 +541,8 @@
 }
 
 .vl-waitlist-row:focus-within {
-  border-color: rgba(96, 165, 250, 0.65);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.14);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
 }
 
 .vl-waitlist-input {
@@ -745,7 +918,7 @@
 }
 
 .vl-watch-row.vl-watch-active {
-  background: rgba(96, 165, 250, 0.08);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .vl-watch-sym {
@@ -894,7 +1067,7 @@
 }
 
 .vl-replay-chip-active {
-  border-color: rgba(96, 165, 250, 0.45);
+  border-color: rgba(255, 255, 255, 0.28);
   color: var(--vl-ink);
   background: var(--vl-signal-dim);
 }
@@ -1035,6 +1208,536 @@
   border-radius: 3px;
 }
 
+.vl-meter-w-12 {
+  width: 12.4%;
+}
+
+.vl-meter-w-18 {
+  width: 18.4%;
+}
+
+.vl-side-head-flush {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.vl-side-head-compact {
+  padding: 0 0 8px;
+}
+
+.vl-side-head-spaced {
+  padding: 6px 0 8px;
+}
+
+.vl-cal-day {
+  font-size: 0.6875rem;
+  color: var(--vl-ink-muted);
+  margin-bottom: 2px;
+}
+
+.vl-eq-svg {
+  width: 100%;
+  height: 190px;
+  display: block;
+}
+
+/* ==========================================================================
+   Showcase View 5: Market Heatmaps & View 6: Vektor Script
+   ========================================================================== */
+
+.vl-hm-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px;
+  min-height: 430px;
+}
+
+.vl-hm-sector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--vl-surface-1);
+  border: 1px solid var(--vl-border);
+  border-radius: 8px;
+}
+
+.vl-hm-sector-wide {
+  grid-column: span 6;
+}
+
+.vl-hm-sector-half {
+  grid-column: span 6;
+}
+
+.vl-hm-sector-head {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--vl-ink-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.vl-hm-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.vl-hm-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--vl-border);
+  min-height: 76px;
+}
+
+.vl-hm-tile-lg {
+  grid-column: span 2;
+  min-height: 92px;
+}
+
+.vl-hm-sym {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--vl-ink);
+}
+
+.vl-hm-chg {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.vl-hm-up-strong {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.36);
+  color: #34d399;
+}
+
+.vl-hm-up-mid {
+  background: rgba(16, 185, 129, 0.13);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #34d399;
+}
+
+.vl-hm-up-soft {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+.vl-hm-down-soft {
+  background: rgba(239, 68, 68, 0.09);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+
+.vl-hm-down-mid {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.vl-script-layout {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  min-height: 430px;
+}
+
+.vl-script-editor {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--vl-border);
+  background: #070a0f;
+}
+
+.vl-code-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+
+.vl-code-line {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  white-space: nowrap;
+}
+
+.vl-code-num {
+  color: var(--vl-ink-muted);
+  user-select: none;
+  font-size: 0.75rem;
+}
+
+.vl-code-text {
+  color: var(--vl-ink);
+  font-family: var(--vl-font-mono);
+}
+
+.vl-tok-kw {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.vl-tok-fn {
+  color: #f59e0b;
+}
+
+.vl-tok-lit {
+  color: #fbbf24;
+}
+
+.vl-tok-str {
+  color: #34d399;
+}
+
+.vl-script-output {
+  padding: 18px;
+  background: var(--vl-surface-1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vl-script-plot-wrap {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.vl-script-svg {
+  width: 100%;
+  height: 84px;
+  display: block;
+}
+
+.vl-showcase-foot {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.vl-text-link {
+  color: var(--vl-signal);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+}
+
+.vl-text-link:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Section 3: 6-Product Directory & Pricing
+   ========================================================================== */
+
+.vl-directory {
+  padding: 32px 0 96px;
+}
+
+.vl-dir-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.vl-dir-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 24px;
+  background: var(--vl-surface-1);
+  border: 1px solid var(--vl-border);
+  border-radius: 11px;
+  text-decoration: none;
+  color: var(--vl-ink);
+  transition:
+    border-color 180ms var(--vl-ease-out),
+    background-color 180ms var(--vl-ease-out),
+    transform 180ms var(--vl-ease-out);
+}
+
+.vl-dir-card:hover {
+  border-color: var(--vl-border-strong);
+  background: var(--vl-surface-2);
+  transform: translateY(-2px);
+}
+
+.vl-dir-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vl-dir-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--vl-signal);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vl-dir-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--vl-ink);
+}
+
+.vl-dir-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--vl-ink-secondary);
+}
+
+.vl-dir-cta {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--vl-signal);
+}
+
+.vl-pricing {
+  padding: 32px 0 112px;
+  border-top: 1px solid var(--vl-border);
+}
+
+.vl-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 32px;
+}
+
+.vl-tier-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+  background: var(--vl-surface-1);
+  border: 1px solid var(--vl-border-strong);
+  border-radius: 12px;
+}
+
+.vl-tier-card-muted {
+  border-color: var(--vl-border);
+  background: rgba(11, 14, 20, 0.65);
+}
+
+.vl-tier-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vl-signal);
+}
+
+.vl-tier-price {
+  margin-top: 10px;
+  font-size: clamp(1.85rem, 3vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--vl-ink);
+}
+
+.vl-tier-sub {
+  margin: 10px 0 0;
+  font-size: 0.9375rem;
+  color: var(--vl-ink-secondary);
+  line-height: 1.5;
+}
+
+.vl-tier-list {
+  margin: 20px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--vl-ink);
+}
+
+.vl-tier-btn {
+  width: 100%;
+}
+
+/* ==========================================================================
+   Dedicated Product Feature Pages (#/features/<slug> & #/products/<slug>)
+   ========================================================================== */
+
+.vl-feat-page {
+  padding: 40px 0 96px;
+}
+
+.vl-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--vl-border);
+  font-size: 0.84rem;
+}
+
+.vl-back-link {
+  color: var(--vl-ink-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  transition: color 150ms var(--vl-ease-out);
+}
+
+.vl-back-link:hover {
+  color: var(--vl-ink);
+}
+
+.vl-crumb-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vl-ink-muted);
+}
+
+.vl-crumb-sep {
+  opacity: 0.6;
+}
+
+.vl-crumb-current {
+  color: var(--vl-ink);
+  font-weight: 500;
+}
+
+.vl-feat-head {
+  max-width: 720px;
+  margin-bottom: 32px;
+}
+
+.vl-feat-title {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.1;
+  color: var(--vl-ink);
+}
+
+.vl-feat-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+.vl-hero-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+.vl-feat-sub {
+  margin: 14px 0 0;
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--vl-ink-secondary);
+}
+
+.vl-feat-tier {
+  margin: 12px 0 0;
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--vl-ink);
+  font-size: 0.8125rem;
+}
+
+.vl-feat-frame {
+  margin-bottom: 36px;
+}
+
+.vl-feat-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.vl-feat-card {
+  padding: 24px;
+  background: var(--vl-surface-1);
+  border: 1px solid var(--vl-border);
+  border-radius: 10px;
+}
+
+.vl-feat-card-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--vl-ink);
+}
+
+.vl-feat-card-body {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--vl-ink-secondary);
+}
+
+.vl-feat-cta {
+  padding: 36px 32px;
+  background: var(--vl-surface-1);
+  border: 1px solid var(--vl-border-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.vl-feat-cta-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--vl-ink);
+}
+
+.vl-feat-cta-sub {
+  margin: 10px 0 0;
+  font-size: 0.925rem;
+  color: var(--vl-ink-secondary);
+  max-width: 56ch;
+}
+
+.vl-feat-cta .vl-waitlist-form {
+  margin-top: 24px;
+}
+
 /* ==========================================================================
    Section 3: Asymmetric Institutional Capabilities Bento
    ========================================================================== */
@@ -1163,15 +1866,22 @@
 @media (max-width: 980px) {
   .vl-chart-layout,
   .vl-replay-body,
-  .vl-journal-layout {
+  .vl-journal-layout,
+  .vl-script-layout {
     grid-template-columns: 1fr;
   }
 
   .vl-chart-main,
   .vl-replay-chart,
-  .vl-journal-left {
+  .vl-journal-left,
+  .vl-script-editor {
     border-right: none;
     border-bottom: 1px solid var(--vl-border);
+  }
+
+  .vl-dir-grid,
+  .vl-feat-highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .vl-card-span-7,
@@ -1186,8 +1896,29 @@
     padding: 0 18px;
   }
 
-  .vl-nav {
-    display: none;
+  .vl-header-left {
+    gap: 12px;
+  }
+
+  .vl-glass-menu {
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+  }
+
+  .vl-glass-menu-grid,
+  .vl-dir-grid,
+  .vl-pricing-grid,
+  .vl-feat-highlights {
+    grid-template-columns: 1fr;
+  }
+
+  .vl-hm-sector-wide,
+  .vl-hm-sector-half {
+    grid-column: span 12;
   }
 
   .vl-hero {

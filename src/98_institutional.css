@@ -365,7 +365,219 @@ header h1 svg {
   display: none;
 }
 
-.vnav {
+/* ---------- Global Header Dropdown Menus (Features & Web Settings/Account) ---------- */
+.vt-dd-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.vt-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vt-dd-btn[aria-expanded="true"] {
+  border-color: var(--acc);
+  background: var(--bg-2);
+}
+
+.vt-dd-cur {
+  color: var(--acc);
+  font-weight: 700;
+}
+
+.vt-dd-menu {
+  display: none;
+  position: fixed;
+  z-index: 1100;
+  width: min(460px, 94vw);
+  max-height: calc(100vh - 70px);
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: var(--r-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-specular);
+  transform-origin: top left;
+  animation: vtPopIn var(--t-enter) var(--ease-out) both;
+}
+
+.vt-dd-menu.vt-dd-right {
+  width: min(320px, 94vw);
+  transform-origin: top right;
+}
+
+.vt-dd-menu.open {
+  display: block;
+}
+
+.vt-dd-sec {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mut);
+  padding: 6px 8px 4px;
+}
+
+.vt-dd-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+@media (max-width: 540px) {
+  .vt-dd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vt-dd-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  color: var(--fg);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+}
+
+.vt-dd-item:hover,
+.vt-dd-item:focus-visible {
+  background: var(--bg-2);
+  border-color: var(--line-2);
+}
+
+.vt-dd-item.on {
+  background: var(--acc-soft);
+  border-color: color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+.vt-dd-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--acc);
+  flex-shrink: 0;
+}
+
+.vt-dd-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vt-dd-txt b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.vt-dd-txt small {
+  font-size: 11px;
+  color: var(--mut);
+  line-height: 1.3;
+}
+
+.vt-dd-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 2px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vt-dd-row:hover {
+  background: var(--bg-2);
+  border-color: var(--line);
+}
+
+.vt-dd-row.danger {
+  color: var(--r);
+}
+
+.vt-dd-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--acc-soft);
+  color: var(--acc);
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+.vt-dd-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-1);
+}
+
+.vt-dd-sub {
+  background: transparent;
+  border: 0;
+  padding: 4px 6px;
+  min-height: 0 !important;
+  font-size: 11.5px !important;
+  font-weight: 600;
+  color: var(--mut);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.vt-dd-sub:hover {
+  color: var(--acc);
+  text-decoration: underline;
+}
+
+.vt-pop-ov .vt-pop-item:hover {
+  background: var(--bg-2);
+  color: var(--acc);
+}
+
+:root[data-ui="phone"] #vtFeatWrap {
+  display: none;
+}
+
+:root[data-ui="phone"] .vt-dd-btn span {
+  display: none;
+}
+
+#vnav {
   background: var(--bg-1);
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
@@ -480,8 +692,9 @@ header h1 svg {
   min-height: 40px;
   padding: 0 0 6px;
   align-items: center;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: visible;
+  position: relative;
+  z-index: 25;
 }
 
 :root:not([data-ui="phone"]):not([data-ui="tablet"]) .cpb .row.top::-webkit-scrollbar {
@@ -606,36 +819,57 @@ header h1 svg {
   font-size: 11px;
 }
 
-/* Transparent single-line institutional indicator legend inside #cv container */
+/* TradingView-style collapsible vertical indicator legend inside #cv container */
 .vt-ind-legend {
   position: absolute;
   top: 6px;
   left: 8px;
   z-index: 6;
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 10px;
-  height: 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   max-width: calc(100% - 90px);
-  overflow: hidden;
-  padding: 0 2px;
+  padding: 0;
   background: transparent;
   border: 0;
-  font-size: 11px;
-  line-height: 1;
+  font-size: 11.5px;
+  line-height: 1.2;
   color: var(--fg);
   user-select: none;
   pointer-events: none;
 }
 
+.vt-ind-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.vt-ind-legend.collapsed .vt-ind-list {
+  display: none;
+}
+
 .vt-ind-row {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg-1) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid transparent;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto;
+  transition: background-color var(--t-fast) var(--ease-snap), border-color var(--t-fast) var(--ease-snap);
+}
+
+.vt-ind-row:hover,
+.vt-ind-row:focus-within {
+  background: var(--bg-2);
+  border-color: var(--line-2);
 }
 
 .vt-ind-dot {
@@ -660,12 +894,13 @@ header h1 svg {
 .vt-ind-acts {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   opacity: 0;
   pointer-events: auto;
   transition: opacity var(--t-fast) var(--ease-snap);
 }
 
+.vt-ind-row:hover .vt-ind-acts,
 .vt-ind-acts:hover,
 .vt-ind-acts:focus-within {
   opacity: 1;
@@ -689,10 +924,36 @@ header h1 svg {
   color: var(--fg);
 }
 
+.vt-ind-tog {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px !important;
+  height: 22px;
+  padding: 2px 7px !important;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--line-2) !important;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px !important;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vt-ind-tog:hover {
+  background: var(--bg-3) !important;
+  border-color: var(--acc) !important;
+  color: var(--acc);
+}
+
 :root[data-ui="phone"] .vt-ind-legend {
   font-size: 11px;
-  gap: 4px 6px;
-  flex-wrap: wrap;
+  gap: 3px;
   height: auto;
   max-width: calc(100% - 12px);
   overflow: visible;
@@ -1181,6 +1442,44 @@ header h1 svg {
   width: 100%;
 }
 
+.bt-posrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.bt-posrow-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bt-posrow-cell .k {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mut);
+}
+
+.bt-empty {
+  padding: 16px 12px;
+  margin-top: 8px;
+  text-align: center;
+  color: var(--mut);
+  font-size: 12.5px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-0);
+}
+
 :root[data-ui="phone"] .bt-setup input[type="number"],
 :root[data-ui="phone"] .bt-setup select,
 :root[data-ui="phone"] .bt-setup input[type="datetime-local"] {
@@ -1503,6 +1802,27 @@ header h1 svg {
 
 .vt-auth-panel[hidden] {
   display: none !important;
+}
+
+.vt-auth-switch {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.vt-auth-switch .lnk {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  min-height: 0;
+  color: var(--acc);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.vt-auth-switch .lnk:hover {
+  color: var(--acc-hover);
 }
 
 .vt-field {

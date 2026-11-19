@@ -1318,3 +1318,25 @@ export function createThinDataService(opts = {}) {
     },
   };
 }
+
+if (typeof window !== "undefined") {
+  window.createThinDataService = createThinDataService;
+  window.VT_THIN_TRANSPORT = {
+    createThinDataService,
+    assertSameOrigin,
+    validateServerFrame,
+    PROTOCOL_VERSION,
+  };
+  if (typeof window.location === "object" && window.location && /\bthin=1\b/.test(window.location.search || "")) {
+    try {
+      const svc = createThinDataService();
+      window.vtDataService = svc;
+      svc.bootstrap({
+        chart: { sym: (window.S && window.S.chart && window.S.chart.sym) || "BTCUSDT", tf: (window.S && window.S.chart && window.S.chart.tf) || "1H" },
+      }).catch(() => {});
+      svc.connect();
+    } catch {
+      // ignore in headless/unit contexts
+    }
+  }
+}

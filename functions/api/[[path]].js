@@ -16,6 +16,7 @@ import worker, {
 } from "../../worker.js";
 import { MAX_CHART_BARS, PROVENANCE } from "../../shared/protocol.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
+import { handleWaitlistRoute } from "../../shared/waitlist.js";
 import { VS_LIM, vsCompute } from "../../shared/vs/index.js";
 import {
   JR_TRADES_MAX,
@@ -767,6 +768,12 @@ export async function onRequest(context) {
   }
 
   // Same-origin front-door routes
+  if (pathname === "/api/waitlist" || pathname === "/api/admin/waitlist") {
+    const waitlistRes = await handleWaitlistRoute(request, env);
+    if (waitlistRes) {
+      return withCors(waitlistRes, request, env);
+    }
+  }
   if (
     pathname.startsWith("/api/auth/") ||
     pathname === "/api/me/data" ||

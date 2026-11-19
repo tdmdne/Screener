@@ -1122,11 +1122,11 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 </section>
 <section class="ctl"><input id="q" placeholder="Search this list…"><select id="mkts" class="mkts" onchange="S.mkt=this.value;save();render()" title="Asset class"></select><button onclick="favM()" title="Add to watchlist" aria-label="Add to watchlist"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button onclick="dataM()">Data</button></section>
 <section class="ctl phone-only"><select id="srtsel" aria-label="Sort by" onchange="S.sort={id:this.value,dir:this.value==='sym'?1:-1};S.page=0;save();render()"></select><button onclick="srt(S.sort.id)" title="Reverse sort order" aria-label="Reverse sort order"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></button></section>
-<div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"></table></div>
+<div class="tw"><div id="presets" style="display:flex;gap:4px;padding:8px;background:var(--bg);border-bottom:1px solid var(--line)"></div><table id="t"><tbody class="vt-skel-tb" aria-busy="true" aria-label="Loading market screener"><tr><td><span class="vt-skel-bar" style="width:72px"></span></td><td><span class="vt-skel-bar" style="width:64px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:52px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:56px;margin-left:auto"></span></td></tr><tr><td><span class="vt-skel-bar" style="width:84px"></span></td><td><span class="vt-skel-bar" style="width:58px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:48px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:62px;margin-left:auto"></span></td></tr><tr><td><span class="vt-skel-bar" style="width:68px"></span></td><td><span class="vt-skel-bar" style="width:60px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:54px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:50px;margin-left:auto"></span></td></tr><tr><td><span class="vt-skel-bar" style="width:76px"></span></td><td><span class="vt-skel-bar" style="width:66px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:46px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:58px;margin-left:auto"></span></td></tr><tr><td><span class="vt-skel-bar" style="width:64px"></span></td><td><span class="vt-skel-bar" style="width:56px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:50px;margin-left:auto"></span></td><td><span class="vt-skel-bar" style="width:60px;margin-left:auto"></span></td></tr></tbody></table></div>
 <div class="ctl" id="pg"></div><p class="note" id="cnt"></p>
 <p class="note foot">In sample mode, values are simulated. Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered. Tap a symbol to open its chart. Presets are saved in this browser only; use Export/Import to move them between devices.</p>
 </div><div id="cp"></div><div id="sc2" class="sc2"></div><aside id="dock" class="dock"></aside></div>
-<div class="pv" id="pv-heatmap"></div><div class="pv" id="pv-calendar"></div><div class="pv" id="pv-journal"></div><div class="pv" id="pv-calc"></div><div class="pv" id="pv-backtest"></div>
+<div class="pv" id="pv-heatmap"></div><div class="pv" id="pv-calendar"></div><div class="pv" id="pv-journal"><div class="pgw jr vt-skel-jr" role="status" aria-label="Loading journal"><div class="vt-skel-kpis" aria-hidden="true"><div class="vt-skel-row"></div><div class="vt-skel-row"></div><div class="vt-skel-row"></div><div class="vt-skel-row"></div></div><div class="vt-skel" aria-hidden="true">Loading journal…</div></div></div><div class="pv" id="pv-calc"></div><div class="pv" id="pv-backtest"></div>
 </div>
 <div id="modal"></div>
 <div id="msg" role="status" aria-live="polite"></div>
@@ -3946,7 +3946,7 @@ function hmBuild(){const el=document.getElementById("pv-heatmap");if(!el)return;
 <div class="hmbar">${seg("mkt","Market",mk.map(k=>[k,MK[k]]),C.mkt)}${seg("metric","Colour by",HM_METRICS,C.metric)}${C.metric==="chg"?seg("tf","Change",HM_TFS.map(t=>[t,t]),C.tf):""}
 ${seg("size","Size",[["value","Traded value"],["equal","Equal"]],C.size)}${seg("n","Markets",[[30,"30"],[60,"60"],[100,"100"]],C.n)}${C.metric==="chg"?seg("range","Scale",[["auto","Auto"],[1,"\u00b11%"],[3,"\u00b13%"],[5,"\u00b15%"],[10,"\u00b110%"]],C.range):""}</div>
 <div class="hmstats" id="hm_stats" aria-live="polite"></div>
-<div class="hmgrid" id="hm_grid" role="region" aria-label="Market heatmap. Arrow keys move between markets, Enter opens the chart."></div>
+<div class="hmgrid" id="hm_grid" role="region" aria-label="Market heatmap. Arrow keys move between markets, Enter opens the chart."><div class="vt-skel vt-skel-hm" role="status">Loading market heatmap…</div></div>
 <div class="hmfoot"><div class="hmlegend" id="hm_leg" aria-hidden="true"></div><p class="vtna">Colours show ${C.metric==="chg"?"the change of the live price against the previous "+esc(C.tf)+" close":C.metric==="mom"?"the screener\u2019s expansion read-out (green = rising, red = falling)":"the Vektor score (50 = neutral)"}. ${VT_NA_TXT} <a href="#/legal/risk">Risk disclaimer</a></p></div>
 <div class="hmtip" id="hm_tip" role="tooltip" hidden></div></div>`;
   el.querySelectorAll("[data-hm]").forEach(b=>b.onclick=()=>{const k=b.dataset.hm,v=b.dataset.v;C[k]=(k==="n"||(k==="range"&&v!=="auto"))?+v:v;save();HM.key="";hmBuild();hmTick(true)});
@@ -4975,7 +4975,7 @@ const BT_IC={
   fwd:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 5 15 12 5 19 5 5" fill="currentColor" stroke="none"/><line x1="18" y1="5" x2="18" y2="19"/></svg>',
   end:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 5 15 12 5 19 5 5" fill="currentColor" stroke="none"/><line x1="19" y1="5" x2="19" y2="19"/></svg>'
 };
-const BT={D:null,sym:"",tf:"",loading:false,wait:0,ch:null,ser:null,plines:[],rp:{i:1,on:false,timer:0},ses:null,kbBound:false};
+const BT={D:null,sym:"",tf:"",loading:false,wait:0,ch:null,ser:null,plines:[],rp:{i:1,on:false,timer:0},ses:null,kbBound:false,tab:"history"};
 
 function btCfg(){
   if(!S.bt||typeof S.bt!=="object")S.bt={};
@@ -5231,9 +5231,18 @@ function btRenderChart(){
   mk.sort((a,b)=>a.time-b.time);
   try{BT.ser.setMarkers(mk)}catch(e){}
   const rr=document.getElementById("bt_rr");
-  if(rr){rr.max=String(D.D.length);rr.value=String(i);rr.setAttribute("aria-valuetext","Bar "+i+" of "+D.D.length)}
+  if(rr){
+    rr.max=String(D.D.length);
+    rr.value=String(i);
+    rr.setAttribute("aria-valuetext","Bar "+i+" of "+D.D.length);
+    const pct=D.D.length>1?((i-1)/(D.D.length-1))*100:100;
+    rr.style.setProperty("--bt-prog",pct.toFixed(2)+"%");
+  }
   const z=D.a[i-1],info=document.getElementById("bt_rpinfo"),ohlc=document.getElementById("bt_ohlc");
-  if(info&&z)info.textContent="Bar "+i+" / "+D.D.length;
+  if(info&&z){
+    const dtShort=new Date(z.t*1000).toLocaleString("en-GB",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+    info.textContent="Bar "+i+" / "+D.D.length+" \u00b7 "+dtShort;
+  }
   const winEl=document.getElementById("bt_win"),sumEl=document.getElementById("bt_sum");
   if(winEl&&D.a.length){
     const dFmt=ts=>new Date(ts*1000).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"2-digit"});
@@ -5244,7 +5253,7 @@ function btRenderChart(){
   }
   if(ohlc&&z){
     const dt=new Date(z.t*1000).toLocaleString("en-GB",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-    ohlc.innerHTML=`<span>${esc(dt)}</span><span>O <b>${fp(z.o)}</b></span><span>H <b>${fp(z.h)}</b></span><span>L <b>${fp(z.l)}</b></span><span>C <b>${fp(z.c)}</b></span><span>ATR(14) <b>${fp(btAtrAt(D,i))}</b></span>`;
+    ohlc.innerHTML=`<span>${esc(dt)}</span><span>O <b>${fp(z.o)}</b></span><span>H <b>${fp(z.h)}</b></span><span>L <b>${fp(z.l)}</b></span><span>C <b>${fp(z.c)}</b></span><span>ATR <b>${fp(btAtrAt(D,i))}</b></span>`;
   }
 }
 function btRenderDesk(){
@@ -5257,7 +5266,7 @@ function btRenderDesk(){
   if(unEl){unEl.textContent=ses&&ses.pos?jrUsd(st.unrealized):"\u2013";unEl.className="v "+(ses&&ses.pos?jrCls(st.unrealized):"")}
 
   const actHost=document.getElementById("bt_poshost");if(!actHost)return;
-  if(!D||!cur||!ses){actHost.innerHTML=`<p class="mut">Waiting for market candles\u2026</p>`;return}
+  if(!D||!cur||!ses){actHost.innerHTML=`<div class="vt-skel-list" role="status" aria-label="Waiting for market candles"><div class="vt-skel-row" aria-hidden="true"></div><div class="vt-skel-row" aria-hidden="true"></div></div>`;return}
   const px=cur.c,atr=btAtrAt(D,BT.rp.i);
   const slInp=document.getElementById("bt_sl"),tpInp=document.getElementById("bt_tp");
   const pos=ses.pos;
@@ -5307,6 +5316,24 @@ function btRenderDesk(){
     const sBtn=document.getElementById("bt_sell");if(sBtn)sBtn.onclick=()=>btPlaceOrder("short");
   }
 }
+function btSetTab(tab){
+  BT.tab=tab==="positions"||tab==="equity"?tab:"history";
+  const tabs=document.querySelectorAll("#bt_tabs [data-bttab]");
+  tabs.forEach(b=>{
+    const on=b.dataset.bttab===BT.tab;
+    b.classList.toggle("on",on);
+    b.setAttribute("aria-selected",String(on));
+  });
+  const map={positions:"bt_pane_pos",history:"bt_pane_hist",equity:"bt_pane_eq"};
+  for(const k in map){
+    const p=document.getElementById(map[k]);
+    if(p)p.hidden=k!==BT.tab;
+  }
+  if(BT.tab==="equity"&&BT.ses){
+    const res=btLiveStats();
+    btEq(res.st,BT.ses.startBal,res.equity);
+  }
+}
 function btRenderBottom(){
   const o=document.getElementById("bt_out"),meta=document.getElementById("bt_meta");
   if(!o||!BT.ses)return;
@@ -5314,9 +5341,24 @@ function btRenderBottom(){
   if(meta&&D&&D.a.length){
     meta.textContent=ses.sym+" "+ses.tf+" \u00b7 "+D.a.length+" bars \u00b7 "+(typeof isLive==="function"&&!isLive()?"Sample mode":"Live history");
   }
+  const posCnt=document.getElementById("bt_cnt_pos"),histCnt=document.getElementById("bt_cnt_hist");
+  if(posCnt)posCnt.textContent=ses.pos?"1":"0";
+  if(histCnt)histCnt.textContent=String(st.n);
   const k=(l,v,c,t)=>`<div class="kpi"${t?` title="${esc(t)}"`:""}><div class="k">${l}</div><div class="v ${c||""}">${v}</div></div>`;
   const ret=res.ret;
-  o.innerHTML=`<div class="jrkpis" style="margin-bottom:12px">${
+  const cur=D&&D.a[BT.rp.i-1],px=cur?cur.c:0,p=ses.pos;
+  const posHtml=p?`<div class="bt-posrow">
+    <div class="bt-posrow-cell"><span class="k">Side</span><span class="jrside ${p.side}">${p.side==="long"?"LONG":"SHORT"}</span></div>
+    <div class="bt-posrow-cell"><span class="k">Entry</span><b>${fp(p.entry)}</b></div>
+    <div class="bt-posrow-cell"><span class="k">Mark</span><b>${fp(px)}</b></div>
+    <div class="bt-posrow-cell"><span class="k">Qty</span><b>${esc(String(p.qty))}</b></div>
+    <div class="bt-posrow-cell"><span class="k">Stop Loss</span><b>${p.sl!=null?fp(p.sl):"\u2013"}</b></div>
+    <div class="bt-posrow-cell"><span class="k">Take Profit</span><b>${p.tp!=null?fp(p.tp):"\u2013"}</b></div>
+    <div class="bt-posrow-cell"><span class="k">Unrealized</span><b class="${jrCls(res.unrealized)}">${jrUsd(res.unrealized)}</b></div>
+    <div class="bt-posrow-act"><button type="button" id="bt_pane_close" class="pri">Close @ ${fp(px)}</button></div>
+  </div>`:`<div class="bt-empty">No open position. Execute Buy / Long (B) or Sell / Short (S) from the Order Ticket.</div>`;
+  const tradeRows=ses.trades.slice().reverse().map(t=>{const pn=jrPnl(t),r=jrR(t);return`<tr><td class="l">${esc(t.open.replace("T"," "))}</td><td class="l"><span class="jrside ${t.side}">${t.side==="short"?"Short":"Long"}</span></td><td>${esc(String(t.qty))}</td><td>${fp(t.entry)}</td><td>${t.stop!=null?fp(t.stop):"\u2013"}</td><td>${t.tgt!=null?fp(t.tgt):"\u2013"}</td><td>${fp(t.exit)}</td><td class="l">${esc(t.why)}</td><td class="${jrCls(pn)}">${jrUsd(pn)}</td><td>${jrRf(r)}</td></tr>`}).join("");
+  o.innerHTML=`<div class="jrkpis bt-kpis">${
     k("Live equity",jrAbs(res.equity),jrCls(res.equity-res.bal),"Starting balance + realized P&L + open unrealized P&L")+
     k("Realized net",jrUsd(res.realized),jrCls(res.realized))+
     k("Return",(ret>0?"+":"")+(ret*100).toFixed(2)+"%",jrCls(ret))+
@@ -5326,36 +5368,48 @@ function btRenderBottom(){
     k("Profit factor",jrFx(st.pf))+
     k("Max drawdown",st.maxDD?"\u2212"+jrAbs(st.maxDD):"$0.00",st.maxDD?"neg":"")
   }</div>
-  <div class="bt-bottom">
-    <div class="bt-eqwrap"><div class="jrch"><h4>Equity curve</h4></div><canvas id="bt_eq" height="200" role="img" aria-label="Manual backtest equity curve"></canvas></div>
-    <div><div class="jrch"><h4>Trade log</h4><span class="sp"></span><button type="button" id="bt_csv"${st.n?"":" disabled"}>Export CSV</button></div>
-    <div class="jrtw" tabindex="0" role="region" aria-label="Manual backtest trades"><table class="ftbl jrt"><thead><tr><th class="l">Opened</th><th class="l">Side</th><th>Qty</th><th>Entry</th><th>SL</th><th>TP</th><th>Exit</th><th class="l">Exit reason</th><th>P\u0026L</th><th>R</th></tr></thead><tbody>${ses.trades.slice().reverse().map(t=>{const p=jrPnl(t),r=jrR(t);return`<tr><td class="l">${esc(t.open.replace("T"," "))}</td><td class="l"><span class="jrside ${t.side}">${t.side==="short"?"Short":"Long"}</span></td><td>${esc(String(t.qty))}</td><td>${fp(t.entry)}</td><td>${t.stop!=null?fp(t.stop):"\u2013"}</td><td>${t.tgt!=null?fp(t.tgt):"\u2013"}</td><td>${fp(t.exit)}</td><td class="l">${esc(t.why)}</td><td class="${jrCls(p)}">${jrUsd(p)}</td><td>${jrRf(r)}</td></tr>`}).join("")||`<tr><td class="l mut" colspan="10">No closed trades yet. Step forward with the replay controls and place Long or Short orders.</td></tr>`}</tbody></table></div></div>
+  <div id="bt_pane_pos" class="bt-pane" role="tabpanel" aria-labelledby="bt_tab_pos"${BT.tab==="positions"?"":" hidden"}>${posHtml}</div>
+  <div id="bt_pane_hist" class="bt-pane" role="tabpanel" aria-labelledby="bt_tab_hist"${BT.tab==="history"?"":" hidden"}>
+    <div class="jrtw" tabindex="0" role="region" aria-label="Manual backtest trades"><table class="ftbl jrt"><thead><tr><th class="l">Opened</th><th class="l">Side</th><th>Qty</th><th>Entry</th><th>SL</th><th>TP</th><th>Exit</th><th class="l">Exit reason</th><th>P\u0026L</th><th>R</th></tr></thead><tbody>${tradeRows}</tbody></table></div>
+    ${st.n?"":`<div class="bt-empty">No closed trades yet. Step forward with the replay controls and place Long or Short orders.</div>`}
+  </div>
+  <div id="bt_pane_eq" class="bt-pane" role="tabpanel" aria-labelledby="bt_tab_eq"${BT.tab==="equity"?"":" hidden"}>
+    <div class="bt-eqwrap"><canvas id="bt_eq" height="210" role="img" aria-label="Manual backtest equity curve"></canvas></div>
   </div>`;
+  const pClose=document.getElementById("bt_pane_close");
+  if(pClose)pClose.onclick=()=>btClosePos("manual");
   btEq(st,ses.startBal,res.equity);
   const csvBtn=document.getElementById("bt_csv");
-  if(csvBtn)csvBtn.onclick=()=>{
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob(["\ufeff"+jrToCsv(ses.trades.map(t=>Object.assign({},t,{acct:"Manual Replay",setup:"Manual",notes:"Reason: "+t.why})))],{type:"text/csv"}));
-    a.download="vektor-manual-backtest-"+ses.sym+"-"+ses.tf+".csv";
-    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
-  };
+  if(csvBtn){
+    csvBtn.disabled=!st.n;
+    csvBtn.onclick=()=>{
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(new Blob(["\ufeff"+jrToCsv(ses.trades.map(t=>Object.assign({},t,{acct:"Manual Replay",setup:"Manual",notes:"Reason: "+t.why})))],{type:"text/csv"}));
+      a.download="vektor-manual-backtest-"+ses.sym+"-"+ses.tf+".csv";
+      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+    };
+  }
 }
 function btEq(st,bal,liveEq){
   const cv=document.getElementById("bt_eq");if(!cv)return;
-  const w=cv.clientWidth||440,h=200,dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth||440,h=210,dpr=window.devicePixelRatio||1;
   cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.height=h+"px";
   const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
   const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim()||"#888";
   const pts=[bal,...st.curve.map(c=>bal+c.eq)];
   if(liveEq!=null&&(pts.length===1||Math.abs(liveEq-pts[pts.length-1])>0.005))pts.push(liveEq);
-  if(pts.length<2){g.fillStyle=col("--mut");g.font="13px system-ui,sans-serif";g.textAlign="center";g.fillText("Place and step trades to plot equity",w/2,h/2);return}
-  const lo=Math.min(...pts),hi=Math.max(...pts),pd=(hi-lo)*0.1||Math.max(1,bal*0.01),L=lo-pd,H=hi+pd;
-  const X=i=>8+i*(w-74)/(pts.length-1),Y=v=>h-16-(v-L)/(H-L)*(h-28);
-  g.strokeStyle=col("--line");g.setLineDash([3,3]);g.beginPath();g.moveTo(8,Y(bal));g.lineTo(w-66,Y(bal));g.stroke();g.setLineDash([]);
-  g.fillStyle=col("--mut");g.font="11px system-ui,sans-serif";
-  [hi,bal,lo].forEach(v=>g.fillText("$"+Math.round(v).toLocaleString("en-US"),w-62,Y(v)+4));
-  g.strokeStyle=pts[pts.length-1]>=bal?col("--g"):col("--r");g.lineWidth=2;
-  g.beginPath();pts.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke();
+  if(pts.length<2){g.fillStyle=col("--mut");g.font="12.5px system-ui,sans-serif";g.textAlign="center";g.fillText("Place and step trades to plot equity curve",w/2,h/2);return}
+  const lo=Math.min(...pts),hi=Math.max(...pts),pd=(hi-lo)*0.12||Math.max(1,bal*0.01),L=lo-pd,H=hi+pd;
+  const X=i=>8+i*(w-78)/(pts.length-1),Y=v=>h-18-(v-L)/(H-L)*(h-32);
+  g.strokeStyle=col("--line");g.setLineDash([3,3]);g.beginPath();g.moveTo(8,Y(bal));g.lineTo(w-70,Y(bal));g.stroke();g.setLineDash([]);
+  g.fillStyle=col("--mut");g.font="11px ui-monospace,SFMono-Regular,Menlo,monospace";
+  [hi,bal,lo].forEach(v=>g.fillText("$"+Math.round(v).toLocaleString("en-US"),w-66,Y(v)+4));
+  const up=pts[pts.length-1]>=bal,stroke=up?col("--g"):col("--r");
+  g.beginPath();
+  pts.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));
+  g.strokeStyle=stroke;g.lineWidth=2;g.stroke();
+  g.lineTo(X(pts.length-1),h-18);g.lineTo(X(0),h-18);g.closePath();
+  g.fillStyle=up?"rgba(16,185,129,0.09)":"rgba(244,63,94,0.09)";g.fill();
   cv.setAttribute("aria-label","Equity from $"+Math.round(bal)+" to $"+Math.round(pts[pts.length-1]));
 }
 function btRefreshAll(){btRenderChart();btRenderDesk();btRenderBottom()}
@@ -5371,7 +5425,7 @@ async function btReplayInit(resetSession){
   const targetSec=B.startAt?Math.floor(Date.parse(B.startAt)/1000):0;
   const needHist=!D||D.a.length<25||(targetSec&&D.a[0]&&targetSec<D.a[0].t);
   if(needHist){
-    host.innerHTML=`<p class="mut vt-skel">Loading ${esc(B.sym)} ${esc(B.tf)} historical candles\u2026</p>`;
+    host.innerHTML=`<p class="mut vt-skel" role="status">Loading ${esc(B.sym)} ${esc(B.tf)} historical candles\u2026</p>`;
     const padSec=(STEP[B.tf]||3600)*120;
     D=await btFetchIfNeeded(B.sym,B.tf,targetSec>0?Math.max(0,targetSec-padSec):undefined);
     if(!document.getElementById("bt_cv"))return;
@@ -5449,7 +5503,7 @@ function btBuild(){
           <input type="range" id="bt_rr" min="1" max="1" value="1" aria-label="Replay position">
         </div>
         <div class="bt-ohlc" id="bt_ohlc"></div>
-        <div id="bt_cv" class="btcv"></div>
+        <div id="bt_cv" class="btcv"><p class="mut vt-skel" role="status">Loading replay chart\u2026</p></div>
         <p class="cnote">Shortcuts: Left / Right arrows step bars, Space toggles Play / Pause, B / S place Long / Short orders, X closes active position.</p>
       </section>
       <aside class="vcard bt-desk" id="bt_desk" aria-label="Order execution">

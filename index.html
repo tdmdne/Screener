@@ -1085,7 +1085,7 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 :root[data-ui="phone"] #sr{left:0;right:0;width:auto}
 :root[data-ui="phone"] .vt-sypop{top:8px;width:96vw;max-height:84vh}
 /* ==== VT PAGES CSS END ==== */
-</style></head><body>
+</style><link rel="stylesheet" href="src/98_institutional.css"></head><body>
 <div class="wrap">
 <header>
   <h1 style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-size:17px;font-weight:700;letter-spacing:-0.3px" onclick="goHome()" title="Home">
@@ -1111,7 +1111,7 @@ th .h{display:inline-flex;align-items:center;gap:3px}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </button>
   </div>
-  <div class="srch"><input id="sq" placeholder="Search symbol (e.g. QQQ, BTCUSDT)…" autocomplete="off" onfocus="srch()" oninput="VT_SR_STATE.idx=0;srch()" onkeydown="srchKey(event)" onblur="setTimeout(hideSrBox,160)"><div id="sr"></div></div>
+  <div class="srch"><input id="sq" placeholder="Search symbol (Ctrl+K)" autocomplete="off" onfocus="srch()" oninput="VT_SR_STATE.idx=0;srch()" onkeydown="srchKey(event)" onblur="setTimeout(hideSrBox,160)"><div id="sr"></div></div>
 </header>
 <div class="ws"><div class="side">
 <div class="wl" id="wl"></div>
@@ -1465,13 +1465,22 @@ let h=`<tr><th><span class="h" data-dir="${dirOf("sym")}" onclick="srt('sym')">S
 vis.forEach(c=>{h+=`<th><span class="h" data-dir="${dirOf(c.id)}" onclick="srt('${c.id}')">${label(c)}${ar(c.id)}</span><button class="gear" onclick="openEd('${c.id}')" aria-label="Edit column">${VT_IC.gear}</button></th>`});
 const sig=JSON.stringify([S.mkt,S.q,S.acct,S.mult,S.dvOn,S.hideNV,S.sort,S.cols]);if(sig!==S._sig){S.page=0;S._sig=sig}
 let R=[];try{R=rows(vis)}catch(e){console.error("rows error:",e);R=[]}
+if(window._vtNavUntil&&Date.now()<window._vtNavUntil&&window._vtNavSig===(S._sig+"|"+(S.preset||""))&&PGL&&PGL.length){
+  const byS=new Map(R.map(r=>[r&&r.s&&r.s[0],r]));const seen=new Set();const kept=[];
+  for(const k of PGL){const x=byS.get(k);if(x){kept.push(x);seen.add(k)}}
+  for(const x of R){const k=x&&x.s&&x.s[0];if(k&&!seen.has(k))kept.push(x)}
+  if(kept.length===R.length)R=kept;
+}
 const pages=Math.max(1,Math.ceil(R.length/(S.rows||20)));if(S.page>=pages)S.page=0;let b="";
 let VW=null;try{VW=typeof vtVirt==="function"?vtVirt(R.length):null}catch(e){console.error("vtVirt error:",e)}
 const PG=VW?R.slice(VW.a,VW.b):R.slice(S.page*(S.rows||20),(S.page+1)*(S.rows||20));PRI=new Set(PG.map(r=>r&&r.s&&r.s[0]).filter(Boolean));
-PGL=(VW?R:PG).map(r=>r&&r.s&&r.s[0]).filter(Boolean);if(VW&&VW.top)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.top}px"></td></tr>`;
+PGL=(VW?R:PG).map(r=>r&&r.s&&r.s[0]).filter(Boolean);
+if(!(S.mini&&S.mini.on)){
+if(VW&&VW.top)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.top}px"></td></tr>`;
 PG.forEach(r=>{try{if(!r||!r.s||!r.s[0])return;b+=`<tr data-s="${r.s[0]}" class="${r.s[0]===S.chart.sym?"sel":""}"><td class="sy" onclick="openChart('${r.s[0]}')">${r.s[0]} <span class="mut">${r.s[1]}</span></td>`+vis.map(c=>`<td data-l="${esc(label(c))}">${cell(r,c)}</td>`).join("")+"</tr>"}catch(e){console.error("row cell error:",e)}});
 if(VW&&VW.bot)b+=`<tr class="vt-vsp" aria-hidden="true"><td colspan="${vis.length+1}" style="height:${VW.bot}px"></td></tr>`;
 const tblEl=document.getElementById("t");if(tblEl)tblEl.innerHTML="<thead>"+h+"</tr></thead><tbody>"+b+"</tbody>";
+}
 const cntEl=document.getElementById("cnt");if(cntEl)cntEl.textContent=R.length+" match"+(R.length===1?"":"es")+" · "+SYMS.length+" markets in the list";
 const pgEl=document.getElementById("pg");if(pgEl)pgEl.innerHTML=pages>1&&!VW?`<button onclick="pgGo(-1)" ${S.page?"":"disabled"}>${VT_IC.chevLeft} Prev</button><span class="mut">Page ${S.page+1} of ${pages}</span><button onclick="pgGo(1)" ${S.page<pages-1?"":"disabled"}>Next ${VT_IC.chevRight}</button>`:"";
 const tagEl=document.getElementById("tag");if(tagEl)tagEl.textContent=isLive()?(FAILOVER.on?"CACHED FAILOVER":"Live · auto-scan"):"Offline sample data";
@@ -1621,6 +1630,7 @@ function updateLiveBar(sym,tf,incomingBucket){
   const o=last.o!=null?last.o:last.c;
   const bar={time:last.t,open:o,high:Math.max(last.h||o,o,last.c),low:Math.min(last.l||o,o,last.c),close:last.c};
   try{MS.update(bar)}catch(e){}
+  const q=document.getElementById("cpx");if(q&&last.c>0){const t=fp(last.c);if(q.textContent!==t){q.textContent=t;if(typeof vtPxWatch==="function")vtPxWatch()}}
 }
 let vtChartMeta=null,vtHistGuard=0;
 function vtBuildChartData(s,tf,C,d1,a){
@@ -1714,7 +1724,11 @@ function drawChart(opts){try{const _opts=opts||{};killCharts();const C=S.chart,c
 if(!SYMS.length){cp.innerHTML=`<p class="mut vt-skel" role="status">Loading markets…</p>`;return}
 let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
-const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null,qt=(s[2]!=null?` <b id="cpx">${fp(s[2])}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
+const rawCandles=candles(s,C.tf);
+const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null;
+const cpxVal=(rawCandles&&rawCandles.length&&rawCandles[rawCandles.length-1].c!=null)?rawCandles[rawCandles.length-1].c:(d1&&d1.length&&d1[d1.length-1].c!=null?d1[d1.length-1].c:s[2]);
+if(cpxVal!=null&&isFinite(cpxVal))s[2]=cpxVal;
+const qt=(cpxVal!=null?` <b id="cpx">${fp(cpxVal)}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
 cp.innerHTML=`<div class="cpb"><div class="row top"><button type="button" class="vt-symbtn" onclick="syOpen()" title="Search symbol (start typing or Ctrl+K)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>${esc(s[0])}</span><span class="mut" style="font-weight:500">${esc(MK[s[1]]||s[1])}</span></button>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" aria-label="Market status" style="background:none;border:none;cursor:pointer">${VT_IC.pulse}</button>`:""}<div style="position:relative">${tfHTML()}</div><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist" aria-label="Toggle watchlist">${wlAll().includes(s[0])?VT_IC.starOn:VT_IC.starOff}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button onclick="snapMenu()" title="Snapshot" aria-label="Snapshot">${VT_IC.cam}</button><div id="snapdrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;min-width:140px;z-index:20"><div style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset chart view" aria-label="Reset chart view">${VT_IC.refresh}</button></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live data.":"Sample data."} Indicators are calculated on these candles.</p></div>`;
 const cvEl=document.getElementById("cv");if(!cvEl)return;
 if(!window.LightweightCharts){cvEl.innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
@@ -1743,7 +1757,6 @@ timeScale:{timeVisible:C.tf!=="1D",secondsVisible:false,borderVisible:true,borde
 rightPriceScale:Object.assign({borderVisible:C.scBorder!==false,borderColor:C.scBorderCol||p.gr,visible:C.scalePlace!=="left"},m?{mode:+C.scMode||0,autoScale:C.scAuto!==false,invertScale:!!C.scInv,scaleMargins:{top:0.3,bottom:0.1}}:{}),
 leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
 watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
-const rawCandles=candles(s,C.tf);
 if(!rawCandles||!rawCandles.length){const ek=ERR[s[0]+"|"+C.tf];if(ek&&typeof vtChartErr==="function"){vtChartErr(cvEl,ek);return}cvEl.innerHTML=`<p class="mut vt-skel" role="status">Loading candles…</p>`;try{need(s,C.tf,true)}catch(_e){}return}
 ch=L.createChart(cvEl,op(true));
 const a=rawCandles,{st,T,cl,pts,D}=vtBuildChartData(s,C.tf,C,d1,a);
@@ -1808,22 +1821,25 @@ try{initDraw(a,T,st)}catch(e){console.error("initDraw error:",e)}
 if(typeof vtAfterDraw==="function"){try{vtAfterDraw(s,a,T)}catch(e){console.error(e)}}
 if(typeof vtRenderGapBadge==="function"){try{vtRenderGapBadge()}catch(e){}}
 if(typeof vtPrefetchAdjacent==="function"){try{vtPrefetchAdjacent(s,C.tf)}catch(e){}}
-// redesigned active indicator legend (floating top-left with blur and hover action buttons)
+// transparent single-line institutional indicator legend (pointer-events:none container so chart right-clicks pass through)
 if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
   try{
-    const topPos=C.showBuySell?"46px":"8px";
+    const topPos=C.showBuySell?"42px":"6px";
     const leftPad=C.scalePlace==="left"?"72px":"8px";
     const idv=document.createElement("div");
     idv.id="vt_ind_legend";
     idv.className="vt-ind-legend";
-    idv.style.cssText=`position:absolute;top:${topPos};left:${leftPad};z-index:6;background:rgba(19,23,34,0.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:4px 8px;font-size:11.5px;color:#d1d4dc;user-select:none;display:flex;flex-direction:column;gap:3px;max-width:320px;pointer-events:auto`;
+    idv.style.top=topPos;
+    idv.style.left=leftPad;
     idv.innerHTML=C.ind.map(d=>{
       let valStr="";
       try{
         const vals=d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):d.t==="rsi"?rsiArr(cl,d.len):null;
         if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv)}
       }catch(_e){}
-      return `<div class="vt-ind-row" style="display:flex;align-items:center;gap:6px;padding:1px 4px;border-radius:4px" onmouseenter="this.querySelector('.vt-ind-acts').style.opacity='1'" onmouseleave="this.querySelector('.vt-ind-acts').style.opacity='0'"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.hidden?"#555":d.col};flex-shrink:0"></span><span style="${d.hidden?"opacity:.5":""};font-weight:500">${IND[d.t]||d.t} ${d.len||""}</span>${valStr?`<b style="margin-left:4px;font-weight:600;color:${d.col}">${valStr}</b>`:""}<span class="vt-ind-acts" style="margin-left:auto;opacity:0;transition:opacity .15s ease;display:inline-flex;align-items:center;gap:2px"><button onclick="togInd('${d.id}')" title="${d.hidden?"Show":"Hide"}" aria-label="${d.hidden?"Show":"Hide"} ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${d.hidden?VT_IC.eyeOff:VT_IC.eyeOn}</button><button onclick="editInd('${d.id}')" title="Settings" aria-label="${IND[d.t]||d.t} settings" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#9ca3af;display:inline-flex;align-items:center">${VT_IC.gear}</button><button onclick="rmInd('${d.id}')" title="Remove" aria-label="Remove ${IND[d.t]||d.t}" style="background:none;border:none;cursor:pointer;padding:1px 3px;color:#f23645;display:inline-flex;align-items:center">${VT_IC.x}</button></span></div>`;
+      const nm=esc((IND[d.t]||d.t)+(d.len?" "+d.len:""));
+      const did=esc(d.id);
+      return `<div class="vt-ind-row"><span class="vt-ind-dot" aria-hidden="true" style="background:${d.hidden?"#64748b":esc(d.col)}"></span><span class="vt-ind-name" style="${d.hidden?"opacity:.45":""}">${nm}</span>${valStr?`<b class="vt-ind-val" style="color:${esc(d.col)}">${esc(valStr)}</b>`:""}<span class="vt-ind-acts"><button type="button" onclick="togInd('${did}')" title="${d.hidden?"Show":"Hide"}" aria-label="${d.hidden?"Show":"Hide"} ${nm}">${d.hidden?VT_IC.eyeOff:VT_IC.eyeOn}</button><button type="button" onclick="editInd('${did}')" title="Settings" aria-label="${nm} settings">${VT_IC.gear}</button><button type="button" onclick="rmInd('${did}')" title="Remove" aria-label="Remove ${nm}">${VT_IC.x}</button></span></div>`;
     }).join("");
     cvEl.parentElement.appendChild(idv);
   }catch(e){console.error("ind legend error:",e)}
@@ -2630,7 +2646,7 @@ function bnwsConnect(){
         const s=SYMS.find(x=>x[0]===sym);
         if(s)s[2]=px;checkAlerts(sym,px);
       });
-      if(ch&&S.chart.sym&&data.some(t=>t.s===S.chart.sym)){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(S.chart.sym,S.chart.tf,Math.floor(Date.now()/1000/st)*st);const s=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&s&&s[2]!=null&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(S.chart.sym,S.chart.tf)))q.textContent=fp(s[2])}
+      if(S.chart.sym&&data.some(t=>t.s===S.chart.sym)){if(ch){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(S.chart.sym,S.chart.tf,Math.floor(Date.now()/1000/st)*st)}const s=symOf(S.chart.sym),q=document.getElementById("cpx");if(q&&s&&s[2]!=null&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(S.chart.sym,S.chart.tf))){q.textContent=fp(s[2]);if(typeof vtPxWatch==="function")vtPxWatch()}}
     }catch(err){}
   };
   BNWS.ws.onclose=()=>setTimeout(bnwsConnect,5000);
@@ -2664,7 +2680,7 @@ function bnKlineStart(sym,tf){
       else return;
       if(arr.length>500)arr.splice(0,arr.length-500);
       const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=bar.c;checkAlerts(sym,bar.c);
-      if(S.chart.sym===sym&&S.chart.tf===tf)updateLiveBar(sym,tf,bar.t);
+      if(S.chart.sym===sym&&S.chart.tf===tf){updateLiveBar(sym,tf,bar.t);const q=document.getElementById("cpx");if(q&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,tf))){q.textContent=fp(bar.c);if(typeof vtPxWatch==="function")vtPxWatch()}}
     }catch(err){}
   };
   BNKL.ws.onclose=()=>{if(BNKL.sym===sym)setTimeout(()=>bnKlineStart(sym,tf),3000)};
@@ -2689,7 +2705,7 @@ function fhWsStart(){
           else if(bucket>last.t){arr.push({t:bucket,o:price,h:price,l:price,c:price,v:vol});if(arr.length>500)arr.splice(0,arr.length-500)}
         }
         const s=SYMS.find(x=>x[0]===sym);if(s)s[2]=price;checkAlerts(sym,price);
-        if(S.chart.sym===sym){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(sym,S.chart.tf,Math.floor(ts/st)*st)}
+        if(S.chart.sym===sym){const st=(typeof STEP!=="undefined"&&STEP[S.chart.tf])||3600;updateLiveBar(sym,S.chart.tf,Math.floor(ts/st)*st);const q=document.getElementById("cpx");if(q&&!(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,S.chart.tf))){q.textContent=fp(price);if(typeof vtPxWatch==="function")vtPxWatch()}}
       });
     }catch(err){}
   };
@@ -2712,10 +2728,20 @@ add(FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)));
 add(YFW.map(w=>mk2(w,"yf",w.td)));
 if(BN.err&&!BN.list.length)add(YCR.map(w=>mk2(w,"yf",w.td)));
 SYMS=out.length?out:SAMPLE;}catch(e){console.error("setLive error:",e);if(!Array.isArray(SYMS)||!SYMS.length)SYMS=SAMPLE;}}
-function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";if(typeof vtRenderGapBadge==="function")vtRenderGapBadge();return}
+function status(){const d=document.getElementById("dst");if(!isLive()){d.textContent="";d.title="";if(typeof vtRenderGapBadge==="function")vtRenderGapBadge();return}
 const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
-const fo=FAILOVER.on?"CACHED FAILOVER · ":" ";
-d.textContent=fo+(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks (Finnhub)… ":"")+(PGU.busy?"Loading stocks (Polygon)… ":"")+(n?"Loading "+n+" left":"")+(BN.err?" · Binance unavailable ("+BN.err+")":"")+(FHU.err?" · Finnhub universe: "+FHU.err:"")+(PGU.err?" · Polygon universe: "+PGU.err:"")+(Date.now()<BN.pause?" · Binance rate limit, pausing":"")+(ne?" · "+ne+" failed ("+e+")":"")+(!n&&(snapOn()||lt)?" · Data "+ago(snapOn()?SNAP.t:lt):"");
+const full=(FAILOVER.on?"Cached failover · ":"")+(BN.busy?"Loading crypto… ":"")+(FHU.busy?"Loading stocks… ":"")+(PGU.busy?"Loading stocks… ":"")+(n?"Syncing "+n+" feeds":"")+(BN.err?" · Crypto feed offline ("+BN.err+")":"")+(FHU.err?" · Finnhub: "+FHU.err:"")+(PGU.err?" · Polygon: "+PGU.err:"")+(Date.now()<BN.pause?" · Rate limit, pausing":"")+(ne?" · "+ne+" feed"+(ne===1?"":"s")+" offline ("+e+")":"")+(!n&&(snapOn()||lt)?" · Updated "+ago(snapOn()?SNAP.t:lt):"");
+d.title=full.replace(/^\s*·\s*/,"").trim();
+const hasUnavail=ne&&/feed unavailable/i.test(String(e||""));
+let calm="";
+if(FAILOVER.on)calm="Cached failover";
+else if(hasUnavail)calm=String(e);
+else if(BN.busy||FHU.busy||PGU.busy)calm="Syncing";
+else if(Date.now()<BN.pause)calm="Paused";
+else if(n>0)calm="Syncing";
+else if(snapOn()||lt)calm="Updated "+ago(snapOn()?SNAP.t:lt);
+else if(ne)calm="Partial feed";
+d.textContent=calm;
 if(typeof vtRenderGapBadge==="function")vtRenderGapBadge()}
 function need(s,tf,front){const k=s[0]+"|"+tf;if(snapOn()&&SNAP.tfs.includes(tf)&&!SNAP.loaded[tf]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok)){snapTf(tf).then(tick);return}if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){const isCry=typeof vtIsCryptoSym==="function"?vtIsCryptoSym(s):(s[8]==="bn"||s[1]==="CRY");const isActive=(S.chart&&S.chart.sym===s[0]&&S.chart.tf===tf)||(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.chart&&S.chart.sym===s[0]&&S.sc.tfB===tf);if(!isCry&&!isActive)return;PEND[k]=1;front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}if(snapOn()&&SNAP.tfs.includes(tf)&&s[8]!=="bn"&&!s[10]&&!(typeof VT_EDGE!=="undefined"&&VT_EDGE.ok))return;PEND[k]=1;const p=s[8],q=p==="bn"?QB:QT;front?q.unshift([s,tf,k]):q.push([s,tf,k]);(p==="bn"?pumpBN:pumpTD)()}
 async function bnGet(p){let err;for(const h of BN.host?[BN.host]:BNH){try{const r=await fetch(h+p);if(r.ok){BN.host=h;return await r.json()}
@@ -2896,6 +2922,7 @@ document.addEventListener("keydown",e=>{
   e.preventDefault();
   e.stopPropagation();
   const dir=e.key==="ArrowDown"?1:-1;
+  window._vtNavUntil=Date.now()+800;window._vtNavSig=S._sig+"|"+(S.preset||"");
   let i=PGL.indexOf(S.chart.sym);
   if(i<0)i=dir>0?0:PGL.length-1;
   else i=Math.max(0,Math.min(PGL.length-1,i+dir));
@@ -3060,11 +3087,12 @@ function vtFlashApply(rowSel,cellSel,before,ns){if(vtRM())return 0;const now=per
       c.classList.add(f.d);c.style.animationDelay=(-Math.round(age))+"ms"}})});
   if(VT_MO.fl.size>400){for(const [k,f] of VT_MO.fl)if(now-f.t>VT_MO.dur)VT_MO.fl.delete(k)}
   return n}
-if(typeof render==="function"){const _vtMoR=render;render=function(){const b=vtSnap("#t tbody tr[data-s]","td");const r=_vtMoR.apply(this,arguments);try{vtFlashApply("#t tbody tr[data-s]","td",b,"t:")}catch(e){}return r}}
+if(typeof render==="function"){const _vtMoR=render;render=function(){if(typeof S!=="undefined"&&S.mini&&S.mini.on)return _vtMoR.apply(this,arguments);const b=vtSnap("#t tbody tr[data-s]","td");const r=_vtMoR.apply(this,arguments);try{vtFlashApply("#t tbody tr[data-s]","td",b,"t:")}catch(e){}return r}}
 if(typeof renderWL==="function"){const _vtMoW=renderWL;renderWL=function(){const b=vtSnap("#wl .wr[data-s]",".wv");const r=_vtMoW.apply(this,arguments);try{vtFlashApply("#wl .wr[data-s]",".wv",b,"w:")}catch(e){}return r}}
 // the chart header price is written by the feed handler; watch its text cheaply instead of touching the feed
-function vtPxWatch(){const q=document.getElementById("cpx");if(!q){VT_MO.pxv=null;return}const t=q.textContent,key=(typeof S!=="undefined"&&S.chart?S.chart.sym:"")+"|";
-  if(VT_MO.pxk===key&&VT_MO.pxv!=null&&t!==VT_MO.pxv&&!vtRM()){const x=vtNum(VT_MO.pxv),y=vtNum(t);if(x!=null&&y!=null&&x!==y){q.classList.remove("vt-fu","vt-fd");void q.offsetWidth;q.classList.add(y>x?"vt-fu":"vt-fd")}}
+function vtPxWatch(){const q=document.getElementById("cpx");if(!q){VT_MO.pxv=null;VT_MO.pxel=null;return}const t=q.textContent,key=(typeof S!=="undefined"&&S.chart?S.chart.sym:"")+"|";
+  if(VT_MO.pxel!==q||VT_MO.pxk!==key){VT_MO.pxel=q;VT_MO.pxv=t;VT_MO.pxk=key;VT_MO.pxt=0;VT_MO.pxp=0;return}
+  if(VT_MO.pxv!=null&&t!==VT_MO.pxv&&!vtRM()){const x=vtNum(VT_MO.pxv),y=vtNum(t);if(x!=null&&y!=null&&x!==y){const now=performance.now(),dir=y>x?"vt-fu":"vt-fd",pct=Math.abs(y-x)/Math.max(Math.abs(x),1e-9);const hold=(now-(VT_MO.pxt||0))<450&&!q.classList.contains(dir)&&(VT_MO.pxp||0)>=0.0099&&(VT_MO.pxp||0)<0.05;if(!hold){q.classList.remove("vt-fu","vt-fd");void q.offsetWidth;q.classList.add(dir);VT_MO.pxt=now;VT_MO.pxp=pct}}}
   VT_MO.pxv=t;VT_MO.pxk=key}
 setInterval(()=>{if(!document.hidden)vtPxWatch()},250);
 // page transitions
@@ -3723,7 +3751,7 @@ function vtHideSignIn(){if(!BOOTED)return;document.documentElement.classList.rem
 // signing in from guest mode keeps the session's work and saves it under that account (asks first if the account already has saved work)
 const _vtAuthEnter=authEnter;authEnter=function(u){
   if(!(u&&u.guest)){const was=VT_GUEST;VT_GUEST=false;try{ssRemove(VT_GUEST_KEY)}catch(e){}vtGuestUI();
-    if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";VT_UID=String(u.id);VT_SCOPE="~"+vtUidHash(u.id);if(was){if(lsGet(vtSK("scr2"))!=null&&typeof vtAcctChoose==="function")vtAcctChoose();else{save();saveP();toast("Signed in \u2014 your work is now saved on this device")}}return}}
+    if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";VT_UID=String(u.id);VT_SCOPE="~"+vtUidHash(u.id);if(was){if(lsGet(vtSK("scr2"))!=null&&typeof vtAcctChoose==="function")vtAcctChoose();else{save();saveP();toast("Signed in \u2014 your work is now saved on this device");if(typeof vtLegacyCheck==="function")setTimeout(vtLegacyCheck,200)}}return}}
   const r=_vtAuthEnter.apply(this,arguments);vtGuestUI();return r};
 const _vtSaveG=save;save=function(){if(VT_GUEST)return;return _vtSaveG.apply(this,arguments)};
 const _vtAuthInit=authInit;authInit=function(){vtAuthDecor();
@@ -3915,6 +3943,8 @@ function hmLayout(U,W,H){const C=hmCfg(),wt=s=>C.size==="equal"?1:1+Math.pow(Mat
   for(const g of G){const hd=g.h>60&&g.w>70?18:0;g.hd=hd;tiles.push(...hmSquarify(groups[g.k].map(s=>({s,w:wt(s)})),g.x+1,g.y+hd+1,g.w-2,g.h-hd-2))}
   return{groups:G,tiles}}
 // ---- page ----
+const HM_LABELS={"6E=F":"EUR","6A=F":"AUD","6B=F":"GBP","6J=F":"JPY","6C=F":"CAD","6S=F":"CHF","6N=F":"NZD","6M=F":"MXN","CL=F":"WTI","BZ=F":"Brent","GC=F":"Gold","SI=F":"Silver","PL=F":"Platinum","PA=F":"Palladium","NG=F":"NatGas","HG=F":"Copper","RB=F":"Gasoline","HO=F":"Heating Oil","ES=F":"S&P 500","NQ=F":"Nasdaq","YM=F":"Dow","RTY=F":"Russell","ZB=F":"30Y Bond","ZN=F":"10Y Note","ZF=F":"5Y Note","ZT=F":"2Y Note","CC=F":"Cocoa","KC=F":"Coffee","SB=F":"Sugar","ZW=F":"Wheat","ZC=F":"Corn","ZS=F":"Soybeans","CT=F":"Cotton","LE=F":"Cattle","HE=F":"Hogs","DX=F":"DXY"};
+function hmDisp(sym){const k=String(sym||"");return HM_LABELS[k]||k.replace(/USDT$/,"")}
 function hmBuild(){const el=document.getElementById("pv-heatmap");if(!el)return;const C=hmCfg();
   const mk=Object.keys(MK).filter(k=>k==="ALL"||SYMS.some(s=>s[1]===k));
   const seg=(id,label,opts,cur)=>`<div class="hmseg" role="group" aria-label="${label}"><span class="sxlbl">${label}</span>${opts.map(([v,n])=>`<button type="button" class="${String(cur)===String(v)?"on":""}" aria-pressed="${String(cur)===String(v)}" data-hm="${id}" data-v="${esc(v)}">${esc(n)}</button>`).join("")}</div>`;
@@ -3949,14 +3979,16 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
   const U=hmUniverse(),W=Math.floor(g.clientWidth),H=Math.floor(g.clientHeight);if(W<10||H<10)return;
   // ask the existing loader for anything missing (front of the queue for what's on screen, a few per second)
   if(C.metric==="chg"||C.metric==="mom"){const tf=C.metric==="mom"?"1D":C.tf;let n=0;for(const s of U){if(n>=8)break;if(!candles(s,tf)){try{need(s,tf,true)}catch(e){}n++}}}
-  const vals=U.map(hmVal),R=hmRange(vals);const key=[W,H,C.mkt,C.metric,C.tf,C.size,C.n,U.map(s=>s[0]).join(",")].join("|");
+  const vals=U.map(hmVal),R=hmRange(vals);const key=[W,H,C.mkt,C.metric,C.tf,C.size,C.n,U.map(s=>s[0]).sort().join(",")].join("|");
   if(force||key!==HM.key){HM.key=key;const L=hmLayout(U,W,H);const keep=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.s:null;
     g.innerHTML=L.groups.map(gr=>`<div class="hmgh" style="left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px"><span>${esc(MK[gr.k]||gr.k)}</span></div>`).join("")+
-      L.tiles.map((t,i)=>{const s=t.s,big=t.w>86&&t.h>52,mid=t.w>46&&t.h>28;return`<button type="button" class="hmt${big?" big":mid?"":" tiny"}" data-s="${esc(s[0])}" tabindex="${i===0?0:-1}" style="left:${t.x.toFixed(1)}px;top:${t.y.toFixed(1)}px;width:${Math.max(0,t.w-2).toFixed(1)}px;height:${Math.max(0,t.h-2).toFixed(1)}px"><span class="hn">${esc(String(s[0]).replace(/USDT$/,""))}</span><span class="hv"></span>${big?'<span class="hp"></span>':""}</button>`}).join("");
+      L.tiles.map((t,i)=>{const s=t.s,big=t.w>86&&t.h>52,mid=t.w>46&&t.h>28;return`<button type="button" class="hmt${big?" big":mid?"":" tiny"}" data-s="${esc(s[0])}" tabindex="${i===0?0:-1}" style="left:${t.x.toFixed(1)}px;top:${t.y.toFixed(1)}px;width:${Math.max(0,t.w-2).toFixed(1)}px;height:${Math.max(0,t.h-2).toFixed(1)}px"><span class="hn">${esc(hmDisp(s[0]))}</span> <span class="hv"></span>${big?' <span class="hp"></span>':""}</button>`}).join("");
     HM.tiles=new Map([...g.querySelectorAll(".hmt")].map(b=>[b.dataset.s,b]));g.querySelectorAll(".hmt").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s));
     /* fade the new tiles in with a diagonal sweep (08_motion.css); skipped under reduced motion */
-    if(!(typeof VT_RM==="function"&&VT_RM())){const sw=W+H||1;L.tiles.forEach(t=>{const b=HM.tiles.get(t.s[0]);if(!b)return;b.style.setProperty("--d",Math.round(Math.min(1,(t.x+t.y)/sw)*260)+"ms");b.classList.add("vt-in");
-      b.addEventListener("animationend",function e(ev){if(ev.animationName==="vtTileIn"){b.classList.remove("vt-in");b.removeEventListener("animationend",e)}})})}
+    if(!(typeof VT_RM==="function"&&VT_RM())){const sw=W+H||1;L.tiles.forEach(t=>{const b=HM.tiles.get(t.s[0]);if(!b)return;const d=Math.round(Math.min(1,(t.x+t.y)/sw)*260);b.style.setProperty("--d",d+"ms");b.classList.add("vt-in");
+      const end=()=>{b.classList.remove("vt-in");b.removeEventListener("animationend",onEnd)};
+      const onEnd=ev=>{if(ev.animationName==="vtTileIn")end()};
+      b.addEventListener("animationend",onEnd);setTimeout(end,d+480)})}
     if(keep&&HM.tiles.get(keep)){g.querySelectorAll(".hmt").forEach(t=>t.tabIndex=-1);HM.tiles.get(keep).tabIndex=0;HM.tiles.get(keep).focus({preventScroll:true})}HM.lastPx.clear()}
   // paint values (only touch what changed)
   let up=0,dn=0,fl=0,have=[];const rm=VT_RM();
@@ -3964,14 +3996,15 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
     const bg=hmColor(v,R);if(b.style.background!==bg)b.style.background=bg;
     const tv=hmFmt(v),hv=b.querySelector(".hv");if(hv.textContent!==tv)hv.textContent=tv;b.classList.toggle("na",v==null);
     const hp=b.querySelector(".hp");if(hp){const p=s[2]!=null?fp(s[2]):"";if(hp.textContent!==p)hp.textContent=p}
-    const lbl=s[0]+", "+(MK[s[1]]||s[1])+", "+(v==null?"no data yet":(C.metric==="chg"?C.tf+" change "+tv:C.metric==="mom"?"momentum "+tv:"score "+tv));if(b.getAttribute("aria-label")!==lbl)b.setAttribute("aria-label",lbl);
+    const vis=[hmDisp(s[0]),b.classList.contains("tiny")?"":tv,hp?hp.textContent:""].filter(Boolean).join(" ");
+    const lbl=vis+", "+s[0]+", "+(MK[s[1]]||s[1])+", "+(v==null?"no data yet":(C.metric==="chg"?C.tf+" change":C.metric==="mom"?"momentum":"score"));if(b.getAttribute("aria-label")!==lbl)b.setAttribute("aria-label",lbl);
     const lp=HM.lastPx.get(s[0]),px=s[2];if(lp!=null&&px!=null&&px!==lp&&!rm){b.classList.remove("fu","fd");void b.offsetWidth;b.classList.add(px>lp?"fu":"fd")}if(px!=null)HM.lastPx.set(s[0],px)});
   // stats + legend + source badge
   const st=document.getElementById("hm_stats");if(st){const sorted=have.slice().sort((a,b)=>b[1]-a[1]),med=have.length?sorted[Math.floor(sorted.length/2)][1]:null;
-    const chip=([s,v])=>`<button type="button" class="hmchip ${(C.metric==="score"?v>=50:v>=0)?"up":"dn"}" data-s="${esc(s[0])}">${esc(String(s[0]).replace(/USDT$/,""))} <b>${hmFmt(v)}</b></button>`;
+    const chip=([s,v])=>`<button type="button" class="hmchip ${(C.metric==="score"?v>=50:v>=0)?"up":"dn"}" data-s="${esc(s[0])}">${esc(hmDisp(s[0]))} <b>${hmFmt(v)}</b></button>`;
     const tot=up+dn+fl||1;const html=`<div class="hmbreadth" title="${up} up, ${dn} down, ${fl} flat"><i class="u" style="width:${up/tot*100}%"></i><i class="f" style="width:${fl/tot*100}%"></i><i class="d" style="width:${dn/tot*100}%"></i></div>
 <span><b class="upc">${up}</b> up \u00b7 <b class="dnc">${dn}</b> down${fl?" \u00b7 "+fl+" flat":""}${med!=null?" \u00b7 median "+hmFmt(med):""} \u00b7 ${have.length}/${U.length} with data</span>
-<span class="sp"></span>${sorted.length?`<span class="hml">Top</span>${sorted.slice(0,3).map(chip).join("")}<span class="hml">Bottom</span>${sorted.slice(-3).reverse().map(chip).join("")}`:""}`;
+<span class="sp"></span>${sorted.length?`<span class="hmgrp"><span class="hml">Top</span>${sorted.slice(0,3).map(chip).join("")}</span><span class="hmgrp"><span class="hml">Bottom</span>${sorted.slice(-3).reverse().map(chip).join("")}</span>`:""}`;
     if(st.dataset.h!==html){st.dataset.h=html;st.innerHTML=html;st.querySelectorAll(".hmchip").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s))}}
   const lg=document.getElementById("hm_leg");if(lg){const lab=C.metric==="score"?["0","50","100"]:C.metric==="mom"?["falling","flat","rising"]:["\u2212"+R+"%","0","+"+R+"%"];const html=`<span>${lab[0]}</span><i style="background:linear-gradient(90deg,${hmColor(C.metric==="score"?0:-R,R)},${hmColor(C.metric==="score"?50:0,R)},${hmColor(C.metric==="score"?100:R,R)})"></i><span>${lab[2]}</span>`;if(lg.dataset.h!==html){lg.dataset.h=html;lg.innerHTML=html}}
   const src=document.getElementById("hm_src"),asof=document.getElementById("hm_asof");if(src){const live=isLive(),ws=typeof BNWS!=="undefined"&&BNWS.ws&&BNWS.ws.readyState===1;
@@ -4023,12 +4056,12 @@ if(typeof vtFooterBuild==="function"){const _vtKbF=vtFooterBuild;vtFooterBuild=f
 const MINI_TFS=["15m","1H","4H","1D"],MINI_N=48;
 const MINI={sig:"",cards:new Map(),raf:0,dirty:new Set(),lim:48};
 function miniCfg(){if(!S.mini||typeof S.mini!=="object")S.mini={};if(typeof S.mini.on!=="boolean")S.mini.on=false;if(!MINI_TFS.includes(S.mini.tf))S.mini.tf="1H";return S.mini}
-function miniToggle(on){const C=miniCfg();C.on=on==null?!C.on:!!on;save();miniApply();if(C.on)miniSync(true)}
+function miniToggle(on){const C=miniCfg();C.on=on==null?!C.on:!!on;save();miniApply();if(C.on)miniSync(true);else if(typeof render==="function")render()}
 function miniApply(){const C=miniCfg(),tw=document.querySelector(".side>.tw")||document.getElementById("t")&&document.getElementById("t").closest(".tw");
   document.documentElement.classList.toggle("vt-mini",C.on);const b=document.getElementById("minib");if(b){b.setAttribute("aria-pressed",String(C.on));b.classList.toggle("on",C.on)}
   let g=document.getElementById("vtmini");if(C.on&&tw&&!g){g=document.createElement("div");g.id="vtmini";g.className="mini";g.setAttribute("role","region");g.setAttribute("aria-label","Mini charts");tw.appendChild(g);MINI.sig=""}
   if(!C.on&&g){g.remove();MINI.cards.clear();MINI.sig=""}}
-function miniCols(){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();return{g:v("--g")||"#46d38a",r:v("--r")||"#f87171",m:v("--mut")||"#8a8f98",l:v("--line")||"#27272a",acc:v("--acc")||"#fb923c"}}
+function miniCols(){const k=document.documentElement.dataset.theme||(window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");if(MINI._col&&MINI._colKey===k)return MINI._col;const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();MINI._colKey=k;return MINI._col={g:v("--g")||"#46d38a",r:v("--r")||"#f87171",m:v("--mut")||"#8a8f98",l:v("--line")||"#27272a",acc:v("--acc")||"#fb923c"}}
 function miniBars(s,tf){const a=candles(s,tf);return a&&a.length?a.slice(-MINI_N):null}
 function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getElementById("vtmini");if(!g)return miniApply();
   /* the desktop list is one continuous list, so cards are shown in batches (Show more) rather than all at once */
@@ -4038,7 +4071,7 @@ function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getE
   if(!force&&sig!==MINI.sig&&prevTf===C.tf&&mg&&syms.length===MINI.cards.size&&syms.every(n=>MINI.cards.has(n))){MINI.sig=sig;for(const n of syms)mg.appendChild(MINI.cards.get(n).el)}
   if(force||sig!==MINI.sig){MINI.sig=sig;MINI.cards.clear();
     g.innerHTML=`<div class="minih"><span class="mut">Mini charts \u00b7 last ${MINI_N} bars</span><span class="sp"></span><div class="minitf" role="group" aria-label="Mini chart interval">${MINI_TFS.map(t=>`<button type="button" data-tf="${t}" aria-pressed="${t===C.tf}" class="${t===C.tf?"on":""}">${t}</button>`).join("")}</div></div>`+
-      `<div class="minig">${syms.map(n=>`<button type="button" class="mc" data-s="${esc(n)}"><span class="mch"><b class="mcn">${esc(String(n).replace(/USDT$/,""))}</b><span class="mcp"></span></span><canvas aria-hidden="true"></canvas><span class="mcf"><span class="mcc"></span><span class="mcw mut"></span></span></button>`).join("")}</div>`+
+      `<div class="minig">${syms.map(n=>`<button type="button" class="mc" data-s="${esc(n)}"><span class="mch"><b class="mcn">${esc(hmDisp(n))}</b> <span class="mcp"></span></span> <canvas aria-hidden="true"></canvas> <span class="mcf"><span class="mcc"></span> <span class="mcw mut"></span></span></button>`).join("")}</div>`+
       (all.length>syms.length?`<button type="button" class="mcmore">Show more (${syms.length} of ${all.length})</button>`:"")+
       (syms.length?"":`<p class="mut" style="padding:10px">No symbols match this list.</p>`);
     g.querySelectorAll(".minitf button").forEach(b=>b.onclick=()=>{miniCfg().tf=b.dataset.tf;save();miniSync(true)});
@@ -4052,13 +4085,16 @@ function miniSync(force){const C=miniCfg();if(!C.on)return;const g=document.getE
 function miniFlush(){MINI.raf=0;const C=miniCfg(),col=miniCols();for(const n of MINI.dirty){const c=MINI.cards.get(n),s=symOf(n);if(c&&s)miniDraw(c.el,s,miniBars(s,C.tf),C.tf,col)}MINI.dirty.clear()}
 function miniDraw(el,s,B,tf,col){const cv=el.querySelector("canvas"),p=el.querySelector(".mcp"),ch=el.querySelector(".mcc"),w=el.querySelector(".mcw");
   const px=s[2]!=null?s[2]:B&&B.length?B[B.length-1].c:null;p.textContent=px!=null?fp(px):"\u2013";
-  if(!B||B.length<2){el.classList.add("na");ch.textContent="";w.textContent="Loading "+tf+" candles\u2026";el.setAttribute("aria-label",s[0]+", loading "+tf+" candles");const x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);return}
+  const disp=hmDisp(s[0]);
+  if(!B||B.length<2){el.classList.add("na");ch.textContent="";w.textContent="Loading "+tf+" candles\u2026";el.setAttribute("aria-label",[disp,p.textContent,w.textContent].filter(Boolean).join(" ")+" ("+s[0]+"). Opens the chart.");const x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);return}
   el.classList.remove("na");
   const first=B[0].o!=null?B[0].o:B[0].c,lastC=B[B.length-1].c,pc=(lastC/first-1)*100;
   ch.textContent=(pc>0?"+":pc<0?"\u2212":"")+Math.abs(pc).toFixed(2)+"%";ch.className="mcc "+(pc>=0?"up":"dn");
   const span=(MINI_N*({"15m":15,"1H":60,"4H":240,"1D":1440}[tf]||60))/60;w.textContent=B.length+" \u00d7 "+tf+(span>=48?" \u00b7 ~"+Math.round(span/24)+"d":" \u00b7 ~"+Math.round(span)+"h");
-  el.setAttribute("aria-label",s[0]+", "+(px!=null?fp(px):"no price")+", "+ch.textContent+" over the last "+B.length+" "+tf+" bars. Opens the chart.");
-  const dpr=Math.min(2,window.devicePixelRatio||1),W=cv.clientWidth||140,H=cv.clientHeight||56;if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  el.setAttribute("aria-label",[disp,p.textContent,ch.textContent,w.textContent].filter(Boolean).join(" ")+" ("+s[0]+"). Opens the chart.");
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  if(!cv._mw||!cv._mh||!cv.width||!cv.height){cv._mw=cv.clientWidth||140;cv._mh=cv.clientHeight||56}
+  const W=cv._mw,H=cv._mh;if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
   const x=cv.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
   let lo=Infinity,hi=-Infinity;for(const b of B){if(b.l<lo)lo=b.l;if(b.h>hi)hi=b.h}if(!(hi>lo)){hi=lo*1.001+1e-9;lo=lo*.999}
   const pad=3,Y=v=>pad+(hi-v)/(hi-lo)*(H-pad*2),n=B.length,step=W/n,bw=Math.max(1,Math.min(6,step*.62));
@@ -4560,14 +4596,14 @@ function jrSetups(){const s=new Set();jrCfg().trades.forEach(t=>(t.setup||"").sp
 function jrAcctNames(){const J=jrCfg(),s=new Set(J.accts.map(a=>a.name));J.trades.forEach(t=>{if(t.acct)s.add(t.acct)});return[...s].sort()}
 function jrBuild(){const el=document.getElementById("pv-journal");if(!el)return;const J=jrCfg();
   const opt=(v,n,cur)=>`<option value="${esc(v)}"${String(v)===String(cur)?" selected":""}>${esc(n)}</option>`;
-  el.innerHTML=`<div class="pgw jr"><div class="pgh"><h2>Journal <span class="mut">\u0026</span> Prop Tracker</h2><span class="mut">Your own trade record. You enter every trade (or import your CSV); nothing here connects to a broker or places trades.</span><span class="sp"></span>
+  el.innerHTML=`<div class="pgw jr"><div class="pgh"><h2>Journal <span class="mut">\u0026</span> Prop Tracker</h2><span class="mut">Personal trade ledger and prop account rule monitor.</span><span class="sp"></span>
 <div class="jrbtns"><button type="button" class="pri" id="jr_add">+ Add trade</button><button type="button" id="jr_imp">Import CSV\u2026</button><input type="file" id="jr_file" accept=".csv,text/csv" hidden><button type="button" id="jr_exp">Export CSV</button></div></div>
 <div class="vcard jrf" role="group" aria-label="Filters"><label>Account<select id="jr_facct">${opt("","All accounts",J.f.acct)}${jrAcctNames().map(n=>opt(n,n,J.f.acct)).join("")}</select></label>
 <label>Period<select id="jr_fper">${[["all","All time"],["week","This week"],["month","This month"],["30","Last 30 days"]].map(([v,n])=>opt(v,n,J.f.period)).join("")}</select></label>
 <label>Side<select id="jr_fside">${opt("","Long and short",J.f.side)}${opt("long","Long only",J.f.side)}${opt("short","Short only",J.f.side)}</select></label>
 <label>Setup<select id="jr_fsetup">${opt("","All setups",J.f.setup)}${jrSetups().map(n=>opt(n,n,J.f.setup)).join("")}</select></label></div>
 <div class="jrkpis" id="jr_kpis"></div>
-<div class="jrgrid"><div class="vcard jreq"><div class="jrch"><h3>Equity curve</h3><span class="mut" id="jr_eqnote"></span></div><canvas id="jr_eq" height="220" role="img" aria-label="Cumulative profit and loss by closed trade"></canvas></div>
+<div class="jrgrid"><div class="vcard jreq"><div class="jrch"><h3>Equity curve</h3><span class="mut" id="jr_eqnote"></span></div><canvas id="jr_eq" height="220" role="img" aria-label="Cumulative profit and loss by closed trade"></canvas><div id="jr_eq_empty" class="jr-empty-card" hidden><strong>No closed trades yet</strong><p>Your cumulative equity curve plots automatically as you log closed trades or practice in Bar Replay.</p><div class="jr-empty-acts"><button type="button" class="pri" id="jr_eq_add">+ Log your first trade</button><button type="button" id="jr_eq_imp">Import CSV</button><button type="button" id="jr_eq_bt">Practice in Bar Replay</button></div></div></div>
 <div class="vcard jrcal"><div class="jrch"><h3>Daily P\u0026L</h3><span class="sp"></span><button type="button" class="ibtn" id="jr_mprev" aria-label="Previous month">${VT_IC.chevLeft}</button><b id="jr_mlab"></b><button type="button" class="ibtn" id="jr_mnext" aria-label="Next month">${VT_IC.chevRight}</button></div><div id="jr_cal"></div></div></div>
 <div class="vcard" id="jr_propc"></div>
 <div class="jrgrid"><div class="vcard"><h3>By setup</h3><div class="jrtw" tabindex="0" role="region" aria-label="Results by setup"><table class="ftbl" id="jr_setup"></table></div></div>
@@ -4577,6 +4613,7 @@ function jrBuild(){const el=document.getElementById("pv-journal");if(!el)return;
 <p class="cnote">Results are calculated from what you entered. Past results don\u2019t predict future ones, and nothing here is financial advice.</p></div>`;
   const q=id=>document.getElementById(id);
   q("jr_add").onclick=()=>jrEdit();q("jr_imp").onclick=()=>q("jr_file").click();q("jr_exp").onclick=jrExport;
+  if(q("jr_eq_add"))q("jr_eq_add").onclick=()=>jrEdit();if(q("jr_eq_imp"))q("jr_eq_imp").onclick=()=>q("jr_file").click();if(q("jr_eq_bt"))q("jr_eq_bt").onclick=()=>go("backtest");
   q("jr_file").onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;if(f.size>5e6){toast("File is too large (5 MB max)");return}const rd=new FileReader();rd.onload=()=>jrImport(String(rd.result));rd.readAsText(f)};
   [["jr_facct","acct"],["jr_fper","period"],["jr_fside","side"],["jr_fsetup","setup"]].forEach(([id,k])=>q(id).onchange=e=>{J.f[k]=e.target.value;JRV.page=0;save();jrRender()});
   q("jr_mprev").onclick=()=>{J.month=jrShiftMonth(J.month,-1);save();jrCal()};q("jr_mnext").onclick=()=>{J.month=jrShiftMonth(J.month,1);save();jrCal()};
@@ -4588,11 +4625,14 @@ function jrRender(){const T=jrFiltered(),st=jrStats(T);const q=id=>document.getE
     k("Expectancy",jrUsd(st.exp),jrCls(st.exp),"Average P\u0026L per closed trade")+k("Average R",jrRf(st.avgR),jrCls(st.avgR),"Only trades with a stop: P\u0026L \u00f7 money at risk ("+st.nR+" trades)")+
     k("Avg win / loss",jrAbs(st.avgWin)+" / "+jrAbs(st.avgLoss))+k("Max drawdown",st.maxDD?"\u2212"+jrAbs(st.maxDD):"$0.00",st.maxDD?"neg":"","Largest fall from a closed-equity peak")+k("Streaks",st.winStreak+"W / "+st.lossStreak+"L","","Longest run of wins / losses");
   jrEq(st);jrCal();jrSetupTbl(st);jrWd(st);jrTable(T);jrProps();if(typeof jaiCard==="function")jaiCard(T,st)}
-function jrEq(st){const cv=document.getElementById("jr_eq"),note=document.getElementById("jr_eqnote");if(!cv)return;const w=cv.clientWidth||600,h=220,dpr=window.devicePixelRatio||1;
+function jrEq(st){const cv=document.getElementById("jr_eq"),note=document.getElementById("jr_eqnote"),emp=document.getElementById("jr_eq_empty");if(!cv)return;
+  note.textContent=st.n?st.n+" closed trade"+(st.n===1?"":"s"):"";
+  if(st.n<1){cv.hidden=true;if(emp)emp.hidden=false;cv.setAttribute("aria-label","Equity curve: no closed trades yet");return}
+  cv.hidden=false;if(emp)emp.hidden=true;
+  const w=cv.clientWidth||600,h=220,dpr=window.devicePixelRatio||1;
   cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.height=h+"px";const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
   const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim()||"#888";
-  const pts=[0,...st.curve.map(c=>c.eq)];note.textContent=st.n?st.n+" closed trade"+(st.n===1?"":"s"):"";
-  if(st.n<1){g.fillStyle=col("--mut");g.font="13px system-ui,sans-serif";g.textAlign="center";g.fillText("No closed trades yet",w/2,h/2);cv.setAttribute("aria-label","Equity curve: no closed trades yet");return}
+  const pts=[0,...st.curve.map(c=>c.eq)];
   const lo=Math.min(...pts),hi=Math.max(...pts),pad=(hi-lo)*.08||1,L=lo-pad,H=hi+pad,X=i=>8+i*(w-64)/Math.max(1,pts.length-1),Y=v=>h-18-(v-L)/(H-L)*(h-30);
   g.strokeStyle=col("--line");g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(8,Y(0));g.lineTo(w-56,Y(0));g.stroke();g.setLineDash([]);
   g.fillStyle=col("--mut");g.font="11px system-ui,sans-serif";g.textAlign="left";[hi,0,lo].filter((v,i,a)=>a.indexOf(v)===i).forEach(v=>g.fillText(jrUsd(v,0),w-52,Y(v)+4));
@@ -4621,7 +4661,7 @@ function jrTable(T){const el=document.getElementById("jr_tbl"),cnt=document.getE
   const upSvg='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;vertical-align:-1px"><path d="m18 15-6-6-6 6"/></svg>';
   const dnSvg='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;vertical-align:-1px"><path d="m6 9 6 6 6-6"/></svg>';
   const th=(k,n,l)=>`<th${l?' class="l"':""} aria-sort="${JRV.sort===k?(JRV.dir>0?"ascending":"descending"):"none"}"><button type="button" class="jrs" data-k="${k}">${n}${JRV.sort===k?(JRV.dir>0?upSvg:dnSvg):""}</button></th>`;
-  if(!T.length){el.innerHTML=`<tbody><tr><td class="l jrempty">${jrCfg().trades.length?"No trades match these filters.":"No trades yet. Use <b>+ Add trade</b> after each trade, or import a CSV."}</td></tr></tbody>`;pg.innerHTML="";return}
+  if(!T.length){const hasAny=jrCfg().trades.length>0;el.innerHTML=`<tbody><tr><td class="l jrempty"><div class="jr-empty-card"><strong>${hasAny?"No matching trades":"No trades yet"}</strong><p>${hasAny?"Adjust the account, period, side, or setup filters to view your recorded trades.":"Log your first trade or import a CSV export to populate your equity curve, daily calendar, and prop rule telemetry."}</p>${hasAny?"":`<div class="jr-empty-acts"><button type="button" class="pri" id="jr_eadd">+ Log trade</button><button type="button" id="jr_eimp">Import CSV</button></div>`}</div></td></tr></tbody>`;pg.innerHTML="";const ea=document.getElementById("jr_eadd"),ei=document.getElementById("jr_eimp");if(ea)ea.onclick=()=>jrEdit();if(ei)ei.onclick=()=>{const f=document.getElementById("jr_file");if(f)f.click()};return}
   const edSvg='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const xSvg='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
   el.innerHTML=`<thead><tr>${th("close","Closed",1)}${th("sym","Symbol",1)}<th class="l">Side</th><th>Qty</th><th>Entry</th><th>Exit</th>${th("pnl","P\u0026L")}${th("r","R")}<th class="l">Setup</th><th class="l">Account</th><th><span class="vh">Actions</span></th></tr></thead><tbody>${vis.map(t=>{const p=jrPnl(t),r=jrR(t);
@@ -5200,6 +5240,14 @@ function btRenderChart(){
   if(rr){rr.max=String(D.D.length);rr.value=String(i);rr.setAttribute("aria-valuetext","Bar "+i+" of "+D.D.length)}
   const z=D.a[i-1],info=document.getElementById("bt_rpinfo"),ohlc=document.getElementById("bt_ohlc");
   if(info&&z)info.textContent="Bar "+i+" / "+D.D.length;
+  const winEl=document.getElementById("bt_win"),sumEl=document.getElementById("bt_sum");
+  if(winEl&&D.a.length){
+    const dFmt=ts=>new Date(ts*1000).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"2-digit"});
+    winEl.textContent=D.a.length+" bars \u00b7 "+dFmt(D.a[0].t)+" \u2013 "+dFmt(D.a[D.a.length-1].t);
+  }
+  if(sumEl&&ses){
+    sumEl.textContent=ses.sym+" \u00b7 "+ses.tf+" \u00b7 "+jrAbs(ses.startBal)+" \u00b7 "+ses.riskPct+"% risk";
+  }
   if(ohlc&&z){
     const dt=new Date(z.t*1000).toLocaleString("en-GB",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
     ohlc.innerHTML=`<span>${esc(dt)}</span><span>O <b>${fp(z.o)}</b></span><span>H <b>${fp(z.h)}</b></span><span>L <b>${fp(z.l)}</b></span><span>C <b>${fp(z.c)}</b></span><span>ATR(14) <b>${fp(btAtrAt(D,i))}</b></span>`;
@@ -5367,8 +5415,14 @@ function btBuild(){
   const B=btCfg();
   const brackets=[["atr2","ATR 1:2"],["atr3","ATR 1:3"],["pct12","1% / 2%"],["none","Manual"]];
   el.innerHTML=`<div class="pgw bt">
-    <div class="pgh"><h2>Manual Backtest <span class="mut">Bar Replay</span></h2><span class="mut">Pick a symbol and start time, step bar-by-bar, execute manual Long/Short orders with SL/TP, and track live equity.</span></div>
-    <section class="vcard" aria-label="Replay session setup">
+    <div class="pgh"><h2>Manual Backtest <span class="mut">Bar Replay</span></h2><span class="mut">Step bar-by-bar, execute manual Long/Short orders with SL/TP, and track live equity.</span></div>
+    <section class="vcard bt-setup-card" id="bt_setup_card" aria-label="Replay session setup">
+      <div class="bt-setup-bar">
+        <span class="bt-setup-sum" id="bt_sum">${esc(B.sym)} \u00b7 ${esc(B.tf)} \u00b7 ${jrAbs(B.bal)} \u00b7 ${esc(String(B.riskPct))}% risk</span>
+        <span class="bt-win-badge" id="bt_win"></span>
+        <span class="sp"></span>
+        <button type="button" id="bt_setup_tog" aria-expanded="true" aria-controls="bt_f">Session Setup</button>
+      </div>
       <div class="bt-setup" id="bt_f">
         <label class="bt-symw">Symbol<input id="bt_sym" value="${esc(B.sym)}" list="bt_syms" autocomplete="off"></label>
         <datalist id="bt_syms">${(typeof SYMS!=="undefined"?SYMS:[]).slice(0,500).map(s=>`<option value="${esc(s[0])}">`).join("")}</datalist>
@@ -5429,6 +5483,8 @@ function btBuild(){
   </div>`;
 
   const q=id=>document.getElementById(id);
+  const stog=q("bt_setup_tog"),scard=q("bt_setup_card");
+  if(stog&&scard){stog.onclick=()=>{const col=scard.classList.toggle("collapsed");stog.setAttribute("aria-expanded",String(!col))}}
   q("bt_sym").onchange=e=>{const v=e.target.value.trim().toUpperCase();if(!v)return;B.sym=v;if(typeof vtEnsureSym==="function")vtEnsureSym(v,true);save();btStop();btReplayInit(true)};
   q("bt_tf").onchange=e=>{B.tf=e.target.value;save();btStop();btReplayInit(true)};
   q("bt_start").onchange=async e=>{
@@ -5602,7 +5658,7 @@ privacy:["Privacy Policy",()=>`<h1>Privacy Policy</h1>${LG_META()}
 <tr><td>Cloudflare Web Analytics and Umami Cloud (cookieless, aggregate page views, events and, for Umami, UTM parameters)</td><td>Understanding how the site is used and whether it is performing as intended, in aggregate; measuring sign-up and campaign sources. Not used for advertising or to profile you as an individual</td><td>Legitimate interests, Art. 6(1)(f). See the balancing note below. ${PH("confirm: Umami Cloud hosting region and DPA")} ${PH("confirm before publishing: Umami installed and live")}</td></tr>
 <tr><td>Hosting and security logs</td><td>Keeping the website secure and working</td><td>Legitimate interests, Art. 6(1)(f).</td></tr>
 <tr><td>Rights requests and emails you send us</td><td>Answering you and meeting our legal duties</td><td>Legal obligation, Art. 6(1)(c), and legitimate interests, Art. 6(1)(f).</td></tr>
-<tr><td>Optional Journal AI review (only when you press Send)</td><td>Sending the extract you chose to the AI provider you chose, at your request</td><td>We do not receive the payload or your key. Any limited processing on our side in providing the button is at your request, Art. 6(1)(b). The AI provider is an independent controller of what it receives, under its terms and the acknowledgement you give before sending.</td></tr>
+<tr><td>Journal AI review (optional) — only when you press Send</td><td>Sending the extract you chose to the AI provider you chose, at your request</td><td>We do not receive the payload or your key. Any limited processing on our side in providing the button is at your request, Art. 6(1)(b). The AI provider is an independent controller of what it receives, under its terms and the acknowledgement you give before sending.</td></tr>
 <tr><td>Elite trial eligibility records (a card identifier or fingerprint from Stripe, and a hash of a normalised email where feasible)</td><td>Preventing repeat trials and fraud: one trial per person in any 13-month period, checked by card and by email (plus-tags removed on every domain). We do not store your card number. Where feasible we store a one-way hash of the normalised email rather than the email itself. Stripe provides the card identifier or fingerprint; see section 6a.</td><td>Legitimate interests, Art. 6(1)(f). We have a legitimate interest in offering the trial once per person in any 13-month period and in reducing fraud. The data is limited to a payment-provider identifier or fingerprint and a hash of a normalised email, is not used for marketing, and is kept for 13 months after the trial ends or is refused. You can object by emailing ${VT_MAIL()}.</td></tr>
 </tbody></table>
 <p><b>Legitimate interests — analytics balancing note.</b> We have a legitimate interest in understanding, in aggregate, how the Service is used and whether pages load properly, so we can keep it working and improve it. Cloudflare Web Analytics and Umami Cloud are cookieless according to their documentation: they do not store or access cookies or similar identifiers on your device, so PECR regulation 6 (consent for storing or accessing information on a terminal) does not, on that basis, apply to them. The data is limited, is not used for advertising or for profiling you as an individual, and is not combined with the settings, journal or keys that stay on your device. Retention is limited to the periods in section 9. We consider that these interests are not overridden by your interests or rights. You can use browser tools to block the scripts, and you can object by emailing ${VT_MAIL()}. If a script later stores or accesses information on your device, we will review this basis and may need to ask for consent.</p>
@@ -6813,7 +6869,7 @@ function vtBnKlineStart(sym, tf) {
               updateLiveBar(sym, tf, bar.t);
             }
             const q = document.getElementById("cpx");
-            if (q) q.textContent = fp(bar.c);
+            if (q) { q.textContent = fp(bar.c); if (typeof vtPxWatch === "function") vtPxWatch(); }
           }
         }
 
@@ -6935,7 +6991,7 @@ function vtApplyTwelveDataTick(sym, price, tsSec) {
         updateLiveBar(sym, tf, bucket);
       }
       const q = document.getElementById("cpx");
-      if (q) q.textContent = fp(price);
+      if (q) { q.textContent = fp(price); if (typeof vtPxWatch === "function") vtPxWatch(); }
     }
   }
 

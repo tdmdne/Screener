@@ -6,7 +6,8 @@
 // allowlist, not a denylist: a path is served only if it is on the list below;
 // everything else gets a 404. New root files are therefore private by default.
 //
-// /api and /api/* are passed straight through to functions/api/[[path]].js.
+// /api, /api/*, and /ws are passed straight through to Pages Functions
+// (functions/api/[[path]].js and functions/ws.js).
 //
 // Cost note: Pages middleware is a Pages Function, so each request that reaches
 // it counts toward the Workers Free plan's 100,000 requests/day. _routes.json
@@ -25,13 +26,20 @@ export const PUBLIC_EXACT = new Set([
   "/favicon.ico",
   "/favicon.svg",
   "/apple-touch-icon.png",
+  // Client-safe shared modules (server-only modules like alerts.js, journal.js, protocol.js,
+  // replay.js, shared/market/*, shared/vs/* are NOT allowlisted and return 404).
+  "/shared/constants.js",
+  "/shared/emailValidator.js",
+  "/shared/instruments.js",
+  "/shared/intervals.js",
+  "/shared/schema.js",
+  "/shared/symbolNormalizer.js",
   // Optional market-data snapshot fetched by index.html (snapInit/snapTf) if published.
   "/data/manifest.json",
 ]);
 
 export const PUBLIC_PATTERNS = [
   /^\/src\/[A-Za-z0-9_-]+\.(?:js|mjs|css)$/,
-  /^\/shared\/[A-Za-z0-9_-]+\.(?:js|mjs)$/,
   /^\/data\/c_[A-Za-z0-9]+\.json$/,
 ];
 
@@ -39,6 +47,7 @@ const API_RE = /^\/api(?:\/|$)/;
 
 function hasUnsafeChars(p) {
   if (/%2e/i.test(p)) return true;
+  if (/%00|%5c/i.test(p)) return true;
   if (p.includes("..")) return true;
   if (p.includes("\\")) return true;
   if (p.includes("\0")) return true;
@@ -47,11 +56,14 @@ function hasUnsafeChars(p) {
 
 /**
  * Classify a raw (undecoded) URL pathname.
- * @returns {"api"|true|false} "api" = pass to the API function,
+ * @returns {"api"|"ws"|true|false} "api" = pass to the API function,
+ *   "ws" = pass to the WebSocket function,
  *   true = public static file, false = 404.
  */
 export function isPublicPath(pathname) {
   if (typeof pathname !== "string" || !pathname.startsWith("/")) return false;
+
+  if (pathname === "/ws") return "ws";
 
   if (API_RE.test(pathname)) {
     if (hasUnsafeChars(pathname)) return false;

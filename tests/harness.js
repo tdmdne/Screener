@@ -4,7 +4,7 @@ const {chromium}=require("playwright");
 const ROOT=path.resolve(__dirname,"..");
 function serve(){return new Promise(r=>{const s=http.createServer((q,res)=>{let p=decodeURIComponent(q.url.split("?")[0]);if(p==="/")p="/index.html";const f=path.join(ROOT,p);
 if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);res.end();return}
-res.writeHead(200,{"content-type":f.endsWith(".html")?"text/html":f.endsWith(".js")?"application/javascript":"application/json"});fs.createReadStream(f).pipe(res)});s.listen(0,()=>r(s))})}
+res.writeHead(200,{"content-type":f.endsWith(".html")?"text/html":f.endsWith(".js")?"application/javascript":f.endsWith(".css")?"text/css":"application/json"});fs.createReadStream(f).pipe(res)});s.listen(0,()=>r(s))})}
 function genK(sym,n,step){let p=100+(sym.charCodeAt(0)%50),out=[];const now=Math.floor(Date.now()/1000/step)*step;let seed=sym.split("").reduce((a,c)=>a*31+c.charCodeAt(0),7)>>>0;
 const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
 for(let i=0;i<n;i++){const o=p,c=o*(1+(rnd()-.48)*.03),h=Math.max(o,c)*(1+rnd()*.01),l=Math.min(o,c)*(1-rnd()*.01);out.push([(now-(n-1-i)*step)*1000,o.toFixed(4),h.toFixed(4),l.toFixed(4),c.toFixed(4),(1000+rnd()*5000).toFixed(2)]);p=c}return out}

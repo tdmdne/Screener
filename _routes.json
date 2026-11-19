@@ -11,6 +11,7 @@
     "/sitemap.xml",
     "/src/auth_email_validation.js",
     "/src/watchlist_starter.js",
+    "/src/98_institutional.css",
     "/shared/emailValidator.js"
   ]
 }

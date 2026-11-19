@@ -1,3 +1,5 @@
+// DEPRECATED (Phase A — Task 1/2): Superseded by workers/market/hub.js (`MarketHub` SQLite + Hibernation API).
+// Scheduled for removal in Task 20 once Phase B/C cutover is complete. Do not modify.
 // worker/hub.js — Durable Object. One instance ("global") holds every browser socket and the upstream feeds.
 // Browser protocol (JSON, over WebSocket at /ws or SSE at /sse):
 //   client -> {op:"sub", symbols:[..]} | {op:"unsub", symbols:[..]} | {op:"ping"}

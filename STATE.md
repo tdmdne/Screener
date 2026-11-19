@@ -17,6 +17,7 @@
 - PR #17: leftover client Twelve Data key helpers (`vtTdKey` / `vt_tdkey~`) removed; a one-time cleanup deletes leftover keys and never sends them; keys stay on the vektor-market Worker only.
 
 - 18 Nov: AGENTS.md §6 Institutional UI/UX standard + recurring UI Audit phase (TradingView/Tradovate/FX Replay benchmark).
+- 19 Nov: Phase 1+2 checkpoint on `feat/phase-a-backend-core` — full backend pipeline (`workers/market/` + `MarketHub` DO live w/ 50ms CPU cap, `shared/market/*`, `shared/vs/`, `shared/protocol.js`, `shared/alerts.js`, `shared/replay.js`, `shared/journal.js`), D1 Auth/OAuth/Admin RBAC live on `tdm-screener`, both security re-audits PASS, institutional UI overhaul (`src/98_institutional.css`), all 58/58 test suites green.
 
 ## Elite trial rules (Tyler, confirmed)
 - 7 days, Elite only, card upfront, converts to paid after 7 days.

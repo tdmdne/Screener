@@ -20,6 +20,8 @@ await ok("normalizeTick rejects zero/NaN/neg/bid>ask, accepts strings + seconds"
 await ok("normalizeBar repairs wicks, drops garbage, cleanBars sorts+dedupes", () => {
   assert.deepEqual(normalizeBar([1700000000, 1, 0.9, 1.2, 1.1, 5]), { t: 1700000000, o: 1, h: 1.1, l: 1, c: 1.1, v: 5 });
   assert.equal(normalizeBar([1, 0, 1, 1, 1]), null);
+  assert.equal(normalizeBar([0, 1, 1, 1, 1]), null);
+  assert.equal(normalizeBar([-100, 1, 1, 1, 1]), null);
   const b = cleanBars([[200, 1, 1, 1, 1], [100, 1, 1, 1, 1], [100, 2, 2, 2, 2], [300, 0, 0, 0, 0]]);
   assert.deepEqual(b.map((x) => [x.t, x.o]), [[100, 2], [200, 1]]);
 });

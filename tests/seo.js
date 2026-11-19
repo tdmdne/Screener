@@ -9,7 +9,7 @@ const site = require(path.join(root, "site.config.js"));
 const SITE_URL = site.siteUrl.replace(/\/+$/, "");
 const origin = SITE_URL + "/";
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
+const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8").replace(/\r\n/g, "\n");
 const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
 
 assert.strictEqual(typeof site.useCustomDomain, "boolean", "useCustomDomain must be a boolean");

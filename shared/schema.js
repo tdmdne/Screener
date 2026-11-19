@@ -72,7 +72,7 @@ export function normalizeBar(raw) {
   else ({ t, o, h, l, c, v } = { t: num(raw.t ?? raw.time ?? raw.datetime), o: num(raw.o ?? raw.open), h: num(raw.h ?? raw.high), l: num(raw.l ?? raw.low), c: num(raw.c ?? raw.close), v: num(raw.v ?? raw.volume) });
   if (typeof t === "string") t = Date.parse(t.includes("T") ? t : t.replace(" ", "T") + "Z") / 1000;
   if (t > 1e12) t = Math.floor(t / 1000);
-  if (![t, o, h, l, c].every(Number.isFinite) || ![o, h, l, c].every(good)) return null;
+  if (![t, o, h, l, c].every(good)) return null;
   const hi = Math.max(h, o, c), lo = Math.min(l, o, c); // repair inverted wicks
   return { t: Math.floor(t), o, h: hi, l: lo, c, v: Number.isFinite(v) ? v : 0 };
 }

@@ -1,3 +1,5 @@
+// DEPRECATED (Phase A — Task 1): Superseded by workers/market/index.js (`vektor-market`).
+// Scheduled for removal in Task 20 once Phase B/C cutover is complete. Do not add new routes here.
 // worker/index.js — Vektor market-data proxy.
 //   GET  /api/health
 //   GET  /api/candles?symbol=EURUSD&tf=1m&limit=300   (cached; serves STALE data instead of a 502)

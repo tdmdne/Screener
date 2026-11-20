@@ -4,7 +4,7 @@
 import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI } from "./shared/intervals.js";
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
 import { resolveTdSymbol, inferMeta } from "./shared/symbolNormalizer.js";
-import { fetchYahooCandles, fetchYahooQuote } from "./shared/yahooFeed.js";
+import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
   for (const base of BINANCE_MIRRORS) {
@@ -23,15 +23,18 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
 const HISTORICAL_KV_TTL = 2592000; // 30 days for immutable historical blocks
 
 const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
+const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
 
-async function fetchNonCryptoLiveQuotes(items, concurrency = 6) {
+async function fetchYahooLiveQuotes(items, concurrency = 10) {
   const out = new Map();
   let idx = 0;
   async function workerTask() {
     while (idx < items.length) {
       const item = items[idx++];
-      if (!item || !item.api) continue;
-      const q = await fetchYahooQuote(item.api);
+      if (!item) continue;
+      const yfSym = toYahooSymbol(item.s, item.api);
+      if (!yfSym) continue;
+      const q = await fetchYahooQuote(yfSym);
       if (q && q.c > 0) out.set(item.s, q);
     }
   }
@@ -83,10 +86,13 @@ async function fetchBinanceTickers() {
 
 async function buildScreenerSnapshot(env) {
   const ts = Date.now();
-  const [bnRows, liveQuotes] = await Promise.all([
+  const [bnRows, nonCryptoQuotes] = await Promise.all([
     fetchBinanceTickers(),
-    fetchNonCryptoLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
+    fetchYahooLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
   ]);
+  const cryptoFallbackQuotes = bnRows && bnRows.length
+    ? new Map()
+    : await fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10);
   const seen = new Set();
   const universe = [];
 
@@ -95,11 +101,32 @@ async function buildScreenerSnapshot(env) {
       seen.add(row[0]);
       universe.push(row);
     }
+  } else {
+    for (const item of LIVE_SCREENER_CRYPTO) {
+      const q = cryptoFallbackQuotes.get(item.s);
+      if (!q || !(q.c > 0)) continue;
+      seen.add(item.s);
+      universe.push([
+        item.s,
+        item.m,
+        q.c,
+        q.v || 0,
+        item.cs,
+        item.vf,
+        item.api,
+        item.tv,
+        item.pr,
+        resolveTdSymbol(item.td || item.s, item.s),
+        item.name,
+        item.ex,
+        q.pct,
+      ]);
+    }
   }
 
   for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
-    const q = liveQuotes.get(item.s);
+    const q = nonCryptoQuotes.get(item.s);
     if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
     universe.push([
@@ -121,7 +148,7 @@ async function buildScreenerSnapshot(env) {
 
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
-  if (liveQuotes.size > 0) sources.push("yahoo");
+  if (nonCryptoQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
@@ -808,6 +835,10 @@ async function handleCandles(request, env, ctx) {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars) source = "binance";
+          if (!bars) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars && bars.length) source = "yahoo";
+          }
         } else if (DUKASCOPY_MAP[rawSym]) {
           bars = await fetchDukascopyCandles(rawSym, interval, opts, env, meta.p);
           if (bars) source = "dukascopy";
@@ -820,7 +851,7 @@ async function handleCandles(request, env, ctx) {
           }
         }
         if (!bars && !isCrypto) {
-          bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
           if (bars && bars.length) source = "yahoo";
         }
       } else {
@@ -828,6 +859,10 @@ async function handleCandles(request, env, ctx) {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
+          if (bars === null) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars !== null) source = "yahoo";
+          }
         } else {
           if (tdKey) {
             const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
@@ -837,7 +872,7 @@ async function handleCandles(request, env, ctx) {
             }
           }
           if (bars === null) {
-            bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
             if (bars !== null) source = "yahoo";
           }
         }
@@ -1105,8 +1140,14 @@ async function handleQuote(request, env, _ctx) {
             quotes[s] = { s, c: px, t: now, m: meta.m || "CRY", source: "binance" };
           }
         }
+        if (!quotes[s]) {
+          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
+          if (q && q.c > 0) {
+            quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "CRY", source: "yahoo" };
+          }
+        }
       } else {
-        const q = await fetchYahooQuote(meta.api || s);
+        const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
         if (q && q.c > 0) {
           quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "yahoo" };
         }

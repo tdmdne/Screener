@@ -1236,7 +1236,7 @@ describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => 
       },
     };
     const emptyRes = await onApiRequest({
-      request: new Request("https://vektorterminal.com/api/candles?symbol=EURUSD&interval=1H&limit=100"),
+      request: new Request("https://vektorterminal.com/api/candles?symbol=ZZZNONEXISTENT999&interval=1H&limit=100"),
       env: emptyEnv,
     });
     assert.equal(emptyRes.status, 503);
@@ -1256,7 +1256,7 @@ describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => 
       },
     };
     const errRes = await onApiRequest({
-      request: new Request("https://vektorterminal.com/api/candles?symbol=EURUSD&interval=1H&limit=100"),
+      request: new Request("https://vektorterminal.com/api/candles?symbol=ZZZNONEXISTENT999&interval=1H&limit=100"),
       env: errEnv,
     });
     assert.equal(errRes.status, 503);

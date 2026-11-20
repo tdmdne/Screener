@@ -11,6 +11,27 @@ const YF_HEADERS = {
   accept: "application/json",
 };
 
+/**
+ * Normalize an instrument symbol to a Yahoo Finance ticker.
+ * Maps crypto pairs like BTCUSDT / ETHBUSD / BTCUSD -> BTC-USD / ETH-USD while preserving
+ * already-valid Yahoo tickers (EURUSD=X, GC=F, ^GSPC, SPY, etc.).
+ */
+export function toYahooSymbol(rawSym, apiSym = "") {
+  const pref = String(apiSym || "").trim().toUpperCase();
+  const sym = String(rawSym || "").trim().toUpperCase();
+  const candidate = pref || sym;
+  if (!candidate) return "";
+  if (candidate.includes("=") || candidate.startsWith("^") || candidate.includes("-")) return candidate;
+  const slashCrypto = candidate.match(/^([A-Z0-9]{2,10})\/(USDT|BUSD|USDC|USD)$/);
+  if (slashCrypto) return `${slashCrypto[1]}-USD`;
+  const usdt = candidate.match(/^([A-Z0-9]{2,10})(USDT|BUSD|USDC)$/);
+  if (usdt) return `${usdt[1]}-USD`;
+  if (/^(BTC|ETH|SOL|BNB|XRP|DOGE|ADA|AVAX|LINK|QNT|DOT|MATIC|LTC|BCH|UNI|ATOM|NEAR|ARB|OP|SUI|TON|TRX|SHIB|PEPE)USD$/.test(candidate)) {
+    return `${candidate.slice(0, -3)}-USD`;
+  }
+  return candidate;
+}
+
 async function fetchJsonWithTimeout(url, timeoutMs = 5500) {
   const ac = new AbortController();
   const id = setTimeout(() => ac.abort(), timeoutMs);

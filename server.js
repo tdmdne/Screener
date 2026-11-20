@@ -7,7 +7,7 @@ const WebSocket = require("ws");
 const { INTERVAL_SECONDS: STEPS, BINANCE_INTERVALS: BNI, TWELVEDATA_INTERVALS: TDI } = require("./shared/intervals.js");
 const { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL: BY_SYM, DUKASCOPY_MAP, BINANCE_MIRRORS, STABLE_RE } = require("./shared/instruments.js");
 const { resolveTdSymbol, inferMeta } = require("./shared/symbolNormalizer.js");
-const { fetchYahooCandles, fetchYahooQuote } = require("./shared/yahooFeed.js");
+const { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } = require("./shared/yahooFeed.js");
 const { createLocalD1 } = require("./shared/localD1.js");
 const { handleAuthRoute } = require("./shared/authRoutes.js");
 const { handleWaitlistRoute } = require("./shared/waitlist.js");
@@ -219,15 +219,18 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 350
 const dukaBlockCache = new Map();
 
 const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
+const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
 
-async function fetchNonCryptoLiveQuotes(items, concurrency = 6) {
+async function fetchYahooLiveQuotes(items, concurrency = 10) {
   const out = new Map();
   let idx = 0;
   async function workerTask() {
     while (idx < items.length) {
       const item = items[idx++];
-      if (!item || !item.api) continue;
-      const q = await fetchYahooQuote(item.api);
+      if (!item) continue;
+      const yfSym = toYahooSymbol(item.s, item.api);
+      if (!yfSym) continue;
+      const q = await fetchYahooQuote(yfSym);
       if (q && q.c > 0) out.set(item.s, q);
     }
   }
@@ -798,10 +801,13 @@ const livePrices = new Map();
 
 async function buildScreenerBody() {
   const ts = Date.now();
-  const [bnRows, liveQuotes] = await Promise.all([
+  const [bnRows, nonCryptoQuotes] = await Promise.all([
     fetchBinanceTickers(),
-    fetchNonCryptoLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
+    fetchYahooLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
   ]);
+  const cryptoFallbackQuotes = bnRows && bnRows.length
+    ? new Map()
+    : await fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10);
   const seen = new Set();
   const universe = [];
 
@@ -811,11 +817,33 @@ async function buildScreenerBody() {
       universe.push(row);
       if (row[2] > 0) livePrices.set(row[0], row[2]);
     }
+  } else {
+    for (const item of LIVE_SCREENER_CRYPTO) {
+      const q = cryptoFallbackQuotes.get(item.s);
+      if (!q || !(q.c > 0)) continue;
+      seen.add(item.s);
+      livePrices.set(item.s, q.c);
+      universe.push([
+        item.s,
+        item.m,
+        q.c,
+        q.v || 0,
+        item.cs,
+        item.vf,
+        item.api,
+        item.tv,
+        item.pr,
+        resolveTdSymbol(item.td || item.s, item.s),
+        item.name,
+        item.ex,
+        q.pct,
+      ]);
+    }
   }
 
   for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
-    const q = liveQuotes.get(item.s);
+    const q = nonCryptoQuotes.get(item.s);
     if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
     livePrices.set(item.s, q.c);
@@ -838,7 +866,7 @@ async function buildScreenerBody() {
 
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
-  if (liveQuotes.size > 0) sources.push("yahoo");
+  if (nonCryptoQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
   const payload = {
     ok: true,
     ts,
@@ -900,8 +928,12 @@ app.get("/api/quote", async (req, res) => {
             const j = await r.json().catch(() => null);
             if (j && Number(j.price) > 0) px = Number(j.price);
           }
+          if (!(px > 0)) {
+            const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
+            if (q && q.c > 0) px = q.c;
+          }
         } else {
-          const q = await fetchYahooQuote(meta.api || s);
+          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
           if (q && q.c > 0) px = q.c;
         }
         if (px > 0) livePrices.set(s, px);
@@ -973,6 +1005,10 @@ app.get("/api/candles", async (req, res) => {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars) source = "binance";
+          if (!bars) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars && bars.length) source = "yahoo";
+          }
         } else if (DUKASCOPY_MAP[rawSym]) {
           bars = await fetchDukascopyCandles(rawSym, interval, opts, livePrices.get(rawSym) || meta.p);
           if (bars) source = "dukascopy";
@@ -985,13 +1021,17 @@ app.get("/api/candles", async (req, res) => {
           }
         }
         if (!bars && !isCrypto) {
-          bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
           if (bars && bars.length) source = "yahoo";
         }
       } else {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
+          if (bars === null) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars !== null) source = "yahoo";
+          }
         } else {
           if (TWELVEDATA_KEY) {
             const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
@@ -1001,7 +1041,7 @@ app.get("/api/candles", async (req, res) => {
             }
           }
           if (bars === null) {
-            bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
             if (bars !== null) source = "yahoo";
           }
         }

@@ -5,11 +5,15 @@ const wlAll=()=>S.wlx.groups.flatMap(g=>g.syms);
 // find a symbol by name: the screener universe first, otherwise a custom ticker (loaded from Yahoo by that name)
 function symOf(n){const s=SYMS.find(x=>x[0]===n);if(s)return s;if(typeof vtEnsureSym==="function"){const cs=vtEnsureSym(n,false);if(cs)return cs}if(!wlAll().includes(n))return null;
 const k=(isLive()?"L":"S")+n;let c=CUS[k];
-if(!c)c=CUS[k]=isLive()?[n,guessM(n),null,0,1,.01,n,"","yf",n,1]:[n,guessM(n),20+seed(n)%380,5e6,1,.03];
+if(!c)c=CUS[k]=[n,guessM(n),null,0,1,.01,n,"","yf",n,1];
 if(isLive()){const d=LIVE[n+"|1D"];if(d&&d.length)c[2]=d[d.length-1].c}
 return c}
 function wlData(n){const s=symOf(n);if(!s)return{};const d=candles(s,"1D"),L=d&&d.length?d[d.length-1]:null,Pv=d&&d.length>1?d[d.length-2]:null;
-return{last:L?L.c:s[2],chg:L&&Pv?(L.c/Pv.c-1)*100:null,vol:L&&L.v?L.v:(isLive()?null:(s[3]||null))}}
+const meta=(typeof VT_EDGE_META!=="undefined"&&VT_EDGE_META&&VT_EDGE_META[n])||null;
+const last=L?L.c:(s[2]>0?s[2]:null);
+const chg=L&&Pv?(L.c/Pv.c-1)*100:(meta&&typeof meta.pct==="number"&&isFinite(meta.pct)?meta.pct:null);
+const vol=L&&L.v?L.v:(s[3]>0?s[3]:null);
+return{last,chg,vol}}
 function renderWL(){const el=document.getElementById("wl"),W=S.wlx;if(!el)return;
 el.className="wl"+(W.open?"":" shut");
 let h=`<div class="wlh"><span class="wlt" onclick="wlTog()">${W.open?VT_IC.chevDown:VT_IC.chevRight} WATCHLIST</span><span class="sp"></span><button class="ib" onclick="wlAddM()">+ Symbol</button><button class="ib" onclick="wlSecM()">+ Section</button>${typeof S.wlStarter==="undefined"&&Array.isArray(W.groups)&&W.groups[0]&&W.groups[0].syms&&W.groups[0].syms.join()==="BTCUSDT,EURUSD,SPY,XAUUSD,NVDA"?`<button type="button" id="vtWlClear" class="ib vt-wl-clear">Clear starter list</button>`:""}</div>`;

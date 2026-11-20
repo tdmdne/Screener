@@ -1370,15 +1370,6 @@ export async function onRequest(context) {
   if (pathname === "/api/alerts/evaluate") {
     return handleAlertsEvaluate(request, env);
   }
-  if (
-    pathname === "/api/candles" &&
-    env &&
-    env.MARKET_SERVICE &&
-    typeof env.MARKET_SERVICE.fetch === "function"
-  ) {
-    return handleCandlesViaMarketService(request, env);
-  }
-
   // Ensure secrets / environment bindings are passed correctly from Cloudflare secrets
   const safeEnv = env || {};
   const augmentedEnv = {
@@ -1386,6 +1377,27 @@ export async function onRequest(context) {
     TWELVEDATA_KEY: safeEnv.TWELVEDATA_KEY || safeEnv.TWELVE_DATA_API_KEY || "",
     FINNHUB_API_KEY: safeEnv.FINNHUB_API_KEY || safeEnv.FINNHUB_KEY || "",
   };
+
+  if (
+    pathname === "/api/candles" &&
+    env &&
+    env.MARKET_SERVICE &&
+    typeof env.MARKET_SERVICE.fetch === "function"
+  ) {
+    const msRes = await handleCandlesViaMarketService(request, env);
+    if (msRes.status === 200 || msRes.status === 400 || msRes.status === 405) {
+      return msRes;
+    }
+    try {
+      const fallbackRes = await worker.fetch(request, augmentedEnv, context);
+      if (fallbackRes && fallbackRes.ok) {
+        return withCors(fallbackRes, request, env);
+      }
+    } catch {
+      // Fall through to clean 503 UNAVAILABLE response without leaking upstream errors
+    }
+    return msRes;
+  }
 
   // Forward legacy /api/screener, /api/candles, /api/calendar, /api/news, etc. to worker.js
   try {

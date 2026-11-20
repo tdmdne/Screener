@@ -12,8 +12,7 @@ workers_dev = false
 cpu_ms = 50
 
 [vars]
-TD_PER_MIN = "8"
-TD_PER_DAY = "800"
+# No TD_PER_MIN / TD_PER_DAY: the TdBudget DO only meters REST usage; the provider plan is the only limit.
 TD_WS_MAX = "8"
 # Where crypto comes from: "binance" (public !miniTicker@arr, no Twelve Data slots) or "twelvedata" (BTC/USD, ETH/USD, ...).
 # Flip to "twelvedata" when the Venture plan is active; no code change needed.

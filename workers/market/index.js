@@ -1,5 +1,5 @@
 // workers/market/index.js — Vektor Market Worker (vektor-market).
-// Exports: MarketHub DO, TdBudget DO, canonical(), allowedOrigin(), corsHeaders(), withCors(), default fetch().
+// Exports: MarketHub DO, TdBudget DO (REST usage meter, no cap), canonical(), allowedOrigin(), corsHeaders(), withCors(), default fetch().
 //
 // Rules:
 // - ZERO secrets in repo files; TWELVEDATA_KEY comes exclusively from Cloudflare Worker secrets (`env.TWELVEDATA_KEY`).
@@ -283,16 +283,15 @@ function cursorRows(cursor) {
 }
 
 /**
- * TdBudget — SQLite-backed Durable Object enforcing Twelve Data REST credit budgets
- * (`TD_PER_MIN` default 8/min, `TD_PER_DAY` default 800/day).
+ * TdBudget — SQLite-backed Durable Object that METERS Twelve Data REST usage (per-minute / per-UTC-day counters).
+ * It never rejects or throttles a request: the provider's own plan limits are the only cap, and a provider 429 is
+ * handled by the callers' cache / last-good fallbacks. Kept as a class (not deleted) because migration `v1` created it.
  */
 export class TdBudget {
   constructor(ctx, env, opts = {}) {
     this.ctx = ctx;
     this.env = env || {};
     this.now = typeof opts.now === "function" ? opts.now : () => Date.now();
-    this.perMin = Math.max(1, Number(this.env.TD_PER_MIN || 8) || 8);
-    this.perDay = Math.max(1, Number(this.env.TD_PER_DAY || 800) || 800);
     this._initialized = false;
     this._lastPruneMin = -1;
   }
@@ -323,13 +322,9 @@ export class TdBudget {
   }
 
   _buckets(nowMs) {
-    const minNum = Math.floor(nowMs / 60_000);
-    const dayStr = utcDayKey(nowMs);
     return {
-      minNum,
-      minBucket: `min:${minNum}`,
-      dayBucket: `day:${dayStr}`,
-      secUntilNextMin: Math.max(1, 60 - Math.floor((nowMs % 60_000) / 1000)),
+      minBucket: `min:${Math.floor(nowMs / 60_000)}`,
+      dayBucket: `day:${utcDayKey(nowMs)}`,
     };
   }
 
@@ -347,69 +342,24 @@ export class TdBudget {
     );
   }
 
+  /** Record `cost` credits. Always succeeds (metering only, no cap). */
   consume(cost = 1) {
     this._init();
     const n = Math.max(1, Math.floor(Number(cost) || 1));
     const nowMs = this.now();
     this._prune(nowMs);
-    const { minBucket, dayBucket, secUntilNextMin } = this._buckets(nowMs);
-
-    const usedMin = this._getBucket(minBucket);
-    const usedDay = this._getBucket(dayBucket);
-
-    if (usedDay + n > this.perDay) {
-      return {
-        ok: false,
-        reason: "per_day",
-        retryAfterSec: 3600,
-        usedMin,
-        usedDay,
-        remainingMin: Math.max(0, this.perMin - usedMin),
-        remainingDay: Math.max(0, this.perDay - usedDay),
-      };
-    }
-
-    if (usedMin + n > this.perMin) {
-      return {
-        ok: false,
-        reason: "per_min",
-        retryAfterSec: secUntilNextMin,
-        usedMin,
-        usedDay,
-        remainingMin: Math.max(0, this.perMin - usedMin),
-        remainingDay: Math.max(0, this.perDay - usedDay),
-      };
-    }
-
-    const nextMin = usedMin + n;
-    const nextDay = usedDay + n;
-    this._setBucket(minBucket, nextMin);
-    this._setBucket(dayBucket, nextDay);
-
-    return {
-      ok: true,
-      usedMin: nextMin,
-      usedDay: nextDay,
-      remainingMin: Math.max(0, this.perMin - nextMin),
-      remainingDay: Math.max(0, this.perDay - nextDay),
-    };
+    const { minBucket, dayBucket } = this._buckets(nowMs);
+    const usedMin = this._getBucket(minBucket) + n;
+    const usedDay = this._getBucket(dayBucket) + n;
+    this._setBucket(minBucket, usedMin);
+    this._setBucket(dayBucket, usedDay);
+    return { ok: true, usedMin, usedDay };
   }
 
   status() {
     this._init();
-    const nowMs = this.now();
-    const { minBucket, dayBucket } = this._buckets(nowMs);
-    const usedMin = this._getBucket(minBucket);
-    const usedDay = this._getBucket(dayBucket);
-    return {
-      ok: true,
-      perMin: this.perMin,
-      perDay: this.perDay,
-      usedMin,
-      usedDay,
-      remainingMin: Math.max(0, this.perMin - usedMin),
-      remainingDay: Math.max(0, this.perDay - usedDay),
-    };
+    const { minBucket, dayBucket } = this._buckets(this.now());
+    return { ok: true, usedMin: this._getBucket(minBucket), usedDay: this._getBucket(dayBucket) };
   }
 
   async fetch(req) {
@@ -418,13 +368,7 @@ export class TdBudget {
       return jsonResponse(this.status(), 200);
     }
     if (url.pathname === "/consume") {
-      const cost = Number(url.searchParams.get("cost")) || 1;
-      const res = this.consume(cost);
-      return jsonResponse(
-        res,
-        res.ok ? 200 : 429,
-        res.ok ? {} : { "Retry-After": String(res.retryAfterSec) }
-      );
+      return jsonResponse(this.consume(Number(url.searchParams.get("cost")) || 1), 200);
     }
     return jsonResponse({ ok: false, error: "not found" }, 404);
   }
@@ -493,21 +437,17 @@ async function handleTd(req, url, env, ctx) {
     return jsonResponse({ ok: false, error: "TWELVEDATA_KEY not configured" }, 503);
   }
 
-  // 2. Enforce global Twelve Data REST credit budget via TdBudget DO
+  // 2. Meter Twelve Data REST usage via TdBudget DO (fire-and-forget; never blocks or throttles the request)
   if (env.TD_BUDGET) {
-    const budgetStub = env.TD_BUDGET.get(env.TD_BUDGET.idFromName("global"));
-    const bRes = await budgetStub.fetch(new Request("https://td-budget/consume?cost=1"));
-    if (!bRes.ok) {
-      const body = await bRes.text();
-      return new Response(body, {
-        status: bRes.status,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Retry-After": bRes.headers.get("Retry-After") || "60",
-          "X-Cache": "BUDGET",
-        },
-      });
-    }
+    const meter = (async () => {
+      try {
+        const budgetStub = env.TD_BUDGET.get(env.TD_BUDGET.idFromName("global"));
+        await budgetStub.fetch(new Request("https://td-budget/consume?cost=1"));
+      } catch {
+        // metering is best-effort
+      }
+    })();
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(meter);
   }
 
   // 3. Upstream Twelve Data REST call (key appended server-side only; never echoed or cached)

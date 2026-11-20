@@ -509,7 +509,8 @@ async function route(req, env, ctx) {
     });
   }
 
-  if (p === "/ws" || p === "/api/bootstrap" || p === "/api/bars" || p === "/hub/stats" || p === "/api/hub/stats") {
+  // /api/quotes: live-or-cached Twelve Data quotes for worker.js / Pages (service binding only; workers_dev = false).
+  if (p === "/ws" || p === "/api/bootstrap" || p === "/api/bars" || p === "/api/quotes" || p === "/hub/stats" || p === "/api/hub/stats") {
     if (p === "/ws") {
       if ((req.headers.get("Upgrade") || "").toLowerCase() !== "websocket") {
         return new Response("Expected WebSocket", { status: 426 });

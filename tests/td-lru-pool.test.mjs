@@ -212,4 +212,13 @@ await test("quote cache is written per closed 1m bar and on eviction, never per 
   h.hub.destroy();
 });
 
+await test("vektor-market routes /api/quotes to the hub DO (it 404ed, so every hub quote lookup came back empty)", async () => {
+  const { default: market } = await import("../workers/market/index.js");
+  const seen = [];
+  const env = { MARKET_HUB: { idFromName: (n) => n, get: () => ({ fetch: async (r) => { seen.push(new URL(r.url).pathname + new URL(r.url).search); return Response.json({ ok: true, quotes: {} }); } }) } };
+  const res = await market.fetch(new Request("https://market-service/api/quotes?symbols=EURUSD"), env, { waitUntil() {} });
+  assert.equal(res.status, 200);
+  assert.deepEqual(seen, ["/api/quotes?symbols=EURUSD"]);
+});
+
 console.log(`td-lru-pool.test.mjs: ${passed} passed, ${failed} failed`);

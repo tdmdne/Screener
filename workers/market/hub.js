@@ -659,12 +659,9 @@ export class MarketHub {
         accepted.push(s);
         continue;
       }
-      const alreadyEphemeral = this.ephemeralSubs.has(s);
       const viaBinance = this._isBinance(s);
-      if (!viaBinance && !alreadyEphemeral && this._activeUpstreamCount() >= this.maxUpstreamSymbols) {
-        rejected.push(s);
-        continue;
-      }
+      // A full live pool is not a rejection: pinning promotes the symbol and the LRU slot is evicted (HubCore.promote).
+      // Only the persisted seed list itself is capped at TD_WS_MAX.
       if (!viaBinance && this._desiredTdCount() >= this.maxUpstreamSymbols) {
         rejected.push(s);
         continue;
@@ -706,6 +703,8 @@ export class MarketHub {
           // Still actively watched by a connected client -> downgrade to ephemeral
           this.ephemeralSubs.add(s);
         } else {
+          this._persistQuote(s);
+          this.core.pool.delete(s); // explicit admin removal frees the LRU slot
           this.tdToInternal.delete(toTwelveSymbol(s));
           this.candles.clear(s);
           this._lastDayVolume.delete(s);
@@ -747,6 +746,7 @@ export class MarketHub {
   _onCoreEvict(rawSym) {
     const s = normSymbol(rawSym);
     if (!s) return;
+    this._persistQuote(s);
     // Evicted zero-viewer slot: remove from upstream active sets while preserving SQLite bars & core.last cache
     const wasDesired = this.desiredSubs.delete(s);
     const wasEphemeral = this.ephemeralSubs.delete(s);
@@ -880,6 +880,7 @@ export class MarketHub {
       this.barsClosed += 1;
       this._broadcastBar(evt.sym, evt.tf, evt.bar, true);
 
+      if (evt.tf === "1m" && !this._isBinance(evt.sym)) this._persistQuote(evt.sym);
       if (evt.tf === "1m") {
         const barAlertRes = this.alerts.evaluateBar(evt.sym, evt.bar, tick.t);
         if (barAlertRes.triggers.length > 0) {
@@ -1293,8 +1294,20 @@ export class MarketHub {
         if (!sym || seen.has(sym)) continue;
         seen.add(sym);
         const live = this.core.getLastTick(sym);
-        if (live) {
+        if (live && (this._isBinance(sym) || this.core.pool.has(sym))) {
           wlOut.push(tickToQuote(live, prov));
+          continue;
+        }
+        const tdq = this._isBinance(sym) ? null : this._tdQuote(sym);
+        if (tdq) {
+          wlOut.push({
+            s: sym,
+            c: tdq.c,
+            t: tdq.t,
+            ...(tdq.v !== null ? { v: tdq.v } : {}),
+            ...(tdq.chgPct !== null ? { chgPct: tdq.chgPct } : {}),
+            provenance: PROVENANCE.CACHED,
+          });
           continue;
         }
         const bars1m = this.store.getBars(sym, "1m", { limit: 1 });
@@ -1608,23 +1621,71 @@ export class MarketHub {
    * GET /api/quotes?symbols=EURUSD,AAPL — latest WS-fed prices from the hub's tick cache (internal, via service binding).
    * Lets worker.js fill screener/quote responses without spending Twelve Data REST credits on live prices.
    */
+  /** Close of the last completed UTC day before `tMs` from the hub's stored 1D bars (built from its TD feed), or null. */
+  _prevDailyClose(sym, tMs) {
+    const daySec = Math.floor(Math.floor(Number(tMs) / 1000) / 86400) * 86400;
+    if (!(daySec > 0)) return null;
+    const bars = this.store.getBars(sym, "1D", { before: daySec, limit: 1 });
+    const last = bars[bars.length - 1];
+    return last && last.c > 0 ? last.c : null;
+  }
+
+  /**
+   * Single-feed quote for a Twelve Data symbol: the live tick while it holds an LRU WS slot, otherwise the last cached
+   * Twelve Data state (SQLite `quote_cache`). Previous close and % change are computed here, server-side. Never REST,
+   * never Yahoo.
+   * @returns {{ s: string, c: number, t: number, prevClose: number|null, chgPct: number|null, v: number|null, live: boolean, src: string } | null}
+   */
+  _tdQuote(sym) {
+    const s = normSymbol(sym);
+    if (!s) return null;
+    const tick = this.core.getLastTick(s);
+    const cached = this.store.getQuoteCaches([s]).get(s) || null;
+    const useTick = tick && Number(tick.c) > 0 && (!cached || Number(tick.t) >= cached.t);
+    const c = useTick ? Number(tick.c) : cached ? cached.c : 0;
+    const t = useTick ? Number(tick.t) : cached ? cached.t : 0;
+    if (!(c > 0) || !(t > 0)) return null;
+    const prevClose = this._prevDailyClose(s, t) ?? (cached ? cached.prevClose : null);
+    const chgPct = prevClose > 0 ? Number((((c - prevClose) / prevClose) * 100).toFixed(4)) : cached ? cached.chgPct : null;
+    const dv = this._lastDayVolume.get(s);
+    const v = dv && dv.day === utcDayKey(t) ? dv.value : cached ? cached.v : null;
+    return { s, c, t, prevClose, chgPct, v, live: Boolean(useTick && this.core.pool.has(s)), src: "twelvedata" };
+  }
+
+  /** Persist a Twelve Data symbol's current quote (on WS slot eviction and per closed 1m bar). */
+  _persistQuote(sym) {
+    if (this._isBinance(sym)) return;
+    try {
+      const q = this._tdQuote(sym);
+      if (q) this.store.saveQuoteCache(q);
+    } catch {
+      // the quote cache is best-effort; never break eviction or ingestion
+    }
+  }
+
   handleQuotesRoute(url) {
     const raw = String(url.searchParams.get("symbols") || "");
     const syms = [...new Set(raw.split(",").map((x) => normSymbol(x)).filter(Boolean))].slice(0, 200);
     const quotes = {};
     for (const s of syms) {
+      if (this._isBinance(s)) {
+        const t = this.core.getLastTick(s);
+        if (t && Number(t.c) > 0) quotes[s] = { s, c: t.c, t: t.t, live: true, src: t.src || "binance" };
+        continue;
+      }
+      const q = this._tdQuote(s);
+      if (!q) continue;
       const t = this.core.getLastTick(s);
-      if (!t || !(Number(t.c) > 0)) continue;
       quotes[s] = {
-        s,
-        c: t.c,
-        t: t.t,
-        ...(Number(t.bid) > 0 ? { bid: t.bid } : {}),
-        ...(Number(t.ask) > 0 ? { ask: t.ask } : {}),
-        src: t.src || "twelvedata",
+        ...q,
+        ...(t && Number(t.bid) > 0 ? { bid: t.bid } : {}),
+        ...(t && Number(t.ask) > 0 ? { ask: t.ask } : {}),
       };
     }
-    return Response.json({ ok: true, ts: this.now(), feed: this._tdFeedState(), quotes }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(
+      { ok: true, ts: this.now(), feed: this._tdFeedState(), slots: this.core.poolSymbols(), maxSlots: this.maxUpstreamSymbols, quotes },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   _handleWebSocketUpgrade(req) {

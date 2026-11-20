@@ -51,10 +51,12 @@ await test("/api/quote: TD-primary symbol is priced from the hub WS cache, zero 
   assert.equal(calls.tdDirect, 0);
 });
 
-await test("/api/quote: hub has no price -> Yahoo fallback, still zero Twelve Data REST", async () => {
+await test("/api/quote: hub has no TD price -> no quote (one feed per asset: never Yahoo), still zero Twelve Data REST", async () => {
+  calls.yahoo.length = 0;
   const res = await worker.fetch(new Request("https://x.test/api/quote?symbols=GBPUSD"), env, ctx);
   const j = await res.json();
-  assert.equal(j.quotes.GBPUSD.source, "yahoo");
+  assert.equal(j.quotes.GBPUSD, undefined);
+  assert.deepEqual(calls.yahoo, [], "Yahoo never asked for a Twelve Data asset");
   assert.equal(calls.tdQuote, 0);
   assert.equal(calls.tdDirect, 0);
 });

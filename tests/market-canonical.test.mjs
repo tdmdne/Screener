@@ -131,39 +131,61 @@ await test("allowedOrigin(): exact origins, port-optional localhost/127.0.0.1, w
   assert.equal(allowedOrigin("https://screener-cso.pages.dev", { ALLOWED_ORIGINS: "" }), null);
 });
 
-await test("TdBudget DO enforces TD_PER_MIN (8/min) and TD_PER_DAY (800/day) in SQLite", async () => {
+await test("TdBudget DO only meters Twelve Data REST usage: no per-minute/per-day cap, never 429", async () => {
   let fakeNow = Date.UTC(2026, 10, 19, 12, 0, 0);
   const { sql } = createSqliteMock();
-  const budget = new TdBudget(
-    { storage: { sql } },
-    { TD_PER_MIN: "3", TD_PER_DAY: "5" },
-    { now: () => fakeNow }
-  );
+  // Legacy cap vars are ignored even if still configured somewhere.
+  const budget = new TdBudget({ storage: { sql } }, { TD_PER_MIN: "3", TD_PER_DAY: "5" }, { now: () => fakeNow });
 
-  // First 3 succeed in minute 0
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 25; i++) {
     const r = await budget.fetch(new Request("https://td-budget/consume?cost=1"));
-    assert.equal(r.status, 200);
+    assert.equal(r.status, 200, `call ${i} must not be throttled`);
     const body = await r.json();
     assert.equal(body.ok, true);
     assert.equal(body.usedMin, i);
     assert.equal(body.usedDay, i);
   }
-
-  // 4th in same minute -> 429 per_min
-  const r4 = await budget.fetch(new Request("https://td-budget/consume?cost=1"));
-  assert.equal(r4.status, 429);
-  const b4 = await r4.json();
-  assert.equal(b4.reason, "per_min");
-
-  // Advance 1 minute -> 2 more succeed (daily total 5), then 6th hits per_day
   fakeNow += 60_000;
-  assert.equal((await budget.fetch(new Request("https://td-budget/consume?cost=1"))).status, 200);
-  assert.equal((await budget.fetch(new Request("https://td-budget/consume?cost=1"))).status, 200);
-  const rDay = await budget.fetch(new Request("https://td-budget/consume?cost=1"));
-  assert.equal(rDay.status, 429);
-  const bDay = await rDay.json();
-  assert.equal(bDay.reason, "per_day");
+  const next = await (await budget.fetch(new Request("https://td-budget/consume?cost=1"))).json();
+  assert.equal(next.usedMin, 1, "per-minute counter rolls over");
+  assert.equal(next.usedDay, 26, "per-day counter keeps metering");
+  const st = await (await budget.fetch(new Request("https://td-budget/status"))).json();
+  assert.equal(st.usedDay, 26);
+});
+
+await test("/td/time_series is never refused by a budget (no BUDGET 429 even after 50 calls in one minute)", async () => {
+  const { sql } = createSqliteMock();
+  const budgetObj = new TdBudget({ storage: { sql } }, {});
+  const prevFetch = globalThis.fetch;
+  const prevCaches = globalThis.caches;
+  globalThis.caches = undefined;
+  let upstream = 0;
+  globalThis.fetch = async () => {
+    upstream += 1;
+    return new Response(JSON.stringify({ status: "ok", values: [] }), { status: 200 });
+  };
+  try {
+    const env = {
+      TWELVEDATA_KEY: "k",
+      INTERNAL_TD_SECRET: "s",
+      TD_BUDGET: { idFromName: (n) => n, get: () => budgetObj },
+    };
+    for (let i = 0; i < 50; i++) {
+      const r = await worker.fetch(
+        new Request(`https://vektor-market.example/td/time_series?symbol=EUR/USD&interval=1min&outputsize=${100 + i}`, {
+          headers: { "X-Vektor-Internal": "s" },
+        }),
+        env,
+        { waitUntil: () => {} }
+      );
+      assert.equal(r.status, 200);
+      assert.notEqual(r.headers.get("X-Cache"), "BUDGET");
+    }
+    assert.equal(upstream, 50);
+  } finally {
+    globalThis.fetch = prevFetch;
+    globalThis.caches = prevCaches;
+  }
 });
 
 await test("Worker /health hides secrets and /td/* uses Cache API (zero KV writes on live misses)", async () => {

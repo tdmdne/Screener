@@ -660,7 +660,8 @@ async function pumpEdge() {
       try {
         const bars = await edgeFetchCandles(s, tf);
         if (bars && bars.length) {
-          LIVE[k] = bars;
+          // Merge by timestamp (server bars win) so live bars that arrived while the request was in flight survive.
+          vtMergeBars(k, bars);
           LT[k] = Date.now();
           const lastC = bars[bars.length - 1] && bars[bars.length - 1].c;
           if (lastC > 0) {
@@ -958,9 +959,9 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
       const last = arr && arr.length ? arr[arr.length - 1] : null;
 
       if (!last) {
-        if (typeof LIVE !== "undefined") {
-          LIVE[kChart] = [{ t: bucket, o: price, h: price, l: price, c: price, v: 0 }];
-        }
+        // No history on this timeframe yet: never seed the series with a one-tick bar. A one-bar LIVE entry looked
+        // "fresh" to need(), so REST history was never requested and 15m/30m/4H stayed a single candle. Ask the
+        // backend for the full series instead; ticks start merging once it lands.
         if (typeof PEND === "undefined" || !PEND[kChart]) {
           vtBackfillChart(sym, tf);
         }

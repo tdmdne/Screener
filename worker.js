@@ -41,12 +41,41 @@ function toTdApiSymbol(rawSym, meta) {
   return resolveTdSymbol((meta && meta.td) || rawSym, "");
 }
 
+let tdAuthWarned = false;
+/** Structured log (once per isolate) when vektor-market rejects the internal /td call: history then falls back to Yahoo. */
+function warnTdAuth(status, hasSecret) {
+  if (tdAuthWarned) return;
+  tdAuthWarned = true;
+  console.error(
+    JSON.stringify({
+      op: "td_service_auth",
+      code: "TD_PROXY_FORBIDDEN",
+      status,
+      hasSecret,
+      hint: "Set the same INTERNAL_TD_SECRET on the Pages project and on vektor-market (wrangler secret put INTERNAL_TD_SECRET).",
+    })
+  );
+}
+
 async function fetchTdEndpoint(tdPath, qs, env) {
   const mode = tdSource(env);
   if (!mode) return null;
   try {
     if (mode === "service" && env && env.MARKET_SERVICE && typeof env.MARKET_SERVICE.fetch === "function") {
-      return await env.MARKET_SERVICE.fetch(new Request(`https://market-service/td${tdPath}?${qs}`, { method: "GET" }));
+      // vektor-market's /td/* proxy only serves callers holding the shared internal secret (it guards paid REST credits).
+      const secret = typeof env.INTERNAL_TD_SECRET === "string" ? env.INTERNAL_TD_SECRET.trim() : "";
+      const headers = secret ? { "X-Vektor-Internal": secret } : {};
+      const r = await env.MARKET_SERVICE.fetch(new Request(`https://market-service/td${tdPath}?${qs}`, { method: "GET", headers }));
+      if (r && (r.status === 401 || r.status === 403)) {
+        warnTdAuth(r.status, Boolean(secret));
+        const directKey = getTdKey(env);
+        if (directKey) {
+          const directQs = new URLSearchParams(qs);
+          directQs.set("apikey", directKey);
+          return await fetch(`https://api.twelvedata.com${tdPath}?${directQs}`);
+        }
+      }
+      return r;
     }
     if (mode === "proxy") {
       return await fetch(`${tdProxyBase(env)}/td${tdPath}?${qs}`);
@@ -632,6 +661,27 @@ async function fetchDukascopyCandles(rawSym, interval, opts, env, refPrice) {
 const TD_MEM_CACHE = new Map();
 const TD_IN_FLIGHT = new Map();
 const CANDLE_IN_FLIGHT = new Map();
+
+// Last good candle history per normalized window (isolate memory first, then the KV copy that outlives its TTL).
+const LAST_GOOD_HISTORY = new Map();
+const LAST_GOOD_MAX = 48; // ~5k bars each; bounded for the 128 MB isolate (arrays are usually shared with TD_MEM_CACHE)
+const LAST_GOOD_KV_TTL = 7 * 86400;
+function rememberLastGoodHistory(key, bars, source) {
+  if (!Array.isArray(bars) || !bars.length) return;
+  LAST_GOOD_HISTORY.delete(key);
+  LAST_GOOD_HISTORY.set(key, { bars, source });
+  if (LAST_GOOD_HISTORY.size > LAST_GOOD_MAX) LAST_GOOD_HISTORY.delete(LAST_GOOD_HISTORY.keys().next().value);
+}
+async function readLastGoodHistory(env, key) {
+  const mem = LAST_GOOD_HISTORY.get(key);
+  if (mem) return mem;
+  if (!env || !env.SCREENER_KV) return null;
+  try {
+    const j = await env.SCREENER_KV.get(key, "json");
+    if (j && Array.isArray(j.bars) && j.bars.length) return { bars: j.bars, source: j.source || "cache" };
+  } catch (_e) {}
+  return null;
+}
 const TD_CACHE_TTL_MS = 60000;
 
 function getTdKey(env) {
@@ -958,7 +1008,14 @@ async function loadCandleHistory(p) {
   }
 
   const { bars, source } = await resultPromise;
-  if (bars === null || (!bars.length && !isHistoricalChunk)) return { bars: null, source, cache: "MISS" };
+  if (bars === null || (!bars.length && !isHistoricalChunk)) {
+    // Upstream failed (credits, 429, Yahoo block, refresh=1 during an outage): serve the last good history for this
+    // exact window rather than letting the caller drop to the hub's few tick-built bars (the "single 15m/4H candle").
+    const stale = await readLastGoodHistory(env, kvKey);
+    if (stale) return { bars: stale.bars, source: `${stale.source}+stale`, cache: "STALE" };
+    return { bars: null, source, cache: "MISS" };
+  }
+  if (!isHistoricalChunk && !replay) rememberLastGoodHistory(kvKey, bars, source);
 
   const body = JSON.stringify({ ok: true, symbol: rawSym, interval: base, ttl, ts: Date.now(), source, bars });
   if (ctx && typeof ctx.waitUntil === "function") {
@@ -968,7 +1025,8 @@ async function loadCandleHistory(p) {
     ctx.waitUntil(
       Promise.all([
         cache ? cache.put(cacheKey, edgeRes) : Promise.resolve(),
-        env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(60, ttl) }) : Promise.resolve(),
+        // Freshness is judged from `ts` on read; the entry outlives its TTL so it can back a stale fallback.
+        env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(LAST_GOOD_KV_TTL, ttl) }) : Promise.resolve(),
       ])
     );
   }

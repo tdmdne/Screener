@@ -1,7 +1,10 @@
 // Unit tests for the pure helpers inside index.html (the VTC block and, later, backtest/treemap logic)
-const fs=require("fs"),vm=require("vm"),assert=require("assert");
-const html=fs.readFileSync(__dirname+"/../index.html","utf8");
-function block(tag){const a=html.indexOf("// <"+tag+">"),b=html.indexOf("// </"+tag+">");if(a<0||b<0)return null;return html.slice(a,b)}
+const fs=require("fs"),path=require("path"),vm=require("vm"),assert=require("assert");
+const root=path.join(__dirname,"..");
+const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+const vtSrc=fs.readdirSync(path.join(root,"src")).filter(f=>/^vt_\d+_.*\.js$/.test(f)).sort().map(f=>fs.readFileSync(path.join(root,"src",f),"utf8")).join("\n");
+const combined=html+"\n"+vtSrc;
+function block(tag){const a=combined.indexOf("// <"+tag+">"),b=combined.indexOf("// </"+tag+">");if(a<0||b<0)return null;return combined.slice(a,b)}
 const ctx={Math,Infinity,isFinite,String,Number,Array,Object};vm.createContext(ctx);
 const near=(a,b,e=1e-9)=>assert(Math.abs(a-b)<=e,`${a} != ${b}`);
 let n=0;const t=(name,f)=>{f();n++;console.log("ok -",name)};

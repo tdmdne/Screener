@@ -65,9 +65,15 @@ function extractFn(src, name) {
 }
 
 function loadClientReference(fixtureBySymbol) {
-  const html = fs.readFileSync(INDEX_PATH, "utf8");
+  const srcDir = path.resolve(__dirname, "..", "src");
+  const vtBundle = fs.readdirSync(srcDir)
+    .filter((f) => /^vt_\d+_.*\.js$/.test(f))
+    .sort()
+    .map((f) => fs.readFileSync(path.join(srcDir, f), "utf8"))
+    .join("\n");
+  const html = fs.readFileSync(INDEX_PATH, "utf8") + "\n" + vtBundle;
   const emaLine = html.match(/const emaArr=\(a,len\)=>[^\r\n]+/);
-  if (!emaLine) throw new Error("Could not find emaArr in index.html");
+  if (!emaLine) throw new Error("Could not find emaArr in client bundle");
 
   const fns = [
     "cc", "ma", "calc", "scoreSymbol", "scoreMarket", "passesPreset",

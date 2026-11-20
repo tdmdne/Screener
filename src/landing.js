@@ -17,15 +17,15 @@ const PRODUCTS = [
   {
     slug: "supercharts",
     name: "VektorCharts",
-    shortDesc: "Fast multi-chart layouts with edge-computed indicators and clean drawing tools.",
+    shortDesc: "Fast multi-chart layouts with server-backed feeds and clean drawing tools.",
     chrome: "BTC/USDT · 15m · VektorCharts",
     headline: "VektorCharts built for clarity",
-    subhead: "Edge-computed candles, synchronized multi-chart layouts, and crisp drawing tools without browser lag.",
+    subhead: "Live market candles, synchronized multi-chart layouts, and crisp drawing tools in one workspace.",
     tierNote: "Free core tier includes 3 charts, 3 indicators, and 3 alerts.",
     highlights: [
       {
-        title: "Edge-computed series",
-        body: "Candles and indicator overlays are calculated on Cloudflare's edge and delivered straight to the canvas.",
+        title: "Server-backed series",
+        body: "Candles and market snapshots are fetched and cached on our backend before reaching your chart canvas.",
       },
       {
         title: "Synchronized layouts",
@@ -1020,7 +1020,7 @@ function buildTerminalFrame(chromeTitle, previewNode, { titleElRef = null, stage
       el(
         "div",
         { className: "vl-chrome-meta vl-num" },
-        el("span", { text: "EDGE < 300ms" }),
+        el("span", { text: "MULTI-MARKET" }),
         el("span", { text: "UTC 14:30" })
       )
     ),
@@ -1545,18 +1545,13 @@ export function mountLanding(container, options = {}) {
     adminBarNodes.clear();
 
     // Band 1: Calm Hero
-    const { form: heroForm, input: heroEmailInput } = buildWaitlistForm({
-      idPrefix: "vl-waitlist",
-      source: "landing",
-    });
-    heroForm.classList.add("vl-enter-form");
-    activeEmailInput = heroEmailInput;
+    activeEmailInput = null;
 
     const heroOpenBtn = el("button", {
       type: "button",
       id: "vl-hero-open-terminal",
       className: "vl-btn vl-btn-primary",
-      text: canEnterDirect() ? "Open Terminal →" : "Early Access Login →",
+      text: "Open Terminal, free",
       onClick: () => (canEnterDirect() ? triggerEnterTerminal() : triggerSignIn()),
     });
 
@@ -1590,18 +1585,17 @@ export function mountLanding(container, options = {}) {
         el("h1", {
           id: "vl-hero-title",
           className: "vl-hero-title vl-enter-lead",
-          text: "Every market. One institutional terminal.",
+          text: "Multi-market charting, screener & replay.",
         }),
         el("p", {
           className: "vl-hero-sub vl-enter-sub",
-          text: "Edge-computed charts, P1–P5 screening, bar replay, and trade analytics in one quiet workspace.",
+          text: "Live charts, P1–P5 screening, bar replay, and trade analytics in one focused workspace.",
         }),
-        heroForm,
+        heroCtaBar,
         el("p", {
           className: "vl-hero-micro vl-enter-micro",
-          text: "Launching 1 March 2027 · Free core tier forever",
-        }),
-        heroCtaBar
+          text: "Free core tier available now · Pro Desk waitlist in Pricing",
+        })
       )
     );
 
@@ -1932,7 +1926,7 @@ export function mountLanding(container, options = {}) {
         el(
           "span",
           { className: "vl-footer-meta" },
-          "Vektor Terminal · Free core tier forever · ",
+          "Vektor Terminal · Multi-market analytics · ",
           el("a", {
             className: "vl-footer-mail",
             href: "mailto:support@vektorterminal.com",

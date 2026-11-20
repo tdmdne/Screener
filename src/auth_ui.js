@@ -2220,10 +2220,24 @@ function buildImportPayloadFromLocalKeys(keys) {
 
 function maybeOfferLegacyImport(user) {
   if (!user || !user.id || !user.profile_completed) return;
+  if (typeof document !== "undefined" && document.getElementById("vt-landing-root")) return;
+  const rawPath = String((typeof window !== "undefined" && window.location && window.location.pathname) || "/")
+    .trim()
+    .toLowerCase();
   const rawHash = String((typeof window !== "undefined" && window.location && window.location.hash) || "")
     .trim()
     .toLowerCase();
+  const isPublicPath =
+    rawPath === "/pricing" ||
+    rawPath === "/privacy" ||
+    rawPath === "/terms" ||
+    rawPath === "/risk" ||
+    rawPath === "/legal" ||
+    rawPath.startsWith("/legal/") ||
+    rawPath.startsWith("/features/") ||
+    rawPath.startsWith("/products/");
   if (
+    isPublicPath ||
     rawHash === "" ||
     rawHash === "#" ||
     rawHash === "#/" ||

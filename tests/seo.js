@@ -37,12 +37,14 @@ const start = html.indexOf("<!-- vt:seo-start -->");
 const end = html.indexOf("<!-- vt:seo-end -->");
 assert.ok(start !== -1 && end > start, "index.html must contain the vt:seo block");
 const block = html.slice(start, end);
-assert.ok(block.includes(`<title>${site.title}</title>`));
-assert.ok(block.includes(`content="${site.description}"`));
+const escHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+assert.ok(block.includes(`<title>${escHtml(site.title)}</title>`));
+assert.ok(block.includes(`content="${escHtml(site.description)}"`));
 assert.ok(block.includes(`rel="canonical" href="${origin}"`));
 assert.ok(block.includes(`property="og:title"`));
 assert.ok(block.includes(`property="og:url" content="${origin}"`));
-assert.ok(block.includes(`name="twitter:card" content="summary"`));
+assert.ok(block.includes(`name="twitter:card" content="summary_large_image"`));
+assert.ok(block.includes(`property="og:image" content="${SITE_URL}/og-image.jpg"`));
 assert.ok(block.includes('type="application/ld+json"'));
 
 const unusedHost = new URL(site.useCustomDomain ? site.pagesDevUrl : site.customDomain).host;
@@ -50,10 +52,9 @@ for (const [label, text] of [["robots.txt", robots], ["sitemap.xml", sitemap], [
   assert.doesNotMatch(text, new RegExp(unusedHost.replace(/\./g, "\\.")), `${label} must not contain the unused host ${unusedHost}`);
 }
 assert.ok(block.includes(`"url":"${origin}"`) || block.includes(`"url": "${origin}"`), "JSON-LD url must be the active origin");
-assert.ok(!/property="og:image"/.test(block), "do not reference an og:image until one exists");
 assert.ok((html.match(/<title>/gi) || []).length === 1, "exactly one <title> tag");
 
-for (const file of ["favicon.svg", "favicon.ico", "apple-touch-icon.png"]) {
+for (const file of ["favicon.svg", "favicon.ico", "apple-touch-icon.png", "og-image.jpg"]) {
   const p = path.join(root, file);
   assert.ok(fs.existsSync(p) && fs.statSync(p).size > 0, `${file} must exist`);
 }

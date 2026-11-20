@@ -1019,7 +1019,7 @@ async function vtTdWsConnect(sym) {
   const vtTdPoll = async () => {
     if (VT_EDGE.tdActiveSym !== sym || !isLive() || document.hidden) return;
     try {
-      const r = await fetch(`${typeof VT_TD_PROXY !== "undefined" ? VT_TD_PROXY : "https://vektor-market.tdmltd2026.workers.dev"}/td/price?symbol=${encodeURIComponent(tdSym)}`);
+      const r = await fetch(`/api/quote?symbols=${encodeURIComponent(sym)}`);
       const d = await r.json();
       if (VT_EDGE.tdActiveSym !== sym || !d || !(Number(d.price) > 0)) return;
       markOk("tdws");

@@ -7,11 +7,201 @@ const WebSocket = require("ws");
 const { INTERVAL_SECONDS: STEPS, BINANCE_INTERVALS: BNI, TWELVEDATA_INTERVALS: TDI } = require("./shared/intervals.js");
 const { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL: BY_SYM, DUKASCOPY_MAP, BINANCE_MIRRORS, STABLE_RE } = require("./shared/instruments.js");
 const { resolveTdSymbol, inferMeta } = require("./shared/symbolNormalizer.js");
+const { fetchYahooCandles, fetchYahooQuote } = require("./shared/yahooFeed.js");
+const { createLocalD1 } = require("./shared/localD1.js");
+const { handleAuthRoute } = require("./shared/authRoutes.js");
+const { handleWaitlistRoute } = require("./shared/waitlist.js");
+const { jrStats, tradeStats, propStatus, equityCurve, drawdownSeries, rDistribution, dailyPnlCalendar } = require("./shared/journal.js");
+const { createReplaySession } = require("./shared/replay.js");
+const { createAlertEvaluator } = require("./shared/alerts.js");
+const { vsCompute } = require("./shared/vs/index.js");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
 const TWELVEDATA_KEY = (process.env.TWELVEDATA_KEY || process.env.TWELVE_DATA_API_KEY || "").trim();
+const localDb = createLocalD1(__dirname);
+const serverEnv = {
+  DB: localDb,
+  TWELVEDATA_KEY,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
+  APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID || "",
+  APPLE_TEAM_ID: process.env.APPLE_TEAM_ID || "",
+  APPLE_KEY_ID: process.env.APPLE_KEY_ID || "",
+  APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY || "",
+  ADMIN_BOOTSTRAP_EMAIL: process.env.ADMIN_BOOTSTRAP_EMAIL || "",
+};
+
+app.disable("x-powered-by");
+
+// 301 redirect legacy pages.dev apex and www to canonical vektorterminal.com + security headers
+app.use((req, res, next) => {
+  const host = String(req.headers.host || "").split(":")[0].toLowerCase();
+  if (host === "screener-cso.pages.dev" || host === "www.vektorterminal.com") {
+    return res.redirect(301, `https://vektorterminal.com${req.originalUrl}`);
+  }
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  if (req.path === "/app" || req.path.startsWith("/app/")) {
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  }
+  return next();
+});
+
+// Sliding-window rate limit on /api/*
+const apiRateBuckets = new Map();
+app.use("/api", (req, res, next) => {
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "local").split(",")[0].trim();
+  const now = Date.now();
+  const win = apiRateBuckets.get(ip) || [];
+  const fresh = win.filter((t) => now - t < 60000);
+  if (fresh.length >= 240) {
+    res.setHeader("Retry-After", "15");
+    return res.status(429).json({ ok: false, error: "Too many requests" });
+  }
+  fresh.push(now);
+  apiRateBuckets.set(ip, fresh);
+  if (apiRateBuckets.size > 2000) apiRateBuckets.clear();
+  return next();
+});
+
+// Bridge Express req/res to Web Fetch Request/Response handlers (shared/authRoutes.js, shared/waitlist.js)
+async function bridgeWebHandler(req, res, handler) {
+  try {
+    const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "http").split(",")[0].trim();
+    const host = req.headers.host || `localhost:${PORT}`;
+    const fullUrl = `${proto}://${host}${req.originalUrl}`;
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (v === undefined) continue;
+      if (Array.isArray(v)) v.forEach((item) => headers.append(k, item));
+      else headers.set(k, String(v));
+    }
+    let bodyBuf = undefined;
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      bodyBuf = await new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on("data", (c) => chunks.push(c));
+        req.on("end", () => resolve(Buffer.concat(chunks)));
+        req.on("error", reject);
+      });
+    }
+    const webReq = new Request(fullUrl, {
+      method: req.method,
+      headers,
+      body: bodyBuf && bodyBuf.length ? bodyBuf : undefined,
+    });
+    const webRes = await handler(webReq, serverEnv);
+    if (!webRes) return res.status(404).json({ ok: false, error: "Not found" });
+    res.status(webRes.status);
+    const setCookies = typeof webRes.headers.getSetCookie === "function" ? webRes.headers.getSetCookie() : [];
+    webRes.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "set-cookie") return;
+      res.setHeader(key, value);
+    });
+    if (setCookies.length) {
+      res.setHeader("Set-Cookie", setCookies);
+    }
+    const ab = await webRes.arrayBuffer();
+    return res.send(Buffer.from(ab));
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: "Internal API error" });
+  }
+}
+
+app.all(/^\/api\/(?:auth\/.*|me\/data(?:\/.*)?|me\/import|admin\/users(?:\/.*)?)$/, (req, res) =>
+  bridgeWebHandler(req, res, handleAuthRoute)
+);
+app.all(/^\/api\/(?:waitlist|admin\/waitlist)$/, (req, res) =>
+  bridgeWebHandler(req, res, handleWaitlistRoute)
+);
+
+app.post("/api/journal/stats", express.json({ limit: "2mb" }), (req, res) => {
+  try {
+    const body = req.body || {};
+    const trades = Array.isArray(body.trades) ? body.trades : [];
+    const startBal = Number(body.balance || (body.account && body.account.acct) || 0) || 0;
+    const stats = jrStats(trades);
+    const summary = tradeStats(trades, startBal);
+    const prop = body.account ? propStatus(trades, body.account, body.today) : null;
+    return res.json({
+      ok: true,
+      stats,
+      summary,
+      prop,
+      equity: equityCurve(trades, startBal),
+      drawdown: drawdownSeries(trades, startBal),
+      rDist: rDistribution(trades),
+      dailyPnl: dailyPnlCalendar(trades),
+    });
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err && err.message ? err.message : "Invalid journal payload" });
+  }
+});
+
+app.post("/api/replay/simulate", express.json({ limit: "2mb" }), (req, res) => {
+  try {
+    const body = req.body || {};
+    const session = createReplaySession({
+      bars: Array.isArray(body.bars) ? body.bars : [],
+      balance: Number(body.balance) || 100000,
+      feeBps: Number(body.feeBps) || 0,
+      ...(body.symbol ? { symbol: String(body.symbol) } : {}),
+      ...(body.interval ? { interval: String(body.interval) } : {}),
+    });
+    if (Array.isArray(body.actions)) {
+      for (const act of body.actions) {
+        if (!act || typeof act !== "object") continue;
+        if (act.type === "seek" && Number.isFinite(act.index)) session.seek(act.index);
+        else if (act.type === "step") session.step(Number(act.n) || 1);
+        else if (act.type === "open" || act.type === "order") session.openOrder(act);
+        else if (act.type === "close" && act.id) session.closePosition(act.id);
+        else if (act.type === "cancel" && act.id) session.cancelOrder(act.id);
+      }
+    }
+    return res.json({ ok: true, state: session.getState(), stats: session.getStats() });
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err && err.message ? err.message : "Invalid replay payload" });
+  }
+});
+
+app.post("/api/alerts/evaluate", express.json({ limit: "512kb" }), (req, res) => {
+  try {
+    const body = req.body || {};
+    const evaluator = createAlertEvaluator({
+      alerts: Array.isArray(body.alerts) ? body.alerts : [],
+      ...(body.prevPrices ? { prevPrices: body.prevPrices } : {}),
+    });
+    const triggered = [];
+    const frames = [];
+    for (const tick of Array.isArray(body.ticks) ? body.ticks : []) {
+      const r = evaluator.evaluateTick(tick);
+      if (r.triggers.length) triggered.push(...r.triggers);
+      if (r.frames.length) frames.push(...r.frames);
+    }
+    for (const bar of Array.isArray(body.bars) ? body.bars : []) {
+      const r = evaluator.evaluateBar(bar);
+      if (r.triggers.length) triggered.push(...r.triggers);
+      if (r.frames.length) frames.push(...r.frames);
+    }
+    return res.json({ ok: true, triggered, frames, state: evaluator.snapshot() });
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err && err.message ? err.message : "Alert evaluation failed" });
+  }
+});
+
+app.post("/api/vs/run", express.json({ limit: "1mb" }), (req, res) => {
+  try {
+    const body = req.body || {};
+    const code = String(body.source || body.code || "");
+    const out = vsCompute(code, Array.isArray(body.bars) ? body.bars : [], { inputs: body.inputs || {} });
+    return res.json({ ok: true, ...out });
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err && err.message ? err.message : "Script error" });
+  }
+});
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 3500) {
   for (const base of BINANCE_MIRRORS) {
@@ -28,61 +218,21 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 350
 
 const dukaBlockCache = new Map();
 
-function hashSeed(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
+const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
+
+async function fetchNonCryptoLiveQuotes(items, concurrency = 6) {
+  const out = new Map();
+  let idx = 0;
+  async function workerTask() {
+    while (idx < items.length) {
+      const item = items[idx++];
+      if (!item || !item.api) continue;
+      const q = await fetchYahooQuote(item.api);
+      if (q && q.c > 0) out.set(item.s, q);
+    }
   }
-  return h || 1;
-}
-
-function makeRng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function generateSyntheticCandles(symbol, interval, limit = 250, liveAnchor = null) {
-  const step = STEPS[interval] || 3600;
-  const meta = inferMeta(symbol);
-  const anchor = liveAnchor && liveAnchor > 0 ? liveAnchor : meta.p || 100;
-  const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
-  const rnd = makeRng(hashSeed(meta.s + "|" + interval));
-  const tfScale = Math.sqrt(step / 86400);
-  const volStep = (meta.vf || 0.02) * tfScale;
-  const raw = [];
-  let price = 100;
-  let drift = 0;
-
-  for (let i = 0; i < limit; i++) {
-    if (i % 18 === 0) drift = (rnd() - 0.49) * volStep * 0.45;
-    const o = price;
-    const ret = drift + (rnd() - 0.495) * volStep * 1.4;
-    const c = Math.max(0.0001, o * (1 + ret));
-    const wick = volStep * (0.3 + rnd() * 0.85);
-    const h = Math.max(o, c) * (1 + wick * 0.55);
-    const l = Math.max(0.0001, Math.min(o, c) * (1 - wick * 0.55));
-    const v = meta.v > 0 ? Math.round(meta.v * (0.45 + rnd() * 1.15) * Math.max(0.08, tfScale)) : Math.round(1000 + rnd() * 5000);
-    raw.push({ t: nowBucket - (limit - 1 - i) * step, o, h, l, c, v });
-    price = c;
-  }
-
-  const scale = anchor / raw[raw.length - 1].c;
-  const dec = anchor < 10 ? 5 : anchor < 100 ? 3 : 2;
-  const roundP = (x) => Number((x * scale).toFixed(dec));
-  return raw.map((b) => ({
-    t: b.t,
-    o: roundP(b.o),
-    h: roundP(b.h),
-    l: roundP(b.l),
-    c: roundP(b.c),
-    v: b.v,
-  }));
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => workerTask()));
+  return out;
 }
 
 async function fetchWithTimeout(url, opts = {}, ms = 4500) {
@@ -641,14 +791,17 @@ async function fetchTwelveDataCandles(tdSym, interval, opts = {}) {
   return job;
 }
 
-// Local Edge/KV cache parity
+// Local Edge/KV cache parity (strictly populated from real live upstream feeds — zero seeded static prices)
 let screenerSnapshot = { ts: 0, body: "" };
 const candleCache = new Map();
-const livePrices = new Map(BASE_INSTRUMENTS.map((x) => [x.s, x.p]));
+const livePrices = new Map();
 
 async function buildScreenerBody() {
   const ts = Date.now();
-  const bnRows = await fetchBinanceTickers();
+  const [bnRows, liveQuotes] = await Promise.all([
+    fetchBinanceTickers(),
+    fetchNonCryptoLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
+  ]);
   const seen = new Set();
   const universe = [];
 
@@ -656,23 +809,21 @@ async function buildScreenerBody() {
     for (const row of bnRows) {
       seen.add(row[0]);
       universe.push(row);
-      livePrices.set(row[0], row[2]);
+      if (row[2] > 0) livePrices.set(row[0], row[2]);
     }
   }
 
-  for (const item of BASE_INSTRUMENTS) {
+  for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
+    const q = liveQuotes.get(item.s);
+    if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
-    const bars1D = generateSyntheticCandles(item.s, "1D", 35, livePrices.get(item.s) || item.p);
-    const last = bars1D[bars1D.length - 1];
-    const prev = bars1D[bars1D.length - 2] || last;
-    const pct = prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : 0;
-    livePrices.set(item.s, last.c);
+    livePrices.set(item.s, q.c);
     universe.push([
       item.s,
       item.m,
-      last.c,
-      item.v,
+      q.c,
+      q.v || 0,
       item.cs,
       item.vf,
       item.api,
@@ -681,15 +832,18 @@ async function buildScreenerBody() {
       resolveTdSymbol(item.td || item.s, item.s),
       item.name,
       item.ex,
-      Number(pct.toFixed(2)),
+      q.pct,
     ]);
   }
 
+  const sources = [];
+  if (bnRows && bnRows.length) sources.push("binance");
+  if (liveQuotes.size > 0) sources.push("yahoo");
   const payload = {
     ok: true,
     ts,
     tfs: ["1D", "1H"],
-    source: bnRows && bnRows.length ? "edge+binance" : "edge+sim",
+    source: sources.length ? `edge+${sources.join("+")}` : "edge+unavailable",
     count: universe.length,
     universe,
   };
@@ -729,21 +883,34 @@ app.get("/api/screener", async (_req, res) => {
   }
 });
 
-app.get("/api/quote", (req, res) => {
+app.get("/api/quote", async (req, res) => {
   const raw = String(req.query.symbols || req.query.symbol || "").trim();
-  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean) : ["BTCUSDT"];
+  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 24) : ["BTCUSDT"];
   const quotes = {};
   const now = Math.floor(Date.now() / 1000);
-  for (const s of list) {
-    const meta = inferMeta(s);
-    const p = livePrices.get(s) || meta.p || 1;
-    quotes[s] = {
-      s,
-      c: p,
-      t: now,
-      m: meta.m || "STK"
-    };
-  }
+  await Promise.all(
+    list.map(async (s) => {
+      const meta = inferMeta(s);
+      let px = livePrices.get(s);
+      if (!(px > 0)) {
+        const isCry = meta.pr === "bn" || meta.m === "CRY" || s.endsWith("USDT") || s.endsWith("BUSD") || s.endsWith("BTC");
+        if (isCry) {
+          const r = await fetchBinanceWithFallback(`/api/v3/ticker/price?symbol=${encodeURIComponent(meta.api || s)}`);
+          if (r && r.ok) {
+            const j = await r.json().catch(() => null);
+            if (j && Number(j.price) > 0) px = Number(j.price);
+          }
+        } else {
+          const q = await fetchYahooQuote(meta.api || s);
+          if (q && q.c > 0) px = q.c;
+        }
+        if (px > 0) livePrices.set(s, px);
+      }
+      if (px > 0) {
+        quotes[s] = { s, c: px, t: now, m: meta.m || "STK" };
+      }
+    })
+  );
   return res.json({ ok: true, ts: Date.now(), quotes });
 });
 
@@ -817,30 +984,31 @@ app.get("/api/candles", async (req, res) => {
             if (bars) source = "twelvedata";
           }
         }
+        if (!bars && !isCrypto) {
+          bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+          if (bars && bars.length) source = "yahoo";
+        }
       } else {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
-        } else if (TWELVEDATA_KEY) {
-          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
-          if (tdResolved) {
-            bars = await fetchTwelveDataCandles(tdResolved, interval, opts);
-            if (bars !== null) source = "twelvedata";
+        } else {
+          if (TWELVEDATA_KEY) {
+            const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+            if (tdResolved) {
+              bars = await fetchTwelveDataCandles(tdResolved, interval, opts);
+              if (bars !== null) source = "twelvedata";
+            }
+          }
+          if (bars === null) {
+            bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+            if (bars !== null) source = "yahoo";
           }
         }
       }
 
-      if (bars === null && !TWELVEDATA_KEY && !isCrypto) {
-        const endAnchor = beforeSec > 0
-          ? Math.floor((beforeSec - step) / step) * step
-          : (toSec > 0 ? Math.floor(toSec / step) * step : Math.floor(nowSec / step) * step);
-        const rawSim = generateSyntheticCandles(rawSym, interval, limit, livePrices.get(rawSym) || meta.p);
-        const shift = endAnchor - rawSim[rawSim.length - 1].t;
-        bars = shift !== 0 ? rawSim.map((b) => ({ ...b, t: b.t + shift })) : rawSim;
-        if (beforeSec > 0) bars = bars.filter((b) => b.t < beforeSec);
-        if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
-        if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
-        source = "simulator";
+      if (bars && bars.length && bars[bars.length - 1].c > 0 && !isHistoricalChunk) {
+        livePrices.set(rawSym, bars[bars.length - 1].c);
       }
 
       return { bars, source };
@@ -867,14 +1035,12 @@ app.get("/api/candles", async (req, res) => {
     bars,
   };
   const body = JSON.stringify(payload);
-  if (source !== "simulator") {
-    if (candleCache.size > 500) candleCache.clear();
-    candleCache.set(cacheKey, { ts: Date.now(), body });
-  }
+  if (candleCache.size > 500) candleCache.clear();
+  candleCache.set(cacheKey, { ts: Date.now(), body });
 
   res.set({
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": source === "simulator" ? "no-store" : `public, max-age=${ttl}, s-maxage=${ttl}`,
+    "Cache-Control": `public, max-age=${ttl}, s-maxage=${ttl}`,
     "X-Cache": "MISS",
     "Server-Timing": `origin;dur=${Date.now() - t0}`,
   });
@@ -883,57 +1049,6 @@ app.get("/api/candles", async (req, res) => {
 
 const calendarCache = { ts: 0, body: "" };
 const newsCache = new Map();
-
-function generateWeeklyMacroSchedule(nowMs) {
-  const now = new Date(nowMs);
-  const utcDay = now.getUTCDay();
-  const weekStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - utcDay, 0, 0, 0, 0);
-  const slots = [
-    [0, 23, 50, "JPY", "Medium", "Core Machinery Orders m/m", "1.1%", "-0.4%", "1.4%"],
-    [1, 2, 0, "CNY", "Medium", "Industrial Production y/y", "5.5%", "5.4%", "5.8%"],
-    [1, 7, 0, "EUR", "Low", "Trade Balance", "14.2B", "13.6B", "15.1B"],
-    [1, 13, 30, "USD", "Medium", "Empire State Manufacturing Index", "0.8", "-11.9", "3.2"],
-    [1, 13, 30, "CAD", "Medium", "Housing Starts", "242K", "238K", "247K"],
-    [2, 0, 30, "AUD", "High", "RBA Monetary Policy Meeting Minutes", "", "", ""],
-    [2, 7, 0, "GBP", "High", "Average Earnings Index 3m/y", "4.7%", "4.8%", "4.9%"],
-    [2, 7, 0, "GBP", "High", "Claimant Count Change", "18.5K", "27.9K", "16.2K"],
-    [2, 10, 0, "EUR", "Medium", "ZEW Economic Sentiment", "16.4", "13.1", "17.8"],
-    [2, 13, 30, "CAD", "High", "CPI m/m", "0.3%", "-0.4%", "0.4%"],
-    [2, 13, 30, "CAD", "High", "Trimmed CPI y/y", "2.6%", "2.5%", "2.6%"],
-    [2, 13, 30, "USD", "Medium", "Building Permits", "1.44M", "1.43M", "1.41M"],
-    [3, 7, 0, "GBP", "High", "CPI y/y", "2.2%", "1.7%", "2.3%"],
-    [3, 7, 0, "GBP", "Medium", "Core CPI y/y", "3.2%", "3.2%", "3.3%"],
-    [3, 13, 30, "USD", "High", "Core Retail Sales m/m", "0.3%", "0.5%", "0.4%"],
-    [3, 13, 30, "USD", "High", "Retail Sales m/m", "0.3%", "0.4%", "0.4%"],
-    [3, 15, 30, "USD", "Low", "Crude Oil Inventories", "1.2M", "2.1M", "-0.6M"],
-    [3, 19, 0, "USD", "High", "FOMC Meeting Minutes", "", "", ""],
-    [3, 21, 45, "NZD", "High", "PPI Input q/q", "0.6%", "1.4%", "0.8%"],
-    [4, 0, 30, "AUD", "High", "Employment Change", "25.4K", "64.1K", "29.1K"],
-    [4, 0, 30, "AUD", "High", "Unemployment Rate", "4.1%", "4.1%", "4.1%"],
-    [4, 7, 30, "CHF", "Medium", "Trade Balance", "4.85B", "4.94B", "5.12B"],
-    [4, 13, 30, "USD", "High", "Unemployment Claims", "220K", "217K", "215K"],
-    [4, 13, 30, "USD", "Medium", "Philly Fed Manufacturing Index", "7.4", "10.3", "6.2"],
-    [4, 15, 0, "USD", "Medium", "Existing Home Sales", "3.95M", "3.84M", "3.96M"],
-    [4, 23, 30, "JPY", "High", "National Core CPI y/y", "2.2%", "2.4%", "2.3%"],
-    [5, 7, 0, "GBP", "Medium", "Retail Sales m/m", "-0.3%", "0.3%", "-0.1%"],
-    [5, 8, 30, "EUR", "High", "German Flash Manufacturing PMI", "43.1", "43.0", "43.4"],
-    [5, 8, 30, "EUR", "High", "German Flash Services PMI", "51.7", "51.6", "51.2"],
-    [5, 9, 30, "GBP", "High", "Flash Manufacturing PMI", "50.1", "49.9", "50.4"],
-    [5, 9, 30, "GBP", "High", "Flash Services PMI", "52.1", "52.0", "51.8"],
-    [5, 13, 30, "CAD", "High", "Core Retail Sales m/m", "0.4%", "-0.7%", "0.5%"],
-    [5, 14, 45, "USD", "High", "Flash Manufacturing PMI", "48.9", "48.5", "49.2"],
-    [5, 14, 45, "USD", "High", "Flash Services PMI", "55.2", "55.0", "55.6"],
-    [5, 15, 0, "USD", "Medium", "Revised UoM Consumer Sentiment", "73.5", "73.0", "73.2"],
-  ];
-
-  return slots
-    .map(([dOff, hh, mm, ccy, imp, title, fc, pv, act]) => {
-      const t = weekStart + ((dOff * 24 + hh) * 60 + mm) * 60000;
-      const released = t <= nowMs - 60000;
-      return { t, hasTime: true, title, ccy, imp, fc, pv, act: released ? act : "" };
-    })
-    .sort((a, b) => a.t - b.t);
-}
 
 app.get("/api/calendar", async (req, res) => {
   const t0 = Date.now();
@@ -948,8 +1063,8 @@ app.get("/api/calendar", async (req, res) => {
     return res.send(calendarCache.body);
   }
 
-  let events = null;
-  let source = "macro-schedule";
+  let events = [];
+  let source = "unavailable";
   try {
     const json = await fetchJSON("https://nfs.faireconomy.media/ff_calendar_thisweek.json", 4500);
     if (Array.isArray(json) && json.length) {
@@ -974,17 +1089,14 @@ app.get("/api/calendar", async (req, res) => {
     }
   } catch (_e) {}
 
-  if (!events || !events.length) {
-    events = generateWeeklyMacroSchedule(Date.now());
-    source = "macro-schedule";
+  const body = JSON.stringify({ ok: true, source, ts: Date.now(), ttl: events.length ? 900 : 60, events });
+  if (events.length) {
+    calendarCache.ts = Date.now();
+    calendarCache.body = body;
   }
-
-  const body = JSON.stringify({ ok: true, source, ts: Date.now(), ttl: 900, events });
-  calendarCache.ts = Date.now();
-  calendarCache.body = body;
   res.set({
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "public, max-age=300, s-maxage=900",
+    "Cache-Control": events.length ? "public, max-age=300, s-maxage=900" : "no-store",
     "X-Cache": "MISS",
     "Server-Timing": `origin;dur=${Date.now() - t0}`,
   });
@@ -1072,7 +1184,7 @@ app.use(
   })
 );
 
-app.get("/", (_req, res) => {
+app.get(["/", "/pricing", "/privacy", "/terms", "/risk", "/legal", "/legal/*", "/features/*", "/products/*", "/app", "/app/*"], (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
@@ -1080,7 +1192,6 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: "/ws" });
 const clients = new Map(); // ws -> { subs: Set<string>, interval: string }
 let binanceUpstream = null;
-let lastBinanceAt = 0;
 
 function broadcastWs(payload) {
   const raw = JSON.stringify(payload);
@@ -1099,7 +1210,6 @@ function ensureBinanceUpstream() {
     const uws = new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr");
     binanceUpstream = uws;
     uws.on("message", (data) => {
-      lastBinanceAt = Date.now();
       try {
         const arr = JSON.parse(String(data));
         if (!Array.isArray(arr)) return;
@@ -1136,7 +1246,7 @@ wss.on("connection", (ws) => {
       type: "hello",
       relay: "NodeLocalRelay",
       hibernation: false,
-      mode: TWELVEDATA_KEY ? "live+twelvedata" : "live+simulator",
+      mode: TWELVEDATA_KEY ? "live+twelvedata" : "live",
       ts: Date.now(),
     })
   );
@@ -1170,67 +1280,11 @@ wss.on("connection", (ws) => {
   });
 });
 
-// Live tick + multi-timeframe candle simulator fallback loop (active only when clients are connected)
+// Keep live Binance WebSocket connected while clients are open (zero simulated ticks)
 setInterval(() => {
   if (clients.size === 0) return;
   ensureBinanceUpstream();
-  const bnSilent = Date.now() - lastBinanceAt > 5000;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const ticks = [];
-
-  for (const item of BASE_INSTRUMENTS) {
-    if (item.m === "CRY" && !bnSilent) continue;
-    const prev = livePrices.get(item.s) || item.p;
-    const stepPct = (Math.random() - 0.5) * (item.vf || 0.015) * 0.08;
-    const dec = prev < 10 ? 5 : prev < 100 ? 3 : 2;
-    const next = Number(Math.max(0.0001, prev * (1 + stepPct)).toFixed(dec));
-    livePrices.set(item.s, next);
-    ticks.push({ s: item.s, c: next });
-  }
-
-  const activeSubs = new Map();
-  for (const state of clients.values()) {
-    for (const sym of state.subs) {
-      if (!activeSubs.has(sym)) activeSubs.set(sym, new Set());
-      activeSubs.get(sym).add(state.interval || "1H");
-    }
-  }
-
-  for (const sym of activeSubs.keys()) {
-    if (BY_SYM.has(sym)) continue;
-    const prev = livePrices.get(sym) || 100;
-    const next = Number((prev * (1 + (Math.random() - 0.5) * 0.0012)).toFixed(prev < 10 ? 4 : 2));
-    livePrices.set(sym, next);
-    ticks.push({ s: sym, c: next });
-  }
-
-  if (ticks.length) {
-    broadcastWs({ type: "ticks", source: "simulator", ticks, ts: Date.now() });
-  }
-
-  for (const [sym, ivs] of activeSubs) {
-    const c = livePrices.get(sym);
-    if (!c) continue;
-    for (const iv of ivs) {
-      const step = STEPS[iv] || 3600;
-      const bucket = Math.floor(nowSec / step) * step;
-      const spread = c * 0.0008;
-      broadcastWs({
-        type: "kline",
-        symbol: sym,
-        interval: iv,
-        bar: {
-          t: bucket,
-          o: c,
-          h: Number((c + spread).toFixed(c < 10 ? 5 : 2)),
-          l: Number(Math.max(0.0001, c - spread).toFixed(c < 10 ? 5 : 2)),
-          c,
-          v: Math.round(100 + Math.random() * 900),
-        },
-      });
-    }
-  }
-}, 1000);
+}, 15000);
 
 server.listen(PORT, HOST, () => {
   console.log(`Vektor Terminal listening on http://${HOST}:${PORT}`);

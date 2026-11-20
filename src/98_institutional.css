@@ -316,11 +316,13 @@ header {
   min-height: 44px;
 }
 
-header h1::before {
+header h1::before,
+header .vt-brand-h::before {
   display: none;
 }
 
-header h1 {
+header h1,
+header .vt-brand-h {
   font-size: 14.5px !important;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -328,7 +330,8 @@ header h1 {
   flex: none;
 }
 
-header h1 svg {
+header h1 svg,
+header .vt-brand-h svg {
   width: 28px;
   height: 17px;
   color: var(--acc);

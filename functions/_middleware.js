@@ -26,6 +26,7 @@ export const PUBLIC_EXACT = new Set([
   "/favicon.ico",
   "/favicon.svg",
   "/apple-touch-icon.png",
+  "/og-image.jpg",
   // Client-safe shared modules (server-only modules like alerts.js, journal.js, protocol.js,
   // replay.js, shared/market/*, shared/vs/* are NOT allowlisted and return 404).
   "/shared/constants.js",

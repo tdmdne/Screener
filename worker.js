@@ -4,6 +4,7 @@
 import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI } from "./shared/intervals.js";
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
 import { resolveTdSymbol, inferMeta } from "./shared/symbolNormalizer.js";
+import { fetchYahooCandles, fetchYahooQuote } from "./shared/yahooFeed.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
   for (const base of BINANCE_MIRRORS) {
@@ -21,61 +22,21 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
 
 const HISTORICAL_KV_TTL = 2592000; // 30 days for immutable historical blocks
 
-function hashSeed(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
+const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
+
+async function fetchNonCryptoLiveQuotes(items, concurrency = 6) {
+  const out = new Map();
+  let idx = 0;
+  async function workerTask() {
+    while (idx < items.length) {
+      const item = items[idx++];
+      if (!item || !item.api) continue;
+      const q = await fetchYahooQuote(item.api);
+      if (q && q.c > 0) out.set(item.s, q);
+    }
   }
-  return h || 1;
-}
-
-function makeRng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function generateSyntheticCandles(symbol, interval, limit = 250, liveAnchor = null) {
-  const step = STEPS[interval] || 3600;
-  const meta = inferMeta(symbol);
-  const anchor = liveAnchor && liveAnchor > 0 ? liveAnchor : meta.p || 100;
-  const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
-  const rnd = makeRng(hashSeed(meta.s + "|" + interval));
-  const tfScale = Math.sqrt(step / 86400);
-  const volStep = (meta.vf || 0.02) * tfScale;
-  const raw = [];
-  let price = 100;
-  let drift = 0;
-
-  for (let i = 0; i < limit; i++) {
-    if (i % 18 === 0) drift = (rnd() - 0.49) * volStep * 0.45;
-    const o = price;
-    const ret = drift + (rnd() - 0.495) * volStep * 1.4;
-    const c = Math.max(0.0001, o * (1 + ret));
-    const wick = volStep * (0.3 + rnd() * 0.85);
-    const h = Math.max(o, c) * (1 + wick * 0.55);
-    const l = Math.max(0.0001, Math.min(o, c) * (1 - wick * 0.55));
-    const v = meta.v > 0 ? Math.round(meta.v * (0.45 + rnd() * 1.15) * Math.max(0.08, tfScale)) : Math.round(1000 + rnd() * 5000);
-    raw.push({ t: nowBucket - (limit - 1 - i) * step, o, h, l, c, v });
-    price = c;
-  }
-
-  const scale = anchor / raw[raw.length - 1].c;
-  const dec = anchor < 10 ? 5 : anchor < 100 ? 3 : 2;
-  const roundP = (x) => Number((x * scale).toFixed(dec));
-  return raw.map((b) => ({
-    t: b.t,
-    o: roundP(b.o),
-    h: roundP(b.h),
-    l: roundP(b.l),
-    c: roundP(b.c),
-    v: b.v,
-  }));
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => workerTask()));
+  return out;
 }
 
 function corsHeaders(origin = "*") {
@@ -122,7 +83,10 @@ async function fetchBinanceTickers() {
 
 async function buildScreenerSnapshot(env) {
   const ts = Date.now();
-  const bnRows = await fetchBinanceTickers();
+  const [bnRows, liveQuotes] = await Promise.all([
+    fetchBinanceTickers(),
+    fetchNonCryptoLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
+  ]);
   const seen = new Set();
   const universe = [];
 
@@ -133,18 +97,16 @@ async function buildScreenerSnapshot(env) {
     }
   }
 
-  for (const item of BASE_INSTRUMENTS) {
+  for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
+    const q = liveQuotes.get(item.s);
+    if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
-    const bars1D = generateSyntheticCandles(item.s, "1D", 35, item.p);
-    const last = bars1D[bars1D.length - 1];
-    const prev = bars1D[bars1D.length - 2] || last;
-    const pct = prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : 0;
     universe.push([
       item.s,
       item.m,
-      last.c,
-      item.v,
+      q.c,
+      q.v || 0,
       item.cs,
       item.vf,
       item.api,
@@ -153,15 +115,18 @@ async function buildScreenerSnapshot(env) {
       resolveTdSymbol(item.td || item.s, item.s),
       item.name,
       item.ex,
-      Number(pct.toFixed(2)),
+      q.pct,
     ]);
   }
 
+  const sources = [];
+  if (bnRows && bnRows.length) sources.push("binance");
+  if (liveQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
     tfs: ["1D", "1H"],
-    source: bnRows && bnRows.length ? "edge+binance" : "edge+sim",
+    source: sources.length ? `edge+${sources.join("+")}` : "edge+unavailable",
     count: universe.length,
     universe,
   };
@@ -559,8 +524,8 @@ function getTdKey(env) {
   return String((env && (env.TWELVEDATA_KEY || env.TWELVE_DATA_API_KEY)) || "").trim();
 }
 
-// TASK-02: REST candles go through the vektor-market Worker, which holds the key, caches and rate-limits.
-const TD_PROXY_DEFAULT = "https://vektor-market.tdmltd2026.workers.dev";
+// TASK-02: REST candles go through configured TD_PROXY_URL or server-side TWELVEDATA_KEY (never exposed to browser).
+const TD_PROXY_DEFAULT = "";
 function tdProxyBase(env) {
   const v = String((env && env.TD_PROXY_URL) || TD_PROXY_DEFAULT).trim().replace(/\/+$/, "");
   return v === "off" ? "" : v;
@@ -854,31 +819,28 @@ async function handleCandles(request, env, ctx) {
             if (bars) source = "twelvedata";
           }
         }
+        if (!bars && !isCrypto) {
+          bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+          if (bars && bars.length) source = "yahoo";
+        }
       } else {
-        // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing)
+        // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing, Zero Synthetic Data)
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
-        } else if (tdKey) {
-          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
-          if (tdResolved) {
-            bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
-            if (bars !== null) source = "twelvedata";
+        } else {
+          if (tdKey) {
+            const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+            if (tdResolved) {
+              bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
+              if (bars !== null) source = "twelvedata";
+            }
+          }
+          if (bars === null) {
+            bars = await fetchYahooCandles(meta.api || rawSym, interval, opts);
+            if (bars !== null) source = "yahoo";
           }
         }
-      }
-
-      if (bars === null && !tdKey && !isCrypto) {
-        const endAnchor = beforeSec > 0
-          ? Math.floor((beforeSec - step) / step) * step
-          : (toSec > 0 ? Math.floor(toSec / step) * step : Math.floor(nowSec / step) * step);
-        const rawSim = generateSyntheticCandles(rawSym, interval, limit, meta.p);
-        const shift = endAnchor - rawSim[rawSim.length - 1].t;
-        bars = shift !== 0 ? rawSim.map((b) => ({ ...b, t: b.t + shift })) : rawSim;
-        if (beforeSec > 0) bars = bars.filter((b) => b.t < beforeSec);
-        if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
-        if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
-        source = "simulator";
       }
 
       return { bars, source };
@@ -920,7 +882,7 @@ async function handleCandles(request, env, ctx) {
     },
   });
 
-  if (source !== "simulator" && ctx && typeof ctx.waitUntil === "function") {
+  if (ctx && typeof ctx.waitUntil === "function") {
     ctx.waitUntil(
       Promise.all([
         cache ? cache.put(cacheKey, res.clone()) : Promise.resolve(),
@@ -929,66 +891,6 @@ async function handleCandles(request, env, ctx) {
     );
   }
   return res;
-}
-
-function generateWeeklyMacroSchedule(nowMs) {
-  const now = new Date(nowMs);
-  const utcDay = now.getUTCDay();
-  const weekStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - utcDay, 0, 0, 0, 0);
-  const slots = [
-    [0, 23, 50, "JPY", "Medium", "Core Machinery Orders m/m", "1.1%", "-0.4%", "1.4%"],
-    [1, 2, 0, "CNY", "Medium", "Industrial Production y/y", "5.5%", "5.4%", "5.8%"],
-    [1, 7, 0, "EUR", "Low", "Trade Balance", "14.2B", "13.6B", "15.1B"],
-    [1, 13, 30, "USD", "Medium", "Empire State Manufacturing Index", "0.8", "-11.9", "3.2"],
-    [1, 13, 30, "CAD", "Medium", "Housing Starts", "242K", "238K", "247K"],
-    [2, 0, 30, "AUD", "High", "RBA Monetary Policy Meeting Minutes", "", "", ""],
-    [2, 7, 0, "GBP", "High", "Average Earnings Index 3m/y", "4.7%", "4.8%", "4.9%"],
-    [2, 7, 0, "GBP", "High", "Claimant Count Change", "18.5K", "27.9K", "16.2K"],
-    [2, 10, 0, "EUR", "Medium", "ZEW Economic Sentiment", "16.4", "13.1", "17.8"],
-    [2, 13, 30, "CAD", "High", "CPI m/m", "0.3%", "-0.4%", "0.4%"],
-    [2, 13, 30, "CAD", "High", "Trimmed CPI y/y", "2.6%", "2.5%", "2.6%"],
-    [2, 13, 30, "USD", "Medium", "Building Permits", "1.44M", "1.43M", "1.41M"],
-    [3, 7, 0, "GBP", "High", "CPI y/y", "2.2%", "1.7%", "2.3%"],
-    [3, 7, 0, "GBP", "Medium", "Core CPI y/y", "3.2%", "3.2%", "3.3%"],
-    [3, 13, 30, "USD", "High", "Core Retail Sales m/m", "0.3%", "0.5%", "0.4%"],
-    [3, 13, 30, "USD", "High", "Retail Sales m/m", "0.3%", "0.4%", "0.4%"],
-    [3, 15, 30, "USD", "Low", "Crude Oil Inventories", "1.2M", "2.1M", "-0.6M"],
-    [3, 19, 0, "USD", "High", "FOMC Meeting Minutes", "", "", ""],
-    [3, 21, 45, "NZD", "High", "PPI Input q/q", "0.6%", "1.4%", "0.8%"],
-    [4, 0, 30, "AUD", "High", "Employment Change", "25.4K", "64.1K", "29.1K"],
-    [4, 0, 30, "AUD", "High", "Unemployment Rate", "4.1%", "4.1%", "4.1%"],
-    [4, 7, 30, "CHF", "Medium", "Trade Balance", "4.85B", "4.94B", "5.12B"],
-    [4, 13, 30, "USD", "High", "Unemployment Claims", "220K", "217K", "215K"],
-    [4, 13, 30, "USD", "Medium", "Philly Fed Manufacturing Index", "7.4", "10.3", "6.2"],
-    [4, 15, 0, "USD", "Medium", "Existing Home Sales", "3.95M", "3.84M", "3.96M"],
-    [4, 23, 30, "JPY", "High", "National Core CPI y/y", "2.2%", "2.4%", "2.3%"],
-    [5, 7, 0, "GBP", "Medium", "Retail Sales m/m", "-0.3%", "0.3%", "-0.1%"],
-    [5, 8, 30, "EUR", "High", "German Flash Manufacturing PMI", "43.1", "43.0", "43.4"],
-    [5, 8, 30, "EUR", "High", "German Flash Services PMI", "51.7", "51.6", "51.2"],
-    [5, 9, 30, "GBP", "High", "Flash Manufacturing PMI", "50.1", "49.9", "50.4"],
-    [5, 9, 30, "GBP", "High", "Flash Services PMI", "52.1", "52.0", "51.8"],
-    [5, 13, 30, "CAD", "High", "Core Retail Sales m/m", "0.4%", "-0.7%", "0.5%"],
-    [5, 14, 45, "USD", "High", "Flash Manufacturing PMI", "48.9", "48.5", "49.2"],
-    [5, 14, 45, "USD", "High", "Flash Services PMI", "55.2", "55.0", "55.6"],
-    [5, 15, 0, "USD", "Medium", "Revised UoM Consumer Sentiment", "73.5", "73.0", "73.2"],
-  ];
-
-  return slots
-    .map(([dOff, hh, mm, ccy, imp, title, fc, pv, act]) => {
-      const t = weekStart + ((dOff * 24 + hh) * 60 + mm) * 60000;
-      const released = t <= nowMs - 60000;
-      return {
-        t,
-        hasTime: true,
-        title,
-        ccy,
-        imp,
-        fc,
-        pv,
-        act: released ? act : "",
-      };
-    })
-    .sort((a, b) => a.t - b.t);
 }
 
 async function handleCalendar(request, env, ctx) {
@@ -1065,8 +967,8 @@ async function handleCalendar(request, env, ctx) {
   } catch (_e) {}
 
   if (!events || !events.length) {
-    events = generateWeeklyMacroSchedule(Date.now());
-    source = "macro-schedule";
+    events = [];
+    source = "unavailable";
   }
 
   const payload = { ok: true, source, ts: Date.now(), ttl: 900, events };
@@ -1187,18 +1089,30 @@ async function handleWsConfig(request, env, _ctx) {
 async function handleQuote(request, env, _ctx) {
   const url = new URL(request.url);
   const raw = (url.searchParams.get("symbols") || url.searchParams.get("symbol") || "").trim();
-  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean) : ["BTCUSDT"];
+  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 24) : ["BTCUSDT"];
   const quotes = {};
   const now = Math.floor(Date.now() / 1000);
-  for (const s of list) {
-    const meta = inferMeta(s);
-    quotes[s] = {
-      s,
-      c: meta.p || 1,
-      t: now,
-      m: meta.m || "STK",
-    };
-  }
+  await Promise.all(
+    list.map(async (s) => {
+      const meta = inferMeta(s);
+      const isCry = meta.pr === "bn" || meta.m === "CRY" || s.endsWith("USDT") || s.endsWith("BUSD") || s.endsWith("BTC");
+      if (isCry) {
+        const r = await fetchBinanceWithFallback(`/api/v3/ticker/price?symbol=${encodeURIComponent(meta.api || s)}`);
+        if (r && r.ok) {
+          const j = await r.json().catch(() => null);
+          const px = j && Number(j.price);
+          if (Number.isFinite(px) && px > 0) {
+            quotes[s] = { s, c: px, t: now, m: meta.m || "CRY", source: "binance" };
+          }
+        }
+      } else {
+        const q = await fetchYahooQuote(meta.api || s);
+        if (q && q.c > 0) {
+          quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "yahoo" };
+        }
+      }
+    })
+  );
   return new Response(JSON.stringify({ ok: true, ts: Date.now(), quotes }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
@@ -1208,14 +1122,14 @@ async function handleQuote(request, env, _ctx) {
   });
 }
 
-// Durable Object using the WebSocket Hibernation API for /ws fan-out
+// Durable Object using the WebSocket Hibernation API for /ws fan-out (live upstream feeds only)
 export class MarketRelayDO {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
     this.binanceWs = null;
     this.tdWs = null;
-    this.prices = new Map(BASE_INSTRUMENTS.map((x) => [x.s, x.p]));
+    this.prices = new Map();
     this.lastBinanceMsg = 0;
   }
 
@@ -1239,7 +1153,7 @@ export class MarketRelayDO {
         type: "hello",
         relay: "MarketRelayDO",
         hibernation: true,
-        mode: getTdKey(this.env) ? "live+twelvedata" : "live+simulator",
+        mode: getTdKey(this.env) ? "live+twelvedata" : "live",
         ts: Date.now(),
       })
     );
@@ -1387,7 +1301,7 @@ export class MarketRelayDO {
     }
   }
 
-  // Hibernation alarm: emits realistic live ticks + multi-timeframe candle updates when clients are connected
+  // Hibernation alarm: keeps real upstream WebSocket connections alive while clients are connected (zero simulated ticks)
   async alarm() {
     const clients = this.ctx.getWebSockets("client");
     if (!clients.length) {
@@ -1396,72 +1310,7 @@ export class MarketRelayDO {
     }
 
     this.ensureUpstream();
-
-    const nowSec = Math.floor(Date.now() / 1000);
-    const activeSubs = new Set();
-    const subIntervals = new Map();
-    for (const ws of clients) {
-      const att = ws.deserializeAttachment() || {};
-      const iv = att.interval || "1H";
-      for (const s of att.subs || []) {
-        activeSubs.add(s);
-        if (!subIntervals.has(s)) subIntervals.set(s, new Set());
-        subIntervals.get(s).add(iv);
-      }
-    }
-
-    const bnSilent = Date.now() - this.lastBinanceMsg > 5000;
-    const ticks = [];
-    for (const item of BASE_INSTRUMENTS) {
-      if (item.m === "CRY" && !bnSilent) continue;
-      if (getTdKey(this.env) && (item.m === "FX" || item.m === "STK" || item.m === "ETF") && this.tdWs) continue;
-      const prev = this.prices.get(item.s) || item.p;
-      const stepPct = (Math.random() - 0.5) * (item.vf || 0.015) * 0.08;
-      const dec = prev < 10 ? 5 : prev < 100 ? 3 : 2;
-      const next = Number(Math.max(0.0001, prev * (1 + stepPct)).toFixed(dec));
-      this.prices.set(item.s, next);
-      ticks.push({ s: item.s, c: next });
-    }
-
-    // Also tick any extra subscribed symbols not in BASE_INSTRUMENTS
-    for (const sym of activeSubs) {
-      if (BY_SYM.has(sym)) continue;
-      const prev = this.prices.get(sym) || 100;
-      const next = Number((prev * (1 + (Math.random() - 0.5) * 0.0012)).toFixed(prev < 10 ? 4 : 2));
-      this.prices.set(sym, next);
-      ticks.push({ s: sym, c: next });
-    }
-
-    if (ticks.length) {
-      this.broadcast({ type: "ticks", source: "simulator", ticks, ts: Date.now() });
-    }
-
-    // Emit live candle updates for each subscribed symbol & active timeframes
-    for (const sym of activeSubs) {
-      const c = this.prices.get(sym);
-      if (!c) continue;
-      const ivs = subIntervals.get(sym) || new Set(["1m", "1H"]);
-      for (const iv of ivs) {
-        const step = STEPS[iv] || 3600;
-        const bucket = Math.floor(nowSec / step) * step;
-        const spread = c * 0.0008;
-        this.broadcast({
-          type: "kline",
-          symbol: sym,
-          interval: iv,
-          bar: {
-            t: bucket,
-            o: c,
-            h: Number((c + spread).toFixed(c < 10 ? 5 : 2)),
-            l: Number(Math.max(0.0001, c - spread).toFixed(c < 10 ? 5 : 2)),
-            c,
-            v: Math.round(100 + Math.random() * 900),
-          },
-        });
-      }
-    }
-
-    await this.scheduleNextTick();
+    await this.ctx.storage.setAlarm(Date.now() + 15000);
   }
 }
 

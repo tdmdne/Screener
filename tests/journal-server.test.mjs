@@ -60,11 +60,14 @@ function loadLegacyJournalLogic() {
 
 // ---- Load live index.html VTC (rng, simChallenge, tradeStats, propStatus) in a clean VM ----
 function loadLegacyVTC() {
-  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-  const startIdx = html.indexOf("function rng(seed){");
-  const endIdx = html.indexOf("return{fxSpec,pipValueUSD");
-  assert.ok(startIdx > 0 && endIdx > startIdx, "Expected VTC journal/prop block in index.html");
-  const code = html.slice(startIdx, endIdx) + "\n;({ rng, simChallenge, tradeStats, propStatus });";
+  const vtcPath = path.join(ROOT, "src", "vt_07_screener_pro_auth.js");
+  const src = fs.existsSync(vtcPath)
+    ? fs.readFileSync(vtcPath, "utf8")
+    : fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const startIdx = src.indexOf("function rng(seed){");
+  const endIdx = src.indexOf("return{fxSpec,pipValueUSD");
+  assert.ok(startIdx > 0 && endIdx > startIdx, "Expected VTC journal/prop block in client bundle");
+  const code = src.slice(startIdx, endIdx) + "\n;({ rng, simChallenge, tradeStats, propStatus });";
   return vm.runInContext(
     code,
     vm.createContext({ Math, Number, Object, Array, String, isFinite })

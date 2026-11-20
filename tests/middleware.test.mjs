@@ -74,7 +74,7 @@ await ok("isPublicPath on raw (un-normalised) paths", () => {
 let tracked = null;
 try { tracked = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean); } catch {}
 const PUBLIC_ROOT = new Set([
-  "index.html", "robots.txt", "sitemap.xml", "favicon.ico", "favicon.svg", "apple-touch-icon.png",
+  "index.html", "robots.txt", "sitemap.xml", "favicon.ico", "favicon.svg", "apple-touch-icon.png", "og-image.jpg",
   "vendor/lwc.js", "vendor/h2c.js",
 ]);
 const CLIENT_SAFE_SHARED = new Set([

@@ -49,6 +49,8 @@ const jsonLd = {
   inLanguage: site.locale || "en",
 };
 
+const OG_IMAGE = site.ogImage ? SITE_URL + (site.ogImage.startsWith("/") ? site.ogImage : "/" + site.ogImage) : "";
+
 const headBlock =
   "<!-- vt:seo-start -->\n" +
   `<title>${xmlEscape(TITLE)}</title>\n` +
@@ -59,7 +61,13 @@ const headBlock =
   `<meta property="og:title" content="${attrEscape(TITLE)}">\n` +
   `<meta property="og:description" content="${attrEscape(DESCRIPTION)}">\n` +
   `<meta property="og:url" content="${attrEscape(origin)}">\n` +
-  `<meta name="twitter:card" content="summary">\n` +
+  (OG_IMAGE
+    ? `<meta property="og:image" content="${attrEscape(OG_IMAGE)}">\n` +
+      `<meta property="og:image:width" content="1200">\n` +
+      `<meta property="og:image:height" content="630">\n` +
+      `<meta name="twitter:card" content="summary_large_image">\n` +
+      `<meta name="twitter:image" content="${attrEscape(OG_IMAGE)}">\n`
+    : `<meta name="twitter:card" content="summary">\n`) +
   `<meta name="twitter:title" content="${attrEscape(TITLE)}">\n` +
   `<meta name="twitter:description" content="${attrEscape(DESCRIPTION)}">\n` +
   `<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n` +

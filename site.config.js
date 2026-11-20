@@ -32,8 +32,9 @@ const VT_SITE = {
   pagesDevUrl: "https://screener-cso.pages.dev",
   useCustomDomain: true,
   name: "Vektor Terminal",
-  title: "Vektor Terminal — Every market. One terminal.",
-  description: "Charts, a multi-market screener, alerts, journal, heatmaps and backtesting for crypto, forex and stocks. Prices may be delayed. Not investment advice.",
+  title: "Vektor Terminal — Multi-Market Charting, Screener & Replay",
+  description: "Live charts, multi-market screener, alerts, trade journal, heatmaps and bar replay for forex, crypto, equities and futures. Not investment advice.",
+  ogImage: "/og-image.jpg",
   locale: "en",
   themeColor: "#0e0f12",
 };

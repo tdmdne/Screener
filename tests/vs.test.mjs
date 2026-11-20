@@ -42,14 +42,17 @@ const ROOT = path.resolve(__dirname, "..");
 
 // ---- Load live client Vektor Script engine verbatim from index.html into a clean VM ----
 function loadIndexHtmlVS() {
-  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const vsPath = path.join(ROOT, "src", "vt_08_vektor_script.js");
+  const src = fs.existsSync(vsPath)
+    ? fs.readFileSync(vsPath, "utf8")
+    : fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const startMarker = "const VS_LIM=";
   const endMarker = "const VS_MAX_SCRIPTS=";
-  const startIdx = html.indexOf(startMarker);
-  const endIdx = html.indexOf(endMarker);
-  assert.ok(startIdx > 0 && endIdx > startIdx, "Expected VS engine block in index.html");
+  const startIdx = src.indexOf(startMarker);
+  const endIdx = src.indexOf(endMarker);
+  assert.ok(startIdx >= 0 && endIdx > startIdx, "Expected VS engine block in client bundle");
   const code =
-    html.slice(startIdx, endIdx) +
+    src.slice(startIdx, endIdx) +
     "\n;({ VS_LIM, VSError, VS_SERIES, VS_COLORS, vsLex, vsParse, vsSMA, vsEMA, VS_FN, vsRun, VS_EX });";
   const ctx = vm.createContext({
     Float64Array,

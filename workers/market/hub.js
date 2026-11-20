@@ -15,9 +15,13 @@ import {
   computeIndicator,
   createIndicatorTracker,
   indicatorKey,
-  normalizeIndicatorConfig,
-  toChartPoints,
 } from "../../shared/market/indicators.js";
+import {
+  MAX_CHART_INDICATORS,
+  MIN_INDICATOR_PERIOD,
+  parseIndicatorSpec,
+  serializeIndicatorSeries,
+} from "../../shared/market/chartIndicators.js";
 import { buildScreenerSnapshot } from "../../shared/market/screener.js";
 import {
   MAX_CHART_BARS,
@@ -46,8 +50,8 @@ export const BACKOFF_BASE_MS = 1_000;
 export const BACKOFF_MAX_MS = 60_000;
 export const DEFAULT_TD_WS_MAX = 8;
 export const LIVE_STALE_MS = 120_000;
-export const MAX_BOOTSTRAP_INDICATORS = 24;
-export const MIN_INDICATOR_PERIOD = 1;
+export const MAX_BOOTSTRAP_INDICATORS = MAX_CHART_INDICATORS;
+export { MIN_INDICATOR_PERIOD, parseIndicatorSpec };
 export const MAX_INDICATOR_PERIOD = 1000;
 export const VIEW_COOLDOWN_MS = 500;
 export const BOOTSTRAP_RECORDS_TTL_MS = 1_500;
@@ -66,60 +70,6 @@ const VALID_HM_TF = new Set(["1H", "4H", "1D", "1W"]);
 /** Generate a globally unique client ID that never collides across DO hibernation restarts. */
 function newClientId() {
   return `c-${crypto.randomUUID()}`;
-}
-
-/**
- * Parse an indicator spec from Protocol v2 `view.chart.ind` or `/api/bootstrap?ind=...`.
- * Supports strings ("ema:20", "ema20", "bb:20:2", "rsi:14", "vol") and descriptor objects.
- * Enforces `MIN_INDICATOR_PERIOD <= period <= MAX_INDICATOR_PERIOD` (1..1000).
- * @param {string|object} spec
- * @returns {{ id: string, config: { type: string, period: number, mult: number, source: string } } | null}
- */
-export function parseIndicatorSpec(spec) {
-  if (!spec) return null;
-  const checkBounds = (cfg) => {
-    if (!Number.isInteger(cfg.period) || cfg.period < MIN_INDICATOR_PERIOD || cfg.period > MAX_INDICATOR_PERIOD) {
-      return false;
-    }
-    return true;
-  };
-  try {
-    if (typeof spec === "string") {
-      const s = spec.trim();
-      if (!s) return null;
-      if (s.toLowerCase() === "vol" || s.toLowerCase() === "volume") {
-        const cfg = normalizeIndicatorConfig({ type: "vol" });
-        return { id: indicatorKey(cfg), config: cfg };
-      }
-      const colonParts = s.split(":");
-      if (colonParts.length >= 2) {
-        const type = colonParts[0];
-        const period = Number(colonParts[1]);
-        const mult = colonParts[2] !== undefined ? Number(colonParts[2]) : undefined;
-        const cfg = normalizeIndicatorConfig({ type, period, mult });
-        if (!checkBounds(cfg)) return null;
-        return { id: indicatorKey(cfg), config: cfg };
-      }
-      const m = /^([a-zA-Z]+)(\d+)$/.exec(s);
-      if (m) {
-        const cfg = normalizeIndicatorConfig({ type: m[1], period: Number(m[2]) });
-        if (!checkBounds(cfg)) return null;
-        return { id: s.toLowerCase(), config: cfg };
-      }
-      const cfg = normalizeIndicatorConfig({ type: s });
-      if (!checkBounds(cfg)) return null;
-      return { id: indicatorKey(cfg), config: cfg };
-    }
-    if (typeof spec === "object") {
-      const cfg = normalizeIndicatorConfig(spec);
-      if (!checkBounds(cfg)) return null;
-      const id = typeof spec.id === "string" && spec.id.trim() ? spec.id.trim() : indicatorKey(cfg);
-      return { id, config: cfg };
-    }
-  } catch {
-    return null;
-  }
-  return null;
 }
 
 /** Convert an OHLCV bar object to the compact Protocol v2 6-tuple `[t, o, h, l, c, v]`. */
@@ -142,22 +92,6 @@ function previousMonthKeys(beforeSec, count = 3) {
     }
   }
   return out;
-}
-
-/** Serialize an indicator compute result into compact JSON points for `state.chart.ind`. */
-function serializeIndicatorSeries(bars, computed) {
-  if (computed.type === "bb") {
-    return {
-      type: "bb",
-      middle: toChartPoints(bars, computed.middle),
-      upper: toChartPoints(bars, computed.upper),
-      lower: toChartPoints(bars, computed.lower),
-    };
-  }
-  return {
-    type: computed.type,
-    points: toChartPoints(bars, computed.values),
-  };
 }
 
 export class MarketHub {

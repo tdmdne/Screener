@@ -1290,7 +1290,7 @@ export class MarketRelayDO {
     this.tickGuard = createTickGuard();
     this.candles = createCandleBuilder({
       timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"],
-      openMode: "tick",
+      openMode: "auto",
     });
     this.prices = new Map();
     this.lastTdMsg = 0;

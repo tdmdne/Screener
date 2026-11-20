@@ -3,7 +3,8 @@
 // Compatible with Node 22+ and Cloudflare Workers.
 
 import { INTERVAL_SECONDS } from "../intervals.js";
-import { normalizeBar, normSymbol } from "../schema.js";
+import { normalizeBar, normSymbol, assetClass } from "../schema.js";
+import { ASSET } from "../constants.js";
 
 /** Canonical timeframe labels supported by the backend (single source of truth: shared/intervals.js). */
 export const TIMEFRAMES = Object.freeze(Object.keys(INTERVAL_SECONDS));
@@ -325,7 +326,7 @@ export class CandleBuilder {
   /**
    * @param {{
    *   timeframes?: string[],
-   *   openMode?: "prevClose" | "tick",
+   *   openMode?: "prevClose" | "tick" | "auto",
    *   ignoreVolume?: boolean,
    *   onBarClose?: (event: { type: "bar", sym: string, tf: string, bar: object, closed: true, gap: boolean }) => void,
    *   onBarUpdate?: (event: { type: "bar", sym: string, tf: string, bar: object, closed: false, gap: boolean }) => void,
@@ -340,7 +341,9 @@ export class CandleBuilder {
       tfSet.add(norm);
     }
     this.timeframes = Object.freeze(Array.from(tfSet));
-    this.openMode = opts.openMode ?? "tick";
+    // "auto" (default): FX/spot-metal quotes are a continuous market with sparse ticks, so a new bucket opens at the
+    // previous close (no flat one-tick dashes). Everything else opens at its first tick. "tick" / "prevClose" force one mode.
+    this.openMode = opts.openMode ?? "auto";
     this.ignoreVolume = Boolean(opts.ignoreVolume);
     this.onBarClose = typeof opts.onBarClose === "function" ? opts.onBarClose : null;
     this.onBarUpdate = typeof opts.onBarUpdate === "function" ? opts.onBarUpdate : null;
@@ -379,7 +382,7 @@ export class CandleBuilder {
       const prevState = symStates.get(tf) || createCandleState({ tf });
       const res = applyTick(prevState, tick, {
         tf,
-        openMode: this.openMode,
+        openMode: this.openMode === "auto" ? (assetClass(sym) === ASSET.FX ? "prevClose" : "tick") : this.openMode,
         ignoreVolume: this.ignoreVolume,
       });
       symStates.set(tf, res.state);

@@ -868,6 +868,16 @@ function vtScheduleLiveUiFlush(sym) {
 }
 
 // Single normalized real-time price ingestion store for Charts, Watchlists, Screeners, and Heatmaps
+// Open of a bar born from a live tick. FX/CFD quotes are a continuous market and arrive sparsely, so a bar opens at the
+// previous close when it follows it directly (no flat one-tick dashes). Everything else opens at its first tick, and a
+// gap of more than two steps never bridges the previous close. Mirrors shared/market/candles.js ("auto" open mode).
+function vtNewBarOpen(sym, prevBar, prevBucket, bucket, step, price) {
+  const rec = typeof symOf === "function" ? symOf(sym) : null;
+  const cont = rec && (rec[1] === "FX" || rec[1] === "CFD");
+  if (cont && prevBar && prevBar.c > 0 && bucket - prevBucket <= step * 2) return prevBar.c;
+  return price;
+}
+
 function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
   const sym = String(rawSym || "").trim().toUpperCase();
   const price = Number(rawPrice);
@@ -965,11 +975,12 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
             last.l = Math.min(last.l, last.o, price);
             last.c = price;
           } else {
+            const open = vtNewBarOpen(sym, last, lastBucket, bucket, step, price);
             arr.push({
               t: bucket,
-              o: price,
-              h: price,
-              l: price,
+              o: open,
+              h: Math.max(open, price),
+              l: Math.min(open, price),
               c: price,
               v: 0,
             });
@@ -1011,7 +1022,8 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
             lb.c = price;
             try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
           } else {
-            const nb = { t: bktB, o: price, h: price, l: price, c: price, v: 0 };
+            const openB = vtNewBarOpen(sym, lb, lbBucket, bktB, stB, price);
+            const nb = { t: bktB, o: openB, h: Math.max(openB, price), l: Math.min(openB, price), c: price, v: 0 };
             LIVE[kB].push(nb);
             try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
           }

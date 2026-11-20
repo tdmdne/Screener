@@ -342,14 +342,12 @@ function hmKeys(e){const T=[...document.querySelectorAll("#hm_grid .hmt")];const
 function hmTip(t){const tip=document.getElementById("hm_tip");if(!tip)return;if(!t){tip.hidden=true;return}const s=symOf(t.dataset.s);if(!s){tip.hidden=true;return}
   const row=(a,b)=>`<div><span>${a}</span><b>${b}</b></div>`,pc=tf=>{const v=hmChg(s,tf);return v==null?"\u2013":(v>0?"+":v<0?"\u2212":"")+Math.abs(v).toFixed(2)+"%"};
   let sc="\u2013",tier="\u2013";try{const v=scoreMarket(s);if(typeof v==="number")sc=Math.round(v);tier=sxTier(s)}catch(e){}
-  tip.innerHTML=`<div class="hmth"><b>${esc(s[0])}</b><span class="mut">${esc(MK[s[1]]||s[1])}</span></div>${row("Price",s[2]!=null?fp(s[2]):"\u2013")}${HM_TFS.map(tf=>row(tf+" change",pc(tf))).join("")}${row("Vektor score",sc)}${row("Tier",tier)}${row("Traded value",hmTradedValue(s)?fm(hmTradedValue(s)):"\u2013")}<p class="mut">Enter or click opens the chart.</p>`;
+  tip.innerHTML=`<div class="hmth"><b>${esc(s[0])}</b><span class="mut">${esc(MK[s[1]]||s[1])}</span></div>${row("Price",s[2]!=null?fp(s[2],s):"\u2013")}${HM_TFS.map(tf=>row(tf+" change",pc(tf))).join("")}${row("Vektor score",sc)}${row("Tier",tier)}${row("Traded value",hmTradedValue(s)?fm(hmTradedValue(s)):"\u2013")}<p class="mut">Enter or click opens the chart.</p>`;
   tip.hidden=false;const g=document.getElementById("hm_grid").getBoundingClientRect(),r=t.getBoundingClientRect(),W=tip.offsetWidth,H=tip.offsetHeight;
   let x=r.right-g.left+8,y=r.top-g.top;if(x+W>g.width)x=Math.max(0,r.left-g.left-W-8);if(y+H>g.height)y=Math.max(0,g.height-H);tip.style.left=x+"px";tip.style.top=(y+document.getElementById("hm_grid").offsetTop)+"px"}
 function hmOpen(sym){openChart(sym);go("chart")}
 function hmTick(force){const g=document.getElementById("hm_grid");if(!g||document.documentElement.dataset.page!=="heatmap")return;const C=hmCfg();
   const U=hmUniverse(),W=Math.floor(g.clientWidth),H=Math.floor(g.clientHeight);if(W<10||H<10)return;
-  // ask the existing loader for anything missing (front of the queue for what's on screen, a few per second)
-  if(C.metric==="chg"||C.metric==="mom"){const tf=C.metric==="mom"?"1D":C.tf;let n=0;for(const s of U){if(n>=8)break;if(!candles(s,tf)){try{need(s,tf,true)}catch(e){}n++}}}
   const vals=U.map(hmVal),R=hmRange(vals);const key=[W,H,C.mkt,C.metric,C.tf,C.size,C.n,U.map(s=>s[0]).sort().join(",")].join("|");
   if(force||key!==HM.key){HM.key=key;const L=hmLayout(U,W,H);const keep=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.s:null;
     g.innerHTML=L.groups.map(gr=>`<div class="hmgh" style="left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px"><span>${esc(MK[gr.k]||gr.k)}</span></div>`).join("")+
@@ -366,7 +364,7 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
   U.forEach((s,i)=>{const b=HM.tiles.get(s[0]);if(!b)return;const v=vals[i];if(v!=null){have.push([s,v]);if(C.metric==="score"?v>50:v>0)up++;else if(C.metric==="score"?v<50:v<0)dn++;else fl++}
     const bg=hmColor(v,R);if(b.style.background!==bg)b.style.background=bg;
     const tv=hmFmt(v),hv=b.querySelector(".hv");if(hv.textContent!==tv)hv.textContent=tv;b.classList.toggle("na",v==null);
-    const hp=b.querySelector(".hp");if(hp){const p=s[2]!=null?fp(s[2]):"";if(hp.textContent!==p)hp.textContent=p}
+    const hp=b.querySelector(".hp");if(hp){const p=s[2]!=null?fp(s[2],s):"";if(hp.textContent!==p)hp.textContent=p}
     const vis=[hmDisp(s[0]),b.classList.contains("tiny")?"":tv,hp?hp.textContent:""].filter(Boolean).join(" ");
     const lbl=vis+", "+s[0]+", "+(MK[s[1]]||s[1])+", "+(v==null?"no data yet":(C.metric==="chg"?C.tf+" change":C.metric==="mom"?"momentum":"score"));if(b.getAttribute("aria-label")!==lbl)b.setAttribute("aria-label",lbl);
     const lp=HM.lastPx.get(s[0]),px=s[2];if(lp!=null&&px!=null&&px!==lp&&!rm){b.classList.remove("fu","fd");void b.offsetWidth;b.classList.add(px>lp?"fu":"fd")}if(px!=null)HM.lastPx.set(s[0],px)});
@@ -378,11 +376,12 @@ function hmTick(force){const g=document.getElementById("hm_grid");if(!g||documen
 <span class="sp"></span>${sorted.length?`<span class="hmgrp"><span class="hml">Top</span>${sorted.slice(0,3).map(chip).join("")}</span><span class="hmgrp"><span class="hml">Bottom</span>${sorted.slice(-3).reverse().map(chip).join("")}</span>`:""}`;
     if(st.dataset.h!==html){st.dataset.h=html;st.innerHTML=html;st.querySelectorAll(".hmchip").forEach(b=>b.onclick=()=>hmOpen(b.dataset.s))}}
   const lg=document.getElementById("hm_leg");if(lg){const lab=C.metric==="score"?["0","50","100"]:C.metric==="mom"?["falling","flat","rising"]:["\u2212"+R+"%","0","+"+R+"%"];const html=`<span>${lab[0]}</span><i style="background:linear-gradient(90deg,${hmColor(C.metric==="score"?0:-R,R)},${hmColor(C.metric==="score"?50:0,R)},${hmColor(C.metric==="score"?100:R,R)})"></i><span>${lab[2]}</span>`;if(lg.dataset.h!==html){lg.dataset.h=html;lg.innerHTML=html}}
-  const src=document.getElementById("hm_src"),asof=document.getElementById("hm_asof");if(src){const live=isLive(),ws=typeof BNWS!=="undefined"&&BNWS.ws&&BNWS.ws.readyState===1;
+  const src=document.getElementById("hm_src"),asof=document.getElementById("hm_asof");if(src){const live=isLive(),ws=typeof VT_EDGE!=="undefined"&&VT_EDGE.ws&&VT_EDGE.ws.readyState===1;
     const tf=C.metric==="mom"?"1D":C.tf;let t=0;for(const s of U){const k=s[0]+"|"+tf;if(LT[k]>t)t=LT[k]}
+    if(typeof VT_EDGE!=="undefined"&&VT_EDGE.wsLastMsgAt>t)t=VT_EDGE.wsLastMsgAt;
     const fromCache=t&&t<performance.timeOrigin;/* restored from the IndexedDB cache or snapshot, not fetched in this session */const txt=!live?"Delayed / unavailable":ws?"Live":"Delayed";const cls=!live?"smp":ws?"on":"off";
     if(src.textContent!==txt){src.textContent=txt;src.className="hmlive "+cls}
-    if(asof){const a=t?"Candles as of "+new Date(t).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+(fromCache?" (cache)":""):"Loading candles\u2026";if(asof.textContent!==a)asof.textContent=a}}}
+    if(asof){const a=t?"Updated "+new Date(t).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+(fromCache?" (cache)":""):"Connecting to live feed\u2026";if(asof.textContent!==a)asof.textContent=a}}}
 PAGE_HOOK.heatmap={enter(){hmBuild();hmTick(true);requestAnimationFrame(()=>hmTick(true));clearInterval(HM.timer);HM.timer=setInterval(()=>{if(document.visibilityState==="visible")hmTick(false)},1000)},
   leave(){clearInterval(HM.timer);HM.timer=0;hmTip(null)}};
 // ---------- Keyboard shortcut overlay ("?") ----------

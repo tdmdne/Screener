@@ -89,8 +89,8 @@ export function cleanBars(list) {
 }
 
 /**
- * Stateful zero-tolerance tick filter. DROPS (never clamps) a tick whose price is
- * further than the asset-class hard limit from the last accepted price.
+ * Stateful wide sanity outlier filter. DROPS (never clamps) only single-tick spikes
+ * further than 5% (HARD_JUMP_PCT) from the last valid price.
  * Quarantine: if 4 consecutive ticks agree with each other (within 0.2%) the new level is real
  * (genuine gap / news) and is accepted — so the feed can never get stuck on a stale reference.
  */
@@ -102,7 +102,7 @@ export function createTickGuard() {
     if (!t) return null;
     const ref = last.get(t.s);
     if (ref === undefined) { last.set(t.s, t.c); return t; }
-    const lim = HARD_JUMP_PCT[assetClass(t.s)] ?? 1.5;
+    const lim = HARD_JUMP_PCT[assetClass(t.s)] ?? 5;
     if (Math.abs(t.c - ref) / ref * 100 <= lim) { last.set(t.s, t.c); held.delete(t.s); return t; }
     const h = held.get(t.s);
     if (h && Math.abs(t.c - h.a) / h.a <= 0.002) {

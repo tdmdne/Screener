@@ -1209,13 +1209,16 @@ app.get("/api/candles", async (req, res) => {
   if (!refresh) {
     const cached = candleCache.get(cacheKey);
     if (cached && (isHistoricalWindow || Date.now() - cached.ts < ttl * 1000)) {
+      const body = !isHistoricalWindow && !replay && cached.bars
+        ? JSON.stringify({ ...cached.meta, ts: Date.now(), bars: overlayServerLiveBars(rawSym, interval, cached.bars, limit) })
+        : cached.body;
       res.set({
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": `public, max-age=${ttl}, s-maxage=${ttl}`,
         "X-Cache": "HIT-EDGE",
         "Server-Timing": `edge;dur=${Date.now() - t0}`,
       });
-      return res.send(cached.body);
+      return res.send(body);
     }
   }
 
@@ -1290,19 +1293,23 @@ app.get("/api/candles", async (req, res) => {
     return res.status(502).json({ ok: false, symbol: rawSym, interval, source, error: "Upstream candle feed unavailable" });
   }
 
-  const payload = {
+  const finalBars = !isHistoricalChunk && !replay
+    ? overlayServerLiveBars(rawSym, interval, bars, limit)
+    : bars;
+
+  const metaPayload = {
     ok: true,
     symbol: rawSym,
     interval,
     ttl,
     ts: Date.now(),
     source,
-    hasMore: isHistoricalChunk ? bars.length > 0 : true,
-    bars,
+    hasMore: isHistoricalChunk ? finalBars.length > 0 : true,
   };
+  const payload = { ...metaPayload, bars: finalBars };
   const body = JSON.stringify(payload);
   if (candleCache.size > 500) candleCache.clear();
-  candleCache.set(cacheKey, { ts: Date.now(), body });
+  candleCache.set(cacheKey, { ts: Date.now(), body, bars, meta: metaPayload });
 
   res.set({
     "Content-Type": "application/json; charset=utf-8",
@@ -1458,7 +1465,69 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: "/ws" });
 const clients = new Map(); // ws -> { subs: Set<string>, chart: { sym, tf } | null, seq: Sequencer }
 const serverTickGuard = createTickGuard();
-const serverCandles = createCandleBuilder({ timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"] });
+const serverCandles = createCandleBuilder({
+  timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"],
+  openMode: "tick",
+});
+const serverLiveBars = new Map(); // "SYM|TF" -> Map<bucketT, Bar> (rolling WS-aggregated bars)
+const SERVER_LIVE_BARS_CAP = 240;
+
+function recordServerLiveBar(sym, tf, bar) {
+  if (!sym || !tf || !bar || !(bar.t > 0) || !(bar.c > 0)) return;
+  const k = `${sym}|${tf}`;
+  let bucketMap = serverLiveBars.get(k);
+  if (!bucketMap) {
+    bucketMap = new Map();
+    serverLiveBars.set(k, bucketMap);
+  }
+  bucketMap.set(bar.t, { t: bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c, v: Number.isFinite(bar.v) ? bar.v : 0 });
+  if (bucketMap.size > SERVER_LIVE_BARS_CAP) {
+    const oldest = bucketMap.keys().next().value;
+    if (oldest !== undefined) bucketMap.delete(oldest);
+  }
+}
+
+function overlayServerLiveBars(sym, tf, restBars, limit) {
+  const norm = normSymbol(sym);
+  const normTf = normalizeTf(tf);
+  if (!norm || !normTf) return restBars;
+  const bucketMap = serverLiveBars.get(`${norm}|${normTf}`);
+  const cur = serverCandles.getCurrent(norm, normTf);
+  if ((!bucketMap || !bucketMap.size) && !cur) return restBars;
+
+  const byT = new Map();
+  for (const b of restBars || []) {
+    if (b && b.t > 0 && b.c > 0) byT.set(b.t, { ...b });
+  }
+  const mergeOne = (lb) => {
+    if (!lb || !(lb.t > 0) || !(lb.c > 0)) return;
+    const prev = byT.get(lb.t);
+    if (!prev) {
+      byT.set(lb.t, { ...lb });
+      return;
+    }
+    const prevFlat = prev.o === prev.h && prev.h === prev.l && prev.l === prev.c;
+    const liveHasRange = lb.h > lb.l || lb.o !== lb.c;
+    if (prevFlat && liveHasRange) {
+      byT.set(lb.t, { ...lb, v: Math.max(prev.v || 0, lb.v || 0) });
+    } else {
+      byT.set(lb.t, {
+        t: lb.t,
+        o: prev.o,
+        h: Math.max(prev.h, lb.h, lb.c),
+        l: Math.min(prev.l, lb.l, lb.c),
+        c: lb.c,
+        v: Math.max(prev.v || 0, lb.v || 0),
+      });
+    }
+  };
+  if (bucketMap) {
+    for (const lb of bucketMap.values()) mergeOne(lb);
+  }
+  if (cur) mergeOne(cur);
+  const out = [...byT.values()].sort((a, b) => a.t - b.t);
+  return limit && out.length > limit ? out.slice(-limit) : out;
+}
 const pendingQuotes = new Map(); // sym -> Protocol v2 quote object
 const tdSlots = new TdSubscriptionManager({ maxSlots: TD_WS_MAX });
 const tdDayVolume = new Map(); // sym -> { day: "YYYY-MM-DD", value: number }
@@ -1524,6 +1593,7 @@ function ingestServerTick(rawTick, extra = {}) {
     const asOf = Date.now();
     const emitBars = (list, closed) => {
       for (const evt of list) {
+        recordServerLiveBar(evt.sym, evt.tf, evt.bar);
         const tuple = [evt.bar.t, evt.bar.o, evt.bar.h, evt.bar.l, evt.bar.c, Number.isFinite(evt.bar.v) ? evt.bar.v : 0];
         for (const [ws, state] of clients) {
           if (!state.chart) continue;

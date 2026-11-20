@@ -226,10 +226,9 @@ export function applyTick(state, tick, opts = {}) {
   const closedBar = { t: prev.t, o: prev.o, h: prev.h, l: prev.l, c: prev.c, v: Number.isFinite(prev.v) ? prev.v : 0 };
   const isGap = bucket - prev.t > base.step * 2;
 
-  // On a gap (> 2 steps), NEVER bridge prev.c across the gap and NEVER emit synthetic bars.
-  // On contiguous bars (<= 2 steps), carry prev.c as open by default (matching vtApplyTwelveDataTick),
-  // unless caller explicitly requests openMode === "tick".
-  const open = isGap || opts.openMode === "tick" ? price : (prev.c > 0 ? prev.c : price);
+  // Standard real-time WebSocket bar aggregation: initialize each new timeframe bucket with
+  // open = high = low = close = tick.price on its first tick (unless caller explicitly asks for prevClose).
+  const open = !isGap && opts.openMode === "prevClose" && prev.c > 0 ? prev.c : price;
   const nextBar = {
     t: bucket,
     o: open,
@@ -341,7 +340,7 @@ export class CandleBuilder {
       tfSet.add(norm);
     }
     this.timeframes = Object.freeze(Array.from(tfSet));
-    this.openMode = opts.openMode ?? "prevClose";
+    this.openMode = opts.openMode ?? "tick";
     this.ignoreVolume = Boolean(opts.ignoreVolume);
     this.onBarClose = typeof opts.onBarClose === "function" ? opts.onBarClose : null;
     this.onBarUpdate = typeof opts.onBarUpdate === "function" ? opts.onBarUpdate : null;

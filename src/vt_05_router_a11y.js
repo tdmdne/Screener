@@ -100,7 +100,6 @@ function vtPxWatch(){const q=document.getElementById("cpx");if(!q){VT_MO.pxv=nul
   if(VT_MO.pxel!==q||VT_MO.pxk!==key){VT_MO.pxel=q;VT_MO.pxv=t;VT_MO.pxk=key;VT_MO.pxt=0;VT_MO.pxp=0;return}
   if(VT_MO.pxv!=null&&t!==VT_MO.pxv&&!vtRM()){const x=vtNum(VT_MO.pxv),y=vtNum(t);if(x!=null&&y!=null&&x!==y){const now=performance.now(),dir=y>x?"vt-fu":"vt-fd",pct=Math.abs(y-x)/Math.max(Math.abs(x),1e-9);const hold=(now-(VT_MO.pxt||0))<450&&!q.classList.contains(dir)&&(VT_MO.pxp||0)>=0.0099&&(VT_MO.pxp||0)<0.05;if(!hold){q.classList.remove("vt-fu","vt-fd");void q.offsetWidth;q.classList.add(dir);VT_MO.pxt=now;VT_MO.pxp=pct}}}
   VT_MO.pxv=t;VT_MO.pxk=key}
-setInterval(()=>{if(!document.hidden)vtPxWatch()},250);
 // page transitions
 function vtPageEl(p){return p==="workspace"||p==="chart"||p==="screener"?document.querySelector(".wrap>.ws"):document.getElementById("pv-"+p)||document.querySelector('.wrap>.pv[data-pv="'+p+'"]')}
 function vtPageAnim(p){const el=vtPageEl(p);if(!el||vtRM())return;const ws=el.classList.contains("ws"),c=ws?"vt-pgfade":"vt-pgin";
@@ -110,7 +109,7 @@ if(typeof showPage==="function"){const _vtMoP=showPage;showPage=function(p,initi
   try{const now=document.documentElement.dataset.page;if(!initial&&now&&now!==prev)vtPageAnim(now)}catch(e){}return r}}
 // ---------- pages + client-side router ----------
 // Every page lives in this one document. Switching pages only toggles what's visible (data-page on <html>),
-// so WebSockets (BNWS, BNKL, FHWS), LIVE candle caches and timers are never torn down.
+// so the unified WebSocket (VT_EDGE.ws), LIVE candle caches and state are never torn down.
 const PAGES=[
 ["workspace","Workspace",'<rect x="3" y="4" width="7" height="16" rx="1"/><rect x="12" y="4" width="9" height="16" rx="1"/>'],
 ["chart","VektorCharts",'<path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/>'],

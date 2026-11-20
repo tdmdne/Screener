@@ -1,8 +1,7 @@
 // Same-origin edge policy (§0): browser never fetches third-party market APIs directly.
-async function tryFallbacks(){return null}
-// ---------- Upstream failover: if primary feed silent >3s, serve last good cache ----------
+// ---------- WebSocket connection health monitor ----------
 let FAILOVER={on:false,since:0,lastOk:Date.now(),reason:""};
-function markOk(src){
+function markOk(){
   FAILOVER.lastOk=Date.now();
   if(FAILOVER.on){FAILOVER.on=false;FAILOVER.reason="";status();const tag=document.getElementById("tag");if(tag&&isLive())tag.textContent="Live · auto-scan";}
 }
@@ -20,15 +19,7 @@ function checkFailover(){
 }
 setInterval(checkFailover,2000);
 
-const BNWS={ws:null,subs:new Set()};
-const BNKL={ws:null,sym:"",tf:""};
-const FHWS={ws:null,subs:new Set()};
-function bnwsConnect(){if(typeof vtWsConnect==="function")vtWsConnect()}
-function bnKlineStart(sym,tf){if(typeof vtSyncChartFeed==="function")vtSyncChartFeed(sym,tf)}
-function fhWsStart(){}
-function fhSubscribe(){}
-function bnwsStart(){if(typeof vtWsConnect==="function")vtWsConnect()}
-function setLive(){try{if(SNAP.ok&&Array.isArray(SNAP.uni)&&SNAP.uni.length){SYMS=SNAP.uni.map(s=>{if(!Array.isArray(s)||!s[0])return null;const d=LIVE[s[0]+"|1D"];if(d&&d.length&&d[d.length-1].c>0)s[2]=d[d.length-1].c;return s}).filter(Boolean);if(SYMS.length)return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
+function setLive(){try{if(SNAP.ok&&Array.isArray(SNAP.uni)&&SNAP.uni.length){SYMS=SNAP.uni.map(s=>{if(!Array.isArray(s)||!s[0])return null;const d=LIVE[s[0]+"|1D"];if(!(s[2]>0)&&d&&d.length&&d[d.length-1].c>0)s[2]=d[d.length-1].c;return s}).filter(Boolean);if(SYMS.length)return}const mk2=(w,p,ps,fb)=>{const d=LIVE[w.n+"|1D"],ok=d&&d.length;const v=ok&&(w.m==="STK"||w.m==="ETF"||w.m==="FUT")?d.slice(-7).reduce((x,y)=>x+y.v,0)/Math.min(7,d.length):0;return[w.n,w.m,ok?d[d.length-1].c:null,v,1,.01,ps,w.tv,p,fb]};
 const seen=new Set(),out=[];
 const add=arr=>{if(!Array.isArray(arr))return;for(const s of arr){if(!s||!s[0]||seen.has(s[0]))continue;seen.add(s[0]);out.push(s)}};
 add(BN.list);
@@ -36,7 +27,7 @@ add(FXW.map(w=>mk2(w,"yf",w.td.replace("/","")+"=X",w.td)));
 add(YFW.map(w=>mk2(w,"yf",w.td)));
 SYMS=out;}catch(e){console.error("setLive error:",e);if(!Array.isArray(SYMS))SYMS=[];}}
 function status(){const d=document.getElementById("dst");if(!d)return;if(!isLive()){d.textContent="";d.title="";if(typeof vtRenderGapBadge==="function")vtRenderGapBadge();return}
-const lt=Math.max(0,...Object.values(LT)),n=QT.length+QB.length+QY.length+(typeof QE!=="undefined"?QE.length:0),ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
+const lt=Math.max(0,...Object.values(LT)),n=typeof QE!=="undefined"?QE.length:0,ne=Object.keys(ERR).length,e=Object.values(ERR)[0];
 const full=(n?"Syncing "+n+" feeds":"")+(ne?" · "+ne+" feed"+(ne===1?"":"s")+" offline ("+e+")":"")+(!n&&(snapOn()||lt)?" · Updated "+ago(snapOn()?SNAP.t:lt):"");
 d.title=full.replace(/^\s*·\s*/,"").trim();
 let calm="";
@@ -45,15 +36,9 @@ else if(snapOn()||lt)calm="Updated "+ago(snapOn()?SNAP.t:lt);
 else calm="";
 d.textContent=calm;
 if(typeof vtRenderGapBadge==="function")vtRenderGapBadge()}
-function need(s,tf,front){const k=s[0]+"|"+tf;if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){const isCry=typeof vtIsCryptoSym==="function"?vtIsCryptoSym(s):(s[8]==="bn"||s[1]==="CRY");const isActive=(S.chart&&S.chart.sym===s[0]&&S.chart.tf===tf)||(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.chart&&S.chart.sym===s[0]&&S.sc.tfB===tf);const isPriDaily=tf==="1D"&&(front||PRI.has(s[0])||S.pageView==="heatmap"||S.pageView==="screener");if(!isCry&&!isActive&&!isPriDaily)return;PEND[k]=1;front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}}
-async function bnGet(){throw Error("same-origin edge only")}
-async function loadBN(){if(typeof edgeScreenerInit==="function")await edgeScreenerInit()}
-async function loadFHU(){}
-async function loadPGU(){}
-async function pumpBN(){}
+// REST /api/candles is strictly for initial historical candle seeding on chart/timeframe load.
+function need(s,tf,front){const k=s[0]+"|"+tf;if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){const isActive=(S.chart&&S.chart.sym===s[0]&&S.chart.tf===tf)||(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.chart&&S.chart.sym===s[0]&&S.sc.tfB===tf);if(!isActive&&!front)return;PEND[k]=1;front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}}
 function retryErr(re){for(const k in ERR)if(!re||re.test(ERR[k]))delete ERR[k];render()}
-const VT_TD_PROXY="";
-async function pumpTD(){}
 let IDB=null,READY=false,fl=0;const DIRTY=new Set();
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago"};
 function idb(){return new Promise(res=>{try{const r=indexedDB.open("scr",2);r.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("c"))db.createObjectStore("c");};r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
@@ -89,25 +74,11 @@ const want=new Set(["1D",S.chart.tf]);S.cols.filter(c=>!c.hide).forEach(c=>{if(c
 await Promise.all([...want].filter(t=>m.tfs.includes(t)).map(snapTf))}catch(e){}}
 function snapTf(tf){return SNAP.loaded[tf]||(SNAP.loaded[tf]=(async()=>{try{const r=await fetch(`data/c_${tf}.json?v=${SNAP.t}`);if(!r.ok)return;const j=await r.json();
 for(const n in j){const k=n+"|"+tf;if(!LT[k]||LT[k]<SNAP.t){LIVE[k]=j[n].map(x=>({t:x[0],o:x[1],h:x[2],l:x[3],c:x[4],v:x[5]}));LT[k]=SNAP.t;SN[k]=1;dirty(k)}}}catch(e){}})())}
-async function autoRefresh(){if(!isLive()||!READY)return;const ok=typeof edgeScreenerInit==="function"?await edgeScreenerInit():false;if(!ok)await snapInit();if(!snapOn()&&BN.loaded)BN.loaded=false;retryErr(/network error|HTTP [45]\d\d/)}
 function pgGo(d){S.page+=d;save();render()}
-// Two-stage loading:
-//  1) daily candles for everything (gives price, volume and dollar volume)
-//  2) the other timeframes, only for stocks/ETFs/futures that pass the dollar-volume cutoff
-// Symbols on screen jump the queue.
+// Initial historical candle seeding for the active chart (live updates stream over Protocol v2 WS)
 function kick(){if(!isLive()||!READY)return;
-if(!snapOn()){if(!BN.loaded&&!BN.busy&&!BN.err)loadBN()}
-if(S.data.fhKey&&!FHU.loaded&&!FHU.busy)loadFHU();
-if(S.data.polyKey&&!PGU.loaded&&!PGU.busy)loadPGU();
-const base=new Set();S.cols.filter(c=>!c.hide).forEach(c=>{if(c.tf)base.add(c.tf);if(c.tfs)c.tfs.forEach(t=>base.add(t));if(c.type==="adr")base.add("1D")});
-const cut=S.acct*S.mult,cs=symOf(S.chart.sym);if(cs)need(cs,S.chart.tf,true);
-wlAll().forEach(n=>{const w=symOf(n);if(w)need(w,"1D",true)}); // watchlist symbols load first
-const eq=m=>m==="STK"||m==="ETF"||m==="FUT";
-const tfl=["1D",...[...base].filter(t=>t!=="1D")];
-tfl.forEach(t=>SYMS.forEach(s=>{const bn=s[8]==="bn",d=dvOf(s);
-if(bn){if(!base.has(t))return}
-else if(t!=="1D"&&eq(s[1])){if(!LIVE[s[0]+"|1D"])return}
-need(s,t,PRI.has(s[0]))}));status()}
+const cs=symOf(S.chart.sym);if(cs){need(cs,S.chart.tf,true);if(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.sc.tfB&&S.sc.tfB!==S.chart.tf)need(cs,S.sc.tfB,true)}
+status()}
 function favM(){
   const groups=S.wlx.groups;
   const opts=groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
@@ -130,11 +101,8 @@ function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Unified real-
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
-function dataSave(){const g=i=>document.getElementById(i);S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode="all";save();closeM();render();drawChart();
-if(S.data.fhKey){FHU.loaded=false;loadFHU()}
-if(S.data.polyKey){PGU.loaded=false;loadPGU()}
-}
-function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];QT.length=QB.length=QY.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;if(typeof VT_CANDLE_EDGE_CACHE!=="undefined")VT_CANDLE_EDGE_CACHE.clear();if(typeof VT_EDGE!=="undefined"){if(VT_EDGE.hasMoreHistory)VT_EDGE.hasMoreHistory.clear();if(VT_EDGE.historyBackfillInFlight)VT_EDGE.historyBackfillInFlight.clear()}try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();snapInit().then(()=>{render();drawChart()})}
+function dataSave(){const g=i=>document.getElementById(i);S.data.fhKey=g("d_fh").value.trim();S.data.polyKey=g("d_pg").value.trim();S.data.mode="all";save();closeM();render();drawChart()}
+function dataReset(){for(const o of [LIVE,LT,ERR,PEND])for(const k in o)delete o[k];if(typeof QE!=="undefined")QE.length=0;MAC.clear();BN.loaded=false;BN.list=[];BN.err="";BN.host="";BN.pause=0;if(typeof VT_CANDLE_EDGE_CACHE!=="undefined")VT_CANDLE_EDGE_CACHE.clear();if(typeof VT_EDGE!=="undefined"){if(VT_EDGE.hasMoreHistory)VT_EDGE.hasMoreHistory.clear();if(VT_EDGE.historyBackfillInFlight)VT_EDGE.historyBackfillInFlight.clear()}try{lsRemove("scr2c");if(IDB)IDB.transaction("c","readwrite").objectStore("c").clear()}catch(e){}SNAP.loaded={};closeM();render();drawChart();if(typeof edgeScreenerInit==="function")edgeScreenerInit().then(()=>{render();drawChart()})}
 let UIM="pc",rz=0;
 function applyUI(){S.ui="auto";const w=innerWidth;UIM=w<700?"phone":w<1100?"tablet":"pc";document.documentElement.dataset.ui=UIM;document.documentElement.dataset.split=(UIM==="pc"||(UIM==="tablet"&&w>=900))?"1":"0";document.querySelectorAll(".mode-btn").forEach(b=>b.classList.toggle("on",b.dataset.m===UIM))}
 function goHome(){location.hash="#/"}
@@ -198,8 +166,8 @@ Promise.resolve()
     try{if(typeof vtWsConnect==="function")vtWsConnect()}catch(e){console.error("ws connect error:",e)}
   })
   .catch(e=>console.error("boot async error:",e));
-// On tab wake after >5 min away, resync snapshot if WebSocket was disconnected
-document.addEventListener("visibilitychange",()=>{try{if(document.visibilityState==="visible"){const wsUp=typeof VT_EDGE!=="undefined"&&VT_EDGE.ws&&VT_EDGE.ws.readyState===1;if(!wsUp&&typeof vtWsConnect==="function")vtWsConnect();if(!wsUp&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}}}catch(_e){}})}
+// On tab wake, ensure the single WebSocket connection is active (no REST polling)
+document.addEventListener("visibilitychange",()=>{try{if(document.visibilityState==="visible"){const wsUp=typeof VT_EDGE!=="undefined"&&VT_EDGE.ws&&VT_EDGE.ws.readyState===1;if(!wsUp&&typeof vtWsConnect==="function")vtWsConnect()}}catch(_e){}})}
 
 /* ---- Login (UI only) ----
    authSignIn() is a PLACEHOLDER: it accepts any username/email + password and just remembers the name on this device.

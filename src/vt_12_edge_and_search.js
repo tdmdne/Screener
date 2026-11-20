@@ -1,7 +1,4 @@
-// ---------- 94 edge client: Edge Cache + KV Screener + Single-Source Binance/TwelveData WebSockets ----------
-const VT_TF_ORDER = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
-const VT_BNI = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w", "1M": "1M" };
-const VT_PREFETCH_PEND = {};
+// ---------- 94 edge client: Single-Source Protocol v2 WebSocket + Initial Historical REST Seeding ----------
 const VT_CANDLE_IN_FLIGHT = new Map();
 const VT_CANDLE_EDGE_CACHE = new Map();
 const VT_BACKFILL_COOLDOWN_MS = 15000;
@@ -24,20 +21,6 @@ const VT_EDGE = {
   uiRaf: 0,
   lastScreenerRenderAt: 0,
   lastHeatmapRenderAt: 0,
-  bnWs: null,
-  bnSym: "",
-  bnTf: "",
-  bnRetry: 0,
-  bnTimer: 0,
-  tdWs: null,
-  tdKey: "",
-  tdKeyFetched: false,
-  tdActiveSym: "",
-  tdActiveTdSym: "",
-  tdSubTdSym: "",
-  tdRetry: 0,
-  tdTimer: 0,
-  tdHb: 0,
   pausedCharts: new Set(),
   backfillInFlight: new Map(),
   backfillAt: new Map(),
@@ -85,14 +68,6 @@ function vtIsCryptoSym(sOrSym) {
   const sym = String(Array.isArray(sOrSym) ? sOrSym[0] : sOrSym || "").trim().toUpperCase();
   if (s && (s[8] === "bn" || s[1] === "CRY")) return true;
   return sym.endsWith("USDT") || sym.endsWith("BUSD") || sym.endsWith("BTC");
-}
-
-function vtToBnSym(sym) {
-  let u = String(sym || "").trim().toUpperCase();
-  if (!u.endsWith("USDT") && !u.endsWith("BUSD") && !u.endsWith("BTC")) {
-    u = u.endsWith("USD") ? u + "T" : u + "USDT";
-  }
-  return u;
 }
 
 function vtToTdSym(sOrSym) {
@@ -594,10 +569,34 @@ async function vtBackfillChart(sym, tf, opts) {
     try {
       const bars = await edgeFetchCandles(s, tf, { refresh: true });
       if (bars && bars.length) {
-        if (Array.isArray(LIVE[k]) && LIVE[k].length) {
+        const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+        const prevArr = Array.isArray(LIVE[k]) && LIVE[k].length ? LIVE[k] : null;
+        const prevLast = prevArr ? prevArr[prevArr.length - 1] : null;
+        if (prevArr) {
           const headCut = bars[0].t;
-          const older = LIVE[k].filter((b) => b && b.t < headCut && b.c > 0);
+          const older = prevArr.filter((b) => b && b.t < headCut && b.c > 0);
           const combined = older.concat(bars);
+          if (prevLast && prevLast.c > 0) {
+            const pT = step < 86400 ? Math.floor(prevLast.t / step) * step : prevLast.t;
+            const cLast = combined[combined.length - 1];
+            const cT = cLast ? (step < 86400 ? Math.floor(cLast.t / step) * step : cLast.t) : 0;
+            if (cLast && pT === cT) {
+              const restFlat = cLast.o === cLast.h && cLast.h === cLast.l && cLast.l === cLast.c;
+              const liveHasRange = prevLast.h > prevLast.l || prevLast.o !== prevLast.c;
+              if (restFlat && liveHasRange) {
+                combined[combined.length - 1] = Object.assign({}, prevLast, { t: pT });
+              } else {
+                combined[combined.length - 1] = Object.assign({}, cLast, {
+                  t: cT,
+                  h: Math.max(cLast.h, prevLast.h, prevLast.c),
+                  l: Math.min(cLast.l, prevLast.l, prevLast.c),
+                  c: prevLast.c,
+                });
+              }
+            } else if (pT > cT) {
+              combined.push(Object.assign({}, prevLast, { t: pT }));
+            }
+          }
           LIVE[k] = combined.length > VT_MAX_BARS ? combined.slice(-VT_MAX_BARS) : combined;
         } else {
           LIVE[k] = bars;
@@ -611,7 +610,7 @@ async function vtBackfillChart(sym, tf, opts) {
         if (typeof vtLastPlotT !== "undefined" && lastBar) vtLastPlotT[k] = lastBar.t;
         if (typeof SYMS !== "undefined" && lastBar) {
           const row = SYMS.find((x) => x[0] === sym);
-          if (row) row[2] = lastBar.c;
+          if (row && !(row[2] > 0)) row[2] = lastBar.c;
         }
         if (typeof checkAlerts === "function" && lastBar) checkAlerts(sym, lastBar.c);
 
@@ -664,14 +663,14 @@ async function pumpEdge() {
           LT[k] = Date.now();
           const lastC = bars[bars.length - 1] && bars[bars.length - 1].c;
           if (lastC > 0) {
-            if (Array.isArray(s)) s[2] = lastC;
+            if (Array.isArray(s) && !(s[2] > 0)) s[2] = lastC;
             if (typeof SYMS !== "undefined" && Array.isArray(SYMS)) {
               const row = SYMS.find((x) => x && x[0] === s[0]);
-              if (row) row[2] = lastC;
+              if (row && !(row[2] > 0)) row[2] = lastC;
             }
             if (typeof SNAP !== "undefined" && Array.isArray(SNAP.uni)) {
               const uRow = SNAP.uni.find((x) => x && x[0] === s[0]);
-              if (uRow) uRow[2] = lastC;
+              if (uRow && !(uRow[2] > 0)) uRow[2] = lastC;
             }
           }
           dirty(k);
@@ -692,53 +691,6 @@ async function pumpEdge() {
   await Promise.all([w(), w(), w(), w()]);
   bzEdge = 0;
   if (QE.length) pumpEdge();
-}
-
-function vtPrefetchAdjacent(s, tf) {
-  if (!s || !tf || !isLive() || !vtCanUseEdge()) return;
-  // Credit protection: prefetch adjacent timeframes ONLY for Crypto (never Twelve Data)
-  if (!vtIsCryptoSym(s)) return;
-  const idx = VT_TF_ORDER.indexOf(tf);
-  if (idx < 0) return;
-  const adj = [VT_TF_ORDER[idx - 1], VT_TF_ORDER[idx + 1]].filter(Boolean);
-  for (const atf of adj) {
-    const k = s[0] + "|" + atf;
-    if (LIVE[k] && Date.now() - (LT[k] || 0) < ttl(k)) continue;
-    if (PEND[k] || VT_PREFETCH_PEND[k]) continue;
-    VT_PREFETCH_PEND[k] = 1;
-    setTimeout(async () => {
-      try {
-        const bars = await edgeFetchCandles(s, atf);
-        if (bars && bars.length) {
-          LIVE[k] = bars;
-          LT[k] = Date.now();
-          dirty(k);
-        }
-      } catch (_e) {
-      } finally {
-        delete VT_PREFETCH_PEND[k];
-      }
-    }, 120);
-  }
-}
-
-function vtBnKlineStop() {
-  clearTimeout(VT_EDGE.bnTimer);
-  VT_EDGE.bnTimer = 0;
-  VT_EDGE.bnSym = "";
-  VT_EDGE.bnTf = "";
-  VT_EDGE.bnWs = null;
-}
-
-function vtTdWsStop() {
-  clearTimeout(VT_EDGE.tdTimer);
-  VT_EDGE.tdTimer = 0;
-  clearInterval(VT_EDGE.tdHb);
-  VT_EDGE.tdHb = 0;
-  VT_EDGE.tdActiveSym = "";
-  VT_EDGE.tdActiveTdSym = "";
-  VT_EDGE.tdSubTdSym = "";
-  VT_EDGE.tdWs = null;
 }
 
 function vtBuildWsUrl() {
@@ -826,7 +778,7 @@ function vtPatchLiveDomForSymbols(syms) {
     const s = typeof symOf === "function" ? symOf(sym) : null;
     if (!s) continue;
     const d = typeof wlData === "function" ? wlData(sym) : { last: s[2], chg: null, vol: s[3] };
-    const priceTxt = d.last == null ? "…" : fp(d.last);
+    const priceTxt = d.last == null ? "…" : fp(d.last, s);
     const chgTxt = d.chg == null ? "…" : (d.chg > 0 ? "+" : "") + d.chg.toFixed(2) + "%";
     const volTxt = d.vol ? fm(d.vol) : "–";
 
@@ -841,6 +793,19 @@ function vtPatchLiveDomForSymbols(syms) {
         vals[1].classList.toggle("dn", d.chg != null && d.chg < 0);
       }
       if (vals[2] && vals[2].textContent !== volTxt) vals[2].textContent = volTxt;
+    }
+
+    // Targeted zero-jitter patch for Supercharts right-dock rows
+    const dkRows = document.querySelectorAll(`#dkwl .dkr[data-s="${sym}"]`);
+    for (const row of dkRows) {
+      const pEl = row.querySelector(".dkp");
+      const cEl = row.querySelector(".dkc");
+      if (pEl && pEl.textContent !== priceTxt) pEl.textContent = priceTxt;
+      if (cEl) {
+        if (cEl.textContent !== chgTxt) cEl.textContent = chgTxt;
+        cEl.classList.toggle("up", d.chg != null && d.chg >= 0);
+        cEl.classList.toggle("dn", d.chg != null && d.chg < 0);
+      }
     }
 
     // Targeted zero-jitter patch for active Screener rows
@@ -971,7 +936,7 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
     }
   }
 
-  // 4. Sync active chart & split pane B in real time
+  // 4. Sync active chart & split pane B in real time (standard WS bar aggregation, no polling gap freeze)
   if (!opts.skipChartUpdate) {
     const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
     if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym) {
@@ -981,45 +946,49 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
       const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[kChart]) ? LIVE[kChart] : null;
       const last = arr && arr.length ? arr[arr.length - 1] : null;
 
-      if (vtIsChartPaused(sym, tf)) {
-        vtBackfillChart(sym, tf);
-      } else if (!last) {
+      if (!last) {
+        if (typeof LIVE !== "undefined") {
+          LIVE[kChart] = [{ t: bucket, o: price, h: price, l: price, c: price, v: 0 }];
+        }
         if (typeof PEND === "undefined" || !PEND[kChart]) {
-          vtSetChartGap(sym, tf, true);
           vtBackfillChart(sym, tf);
         }
-      } else if (bucket < last.t) {
-        // Ignore out-of-order older packets
-      } else if (bucket - last.t > step * 2) {
-        vtSetChartGap(sym, tf, true);
-        vtBackfillChart(sym, tf);
       } else {
-        if (bucket === last.t) {
-          last.c = price;
-          last.h = Math.max(last.h, price);
-          last.l = Math.min(last.l, price);
+        const lastBucket = step < 86400 ? Math.floor(last.t / step) * step : last.t;
+        if (bucket < lastBucket) {
+          // Ignore out-of-order older packets
         } else {
-          const open = last.c > 0 ? last.c : price;
-          arr.push({
-            t: bucket,
-            o: open,
-            h: Math.max(open, price),
-            l: Math.min(open, price),
-            c: price,
-            v: 0,
-          });
-          if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
-        }
-        if (typeof LT !== "undefined") LT[kChart] = nowMs;
-        if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
-          updateLiveBar(sym, tf, bucket);
-        }
-        const q = document.getElementById("cpx");
-        if (q) {
-          const txt = fp(price);
-          if (q.textContent !== txt) {
-            q.textContent = txt;
-            if (typeof vtPxWatch === "function") vtPxWatch();
+          if (bucket === lastBucket) {
+            last.t = lastBucket;
+            last.h = Math.max(last.h, last.o, price);
+            last.l = Math.min(last.l, last.o, price);
+            last.c = price;
+          } else {
+            arr.push({
+              t: bucket,
+              o: price,
+              h: price,
+              l: price,
+              c: price,
+              v: 0,
+            });
+            if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
+            if (bucket - lastBucket > step * 2 && typeof vtBackfillChart === "function") {
+              vtBackfillChart(sym, tf);
+            }
+          }
+          if (typeof LT !== "undefined") LT[kChart] = nowMs;
+          if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+            updateLiveBar(sym, tf, bucket);
+          }
+          const q = document.getElementById("cpx");
+          if (q) {
+            const sRec = typeof symOf === "function" ? symOf(sym) : null;
+            const txt = fp(price, sRec || sym);
+            if (q.textContent !== txt) {
+              q.textContent = txt;
+              if (typeof vtPxWatch === "function") vtPxWatch();
+            }
           }
         }
       }
@@ -1030,21 +999,18 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
       const kB = sym + "|" + tfB;
       const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
       const bktB = Math.floor(rawTsSec / stB) * stB;
-      if (vtIsChartPaused(sym, tfB)) {
-        vtBackfillChart(sym, tfB);
-      } else if (LIVE[kB] && LIVE[kB].length) {
+      if (LIVE[kB] && LIVE[kB].length) {
         const lb = LIVE[kB][LIVE[kB].length - 1];
-        if (bktB - lb.t > stB * 2) {
-          vtSetChartGap(sym, tfB, true);
-          vtBackfillChart(sym, tfB);
-        } else if (bktB >= lb.t) {
-          if (bktB === lb.t) {
+        const lbBucket = stB < 86400 ? Math.floor(lb.t / stB) * stB : lb.t;
+        if (bktB >= lbBucket) {
+          if (bktB === lbBucket) {
+            lb.t = lbBucket;
+            lb.h = Math.max(lb.h, lb.o, price);
+            lb.l = Math.min(lb.l, lb.o, price);
             lb.c = price;
-            lb.h = Math.max(lb.h, price);
-            lb.l = Math.min(lb.l, price);
             try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
           } else {
-            const nb = { t: bktB, o: lb.c, h: Math.max(lb.c, price), l: Math.min(lb.c, price), c: price, v: 0 };
+            const nb = { t: bktB, o: price, h: price, l: price, c: price, v: 0 };
             LIVE[kB].push(nb);
             try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
           }
@@ -1069,18 +1035,30 @@ function vtApplyServerBar(sym, tf, rawBar) {
     ? { t: Number(rawBar[0]), o: Number(rawBar[1]), h: Number(rawBar[2]), l: Number(rawBar[3]), c: Number(rawBar[4]), v: Number(rawBar[5]) || 0 }
     : { t: Number(rawBar.t), o: Number(rawBar.o), h: Number(rawBar.h), l: Number(rawBar.l), c: Number(rawBar.c), v: Number(rawBar.v) || 0 };
   if (!(b.t > 0) || !(b.c > 0) || !isFinite(b.c)) return;
+  const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+  if (step < 86400) b.t = Math.floor(b.t / step) * step;
 
   const k = sym + "|" + tf;
   const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[k]) ? LIVE[k] : null;
   if (arr && arr.length) {
     const last = arr[arr.length - 1];
-    const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-    if (b.t === last.t) {
-      last.h = Math.max(last.h, b.h, b.c);
-      last.l = Math.min(last.l, b.l, b.c);
-      last.c = b.c;
+    const lastBucket = step < 86400 ? Math.floor(last.t / step) * step : last.t;
+    if (b.t === lastBucket) {
+      last.t = lastBucket;
+      const lastFlat = last.o === last.h && last.h === last.l && last.l === last.c;
+      const barHasRange = b.h > b.l || b.o !== b.c;
+      if (lastFlat && barHasRange) {
+        last.o = b.o;
+        last.h = b.h;
+        last.l = b.l;
+        last.c = b.c;
+      } else {
+        last.h = Math.max(last.h, last.o, b.h, b.c);
+        last.l = Math.min(last.l, last.o, b.l, b.c);
+        last.c = b.c;
+      }
       if (b.v > 0) last.v = Math.max(last.v || 0, b.v);
-    } else if (b.t > last.t && b.t - last.t <= step * 2) {
+    } else if (b.t > lastBucket) {
       arr.push(b);
       if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
     }
@@ -1091,7 +1069,8 @@ function vtApplyServerBar(sym, tf, rawBar) {
       }
       const q = document.getElementById("cpx");
       if (q) {
-        const txt = fp(b.c);
+        const sRec = typeof symOf === "function" ? symOf(sym) : sym;
+        const txt = fp(b.c, sRec);
         if (q.textContent !== txt) {
           q.textContent = txt;
           if (typeof vtPxWatch === "function") vtPxWatch();
@@ -1286,20 +1265,6 @@ function vtOpenEdgeWs() {
   };
 }
 
-function vtBnKlineStart(sym, tf) {
-  if (!vtCanUseEdge() || !isLive() || !sym || !tf || vtIsPublicNonTerminalRoute()) return;
-  VT_EDGE.bnSym = sym;
-  VT_EDGE.bnTf = tf;
-  vtSyncWsView();
-}
-
-async function vtTdWsConnect(sym) {
-  if (!vtCanUseEdge() || !isLive() || !sym || vtIsPublicNonTerminalRoute()) return;
-  VT_EDGE.tdActiveSym = sym;
-  VT_EDGE.tdActiveTdSym = vtToTdSym(sym);
-  vtSyncWsView();
-}
-
 function vtIsPublicNonTerminalRoute() {
   if (typeof document === "undefined") return false;
   if (document.getElementById("vt-landing-root")) return true;
@@ -1311,9 +1276,6 @@ function vtIsPublicNonTerminalRoute() {
 
 function vtSyncChartFeed(sym, tf) {
   if (!vtCanUseEdge() || !isLive() || !sym || vtIsPublicNonTerminalRoute()) return;
-  VT_EDGE.tdActiveSym = sym;
-  VT_EDGE.bnSym = sym;
-  VT_EDGE.bnTf = tf || (S && S.chart && S.chart.tf) || "1H";
   vtSyncWsView();
 }
 
@@ -1331,8 +1293,6 @@ function vtWsConnect() {
 }
 
 function vtStopAllFeeds() {
-  vtBnKlineStop();
-  vtTdWsStop();
   vtCloseEdgeWs();
 }
 
@@ -1341,10 +1301,8 @@ async function vtHandleTabWake() {
   if (typeof S === "undefined" || !S || !S.chart || !S.chart.sym) return;
   const sym = S.chart.sym;
   const tf = S.chart.tf || "1H";
-  vtSetChartGap(sym, tf, true);
   const jobs = [vtBackfillChart(sym, tf, { force: true })];
   if (typeof SC !== "undefined" && SC && S.pageView === "chart" && S.sc && S.sc.panes === 2 && S.sc.tfB && S.sc.tfB !== tf) {
-    vtSetChartGap(sym, S.sc.tfB, true);
     jobs.push(vtBackfillChart(sym, S.sc.tfB, { force: true }));
   }
   const resList = await Promise.all(jobs);
@@ -1362,7 +1320,9 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
       }
       const awayMs = VT_EDGE.hiddenAt ? Date.now() - VT_EDGE.hiddenAt : 0;
       VT_EDGE.hiddenAt = 0;
-      if (awayMs > 60000) {
+      const wsUp = VT_EDGE.ws && VT_EDGE.ws.readyState === 1;
+      if (!wsUp) vtWsConnect();
+      if (awayMs > 60000 && !wsUp) {
         vtHandleTabWake();
       }
     } catch (_e) {}

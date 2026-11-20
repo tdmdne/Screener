@@ -25,14 +25,15 @@ await ok("normalizeBar repairs wicks, drops garbage, cleanBars sorts+dedupes", (
   const b = cleanBars([[200, 1, 1, 1, 1], [100, 1, 1, 1, 1], [100, 2, 2, 2, 2], [300, 0, 0, 0, 0]]);
   assert.deepEqual(b.map((x) => [x.t, x.o]), [[100, 2], [200, 1]]);
 });
-await ok("tick guard DROPS 3.87% GBPUSD spike, accepts 0.05% move, accepts a real gap after 4 agreeing ticks", () => {
+await ok("tick guard DROPS >5% GBPUSD spike, accepts normal <=5% moves, accepts a real gap after 4 agreeing ticks", () => {
   const g = createTickGuard();
   assert.ok(g({ s: "GBPUSD", c: 1.3200 }));
-  assert.equal(g({ s: "GBPUSD", c: 1.2690 }), null);           // -3.87%
-  assert.ok(g({ s: "GBPUSD", c: 1.3207 }));                    // normal
-  assert.equal(g({ s: "GBPUSD", c: 1.2690 }), null);           // quarantined: not clamped, not accepted
-  g({ s: "GBPUSD", c: 1.2691 }); g({ s: "GBPUSD", c: 1.2690 });
-  assert.ok(g({ s: "GBPUSD", c: 1.2691 }));                    // 4th agreeing tick => genuine gap
+  assert.ok(g({ s: "GBPUSD", c: 1.3207 }));                    // +0.05% normal
+  assert.ok(g({ s: "GBPUSD", c: 1.3500 }));                    // +2.22% genuine move (<= 5% accepted)
+  assert.equal(g({ s: "GBPUSD", c: 1.2750 }), null);           // -5.56% single-tick spike (> 5% dropped)
+  assert.equal(g({ s: "GBPUSD", c: 1.2750 }), null);           // quarantined: not clamped, not accepted
+  g({ s: "GBPUSD", c: 1.2751 });
+  assert.ok(g({ s: "GBPUSD", c: 1.2751 }));                    // 4th agreeing tick => genuine gap
   const s = createTickGuard(); s({ s: "BTCUSDT", c: 100 });
   assert.ok(s({ s: "BTCUSDT", c: 103 })); assert.equal(s({ s: "BTCUSDT", c: 120 }), null);
 });

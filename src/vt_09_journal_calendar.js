@@ -448,7 +448,7 @@ function calRender(){const L=document.getElementById("cal_list");if(!L)return;co
       return`<tr class="${e.t<now?"past":""}${isNext?" next-up":""}"><td class="l">${esc(calTime(e,tz))}</td><td class="l"><b>${esc(e.ccy)}</b></td><td class="l"><span class="calimp-tag i_${e.imp.toLowerCase()}">${calImpSvg(e.imp)}<span>${esc(e.imp)}</span></span></td><td class="l">${esc(e.title)}</td><td class="${ac}">${esc(e.act)||"\u2013"}</td><td>${esc(e.fc)||"\u2013"}</td><td>${esc(e.pv)||"\u2013"}</td></tr>`}).join("")}</tbody></table></div></div>`}).join("")}
 /* ---- headlines */
 function newsSyms(){const C=calCfg();if(C.news.length)return C.news.slice();const d=[];if(S.chart&&S.chart.sym&&newsTicker(S.chart.sym))d.push(S.chart.sym);return d}
-function newsTicker(n){n=String(n||"").toUpperCase();if(!n)return null;const y=[...(typeof YFW!=="undefined"?YFW:[]),...(typeof YCR!=="undefined"?YCR:[])].find(w=>w.n===n);if(y)return y.td;
+function newsTicker(n){n=String(n||"").toUpperCase();if(!n)return null;const y=(typeof YFW!=="undefined"?YFW:[]).find(w=>w.n===n);if(y)return y.td;
   const m=/^([A-Z0-9]{2,10})(USDT|USDC|USD)$/.exec(n);if(m&&(typeof SYMS==="undefined"||SYMS.some(s=>s[0]===n&&s[1]==="CRY")||/USDT$/.test(n)))return m[1]+"-USD";
   if(/^[A-Z]{6}$/.test(n)&&typeof SYMS!=="undefined"&&SYMS.some(s=>s[0]===n&&s[1]==="FX"))return n+"=X";
   if(/^[A-Z][A-Z0-9.\-]{0,9}$/.test(n))return n;return null}

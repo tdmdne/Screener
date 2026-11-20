@@ -141,7 +141,29 @@ if(t==="adr"){const raw=candles(s,"1D");if(!raw||!raw.length)return null;const a
 if(t==="mac"){const a=candles(s,c.tf),m=ma(s,c.tf,c.ma,c.len);if(!a||!a.length||!m)return null;return(a[a.length-1].c-m)/m*100}
 return null}
 const fm=x=>x==null?"n/a":x>=1e9?(x/1e9).toFixed(1)+"B":x>=1e6?(x/1e6).toFixed(1)+"M":(x/1e3).toFixed(0)+"K";
-const fp=p=>{if(p===null||p===undefined||p==="")return"–";const n=Number(p);return isFinite(n)?n.toFixed(n<5?4:n<1000?2:1):"–"};
+const vtPriceSpec=(sOrSym,priceHint)=>{
+  const rec=Array.isArray(sOrSym)?sOrSym:(typeof sOrSym==="string"&&typeof symOf==="function"?symOf(sOrSym):null);
+  const sym=String(Array.isArray(sOrSym)?(sOrSym[0]||""):(sOrSym||"")).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  const mkt=rec&&rec[1]?String(rec[1]).toUpperCase():"";
+  const px=Number(priceHint!=null?priceHint:(rec&&rec[2]!=null?rec[2]:NaN));
+  if(sym==="XAUUSD"||sym==="XAU")return{precision:2,minMove:0.01};
+  if(sym==="XAGUSD"||sym==="XAG")return{precision:3,minMove:0.001};
+  if(/JPY$/.test(sym)&&(mkt==="FX"||sym.length===6))return{precision:3,minMove:0.001};
+  if(mkt==="FX"||(/^(EUR|GBP|AUD|NZD|USD|CAD|CHF)[A-Z]{3}$/.test(sym)&&!/(JPY|XAU|XAG)/.test(sym)))return{precision:5,minMove:0.00001};
+  if(mkt==="STK"||mkt==="ETF"||mkt==="IDX"||mkt==="FUT")return{precision:2,minMove:0.01};
+  if(isFinite(px)&&px>0&&px<5)return{precision:5,minMove:0.00001};
+  return{precision:2,minMove:0.01};
+};
+const fp=(p,sOrSym)=>{
+  if(p===null||p===undefined||p==="")return"–";
+  const n=Number(p);
+  if(!isFinite(n))return"–";
+  if(sOrSym!==undefined){
+    const spec=vtPriceSpec(sOrSym,n);
+    return n.toFixed(spec.precision===2&&Math.abs(n)>=1000?1:spec.precision);
+  }
+  return n.toFixed(Math.abs(n)<5?5:Math.abs(n)<1000?2:1);
+};
 function label(c){const t=c.type;
 if(t==="vol"||t==="dv")return(t==="vol"?"Volume":"Dollar vol")+(isLive()?"":" · "+c.per.toUpperCase());
 if(t==="pct")return"% change · "+c.tf;
@@ -193,7 +215,7 @@ if(S.preset&&PRESETS[S.preset]){
 }
 return r}
 function cell(o,c){const v=o.v[c.id],t=c.type;
-if(t==="price")return o.s[2]==null?"…":fp(o.s[2]);
+if(t==="price")return o.s[2]==null?"…":fp(o.s[2],o.s);
 if(t==="vol"||t==="dv")return v==null?`<span class="na">n/a</span>`:(t==="dv"?"$":"")+fm(v);
 if(t==="mat")return`<span class="sqs">${o.sq[c.id].map(b=>`<i class="${b===true?"":b===false?"b":"n"}"></i>`).join("")}</span>`;
 if(v==null)return`<span class="na">…</span>`;
@@ -282,7 +304,7 @@ function evcInfo(){modal(`<h3>Timeframe levels</h3><div style="line-height:1.6">
   function applyPreset(k){S.preset=k;S.page=0;save();render()}
 function render(){
 try{
-if(isLive()){try{bnwsStart()}catch(e){console.error("bnwsStart error:",e)}try{setLive()}catch(e){console.error("setLive error:",e)}}
+if(isLive()){try{setLive()}catch(e){console.error("setLive error:",e)}}
 if(!Array.isArray(SYMS))SYMS=[];
 const vis=S.cols.filter(c=>!c.hide);
 if(S.sort.id!=="sym"&&!vis.some(c=>c.id===S.sort.id))S.sort={id:"sym",dir:1};

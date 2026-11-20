@@ -99,10 +99,12 @@ export async function fetchYahooCandles(apiSym, interval, opts = {}) {
 
   const byTime = new Map();
   const ts = res.timestamp;
+  const alignStep = interval === "4H" ? 3600 : step;
   for (let i = 0; i < ts.length; i++) {
-    const t = Math.floor(Number(ts[i]));
+    const rawT = Math.floor(Number(ts[i]));
     const c = Number(quote.close[i]);
-    if (!Number.isFinite(t) || t <= 0 || !Number.isFinite(c) || c <= 0) continue;
+    if (!Number.isFinite(rawT) || rawT <= 0 || !Number.isFinite(c) || c <= 0) continue;
+    const t = alignStep >= 86400 ? rawT : Math.floor(rawT / alignStep) * alignStep;
     const rawO = Number(quote.open && quote.open[i]);
     const rawH = Number(quote.high && quote.high[i]);
     const rawL = Number(quote.low && quote.low[i]);
@@ -111,7 +113,15 @@ export async function fetchYahooCandles(apiSym, interval, opts = {}) {
     const h = Number.isFinite(rawH) && rawH > 0 ? Math.max(rawH, o, c) : Math.max(o, c);
     const l = Number.isFinite(rawL) && rawL > 0 ? Math.min(rawL, o, c) : Math.min(o, c);
     const v = Number.isFinite(rawV) && rawV >= 0 ? rawV : 0;
-    byTime.set(t, { t, o, h, l, c, v });
+    const prev = byTime.get(t);
+    if (!prev) {
+      byTime.set(t, { t, o, h, l, c, v });
+    } else {
+      prev.h = Math.max(prev.h, h, c);
+      prev.l = Math.min(prev.l, l, c);
+      prev.c = c;
+      prev.v += v;
+    }
   }
 
   let bars = [...byTime.values()].sort((a, b) => a.t - b.t);

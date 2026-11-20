@@ -35,11 +35,10 @@ function refVtApplyTwelveDataTick(bars, price, tsSec, tf = "1m") {
   if (bucket - last.t > step * 2) return { gap: true, ignored: false };
   if (bucket === last.t) {
     last.c = price;
-    last.h = Math.max(last.h, price);
-    last.l = Math.min(last.l, price);
+    last.h = Math.max(last.h, last.o, price);
+    last.l = Math.min(last.l, last.o, price);
   } else {
-    const open = last.c > 0 ? last.c : price;
-    bars.push({ t: bucket, o: open, h: Math.max(open, price), l: Math.min(open, price), c: price, v: 0 });
+    bars.push({ t: bucket, o: price, h: price, l: price, c: price, v: 0 });
   }
   return { gap: false, ignored: false };
 }
@@ -154,20 +153,30 @@ describe("shared/market/candles — applyTick golden parity & gap rules", () => 
     state = res.state;
 
     // Exact 2-step jump (base + 120) -> NOT a gap (boundary check: > step * 2)
+    // New bucket initializes open = high = low = close = tick.price (standard WS aggregation)
     res = applyTick(state, { s: "EURUSD", p: 1.0860, t: base + 125 });
     state = res.state;
     assert.equal(res.gap, false);
     assert.deepEqual(res.closedBar, { t: base, o: 1.0850, h: 1.0855, l: 1.0850, c: 1.0855, v: 0 });
-    assert.deepEqual(res.bar, { t: base + 120, o: 1.0855, h: 1.0860, l: 1.0855, c: 1.0860, v: 0 });
+    assert.deepEqual(res.bar, { t: base + 120, o: 1.0860, h: 1.0860, l: 1.0860, c: 1.0860, v: 0 });
+
+    // Subsequent ticks in same bucket expand high/low/close with 5-decimal precision
+    res = applyTick(state, { s: "EURUSD", p: 1.08645, t: base + 135 });
+    state = res.state;
+    res = applyTick(state, { s: "EURUSD", p: 1.08582, t: base + 148 });
+    state = res.state;
+    res = applyTick(state, { s: "EURUSD", p: 1.08619, t: base + 170 });
+    state = res.state;
+    assert.deepEqual(res.bar, { t: base + 120, o: 1.0860, h: 1.08645, l: 1.08582, c: 1.08619, v: 0 });
 
     // 3-step jump (base + 300: 300 - 120 = 180 > 120) -> GAP!
-    // Must close previous bar, start new bar opening at tick price (1.1025, NOT bridging 1.0860),
+    // Must close previous bar, start new bar opening at tick price (1.1025, NOT bridging previous close),
     // and emit ZERO synthetic bars for base+180 or base+240.
     res = applyTick(state, { s: "EURUSD", p: 1.1025, t: base + 305 });
     state = res.state;
     assert.equal(res.gap, true);
     assert.equal(res.ignored, false);
-    assert.deepEqual(res.closedBar, { t: base + 120, o: 1.0855, h: 1.0860, l: 1.0855, c: 1.0860, v: 0 });
+    assert.deepEqual(res.closedBar, { t: base + 120, o: 1.0860, h: 1.08645, l: 1.08582, c: 1.08619, v: 0 });
     assert.deepEqual(res.bar, { t: base + 300, o: 1.1025, h: 1.1025, l: 1.1025, c: 1.1025, v: 0 });
   });
 

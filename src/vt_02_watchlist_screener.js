@@ -21,7 +21,7 @@ if(W.open){h+=`<div class="wlb"><div class="wc"><span>Symbol</span><span>Last</s
 W.groups.forEach(g=>{h+=`<div class="wg"><span class="wgn" onclick="wlGTog('${g.id}')">${g.open?VT_IC.chevDown:VT_IC.chevRight} ${esc(g.name)}</span><span>${g.syms.length}</span><span class="sp"></span><button class="ib" title="Add a symbol here" aria-label="Add a symbol to ${esc(g.name)}" onclick="wlAddM('${g.id}')">${VT_IC.plus}</button><button class="ib" title="Rename section" aria-label="Rename ${esc(g.name)}" onclick="wlSecM('${g.id}')">${VT_IC.edit}</button><button class="ib" title="Delete section" aria-label="Delete ${esc(g.name)}" onclick="wlDelG('${g.id}')">${VT_IC.x}</button></div>`;
 if(g.open){if(!g.syms.length)h+=`<div class="wl-empty mut">No symbols yet. Press + to add some.</div>`;
 g.syms.forEach(n=>{const d=wlData(n),q=esc(n);
-h+=`<div class="wr ${n===S.chart.sym?"sel":""}" data-s="${q}" onclick="openChart('${q}')"><span class="wn">${q}</span><span class="wv">${d.last==null?"…":fp(d.last)}</span><span class="wv ${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"…":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span><span class="wv mut">${d.vol?fm(d.vol):"–"}</span><button class="ib x" title="Remove" aria-label="Remove ${q}" onclick="event.stopPropagation();wlRm('${g.id}','${q}')">${VT_IC.x}</button></div>`})}});
+h+=`<div class="wr ${n===S.chart.sym?"sel":""}" data-s="${q}" onclick="openChart('${q}')"><span class="wn">${q}</span><span class="wv">${d.last==null?"…":fp(d.last,n)}</span><span class="wv ${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"…":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span><span class="wv mut">${d.vol?fm(d.vol):"–"}</span><button class="ib x" title="Remove" aria-label="Remove ${q}" onclick="event.stopPropagation();wlRm('${g.id}','${q}')">${VT_IC.x}</button></div>`})}});
 h+=`</div>`}
 el.innerHTML=h}
 function wlTog(){S.wlx.open=!S.wlx.open;save();renderWL()}
@@ -284,32 +284,28 @@ const D={bg:"#121316",tx:"#a1a1aa",gr:"#27272a"},Lt={bg:"#ffffff",tx:"#71717a",g
 return b==="dark"?D:b==="light"?Lt:b==="custom"?Object.assign({},dk(C.bgCol)?D:Lt,{bg:C.bgCol}):{bg:v("--bg"),tx:v("--mut"),gr:v("--line")}}
 function markSel(){document.querySelectorAll("#t tbody tr[data-s],#wl .wr[data-s]").forEach(tr=>tr.classList.toggle("sel",tr.dataset.s===S.chart.sym))}
 function openChart(sym,tf){if(typeof vtEnsureSym==="function")vtEnsureSym(sym,true);S.chart.sym=sym;if(tf)S.chart.tf=tf;save();
-const _ok=sym+"|"+S.chart.tf;if(typeof isLive==="function"&&isLive()&&typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&LIVE[_ok]&&LIVE[_ok].length&&Date.now()-(LT[_ok]||0)>60000&&typeof vtBackfillChart==="function"){if(typeof vtSetChartGap==="function")vtSetChartGap(sym,S.chart.tf,true);vtBackfillChart(sym,S.chart.tf)}
+const _ok=sym+"|"+S.chart.tf;if(typeof isLive==="function"&&isLive()&&typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&LIVE[_ok]&&LIVE[_ok].length&&Date.now()-(LT[_ok]||0)>60000&&typeof vtBackfillChart==="function"){vtBackfillChart(sym,S.chart.tf)}
 drawChart();markSel();
-if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()&&typeof vtSyncChartFeed==="function"){vtSyncChartFeed(sym,S.chart.tf)}else{const cs=symOf(sym);if(cs&&cs[8]==="bn")bnKlineStart(sym,S.chart.tf);else if(cs&&(cs[1]==="STK"||cs[1]==="ETF"))fhSubscribe(sym)}
+if(typeof vtSyncChartFeed==="function"){vtSyncChartFeed(sym,S.chart.tf)}
 const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
 if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
 if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 let vtLastPlotT={};
-function updateLiveBar(sym,tf,incomingBucket){
+function updateLiveBar(sym,tf){
   if(!ch||!MS||S.chart.sym!==sym||S.chart.tf!==tf)return;
-  if(typeof vtIsChartPaused==="function"&&vtIsChartPaused(sym,tf))return;
-  const a=candles(symOf(sym),tf);if(!a||!a.length)return;
+  const s=symOf(sym);
+  const a=candles(s,tf);if(!a||!a.length)return;
   const last=a[a.length-1];
   if(!last||!(last.c>0)||!isFinite(last.t))return;
-  const step=(typeof STEP!=="undefined"&&STEP[tf])||3600;
-  if(incomingBucket!=null&&isFinite(incomingBucket)&&(Math.floor(incomingBucket)-last.t)>step*2){
-    if(typeof vtSetChartGap==="function")vtSetChartGap(sym,tf,true);
-    if(typeof vtBackfillChart==="function")vtBackfillChart(sym,tf);
-    return;
-  }
   const k=sym+"|"+tf;
   if(vtLastPlotT[k]&&last.t<vtLastPlotT[k])return;
   vtLastPlotT[k]=last.t;
-  const o=last.o!=null?last.o:last.c;
-  const bar={time:last.t,open:o,high:Math.max(last.h||o,o,last.c),low:Math.min(last.l||o,o,last.c),close:last.c};
+  const o=last.o!=null&&isFinite(last.o)?last.o:last.c;
+  const h=Math.max(isFinite(last.h)?last.h:o,o,last.c);
+  const l=Math.min(isFinite(last.l)?last.l:o,o,last.c);
+  const bar={time:last.t,open:o,high:h,low:l,close:last.c};
   try{MS.update(bar)}catch(e){}
-  const q=document.getElementById("cpx");if(q&&last.c>0){const t=fp(last.c);if(q.textContent!==t){q.textContent=t;if(typeof vtPxWatch==="function")vtPxWatch()}}
+  const q=document.getElementById("cpx");if(q&&last.c>0){const t=fp(last.c,s||sym);if(q.textContent!==t){q.textContent=t;if(typeof vtPxWatch==="function")vtPxWatch()}}
 }
 let vtChartMeta=null,vtHistGuard=0;
 function vtBuildChartData(s,tf,C,d1,rawA){
@@ -319,8 +315,21 @@ function vtBuildChartData(s,tf,C,d1,rawA){
   for(let i=0;i<src.length;i++){
     const b=src[i];
     if(!b||!(b.c>0)||!isFinite(b.c))continue;
-    const t=b.t!=null&&isFinite(b.t)&&b.t>0?Math.floor(b.t):now-(src.length-1-i)*st;
-    byT.set(t,Object.assign({},b,{t}));
+    const rawT=b.t!=null&&isFinite(b.t)&&b.t>0?Math.floor(b.t):now-(src.length-1-i)*st;
+    const t=st<86400?Math.floor(rawT/st)*st:rawT;
+    const prev=byT.get(t);
+    if(prev){
+      const o=prev.o!=null&&isFinite(prev.o)?prev.o:(b.o!=null&&isFinite(b.o)?b.o:b.c);
+      byT.set(t,Object.assign({},prev,b,{
+        t,
+        o,
+        h:Math.max(isFinite(prev.h)?prev.h:o,isFinite(b.h)?b.h:b.c,o,b.c),
+        l:Math.min(isFinite(prev.l)?prev.l:o,isFinite(b.l)?b.l:b.c,o,b.c),
+        c:b.c,
+      }));
+    }else{
+      byT.set(t,Object.assign({},b,{t}));
+    }
   }
   const a=[...byT.values()].sort((x,y)=>x.t-y.t);
   const T=i=>a[i]?a[i].t:now;
@@ -471,9 +480,10 @@ let s=symOf(C.sym);if(!s){s=SYMS[0];C.sym=s[0]}
 const tv=s[7]||TVS[s[0]]||s[0],hasR=C.ind.some(d=>d.t==="rsi");
 const rawCandles=candles(s,C.tf);
 const d1=candles(s,"1D"),pc=d1&&d1.length>1?(d1[d1.length-1].c/d1[d1.length-2].c-1)*100:null;
-const cpxVal=(rawCandles&&rawCandles.length&&rawCandles[rawCandles.length-1].c!=null)?rawCandles[rawCandles.length-1].c:(d1&&d1.length&&d1[d1.length-1].c!=null?d1[d1.length-1].c:s[2]);
-if(cpxVal!=null&&isFinite(cpxVal))s[2]=cpxVal;
-const qt=(cpxVal!=null?` <b id="cpx">${fp(cpxVal)}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
+const liveMeta=typeof VT_EDGE_META!=="undefined"?VT_EDGE_META.get(s[0]):null;
+const cpxVal=(liveMeta&&liveMeta.last>0)?liveMeta.last:(s[2]>0?s[2]:(rawCandles&&rawCandles.length&&rawCandles[rawCandles.length-1].c!=null?rawCandles[rawCandles.length-1].c:(d1&&d1.length&&d1[d1.length-1].c!=null?d1[d1.length-1].c:null)));
+if(!(s[2]>0)&&cpxVal!=null&&isFinite(cpxVal))s[2]=cpxVal;
+const qt=(cpxVal!=null?` <b id="cpx">${fp(cpxVal,s)}</b>`:"")+(pc!=null?` <span class="pill ${pc<0?"b":""}" style="min-width:0">${pc>0?"+":""}${pc.toFixed(2)}%</span>`:"");
 cp.innerHTML=`<div class="cpb"><div class="row top"><button type="button" class="vt-symbtn" onclick="syOpen()" title="Search symbol (start typing or Ctrl+K)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>${esc(s[0])}</span><span class="mut" style="font-weight:500">${esc(MK[s[1]]||s[1])}</span></button>${qt}${C.showMktStatus!==false?`<button onclick="mktStatus()" title="Market status" aria-label="Market status" style="background:none;border:none;cursor:pointer">${VT_IC.pulse}</button>`:""}<div style="position:relative">${tfHTML()}</div>${vtChartTypeBtnHTML(C.type,"vtTogChartTypeMenu","vt_ctype_btn")}<button type="button" id="vt_undo_btn" class="vt-ur-btn" onclick="doUndo()" title="Undo drawing (Ctrl+Z)" aria-label="Undo drawing" ${typeof UNDO!=="undefined"&&UNDO.length?"":"disabled"}><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" id="vt_redo_btn" class="vt-ur-btn" onclick="doRedo()" title="Redo drawing (Ctrl+Y)" aria-label="Redo drawing" ${typeof REDO!=="undefined"&&REDO.length?"":"disabled"}><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button><span class="sp"></span><button id="wst" class="star" onclick="wlStar()" title="Add to or remove from your watchlist" aria-label="Toggle watchlist">${wlAll().includes(s[0])?VT_IC.starOn:VT_IC.starOff}</button><button onclick="indM()">Indicators</button><button onclick="alertsM()" title="Price alerts">Alerts</button><button onclick="setM()">Settings</button><div style="position:relative"><button type="button" id="vt_chmore_btn" onclick="vtTogChartMore(event)" title="More chart actions (Templates, Scripts, Locate)" aria-label="More chart actions" aria-haspopup="menu"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button><div id="vt_chmore" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:196px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"></div></div><div style="position:relative"><button onclick="snapMenu(event)" title="Snapshot" aria-label="Snapshot">${VT_IC.cam}</button><div id="snapdrop" class="vt-pop-ov" style="display:none;position:fixed;background:var(--glass-bg,var(--bg));border:1px solid var(--glass-border,var(--line));border-radius:8px;min-width:154px;z-index:1050;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:4px 0"><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapDownload()">Download image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapCopy()">Copy image</div><div class="vt-pop-item" style="padding:8px 12px;cursor:pointer" onclick="snapOpen()">Open in new tab</div></div></div><button onclick="resetLive()" title="Reset chart view" aria-label="Reset chart view">${VT_IC.refresh}</button></div><div class="cw"><div class="tbar" id="tb">${tbHTML()}</div><div class="cm"><div id="cv"></div>${hasR?`<div id="cv2"></div>`:""}<div id="dsel"></div><div id="vt_favbar_host"></div><div id="timebar" style="display:flex;justify-content:flex-end;align-items:center;min-height:24px;padding:4px 8px;font-size:14px;font-weight:600;color:var(--mut);border-top:1px solid var(--line);background:var(--bg)"></div></div></div><p class="mut">${isLive()?"Live market feed.":"Connecting to market feed…"} Indicators are calculated on these candles.</p></div>`;
 const cvEl=document.getElementById("cv");if(!cvEl)return;
 if(!window.LightweightCharts){cvEl.innerHTML=`<p class="mut">The chart library didn’t load.</p>`;return}
@@ -506,7 +516,8 @@ if(!rawCandles||!rawCandles.length){const ek=ERR[s[0]+"|"+C.tf];if(ek&&typeof vt
 ch=L.createChart(cvEl,op(true));
 const a=rawCandles,{st,T,cl,pts,D}=vtBuildChartData(s,C.tf,C,d1,a);
 const meta={sym:s[0],tf:C.tf,overlaySer:null,overlayType:C.type,candleSer:null,prevLine:null,indSeries:[],rsiSer:null};
-const prec=s[2]<10?4:2,pF={type:"price",precision:prec,minMove:s[2]<10?0.0001:0.01};
+const ps=typeof vtPriceSpec==="function"?vtPriceSpec(s,s[2]):{precision:s[2]<5?5:2,minMove:s[2]<5?0.00001:0.01};
+const pF={type:"price",precision:ps.precision,minMove:ps.minMove};
 const so={priceLineVisible:C.pLine,lastValueVisible:C.pLabel,priceLineColor:C.pLineCol||"",priceFormat:pF};
 if(C.type==="line"){const os=ch.addLineSeries(Object.assign({color:C.lineCol||"#2962ff",lineWidth:C.lineW||2},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os;meta.candleSer=os}
 else if(C.type==="area"){const lc=C.lineCol||"#2962ff";const os=ch.addAreaSeries(Object.assign({lineColor:lc,lineWidth:C.lineW||2,topColor:lc+"55",bottomColor:lc+"05"},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os;meta.candleSer=os}
@@ -560,7 +571,6 @@ try{initDraw(a,T,st)}catch(e){console.error("initDraw error:",e)}
 try{if(typeof vtRenderFavBars==="function")vtRenderFavBars()}catch(_e){}
 if(typeof vtAfterDraw==="function"){try{vtAfterDraw(s,a,T)}catch(e){console.error(e)}}
 if(typeof vtRenderGapBadge==="function"){try{vtRenderGapBadge()}catch(e){}}
-if(typeof vtPrefetchAdjacent==="function"){try{vtPrefetchAdjacent(s,C.tf)}catch(e){}}
 // TradingView-style collapsible vertical indicator stack with active indicator count pill
 if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
   try{
@@ -576,7 +586,7 @@ if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
       let valStr="";
       try{
         const vals=d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):d.t==="rsi"?rsiArr(cl,d.len):null;
-        if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv)}
+        if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv,s)}
       }catch(_e){}
       const nm=esc((IND[d.t]||d.t)+(d.len?" "+d.len:""));
       const did=esc(d.id);

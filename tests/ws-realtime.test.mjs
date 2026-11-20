@@ -463,4 +463,189 @@ await test("single normalized WS quotes & bar frames update chart, watchlist, sc
   assert.equal(metaMap.get("EURUSD").last, 1.0865, "server bar price synced to VT_EDGE_META");
 });
 
+await test("FX pairs retain 5-decimal precision (0.00001) and live 1m WS bars form genuine wicks/bodies without polling gap freeze", () => {
+  const coreSrc = fs.readFileSync(path.join(ROOT, "src/vt_01_core_state.js"), "utf8");
+  const specIdx = coreSrc.indexOf("const vtPriceSpec=");
+  const labelIdx = coreSrc.indexOf("function label(c)");
+  assert.ok(specIdx >= 0 && labelIdx > specIdx, "vtPriceSpec and fp must exist in vt_01_core_state.js");
+
+  const updatedChartBars = [];
+  const fakeCpx = { textContent: "" };
+  const baseMin = Math.floor(Date.now() / 60000) * 60;
+  // Simulate stale REST history (10 minutes behind live edge, previously frozen by >2*step guard)
+  const staleMin = baseMin - 600;
+
+  const sandbox = {
+    console, Date, Math, JSON, Map, Set, Array, Number, String, Object, RegExp, isFinite,
+    setTimeout: () => 1, clearTimeout: () => {}, setInterval: () => 1, clearInterval: () => {},
+    requestAnimationFrame: () => 1,
+    location: { protocol: "https:", host: "vektorterminal.com", hash: "" },
+    window: {},
+    document: {
+      hidden: false, visibilityState: "visible",
+      documentElement: { classList: { contains: () => false }, dataset: {} },
+      addEventListener: () => {},
+      getElementById: (id) => (id === "cpx" ? fakeCpx : null),
+      querySelectorAll: () => [],
+      querySelector: () => null,
+    },
+    S: { chart: { sym: "EURUSD", tf: "1m" }, pageView: "chart", cols: [], sc: { panes: 1, tfB: "5m" } },
+    SC: {},
+    SNAP: { t: 0, tfs: ["1m"], ok: true, uni: [["EURUSD", "FX", 1.09874, 0, 1, 0.00001, "EUR/USD", "", "td", "EUR/USD"]] },
+    SYMS: [
+      ["EURUSD", "FX", 1.09874, 0, 1, 0.00001, "EUR/USD", "", "td", "EUR/USD"],
+      ["USDJPY", "FX", 154.321, 0, 1, 0.001, "USD/JPY", "", "td", "USD/JPY"],
+      ["AAPL", "STK", 228.50, 0, 1, 0.01, "AAPL", "", "td", "AAPL"],
+      ["NIO", "STK", 4.35, 0, 1, 0.01, "NIO", "", "td", "NIO"],
+    ],
+    CUS: {},
+    LIVE: {
+      "EURUSD|1m": [{ t: staleMin, o: 1.09850, h: 1.09850, l: 1.09850, c: 1.09850, v: 0 }],
+    },
+    LT: {}, ERR: {}, PEND: {},
+    STEP: { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "4H": 14400, "1D": 86400 },
+    ch: {}, MS: { update: (bar) => updatedChartBars.push(bar) },
+    isLive: () => true,
+    symOf: (sym) => sandbox.SYMS.find((x) => x[0] === sym) || null,
+    wlAll: () => ["EURUSD"],
+    fm: (v) => String(v),
+    dirty: () => {}, markOk: () => {}, status: () => {},
+    updateLiveBar: (sym, tf) => {
+      const b = sandbox.LIVE[sym + "|" + tf].at(-1);
+      sandbox.MS.update({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c });
+    },
+    checkAlerts: () => {},
+  };
+
+  vm.createContext(sandbox);
+  vm.runInContext(coreSrc.slice(specIdx, labelIdx) + "\nthis.vtPriceSpec = vtPriceSpec; this.fp = fp;\n", sandbox);
+  const cutIdx = edgeSrc.indexOf("// ---------- 95 symbol search:");
+  vm.runInContext(edgeSrc.slice(0, cutIdx), sandbox);
+
+  // 1. Verify exact 5-decimal FX, 3-decimal JPY, and 2-decimal equity precision specs
+  assert.deepEqual({ ...sandbox.vtPriceSpec(sandbox.SYMS[0]) }, { precision: 5, minMove: 0.00001 });
+  assert.deepEqual({ ...sandbox.vtPriceSpec(sandbox.SYMS[1]) }, { precision: 3, minMove: 0.001 });
+  assert.deepEqual({ ...sandbox.vtPriceSpec(sandbox.SYMS[2]) }, { precision: 2, minMove: 0.01 });
+  assert.deepEqual({ ...sandbox.vtPriceSpec(sandbox.SYMS[3]) }, { precision: 2, minMove: 0.01 });
+  assert.equal(sandbox.fp(1.09874, sandbox.SYMS[0]), "1.09874");
+  assert.equal(sandbox.fp(154.321, sandbox.SYMS[1]), "154.321");
+  assert.equal(sandbox.fp(4.35, sandbox.SYMS[3]), "4.35");
+
+  // 2. Stream 4 live ticks inside a new 1m bucket 10m ahead of stale REST bar -> MUST NOT pause or flatten!
+  const ticks = [
+    { p: 1.09874, s: baseMin + 2 },
+    { p: 1.09889, s: baseMin + 14 },
+    { p: 1.09861, s: baseMin + 28 },
+    { p: 1.09878, s: baseMin + 47 },
+  ];
+  for (const tk of ticks) {
+    sandbox.vtApplyNormalizedTick("EURUSD", tk.p, tk.s * 1000, { source: "twelvedata" });
+  }
+
+  const liveBar = sandbox.LIVE["EURUSD|1m"].at(-1);
+  assert.equal(liveBar.t, baseMin, "1m bar timestamp must be minute-aligned");
+  assert.equal(liveBar.o, 1.09874, "new bucket must initialize open = first tick.price (not bridged to stale close)");
+  assert.equal(liveBar.h, 1.09889, "high must expand to intra-bar peak with 5-decimal precision");
+  assert.equal(liveBar.l, 1.09861, "low must expand to intra-bar trough with 5-decimal precision");
+  assert.equal(liveBar.c, 1.09878, "close must equal latest tick.price");
+  assert.equal(fakeCpx.textContent, "1.09878", "header live price must format to 5 decimals for EURUSD");
+  assert.equal(updatedChartBars.length, 4, "every live tick must update LightweightCharts series without gap freeze");
+});
+
+await test("legacy REST-polling timers, staggered fetch queues, and header-override patches are removed across src/vt_*.js", () => {
+  const clientFiles = fs
+    .readdirSync(path.join(ROOT, "src"))
+    .filter((f) => /^vt_\d+.*\.js$/.test(f))
+    .map((f) => ({ name: f, src: fs.readFileSync(path.join(ROOT, "src", f), "utf8") }));
+  assert.ok(clientFiles.length >= 10, "expected all vt_*.js client modules");
+
+  const bannedPatterns = [
+    { re: /setInterval\s*\([^)]*vtPxWatch/, msg: "dead 250ms DOM polling timer for vtPxWatch" },
+    { re: /SC\.iv\s*=\s*setInterval/, msg: "dead 1.5s Supercharts dock/pane polling timer" },
+    { re: /\bvtPrefetchAdjacent\b/, msg: "legacy adjacent-TF REST prefetcher" },
+    { re: /\b(pumpTD|pumpBN|loadFHU|loadPGU|autoRefresh)\b/, msg: "legacy REST polling queue/loader" },
+    { re: /\b(bnKlineStart|fhSubscribe|vtBnKlineStart|vtTdWsConnect|tryFallbacks)\b/, msg: "dead external provider WS/fallback helper" },
+    { re: /\bconst\s+(QT|QB|QY|BNH|FHU|PGU)\s*=/, msg: "dead REST queue or external API host constant" },
+    { re: /BNWS\.ws/, msg: "stale BNWS.ws live badge check" },
+  ];
+
+  for (const { name, src } of clientFiles) {
+    for (const { re, msg } of bannedPatterns) {
+      assert.equal(re.test(src), false, `${name} must not contain ${msg} (${re})`);
+    }
+  }
+
+  const hmSrc = fs.readFileSync(path.join(ROOT, "src/vt_07_screener_pro_auth.js"), "utf8");
+  assert.match(hmSrc, /VT_EDGE\.ws\s*&&\s*VT_EDGE\.ws\.readyState\s*===\s*1/, "heatmap badge must reflect VT_EDGE.ws");
+  assert.equal(/if\s*\(n\s*>=\s*8\)\s*break;\s*need\(/.test(hmSrc), false, "hmTick must not stagger REST fetches");
+
+  assert.match(wlSrc, /VT_EDGE_META\.get\s*\(\s*s\[0\]\s*\)/, "drawChart must prefer live VT_EDGE_META price over REST close");
+  assert.match(edgeSrc, /!\s*\(\s*row\[2\]\s*>\s*0\s*\)/, "REST backfill/pump must not clobber existing live WS price");
+});
+
+await test("MarketHub DO updates liveQuotes and open bars purely in memory with zero per-tick SQLite/KV writes", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(":memory:");
+  let sqlWrites = 0;
+  let kvPuts = 0;
+  const sql = {
+    exec(query, ...bindings) {
+      if (/^\s*(INSERT|UPDATE|REPLACE|DELETE)/i.test(query)) sqlWrites++;
+      const stmt = db.prepare(query);
+      if (/^\s*(SELECT|PRAGMA)/i.test(query)) return stmt.all(...bindings);
+      stmt.run(...bindings);
+      return [];
+    },
+  };
+  const kv = {
+    async get() { return null; },
+    async put() { kvPuts++; },
+  };
+  const ctx = {
+    storage: { sql, setAlarm: async () => {} },
+    acceptWebSocket() {},
+    getWebSockets() { return []; },
+    waitUntil(p) { Promise.resolve(p).catch(() => {}); },
+  };
+  let now = 1_700_000_040_000; // aligned +40s inside a 1m bucket
+  const hub = new MarketHub(
+    ctx,
+    { TWELVEDATA_KEY: "TEST_KEY", SNAPSHOT_KV: kv },
+    {
+      now: () => now,
+      jitter: false,
+      setTimer: () => 1,
+      clearTimer: () => {},
+      setTimeout: () => 1,
+      clearTimeout: () => {},
+      openUpstreamWs: async () => null,
+    }
+  );
+  await hub.ready();
+  sqlWrites = 0;
+  kvPuts = 0;
+
+  // Stream 5 intra-bar ticks within the same 1m bucket
+  const intraPrices = [1.09100, 1.09125, 1.09095, 1.09140, 1.09118];
+  for (let i = 0; i < intraPrices.length; i++) {
+    hub.ingestTick({ s: "EURUSD", c: intraPrices[i], t: now + i * 2000 });
+  }
+  assert.equal(sqlWrites, 0, "intra-bar WS ticks must trigger ZERO SQLite writes");
+  assert.equal(kvPuts, 0, "intra-bar WS ticks must trigger ZERO KV writes");
+  assert.equal(hub.core.last.get("EURUSD").c, 1.09118, "in-memory live quote must reflect latest tick");
+  const open1m = hub.candles.getCurrent("EURUSD", "1m");
+  assert.equal(open1m.o, 1.09100);
+  assert.equal(open1m.h, 1.09140);
+  assert.equal(open1m.l, 1.09095);
+  assert.equal(open1m.c, 1.09118);
+
+  // Advance into the next 1m bucket -> closes the 1m bar and persists ONLY the closed bar to DO SQLite
+  hub.ingestTick({ s: "EURUSD", c: 1.09130, t: now + 60_000 });
+  assert.ok(sqlWrites >= 1, "closed 1m bar must persist to DO SQLite");
+  assert.equal(kvPuts, 0, "bar close tick must still NOT write KV per tick (KV is checkpoint-only)");
+
+  hub.destroy();
+  db.close();
+});
+
 console.log(`ws-realtime.test.mjs: ${passed} passed`);

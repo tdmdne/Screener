@@ -16,9 +16,9 @@ export const TF_TWELVE = Object.freeze({
   "1m": "1min", "5m": "5min", "15m": "15min", "30m": "30min", "1h": "1h", "4h": "4h", "1d": "1day", "1w": "1week",
 });
 
-/** Zero-tolerance tick rejection: a single tick further than this from the last good price is dropped. */
+/** Wide sanity outlier filter: drops only single-tick spikes > 5% off the last valid price. */
 export const HARD_JUMP_PCT = Object.freeze({
-  FX: 1.5, IDX: 1.5, FUT: 1.5, OTHER: 1.5,
+  FX: 5, IDX: 5, FUT: 5, OTHER: 5,
   CRY: 5, STK: 5,
 });
 

@@ -12,8 +12,8 @@ function vtChartOpts(tf,extra){const p=pal(),C=S.chart,L=window.LightweightChart
 return Object.assign({autoSize:true,layout:{background:{type:"solid",color:C.bg==="custom"&&C.bgCol?C.bgCol:p.bg},textColor:C.txtCol||p.tx,fontSize:+C.fs||12},
 grid:{vertLines:{visible:C.showGridV!==false,color:C.gridV||p.gr},horzLines:{visible:C.showGridH!==false,color:C.gridH||p.gr}},
 crosshair:{mode:L.CrosshairMode.Normal},timeScale:{timeVisible:!/^(1D|1W|1M)$/.test(tf),secondsVisible:false,borderColor:p.gr},rightPriceScale:{borderColor:p.gr,scaleMargins:{top:.1,bottom:.08}}},extra||{})}
-function vtCandleOpts(s){const C=S.chart,T0="rgba(0,0,0,0)",h=C.type==="hollow",prec=s&&s[2]!=null&&s[2]<10?4:2;
-return{upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick,priceFormat:{type:"price",precision:prec,minMove:prec===4?0.0001:0.01}}}
+function vtCandleOpts(s){const C=S.chart,T0="rgba(0,0,0,0)",h=C.type==="hollow",ps=typeof vtPriceSpec==="function"?vtPriceSpec(s,s&&s[2]):{precision:s&&s[2]!=null&&s[2]<5?5:2,minMove:s&&s[2]!=null&&s[2]<5?0.00001:0.01};
+return{upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick,priceFormat:{type:"price",precision:ps.precision,minMove:ps.minMove}}}
 // index of the last bar whose time is <= t (binary search); -1 if t is before the first bar
 function barAt(times,t){let lo=0,hi=times.length-1;if(hi<0||t<times[0])return -1;while(lo<hi){const m=(lo+hi+1)>>1;if(times[m]<=t)lo=m;else hi=m-1}return lo}
 function scKillB(){if(SC.chB){try{SC.chB.remove()}catch(e){}}SC.chB=SC.serB=SC.barsB=SC.indSeries=null;SC.keyB="";clearTimeout(SC.retry)}
@@ -72,9 +72,9 @@ if(S.pageView==="chart"&&S.sc.panes===2&&SC.keyB!==s[0]+"|"+S.sc.tfB)scPaneB();
 }
 function scDW(){const el=document.getElementById("dkdw");if(!el||!SC.dw)return;const{s,a,T,inds,vol}=SC.dw,i=Math.min(SC.dw.i,a.length-1),x=a[i];if(!x){el.innerHTML="";return}
 const o=x.o!=null?x.o:i?a[i-1].c:x.c,prev=i?a[i-1].c:null,chg=prev?(x.c/prev-1)*100:null,d=new Date(T(i)*1000);
-const f=v=>v==null||!isFinite(v)?"\u2013":fp(v);
+const f=v=>v==null||!isFinite(v)?"\u2013":fp(v,s);
 let h=`<span>Symbol</span><span>${esc(s[0])} \u00b7 ${esc(S.chart.tf)}</span><span>Time</span><span>${d.toISOString().slice(0,16).replace("T"," ")} UTC</span><span>Open</span><span>${f(o)}</span><span>High</span><span>${f(x.h)}</span><span>Low</span><span>${f(x.l)}</span><span>Close</span><span>${f(x.c)}</span><span>Change</span><span class="${chg==null?"":chg<0?"dn":"up"}">${chg==null?"\u2013":(chg>0?"+":"")+chg.toFixed(2)+"%"}</span><span>Volume</span><span>${vol&&vol[i]!=null?fm(vol[i]):"\u2013"}</span>`;
-inds.forEach(({d,v})=>{h+=`<span><i class="dwsw" style="background:${esc(d.col)}" aria-hidden="true"></i>${esc(IND[d.t]||d.t)} ${d.len}</span><span>${v[i]==null?"\u2013":d.t==="rsi"?v[i].toFixed(1):fp(v[i])}</span>`;const rv=document.querySelector(`#vt_ind_legend .vt-ind-row[data-indid="${CSS.escape(d.id)}"] .vt-ind-val`);if(rv)rv.textContent=v[i]==null?"":d.t==="rsi"?v[i].toFixed(1):fp(v[i])});
+inds.forEach(({d,v})=>{h+=`<span><i class="dwsw" style="background:${esc(d.col)}" aria-hidden="true"></i>${esc(IND[d.t]||d.t)} ${d.len}</span><span>${v[i]==null?"\u2013":d.t==="rsi"?v[i].toFixed(1):fp(v[i],s)}</span>`;const rv=document.querySelector(`#vt_ind_legend .vt-ind-row[data-indid="${CSS.escape(d.id)}"] .vt-ind-val`);if(rv)rv.textContent=v[i]==null?"":d.t==="rsi"?v[i].toFixed(1):fp(v[i],s)});
 el.innerHTML=h}
 function scDock(){const el=document.getElementById("dock");if(!el)return;
 if(S.pageView!=="chart"){el.innerHTML="";return}
@@ -86,22 +86,20 @@ if(!D.dock){el.innerHTML=head;return}
 const sec=(k,t,body,extra)=>`<div class="dks"><div class="dkt"><button type="button" class="dktb" onclick="scTogSec('${k}')" aria-expanded="${!!D.secs[k]}">${D.secs[k]?VT_IC.chevDown:VT_IC.chevRight}<span>${t}</span></button><span class="sp" onclick="scTogSec('${k}')" aria-hidden="true"></span>${extra||""}</div>${D.secs[k]?body:""}</div>`;
 el.innerHTML=head+`<div class="dkb">`+sec("wl","Watchlist",`<div id="dkwl"></div>`)+sec("al","Active alerts",`<div id="dkal"></div>`,`<button class="ib" onclick="event.stopPropagation();alertsM()">+ Alert</button>`)+sec("dw","Data window",`<div class="dkdw" id="dkdw"></div>`)+`</div>`;
 scDockLive();scDW()}
-function scRow(n){const d=wlData(n);return`<div class="dkr ${n===S.chart.sym?"sel":""}" onclick="openChart('${esc(n)}')"><b>${esc(n)}</b><span>${d.last==null?"\u2026":fp(d.last)}</span><span class="${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"\u2026":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span></div>`}
+function scRow(n){const d=wlData(n);return`<div class="dkr ${n===S.chart.sym?"sel":""}" data-s="${esc(n)}" onclick="openChart('${esc(n)}')"><b>${esc(n)}</b><span class="dkp">${d.last==null?"\u2026":fp(d.last,n)}</span><span class="dkc ${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"\u2026":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span></div>`}
 function scDockLive(){const w=document.getElementById("dkwl");
 if(w){const mine=wlAll(),top=PGL.filter(n=>!mine.includes(n)).slice(0,15);
 w.innerHTML=(mine.length?mine.map(scRow).join(""):`<div class="dkx mut">Your watchlist is empty. Click the watchlist star on the chart to add symbols.</div>`)+(top.length?`<div class="dkt" style="cursor:default">Screener top</div>`+top.map(scRow).join(""):"")}
 const al=document.getElementById("dkal");
 if(al){const A=S.alerts||[];al.innerHTML=A.length?A.map((x,i)=>{const s=symOf(x.sym),px=s&&s[2],dist=px?(x.price/px-1)*100:null;
 return`<div class="dka"><span style="flex:1;min-width:0;cursor:pointer;display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap" title="Edit alert" onclick="vtAlertEdit(${x.id})"><b>${esc(x.sym)}</b> ${x.dir==="above"?VT_IC.up:x.dir==="below"?VT_IC.dn:VT_IC.upDn} ${esc(x.price)}${dist!=null?` <span class="mut">(${dist>0?"+":""}${dist.toFixed(2)}%)</span>`:""}${x.fired?` <span class="pill b" style="min-width:0">hit</span>`:""}</span>${x.fired?`<button class="ib" onclick="rearmAlert(${i});scDockLive()">Re-arm</button>`:""}<button class="ib x" style="opacity:1" title="Delete" aria-label="Delete alert" onclick="S.alerts.splice(${i},1);save();scDockLive()">${VT_IC.x}</button></div>`}).join(""):`<div class="dkx mut">No alerts. Set one with + Alert or from a horizontal line.</div>`}}
-PAGE_HOOK.chart={enter(){scApplyAttr();scDock();scPaneB();clearInterval(SC.iv);
-  SC.iv=setInterval(()=>{if(S.pageView!=="chart")return;scDockLive();
-    if(SC.serB&&SC.barsB){const s=symOf(S.chart.sym),a=s&&candles(s,S.sc.tfB);if(a&&a.length){const x=a[a.length-1],t=SC.barsB.D[SC.barsB.D.length-1];if(t&&(x.t==null||x.t===t.time)){try{SC.serB.update({time:t.time,open:t.open,high:Math.max(t.high,x.h,x.c),low:Math.min(t.low,x.l,x.c),close:x.c})}catch(e){}}}}},1500)},
-  leave(){clearInterval(SC.iv);scKillB();const d=document.getElementById("dock");if(d)d.innerHTML="";const b=document.getElementById("sc2");if(b)b.innerHTML="";document.documentElement.dataset.panes="1"}};
+PAGE_HOOK.chart={enter(){scApplyAttr();scDock();scPaneB()},
+  leave(){scKillB();const d=document.getElementById("dock");if(d)d.innerHTML="";const b=document.getElementById("sc2");if(b)b.innerHTML="";document.documentElement.dataset.panes="1"}};
 // ---------- price-scale plus button (Workspace chart + both Supercharts panes) ----------
 // Hovering the chart or its price axis shows "+" at the crosshair's price, next to the axis.
 // Click it for "Add alert at <price>" (through the normal alert engine) and "Draw horizontal line at <price>".
 if(S.chart.plusBtn===undefined)S.chart.plusBtn=true;
-function vtRoundPx(s,p){const prec=s&&s[2]!=null&&s[2]<10?4:2;return +p.toFixed(prec)}
+function vtRoundPx(s,p){const ps=typeof vtPriceSpec==="function"?vtPriceSpec(s,p):{precision:s&&s[2]!=null&&s[2]<5?5:2};return +p.toFixed(ps.precision)}
 function vtAddAlertAt(sym,price){const s=symOf(sym),cur=s&&s[2]!=null?s[2]:null;
 S.alerts=S.alerts||[];const a={id:Date.now(),sym,price,dir:cur!=null&&price<cur?"below":"above",on:true,fired:false};S.alerts.push(a);save();
 toast("Alert: "+sym+" crosses "+a.dir+" "+price);if(typeof scDockLive==="function")scDockLive();
@@ -193,16 +191,9 @@ let VTAL_RAF=0,VTAL_T=0;
 function vtAlTick(force){VTAL=VTAL.filter(r=>{if(r.host.isConnected)return true;r.items.forEach(it=>{it.lab.remove();it.hit.remove()});return false});
 VTAL.forEach(r=>{try{if(force)r.items.forEach(it=>it.k="");vtAlSync(r);vtAlPos(r)}catch(e){console.error(e)}})}
 function vtAlLoop(){if(VTAL_RAF)return;const f=t=>{VTAL_RAF=0;if(!VTAL.length)return;if(!document.hidden&&t-VTAL_T>60){VTAL_T=t;vtAlTick()}VTAL_RAF=requestAnimationFrame(f)};VTAL_RAF=requestAnimationFrame(f)}
-// ---------- presets load what they score on ----------
-// scoreMarket/passesPreset read an entry + validation timeframe (H: 1H/1D, M: 15m/1H, L: 1m/15m).
-// kick() only queued the timeframes used by visible columns, so with a preset on, the entry timeframe was often
-// never loaded: scoreMarket returned 0 and P1 could not pass. This adds those timeframes to the queue (math untouched).
 const VT_EVC={H:{e:"1H",v:"1D"},M:{e:"15m",v:"1H"},L:{e:"1m",v:"15m"}};
 function evcCfg(){return VT_EVC[S.evcTf||"H"]||VT_EVC.H}
 function evcNeedsLoad(){return S.preset&&S.preset!=="P5"||S.pageView==="screener"||S.pageView==="heatmap"}
-const _vtKick=kick;kick=function(){_vtKick.apply(this,arguments);if(!isLive()||!READY||!evcNeedsLoad())return;
-const c=evcCfg(),eq=m=>m==="STK"||m==="ETF"||m==="FUT";
-[c.v,c.e].forEach(t=>SYMS.forEach(s=>{if(t!=="1D"&&s[8]!=="bn"&&eq(s[1])&&!LIVE[s[0]+"|1D"])return;need(s,t,PRI.has(s[0]))}))};
 // true when the candles scoreMarket needs are present
 function evcHas(s){const c=evcCfg(),e=candles(s,c.e),v=candles(s,c.v);return!!(e&&e.length>=20&&v&&v.length>=20)}
 // <POS>

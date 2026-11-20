@@ -5,7 +5,8 @@ import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVA
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
 import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
 import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
-import { normSymbol, toTwelveSymbol } from "./shared/schema.js";
+import { normSymbol, toTwelveSymbol, createTickGuard } from "./shared/schema.js";
+import { createCandleBuilder } from "./shared/market/candles.js";
 import { TdSubscriptionManager } from "./shared/market/tdSlots.js";
 import { PROVENANCE } from "./shared/protocol.js";
 
@@ -1284,6 +1285,11 @@ export class MarketRelayDO {
     this.tdSlots = new TdSubscriptionManager({
       maxSlots: Math.max(1, Number(env && env.TD_WS_MAX) || 8),
     });
+    this.tickGuard = createTickGuard();
+    this.candles = createCandleBuilder({
+      timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"],
+      openMode: "tick",
+    });
     this.prices = new Map();
     this.lastBinanceMsg = 0;
     this.lastTdMsg = 0;
@@ -1525,6 +1531,34 @@ export class MarketRelayDO {
     }
   }
 
+  broadcastBarUpdates(sym, updates) {
+    if (!sym || !updates) return;
+    for (const ws of this.ctx.getWebSockets("client")) {
+      const att = ws.deserializeAttachment() || {};
+      const chartSym = att.chart && att.chart.sym ? att.chart.sym : null;
+      if (chartSym !== sym) continue;
+      const tf = (att.chart && att.chart.tf) || att.interval || "1H";
+      const u = updates[tf];
+      if (!u || u.ignored || !u.bar) continue;
+      if (u.closedBar) {
+        const cb = u.closedBar;
+        this._sendV2(ws, "bar", {
+          sym,
+          tf,
+          closed: true,
+          bar: [cb.t, cb.o, cb.h, cb.l, cb.c, cb.v || 0],
+        });
+      }
+      const b = u.bar;
+      this._sendV2(ws, "bar", {
+        sym,
+        tf,
+        closed: false,
+        bar: [b.t, b.o, b.h, b.l, b.c, b.v || 0],
+      });
+    }
+  }
+
   ensureUpstream() {
     if (!this.binanceWs) {
       try {
@@ -1604,6 +1638,8 @@ export class MarketRelayDO {
                   const price = Number(d.price);
                   const rawT = Number(d.timestamp ?? Date.now());
                   const tsMs = Number.isFinite(rawT) && rawT > 0 ? (rawT < 1e12 ? rawT * 1000 : rawT) : Date.now();
+                  const checked = this.tickGuard({ s: sym, c: price, t: tsMs });
+                  if (!checked) return;
                   this.prices.set(sym, price);
                   const quote = {
                     s: sym,
@@ -1615,6 +1651,12 @@ export class MarketRelayDO {
                   if (Number(d.ask) > 0 && (!quote.bid || Number(d.ask) >= quote.bid)) quote.ask = Number(d.ask);
                   if (Number(d.day_volume) >= 0) quote.v = Number(d.day_volume);
                   this.broadcastQuotes([quote]);
+                  const updates = this.candles.onTick({
+                    s: sym,
+                    p: price,
+                    t: Math.floor(tsMs / 1000),
+                  });
+                  this.broadcastBarUpdates(sym, updates);
                 }
               } catch (_e) {}
             });

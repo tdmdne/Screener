@@ -15,7 +15,7 @@ const h1=await P.evaluate(()=>document.querySelector("#cv").clientHeight);await 
 const h2=await P.evaluate(()=>[document.querySelector("#cv").clientHeight,document.querySelector("#cv canvas").getBoundingClientRect().height]);
 assert(h2[0]>h1+120&&h2[1]>h1,"chart grows with the window "+h1+" -> "+h2);await P.setViewportSize({width:1600,height:900});await P.waitForTimeout(400);
 // loading and error states fill the chart area too
-await P.evaluate(()=>{VT_TDK.mem="";delete ERR["EURUSD|1H"];openChart("EURUSD","1H")});await P.waitForSelector("#cv .vt-cverr",{timeout:60000});
+await P.evaluate(()=>{go("workspace");vtChartErr(document.getElementById("cv"),"test error")});await P.waitForSelector("#cv .vt-cverr",{timeout:10000});
 let f=await P.evaluate(()=>{const c=document.querySelector("#cv").getBoundingClientRect(),e=document.querySelector("#cv>.vt-cverr").getBoundingClientRect();return[c.height,e.height]});
 assert(f[1]>=f[0]-2&&f[0]>450,"error state fills the chart "+f);
 f=await P.evaluate(()=>{document.getElementById("cv").innerHTML='<p class="mut vt-skel" role="status">Loading candles\u2026</p>';const c=document.querySelector("#cv").getBoundingClientRect(),e=document.querySelector("#cv>.vt-skel").getBoundingClientRect();return[c.height,e.height]});

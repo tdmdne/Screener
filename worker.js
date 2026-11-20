@@ -1,59 +1,16 @@
 // Vektor Terminal — Cloudflare Worker + KV + Edge Cache + MarketRelayDO (WebSocket Hibernation API)
 
-const STEPS = {
-  "1m": 60,
-  "5m": 300,
-  "15m": 900,
-  "30m": 1800,
-  "1H": 3600,
-  "4H": 14400,
-  "1D": 86400,
-  "1W": 604800,
-  "1M": 2592000,
-};
-
-const BNI = {
-  "1m": "1m",
-  "5m": "5m",
-  "15m": "15m",
-  "30m": "30m",
-  "1H": "1h",
-  "4H": "4h",
-  "1D": "1d",
-  "1W": "1w",
-  "1M": "1M",
-};
-
-const TDI = {
-  "1m": "1min",
-  "5m": "5min",
-  "15m": "15min",
-  "30m": "30min",
-  "1H": "1h",
-  "4H": "4h",
-  "1D": "1day",
-  "1W": "1week",
-  "1M": "1month",
-};
-
-const YI = {
-  "1m": ["1m", "5d"],
-  "5m": ["5m", "1mo"],
-  "15m": ["15m", "1mo"],
-  "30m": ["30m", "1mo"],
-  "1H": ["60m", "3mo"],
-  "4H": ["60m", "6mo"],
-  "1D": ["1d", "1y"],
-  "1W": ["1wk", "5y"],
-  "1M": ["1mo", "max"],
-};
-
-const STABLE_RE = /^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
-
-const BINANCE_MIRRORS = [
-  "https://data-api.binance.vision",
-  "https://api.binance.com",
-];
+// Catalogs, interval maps and symbol helpers live in shared/ (single source of truth with server.js).
+import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI } from "./shared/intervals.js";
+import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
+import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
+import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
+import { normSymbol, toTwelveSymbol, createTickGuard } from "./shared/schema.js";
+import { createCandleBuilder } from "./shared/market/candles.js";
+import { TdSubscriptionManager } from "./shared/market/tdSlots.js";
+import { BinanceMiniTickerFeed } from "./shared/market/binanceFeed.js";
+import { resolveCryptoProvider } from "./shared/market/cryptoProvider.js";
+import { PROVENANCE } from "./shared/protocol.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
   for (const base of BINANCE_MIRRORS) {
@@ -69,237 +26,113 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
   return null;
 }
 
-const FUTURES_TO_TWELVEDATA = {
-  "NQ=F": "QQQ",
-  "ES=F": "SPY",
-  "YM=F": "DIA",
-  "RTY=F": "IWM",
-  "GC=F": "XAU/USD",
-  "SI=F": "XAG/USD",
-  "CL=F": "WTI/USD",
-  "NG=F": "NATGAS/USD",
-  "6E=F": "EUR/USD",
-  "6B=F": "GBP/USD",
-  "6J=F": "USD/JPY",
-  "6A=F": "AUD/USD",
-  "6C=F": "USD/CAD",
-  "6S=F": "USD/CHF",
-  "ZN=F": "TLT",
-  "ZB=F": "TLT",
-  "ZF=F": "IEF",
-  "ZT=F": "SHY",
-  "BZ=F": "BRENT/USD",
-  "HG=F": "COPPER/USD",
-  "PL=F": "XPT/USD",
-  "PA=F": "XPD/USD",
-};
-
-function resolveTdSymbol(sym, fallback) {
-  if (!sym) return fallback || "";
-  const s = String(sym).trim().toUpperCase();
-  if (FUTURES_TO_TWELVEDATA[s]) return FUTURES_TO_TWELVEDATA[s];
-  if (fallback && FUTURES_TO_TWELVEDATA[String(fallback).trim().toUpperCase()]) {
-    return FUTURES_TO_TWELVEDATA[String(fallback).trim().toUpperCase()];
-  }
-  if (s.endsWith("=F")) return "";
-  return fallback || s;
-}
-
-const DUKASCOPY_MAP = {
-  EURUSD: { id: "EURUSD", scale: 100000 },
-  GBPUSD: { id: "GBPUSD", scale: 100000 },
-  USDJPY: { id: "USDJPY", scale: 1000 },
-  USDCHF: { id: "USDCHF", scale: 100000 },
-  AUDUSD: { id: "AUDUSD", scale: 100000 },
-  USDCAD: { id: "USDCAD", scale: 100000 },
-  NZDUSD: { id: "NZDUSD", scale: 100000 },
-  EURGBP: { id: "EURGBP", scale: 100000 },
-  EURJPY: { id: "EURJPY", scale: 1000 },
-  GBPJPY: { id: "GBPJPY", scale: 1000 },
-  AUDJPY: { id: "AUDJPY", scale: 1000 },
-  EURCHF: { id: "EURCHF", scale: 100000 },
-  EURAUD: { id: "EURAUD", scale: 100000 },
-  XAUUSD: { id: "XAUUSD", scale: 1000 },
-  XAGUSD: { id: "XAGUSD", scale: 1000 },
-  SPX: { id: "USA500IDXUSD", scale: 1000 },
-  "ES=F": { id: "USA500IDXUSD", scale: 1000 },
-  NASDAQ: { id: "USATECHIDXUSD", scale: 1000 },
-  "NQ=F": { id: "USATECHIDXUSD", scale: 1000 },
-  DJI: { id: "USA30IDXUSD", scale: 1000 },
-  "YM=F": { id: "USA30IDXUSD", scale: 1000 },
-  DAX: { id: "DEUIDXEUR", scale: 1000 },
-  FTSE: { id: "GBRIDXGBP", scale: 1000 },
-  "CL=F": { id: "LIGHTCMDUSD", scale: 1000 },
-  USOIL: { id: "LIGHTCMDUSD", scale: 1000 },
-  "NG=F": { id: "GASCMDUSD", scale: 1000 },
-};
 const HISTORICAL_KV_TTL = 2592000; // 30 days for immutable historical blocks
 
-// Core multi-asset reference catalog (Crypto + Forex + Futures + Indices + Stocks + ETFs + CFDs)
-const BASE_INSTRUMENTS = [
-  // Forex & Metals
-  { s: "EURUSD", m: "FX", name: "Euro / US Dollar", ex: "FX", p: 1.085, v: 0, cs: 1, vf: 0.005, api: "EURUSD=X", td: "EUR/USD", tv: "FX:EURUSD", pr: "yf" },
-  { s: "GBPUSD", m: "FX", name: "British Pound / US Dollar", ex: "FX", p: 1.271, v: 0, cs: 1, vf: 0.006, api: "GBPUSD=X", td: "GBP/USD", tv: "FX:GBPUSD", pr: "yf" },
-  { s: "USDJPY", m: "FX", name: "US Dollar / Japanese Yen", ex: "FX", p: 151.2, v: 0, cs: 1, vf: 0.006, api: "USDJPY=X", td: "USD/JPY", tv: "FX:USDJPY", pr: "yf" },
-  { s: "USDCHF", m: "FX", name: "US Dollar / Swiss Franc", ex: "FX", p: 0.881, v: 0, cs: 1, vf: 0.005, api: "USDCHF=X", td: "USD/CHF", tv: "FX:USDCHF", pr: "yf" },
-  { s: "AUDUSD", m: "FX", name: "Australian Dollar / US Dollar", ex: "FX", p: 0.654, v: 0, cs: 1, vf: 0.006, api: "AUDUSD=X", td: "AUD/USD", tv: "FX:AUDUSD", pr: "yf" },
-  { s: "USDCAD", m: "FX", name: "US Dollar / Canadian Dollar", ex: "FX", p: 1.365, v: 0, cs: 1, vf: 0.005, api: "USDCAD=X", td: "USD/CAD", tv: "FX:USDCAD", pr: "yf" },
-  { s: "NZDUSD", m: "FX", name: "New Zealand Dollar / US Dollar", ex: "FX", p: 0.592, v: 0, cs: 1, vf: 0.006, api: "NZDUSD=X", td: "NZD/USD", tv: "FX:NZDUSD", pr: "yf" },
-  { s: "EURGBP", m: "FX", name: "Euro / British Pound", ex: "FX", p: 0.854, v: 0, cs: 1, vf: 0.005, api: "EURGBP=X", td: "EUR/GBP", tv: "FX:EURGBP", pr: "yf" },
-  { s: "EURJPY", m: "FX", name: "Euro / Japanese Yen", ex: "FX", p: 164.1, v: 0, cs: 1, vf: 0.006, api: "EURJPY=X", td: "EUR/JPY", tv: "FX:EURJPY", pr: "yf" },
-  { s: "GBPJPY", m: "FX", name: "British Pound / Japanese Yen", ex: "FX", p: 192.2, v: 0, cs: 1, vf: 0.007, api: "GBPJPY=X", td: "GBP/JPY", tv: "FX:GBPJPY", pr: "yf" },
-  { s: "XAUUSD", m: "CFD", name: "Gold Spot / US Dollar", ex: "OANDA", p: 2680, v: 0, cs: 1, vf: 0.011, api: "GC=F", td: "XAU/USD", tv: "OANDA:XAUUSD", pr: "yf" },
-  { s: "XAGUSD", m: "CFD", name: "Silver Spot / US Dollar", ex: "OANDA", p: 31.4, v: 0, cs: 1, vf: 0.018, api: "SI=F", td: "XAG/USD", tv: "OANDA:XAGUSD", pr: "yf" },
-  // Futures (Mapped to Twelve Data spot/ETF equivalents)
-  { s: "ES=F", m: "FUT", name: "E-mini S&P 500 Futures", ex: "CME", p: 5890, v: 1200000, cs: 50, vf: 0.01, api: "ES=F", td: "SPY", tv: "CME_MINI:ES1!", pr: "yf" },
-  { s: "NQ=F", m: "FUT", name: "E-mini Nasdaq-100 Futures", ex: "CME", p: 20650, v: 600000, cs: 20, vf: 0.013, api: "NQ=F", td: "QQQ", tv: "CME_MINI:NQ1!", pr: "yf" },
-  { s: "YM=F", m: "FUT", name: "E-mini Dow ($5) Futures", ex: "CBOT", p: 43600, v: 180000, cs: 5, vf: 0.009, api: "YM=F", td: "DIA", tv: "CBOT_MINI:YM1!", pr: "yf" },
-  { s: "RTY=F", m: "FUT", name: "E-mini Russell 2000 Futures", ex: "CME", p: 2310, v: 220000, cs: 50, vf: 0.015, api: "RTY=F", td: "IWM", tv: "CME_MINI:RTY1!", pr: "yf" },
-  { s: "CL=F", m: "FUT", name: "WTI Crude Oil Futures", ex: "NYMEX", p: 71.5, v: 350000, cs: 1000, vf: 0.02, api: "CL=F", td: "WTI/USD", tv: "NYMEX:CL1!", pr: "yf" },
-  { s: "NG=F", m: "FUT", name: "Henry Hub Natural Gas Futures", ex: "NYMEX", p: 2.85, v: 190000, cs: 10000, vf: 0.032, api: "NG=F", td: "NATGAS/USD", tv: "NYMEX:NG1!", pr: "yf" },
-  { s: "GC=F", m: "FUT", name: "Gold Futures", ex: "COMEX", p: 2685, v: 200000, cs: 100, vf: 0.011, api: "GC=F", td: "XAU/USD", tv: "COMEX:GC1!", pr: "yf" },
-  { s: "SI=F", m: "FUT", name: "Silver Futures", ex: "COMEX", p: 31.5, v: 85000, cs: 5000, vf: 0.018, api: "SI=F", td: "XAG/USD", tv: "COMEX:SI1!", pr: "yf" },
-  { s: "ZN=F", m: "FUT", name: "10-Year T-Note Futures", ex: "CBOT", p: 110.5, v: 1500000, cs: 1000, vf: 0.004, api: "ZN=F", td: "TLT", tv: "CBOT:ZN1!", pr: "yf" },
-  { s: "6E=F", m: "FUT", name: "Euro FX Futures", ex: "CME", p: 1.086, v: 200000, cs: 125000, vf: 0.005, api: "6E=F", td: "EUR/USD", tv: "CME:6E1!", pr: "yf" },
-  // Indices
-  { s: "SPX", m: "IDX", name: "S&P 500 Index", ex: "SP", p: 5875, v: 0, cs: 1, vf: 0.009, api: "^GSPC", td: "SPX", tv: "SP:SPX", pr: "yf" },
-  { s: "NASDAQ", m: "IDX", name: "Nasdaq Composite Index", ex: "NASDAQ", p: 18980, v: 0, cs: 1, vf: 0.012, api: "^IXIC", td: "IXIC", tv: "NASDAQ:IXIC", pr: "yf" },
-  { s: "DJI", m: "IDX", name: "Dow Jones Industrial Average", ex: "DJ", p: 43520, v: 0, cs: 1, vf: 0.008, api: "^DJI", td: "DJI", tv: "DJ:DJI", pr: "yf" },
-  { s: "RUT", m: "IDX", name: "Russell 2000 Index", ex: "TVC", p: 2305, v: 0, cs: 1, vf: 0.014, api: "^RUT", td: "RUT", tv: "TVC:RUT", pr: "yf" },
-  { s: "VIX", m: "IDX", name: "CBOE Volatility Index", ex: "CBOE", p: 15.8, v: 0, cs: 1, vf: 0.045, api: "^VIX", td: "VIX", tv: "TVC:VIX", pr: "yf" },
-  { s: "DAX", m: "IDX", name: "DAX Performance Index", ex: "XETR", p: 19320, v: 0, cs: 1, vf: 0.01, api: "^GDAXI", td: "DAX", tv: "XETR:DAX", pr: "yf" },
-  { s: "FTSE", m: "IDX", name: "FTSE 100 Index", ex: "TVC", p: 8120, v: 0, cs: 1, vf: 0.007, api: "^FTSE", td: "FTSE", tv: "TVC:UKX", pr: "yf" },
-  { s: "N225", m: "IDX", name: "Nikkei 225 Index", ex: "TVC", p: 38900, v: 0, cs: 1, vf: 0.012, api: "^N225", td: "N225", tv: "TVC:NI225", pr: "yf" },
-  // ETFs
-  { s: "SPY", m: "ETF", name: "SPDR S&P 500 ETF Trust", ex: "NYSE ARCA", p: 586.4, v: 55000000, cs: 1, vf: 0.009, api: "SPY", td: "SPY", tv: "AMEX:SPY", pr: "yf" },
-  { s: "QQQ", m: "ETF", name: "Invesco QQQ Trust", ex: "NASDAQ", p: 502.8, v: 42000000, cs: 1, vf: 0.012, api: "QQQ", td: "QQQ", tv: "NASDAQ:QQQ", pr: "yf" },
-  { s: "IWM", m: "ETF", name: "iShares Russell 2000 ETF", ex: "NYSE ARCA", p: 229.1, v: 32000000, cs: 1, vf: 0.014, api: "IWM", td: "IWM", tv: "AMEX:IWM", pr: "yf" },
-  { s: "DIA", m: "ETF", name: "SPDR Dow Jones Industrial Average ETF", ex: "NYSE ARCA", p: 435.0, v: 4500000, cs: 1, vf: 0.008, api: "DIA", td: "DIA", tv: "AMEX:DIA", pr: "yf" },
-  { s: "GLD", m: "ETF", name: "SPDR Gold Shares", ex: "NYSE ARCA", p: 247.5, v: 7800000, cs: 1, vf: 0.011, api: "GLD", td: "GLD", tv: "AMEX:GLD", pr: "yf" },
-  { s: "TLT", m: "ETF", name: "iShares 20+ Year Treasury Bond ETF", ex: "NASDAQ", p: 91.2, v: 36000000, cs: 1, vf: 0.011, api: "TLT", td: "TLT", tv: "NASDAQ:TLT", pr: "yf" },
-  { s: "SMH", m: "ETF", name: "VanEck Semiconductor ETF", ex: "NASDAQ", p: 248.6, v: 8500000, cs: 1, vf: 0.022, api: "SMH", td: "SMH", tv: "NASDAQ:SMH", pr: "yf" },
-  { s: "TQQQ", m: "ETF", name: "ProShares UltraPro QQQ", ex: "NASDAQ", p: 76.4, v: 58000000, cs: 1, vf: 0.036, api: "TQQQ", td: "TQQQ", tv: "NASDAQ:TQQQ", pr: "yf" },
-  { s: "SQQQ", m: "ETF", name: "ProShares UltraPro Short QQQ", ex: "NASDAQ", p: 8.15, v: 95000000, cs: 1, vf: 0.036, api: "SQQQ", td: "SQQQ", tv: "NASDAQ:SQQQ", pr: "yf" },
-  { s: "QTUM", m: "ETF", name: "Defiance Quantum ETF", ex: "NASDAQ", p: 72.1, v: 620000, cs: 1, vf: 0.018, api: "QTUM", td: "QTUM", tv: "NASDAQ:QTUM", pr: "yf" },
-  // Stocks
-  { s: "AAPL", m: "STK", name: "Apple Inc.", ex: "NASDAQ", p: 226.4, v: 48000000, cs: 1, vf: 0.016, api: "AAPL", td: "AAPL", tv: "NASDAQ:AAPL", pr: "yf" },
-  { s: "MSFT", m: "STK", name: "Microsoft Corporation", ex: "NASDAQ", p: 418.2, v: 21000000, cs: 1, vf: 0.015, api: "MSFT", td: "MSFT", tv: "NASDAQ:MSFT", pr: "yf" },
-  { s: "NVDA", m: "STK", name: "NVIDIA Corporation", ex: "NASDAQ", p: 141.8, v: 225000000, cs: 1, vf: 0.03, api: "NVDA", td: "NVDA", tv: "NASDAQ:NVDA", pr: "yf" },
-  { s: "AMZN", m: "STK", name: "Amazon.com, Inc.", ex: "NASDAQ", p: 208.5, v: 39000000, cs: 1, vf: 0.019, api: "AMZN", td: "AMZN", tv: "NASDAQ:AMZN", pr: "yf" },
-  { s: "GOOGL", m: "STK", name: "Alphabet Inc.", ex: "NASDAQ", p: 176.3, v: 24000000, cs: 1, vf: 0.017, api: "GOOGL", td: "GOOGL", tv: "NASDAQ:GOOGL", pr: "yf" },
-  { s: "META", m: "STK", name: "Meta Platforms, Inc.", ex: "NASDAQ", p: 582.1, v: 14000000, cs: 1, vf: 0.022, api: "META", td: "META", tv: "NASDAQ:META", pr: "yf" },
-  { s: "TSLA", m: "STK", name: "Tesla, Inc.", ex: "NASDAQ", p: 324.6, v: 82000000, cs: 1, vf: 0.035, api: "TSLA", td: "TSLA", tv: "NASDAQ:TSLA", pr: "yf" },
-  { s: "AVGO", m: "STK", name: "Broadcom Inc.", ex: "NASDAQ", p: 174.2, v: 28000000, cs: 1, vf: 0.024, api: "AVGO", td: "AVGO", tv: "NASDAQ:AVGO", pr: "yf" },
-  { s: "AMD", m: "STK", name: "Advanced Micro Devices, Inc.", ex: "NASDAQ", p: 148.9, v: 46000000, cs: 1, vf: 0.028, api: "AMD", td: "AMD", tv: "NASDAQ:AMD", pr: "yf" },
-  { s: "QCOM", m: "STK", name: "QUALCOMM Incorporated", ex: "NASDAQ", p: 168.4, v: 8200000, cs: 1, vf: 0.022, api: "QCOM", td: "QCOM", tv: "NASDAQ:QCOM", pr: "yf" },
-  { s: "QRVO", m: "STK", name: "Qorvo, Inc.", ex: "NASDAQ", p: 74.3, v: 2400000, cs: 1, vf: 0.026, api: "QRVO", td: "QRVO", tv: "NASDAQ:QRVO", pr: "yf" },
-  { s: "QS", m: "STK", name: "QuantumScape Corporation", ex: "NYSE", p: 5.45, v: 9800000, cs: 1, vf: 0.042, api: "QS", td: "QS", tv: "NYSE:QS", pr: "yf" },
-  { s: "QLYS", m: "STK", name: "Qualys, Inc.", ex: "NASDAQ", p: 146.2, v: 480000, cs: 1, vf: 0.021, api: "QLYS", td: "QLYS", tv: "NASDAQ:QLYS", pr: "yf" },
-  { s: "QGEN", m: "STK", name: "QIAGEN N.V.", ex: "NYSE", p: 44.1, v: 1300000, cs: 1, vf: 0.015, api: "QGEN", td: "QGEN", tv: "NYSE:QGEN", pr: "yf" },
-  { s: "PLTR", m: "STK", name: "Palantir Technologies Inc.", ex: "NASDAQ", p: 61.8, v: 64000000, cs: 1, vf: 0.038, api: "PLTR", td: "PLTR", tv: "NASDAQ:PLTR", pr: "yf" },
-  { s: "NFLX", m: "STK", name: "Netflix, Inc.", ex: "NASDAQ", p: 824.0, v: 3600000, cs: 1, vf: 0.021, api: "NFLX", td: "NFLX", tv: "NASDAQ:NFLX", pr: "yf" },
-  { s: "JPM", m: "STK", name: "JPMorgan Chase & Co.", ex: "NYSE", p: 241.5, v: 8500000, cs: 1, vf: 0.014, api: "JPM", td: "JPM", tv: "NYSE:JPM", pr: "yf" },
-  { s: "COIN", m: "STK", name: "Coinbase Global, Inc.", ex: "NASDAQ", p: 298.4, v: 14000000, cs: 1, vf: 0.048, api: "COIN", td: "COIN", tv: "NASDAQ:COIN", pr: "yf" },
-  { s: "MSTR", m: "STK", name: "MicroStrategy Incorporated", ex: "NASDAQ", p: 368.0, v: 26000000, cs: 1, vf: 0.055, api: "MSTR", td: "MSTR", tv: "NASDAQ:MSTR", pr: "yf" },
-  { s: "ARM", m: "STK", name: "Arm Holdings plc", ex: "NASDAQ", p: 144.3, v: 7800000, cs: 1, vf: 0.032, api: "ARM", td: "ARM", tv: "NASDAQ:ARM", pr: "yf" },
-  // Crypto fallbacks (overridden / expanded by live Binance 24h tickers)
-  { s: "BTCUSDT", m: "CRY", name: "Bitcoin / Tether", ex: "BINANCE", p: 91250, v: 28500, cs: 1, vf: 0.028, api: "BTCUSDT", td: "BTC/USD", tv: "BINANCE:BTCUSDT", pr: "bn" },
-  { s: "ETHUSDT", m: "CRY", name: "Ethereum / Tether", ex: "BINANCE", p: 3140, v: 410000, cs: 1, vf: 0.032, api: "ETHUSDT", td: "ETH/USD", tv: "BINANCE:ETHUSDT", pr: "bn" },
-  { s: "SOLUSDT", m: "CRY", name: "Solana / Tether", ex: "BINANCE", p: 238.5, v: 4200000, cs: 1, vf: 0.042, api: "SOLUSDT", td: "SOL/USD", tv: "BINANCE:SOLUSDT", pr: "bn" },
-  { s: "BNBUSDT", m: "CRY", name: "BNB / Tether", ex: "BINANCE", p: 625.0, v: 420000, cs: 1, vf: 0.025, api: "BNBUSDT", td: "BNB/USD", tv: "BINANCE:BNBUSDT", pr: "bn" },
-  { s: "XRPUSDT", m: "CRY", name: "XRP / Tether", ex: "BINANCE", p: 1.12, v: 850000000, cs: 1, vf: 0.045, api: "XRPUSDT", td: "XRP/USD", tv: "BINANCE:XRPUSDT", pr: "bn" },
-  { s: "DOGEUSDT", m: "CRY", name: "Dogecoin / Tether", ex: "BINANCE", p: 0.375, v: 2100000000, cs: 1, vf: 0.05, api: "DOGEUSDT", td: "DOGE/USD", tv: "BINANCE:DOGEUSDT", pr: "bn" },
-  { s: "ADAUSDT", m: "CRY", name: "Cardano / Tether", ex: "BINANCE", p: 0.74, v: 320000000, cs: 1, vf: 0.04, api: "ADAUSDT", td: "ADA/USD", tv: "BINANCE:ADAUSDT", pr: "bn" },
-  { s: "AVAXUSDT", m: "CRY", name: "Avalanche / Tether", ex: "BINANCE", p: 36.2, v: 4800000, cs: 1, vf: 0.042, api: "AVAXUSDT", td: "AVAX/USD", tv: "BINANCE:AVAXUSDT", pr: "bn" },
-  { s: "LINKUSDT", m: "CRY", name: "Chainlink / Tether", ex: "BINANCE", p: 14.8, v: 11000000, cs: 1, vf: 0.038, api: "LINKUSDT", td: "LINK/USD", tv: "BINANCE:LINKUSDT", pr: "bn" },
-  { s: "QNTUSDT", m: "CRY", name: "Quant / Tether", ex: "BINANCE", p: 84.5, v: 190000, cs: 1, vf: 0.036, api: "QNTUSDT", td: "QNT/USD", tv: "BINANCE:QNTUSDT", pr: "bn" },
-];
+const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
+const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
+const isTdPrimaryMarket = (m) => m === "FX" || m === "STK" || m === "ETF";
 
-const BY_SYM = new Map(BASE_INSTRUMENTS.map((x) => [x.s, x]));
-
-function hashSeed(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h || 1;
+function toTdApiSymbol(rawSym, meta) {
+  const known = BY_SYM.get(String(rawSym || "").trim().toUpperCase());
+  if (known && known.td) return known.td;
+  const norm = normalizeSymbol(rawSym, "twelvedata");
+  if (norm) return norm;
+  return resolveTdSymbol((meta && meta.td) || rawSym, "");
 }
 
-function makeRng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+async function fetchTdEndpoint(tdPath, qs, env) {
+  const mode = tdSource(env);
+  if (!mode) return null;
+  try {
+    if (mode === "service" && env && env.MARKET_SERVICE && typeof env.MARKET_SERVICE.fetch === "function") {
+      return await env.MARKET_SERVICE.fetch(new Request(`https://market-service/td${tdPath}?${qs}`, { method: "GET" }));
+    }
+    if (mode === "proxy") {
+      return await fetch(`${tdProxyBase(env)}/td${tdPath}?${qs}`);
+    }
+    const directQs = new URLSearchParams(qs);
+    directQs.set("apikey", mode);
+    return await fetch(`https://api.twelvedata.com${tdPath}?${directQs}`);
+  } catch (_e) {
+    return null;
+  }
 }
 
-function inferMeta(symbol, mktHint, apiHint) {
-  const sym = String(symbol || "").trim().toUpperCase();
-  const known = BY_SYM.get(sym);
-  if (known) {
-    const tdResolved = resolveTdSymbol(known.td, known.s);
-    return { ...known, td: tdResolved };
-  }
-  const isBn = sym.endsWith("USDT") || sym.endsWith("BUSD") || sym.endsWith("BTC") || mktHint === "CRY";
-  const isFx = mktHint === "FX" || /^[A-Z]{6}$/.test(sym);
-  const isFut = mktHint === "FUT" || sym.endsWith("=F");
-  const futTd = resolveTdSymbol(sym, "");
-  const tdSym = futTd ? futTd : (isFx && sym.length === 6 ? sym.slice(0, 3) + "/" + sym.slice(3) : (sym.endsWith("=F") ? "" : sym));
+function parseTdQuoteEntry(q) {
+  if (!q || typeof q !== "object" || q.status === "error") return null;
+  const c = Number(q.close ?? q.price);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  const prevClose = Number(q.previous_close);
+  const pctRaw = Number(q.percent_change);
+  const pct = Number.isFinite(pctRaw)
+    ? pctRaw
+    : Number.isFinite(prevClose) && prevClose > 0
+      ? ((c - prevClose) / prevClose) * 100
+      : 0;
+  const v = Number(q.volume);
+  const t = Number(q.timestamp);
   return {
-    s: sym,
-    m: isBn ? "CRY" : isFx ? "FX" : isFut ? "FUT" : mktHint || "STK",
-    name: sym,
-    ex: isBn ? "BINANCE" : isFx ? "FX" : isFut ? "CME" : "NASDAQ",
-    p: isFx ? 1.12 : isBn ? 42.5 : 100,
-    v: isFx ? 0 : 1200000,
-    cs: 1,
-    vf: isFx ? 0.006 : 0.02,
-    api: apiHint || (isFx && !sym.includes("=") ? sym + "=X" : sym),
-    td: tdSym,
-    tv: sym,
-    pr: isBn ? "bn" : "yf",
+    c,
+    prevClose: Number.isFinite(prevClose) && prevClose > 0 ? prevClose : c,
+    pct: Number(pct.toFixed(2)),
+    v: Number.isFinite(v) && v >= 0 ? v : 0,
+    t: Number.isFinite(t) && t > 0 ? Math.floor(t) : Math.floor(Date.now() / 1000),
   };
 }
 
-function generateSyntheticCandles(symbol, interval, limit = 250, liveAnchor = null) {
-  const step = STEPS[interval] || 3600;
-  const meta = inferMeta(symbol);
-  const anchor = liveAnchor && liveAnchor > 0 ? liveAnchor : meta.p || 100;
-  const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
-  const rnd = makeRng(hashSeed(meta.s + "|" + interval));
-  const tfScale = Math.sqrt(step / 86400);
-  const volStep = (meta.vf || 0.02) * tfScale;
-  const raw = [];
-  let price = 100;
-  let drift = 0;
-
-  for (let i = 0; i < limit; i++) {
-    if (i % 18 === 0) drift = (rnd() - 0.49) * volStep * 0.45;
-    const o = price;
-    const ret = drift + (rnd() - 0.495) * volStep * 1.4;
-    const c = Math.max(0.0001, o * (1 + ret));
-    const wick = volStep * (0.3 + rnd() * 0.85);
-    const h = Math.max(o, c) * (1 + wick * 0.55);
-    const l = Math.max(0.0001, Math.min(o, c) * (1 - wick * 0.55));
-    const v = meta.v > 0 ? Math.round(meta.v * (0.45 + rnd() * 1.15) * Math.max(0.08, tfScale)) : Math.round(1000 + rnd() * 5000);
-    raw.push({ t: nowBucket - (limit - 1 - i) * step, o, h, l, c, v });
-    price = c;
+async function fetchTwelveDataQuotes(items, env) {
+  const out = new Map();
+  if (!tdSource(env) || !items.length) return out;
+  const tdToInternal = new Map();
+  const tdList = [];
+  for (const item of items) {
+    const tdSym = toTdApiSymbol(item.s, item);
+    if (!tdSym || tdToInternal.has(tdSym)) continue;
+    tdToInternal.set(tdSym, item.s);
+    tdList.push(tdSym);
   }
+  // Batch in groups of 8 symbols per Twelve Data /quote call
+  for (let i = 0; i < tdList.length; i += 8) {
+    const chunk = tdList.slice(i, i + 8);
+    const qs = new URLSearchParams({ symbol: chunk.join(",") });
+    const r = await fetchTdEndpoint("/quote", qs, env);
+    if (!r || !r.ok) {
+      if (r && r.status === 429) break; // stop immediately if rate-limited; remaining symbols fall back to Yahoo
+      continue;
+    }
+    const j = await r.json().catch(() => null);
+    if (!j || j.status === "error") {
+      if (j && (j.code === 429 || /credit|limit|quota/i.test(String(j.message || "")))) break;
+      continue;
+    }
+    if (chunk.length === 1) {
+      const parsed = parseTdQuoteEntry(j);
+      if (parsed) out.set(tdToInternal.get(chunk[0]), parsed);
+    } else {
+      for (const tdSym of chunk) {
+        const parsed = parseTdQuoteEntry(j[tdSym]);
+        if (parsed) out.set(tdToInternal.get(tdSym), parsed);
+      }
+    }
+  }
+  return out;
+}
 
-  const scale = anchor / raw[raw.length - 1].c;
-  const dec = anchor < 10 ? 5 : anchor < 100 ? 3 : 2;
-  const roundP = (x) => Number((x * scale).toFixed(dec));
-  return raw.map((b) => ({
-    t: b.t,
-    o: roundP(b.o),
-    h: roundP(b.h),
-    l: roundP(b.l),
-    c: roundP(b.c),
-    v: b.v,
-  }));
+async function fetchYahooLiveQuotes(items, concurrency = 10) {
+  const out = new Map();
+  let idx = 0;
+  async function workerTask() {
+    while (idx < items.length) {
+      const item = items[idx++];
+      if (!item) continue;
+      const yfSym = toYahooSymbol(item.s, item.api);
+      if (!yfSym) continue;
+      const q = await fetchYahooQuote(yfSym);
+      if (q && q.c > 0) out.set(item.s, q);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => workerTask()));
+  return out;
 }
 
 function corsHeaders(origin = "*") {
@@ -346,7 +179,19 @@ async function fetchBinanceTickers() {
 
 async function buildScreenerSnapshot(env) {
   const ts = Date.now();
-  const bnRows = await fetchBinanceTickers();
+  const tdItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => isTdPrimaryMarket(item.m));
+  const otherItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => !isTdPrimaryMarket(item.m));
+
+  const [bnRows, tdQuotes, otherQuotes] = await Promise.all([
+    fetchBinanceTickers(),
+    fetchTwelveDataQuotes(tdItems, env),
+    fetchYahooLiveQuotes(otherItems, 10),
+  ]);
+  const missingTdItems = tdItems.filter((item) => !tdQuotes.has(item.s));
+  const [missingTdYahooQuotes, cryptoFallbackQuotes] = await Promise.all([
+    missingTdItems.length ? fetchYahooLiveQuotes(missingTdItems, 10) : Promise.resolve(new Map()),
+    bnRows && bnRows.length ? Promise.resolve(new Map()) : fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10),
+  ]);
   const seen = new Set();
   const universe = [];
 
@@ -355,20 +200,39 @@ async function buildScreenerSnapshot(env) {
       seen.add(row[0]);
       universe.push(row);
     }
+  } else {
+    for (const item of LIVE_SCREENER_CRYPTO) {
+      const q = cryptoFallbackQuotes.get(item.s);
+      if (!q || !(q.c > 0)) continue;
+      seen.add(item.s);
+      universe.push([
+        item.s,
+        item.m,
+        q.c,
+        q.v || 0,
+        item.cs,
+        item.vf,
+        item.api,
+        item.tv,
+        item.pr,
+        resolveTdSymbol(item.td || item.s, item.s),
+        item.name,
+        item.ex,
+        q.pct,
+      ]);
+    }
   }
 
-  for (const item of BASE_INSTRUMENTS) {
+  for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
+    const q = tdQuotes.get(item.s) || missingTdYahooQuotes.get(item.s) || otherQuotes.get(item.s);
+    if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
-    const bars1D = generateSyntheticCandles(item.s, "1D", 35, item.p);
-    const last = bars1D[bars1D.length - 1];
-    const prev = bars1D[bars1D.length - 2] || last;
-    const pct = prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : 0;
     universe.push([
       item.s,
       item.m,
-      last.c,
-      item.v,
+      q.c,
+      q.v || 0,
       item.cs,
       item.vf,
       item.api,
@@ -377,15 +241,19 @@ async function buildScreenerSnapshot(env) {
       resolveTdSymbol(item.td || item.s, item.s),
       item.name,
       item.ex,
-      Number(pct.toFixed(2)),
+      q.pct,
     ]);
   }
 
+  const sources = [];
+  if (bnRows && bnRows.length) sources.push("binance");
+  if (tdQuotes.size > 0) sources.push("twelvedata");
+  if (otherQuotes.size > 0 || missingTdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
     tfs: ["1D", "1H"],
-    source: bnRows && bnRows.length ? "edge+binance" : "edge+sim",
+    source: sources.length ? `edge+${sources.join("+")}` : "edge+unavailable",
     count: universe.length,
     universe,
   };
@@ -783,6 +651,18 @@ function getTdKey(env) {
   return String((env && (env.TWELVEDATA_KEY || env.TWELVE_DATA_API_KEY)) || "").trim();
 }
 
+// TASK-02: REST candles go through configured TD_PROXY_URL or server-side TWELVEDATA_KEY (never exposed to browser).
+const TD_PROXY_DEFAULT = "";
+function tdProxyBase(env) {
+  const v = String((env && env.TD_PROXY_URL) || TD_PROXY_DEFAULT).trim().replace(/\/+$/, "");
+  return v === "off" ? "" : v;
+}
+// Truthy when candles/quotes can be fetched from Twelve Data (via MARKET_SERVICE binding, proxy, or direct key).
+function tdSource(env) {
+  if (env && env.MARKET_SERVICE && typeof env.MARKET_SERVICE.fetch === "function") return "service";
+  return tdProxyBase(env) ? "proxy" : getTdKey(env);
+}
+
 async function fetchBinanceCandles(apiSym, interval, opts = {}) {
   const bni = BNI[interval];
   const step = STEPS[interval] || 3600;
@@ -874,16 +754,15 @@ async function fetchTwelveDataCandles(tdSym, interval, apiKey, opts = {}) {
         interval: tdi,
         outputsize: String(limit),
         timezone: "UTC",
-        apikey: apiKey,
       });
       if (beforeSec > 0) {
         qs.set("end_date", new Date((beforeSec - 1) * 1000).toISOString().slice(0, 19).replace("T", " "));
       } else if (opts.to > 0) {
         qs.set("end_date", new Date(opts.to * 1000).toISOString().slice(0, 19).replace("T", " "));
       }
-      const r = await fetch(`https://api.twelvedata.com/time_series?${qs}`);
-      if (!r.ok) {
-        if (beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
+      const r = await fetchTdEndpoint("/time_series", qs, opts.env);
+      if (!r || !r.ok) {
+        if (r && beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
         return null;
       }
       const j = await r.json();
@@ -994,7 +873,7 @@ async function handleCandles(request, env, ctx) {
   }
 
   const meta = inferMeta(rawSym, mktHint, apiHint);
-  const tdKey = getTdKey(env);
+  const tdKey = tdSource(env);
   const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT") || rawSym.endsWith("BUSD") || rawSym.endsWith("BTC");
   const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
   const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
@@ -1042,7 +921,7 @@ async function handleCandles(request, env, ctx) {
     }
   }
 
-  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh };
+  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh, env };
   const flightKey = kvKey;
   let resultPromise = CANDLE_IN_FLIGHT.get(flightKey);
   if (!resultPromise) {
@@ -1055,42 +934,47 @@ async function handleCandles(request, env, ctx) {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars) source = "binance";
+          if (!bars) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars && bars.length) source = "yahoo";
+          }
         } else if (DUKASCOPY_MAP[rawSym]) {
           bars = await fetchDukascopyCandles(rawSym, interval, opts, env, meta.p);
           if (bars) source = "dukascopy";
         }
         if (!bars && !isCrypto && tdKey) {
-          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+          const tdResolved = toTdApiSymbol(rawSym, meta);
           if (tdResolved) {
             bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
             if (bars) source = "twelvedata";
           }
         }
+        if (!bars && !isCrypto) {
+          bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+          if (bars && bars.length) source = "yahoo";
+        }
       } else {
-        // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing)
+        // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing, Zero Synthetic Data)
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
           if (bars !== null) source = "binance";
-        } else if (tdKey) {
-          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
-          if (tdResolved) {
-            bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
-            if (bars !== null) source = "twelvedata";
+          if (bars === null) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars !== null) source = "yahoo";
+          }
+        } else {
+          if (tdKey) {
+            const tdResolved = toTdApiSymbol(rawSym, meta);
+            if (tdResolved) {
+              bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
+              if (bars !== null) source = "twelvedata";
+            }
+          }
+          if (bars === null) {
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            if (bars !== null) source = "yahoo";
           }
         }
-      }
-
-      if (bars === null && !tdKey && !isCrypto) {
-        const endAnchor = beforeSec > 0
-          ? Math.floor((beforeSec - step) / step) * step
-          : (toSec > 0 ? Math.floor(toSec / step) * step : Math.floor(nowSec / step) * step);
-        const rawSim = generateSyntheticCandles(rawSym, interval, limit, meta.p);
-        const shift = endAnchor - rawSim[rawSim.length - 1].t;
-        bars = shift !== 0 ? rawSim.map((b) => ({ ...b, t: b.t + shift })) : rawSim;
-        if (beforeSec > 0) bars = bars.filter((b) => b.t < beforeSec);
-        if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
-        if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
-        source = "simulator";
       }
 
       return { bars, source };
@@ -1132,7 +1016,7 @@ async function handleCandles(request, env, ctx) {
     },
   });
 
-  if (source !== "simulator" && ctx && typeof ctx.waitUntil === "function") {
+  if (ctx && typeof ctx.waitUntil === "function") {
     ctx.waitUntil(
       Promise.all([
         cache ? cache.put(cacheKey, res.clone()) : Promise.resolve(),
@@ -1141,66 +1025,6 @@ async function handleCandles(request, env, ctx) {
     );
   }
   return res;
-}
-
-function generateWeeklyMacroSchedule(nowMs) {
-  const now = new Date(nowMs);
-  const utcDay = now.getUTCDay();
-  const weekStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - utcDay, 0, 0, 0, 0);
-  const slots = [
-    [0, 23, 50, "JPY", "Medium", "Core Machinery Orders m/m", "1.1%", "-0.4%", "1.4%"],
-    [1, 2, 0, "CNY", "Medium", "Industrial Production y/y", "5.5%", "5.4%", "5.8%"],
-    [1, 7, 0, "EUR", "Low", "Trade Balance", "14.2B", "13.6B", "15.1B"],
-    [1, 13, 30, "USD", "Medium", "Empire State Manufacturing Index", "0.8", "-11.9", "3.2"],
-    [1, 13, 30, "CAD", "Medium", "Housing Starts", "242K", "238K", "247K"],
-    [2, 0, 30, "AUD", "High", "RBA Monetary Policy Meeting Minutes", "", "", ""],
-    [2, 7, 0, "GBP", "High", "Average Earnings Index 3m/y", "4.7%", "4.8%", "4.9%"],
-    [2, 7, 0, "GBP", "High", "Claimant Count Change", "18.5K", "27.9K", "16.2K"],
-    [2, 10, 0, "EUR", "Medium", "ZEW Economic Sentiment", "16.4", "13.1", "17.8"],
-    [2, 13, 30, "CAD", "High", "CPI m/m", "0.3%", "-0.4%", "0.4%"],
-    [2, 13, 30, "CAD", "High", "Trimmed CPI y/y", "2.6%", "2.5%", "2.6%"],
-    [2, 13, 30, "USD", "Medium", "Building Permits", "1.44M", "1.43M", "1.41M"],
-    [3, 7, 0, "GBP", "High", "CPI y/y", "2.2%", "1.7%", "2.3%"],
-    [3, 7, 0, "GBP", "Medium", "Core CPI y/y", "3.2%", "3.2%", "3.3%"],
-    [3, 13, 30, "USD", "High", "Core Retail Sales m/m", "0.3%", "0.5%", "0.4%"],
-    [3, 13, 30, "USD", "High", "Retail Sales m/m", "0.3%", "0.4%", "0.4%"],
-    [3, 15, 30, "USD", "Low", "Crude Oil Inventories", "1.2M", "2.1M", "-0.6M"],
-    [3, 19, 0, "USD", "High", "FOMC Meeting Minutes", "", "", ""],
-    [3, 21, 45, "NZD", "High", "PPI Input q/q", "0.6%", "1.4%", "0.8%"],
-    [4, 0, 30, "AUD", "High", "Employment Change", "25.4K", "64.1K", "29.1K"],
-    [4, 0, 30, "AUD", "High", "Unemployment Rate", "4.1%", "4.1%", "4.1%"],
-    [4, 7, 30, "CHF", "Medium", "Trade Balance", "4.85B", "4.94B", "5.12B"],
-    [4, 13, 30, "USD", "High", "Unemployment Claims", "220K", "217K", "215K"],
-    [4, 13, 30, "USD", "Medium", "Philly Fed Manufacturing Index", "7.4", "10.3", "6.2"],
-    [4, 15, 0, "USD", "Medium", "Existing Home Sales", "3.95M", "3.84M", "3.96M"],
-    [4, 23, 30, "JPY", "High", "National Core CPI y/y", "2.2%", "2.4%", "2.3%"],
-    [5, 7, 0, "GBP", "Medium", "Retail Sales m/m", "-0.3%", "0.3%", "-0.1%"],
-    [5, 8, 30, "EUR", "High", "German Flash Manufacturing PMI", "43.1", "43.0", "43.4"],
-    [5, 8, 30, "EUR", "High", "German Flash Services PMI", "51.7", "51.6", "51.2"],
-    [5, 9, 30, "GBP", "High", "Flash Manufacturing PMI", "50.1", "49.9", "50.4"],
-    [5, 9, 30, "GBP", "High", "Flash Services PMI", "52.1", "52.0", "51.8"],
-    [5, 13, 30, "CAD", "High", "Core Retail Sales m/m", "0.4%", "-0.7%", "0.5%"],
-    [5, 14, 45, "USD", "High", "Flash Manufacturing PMI", "48.9", "48.5", "49.2"],
-    [5, 14, 45, "USD", "High", "Flash Services PMI", "55.2", "55.0", "55.6"],
-    [5, 15, 0, "USD", "Medium", "Revised UoM Consumer Sentiment", "73.5", "73.0", "73.2"],
-  ];
-
-  return slots
-    .map(([dOff, hh, mm, ccy, imp, title, fc, pv, act]) => {
-      const t = weekStart + ((dOff * 24 + hh) * 60 + mm) * 60000;
-      const released = t <= nowMs - 60000;
-      return {
-        t,
-        hasTime: true,
-        title,
-        ccy,
-        imp,
-        fc,
-        pv,
-        act: released ? act : "",
-      };
-    })
-    .sort((a, b) => a.t - b.t);
 }
 
 async function handleCalendar(request, env, ctx) {
@@ -1277,8 +1101,8 @@ async function handleCalendar(request, env, ctx) {
   } catch (_e) {}
 
   if (!events || !events.length) {
-    events = generateWeeklyMacroSchedule(Date.now());
-    source = "macro-schedule";
+    events = [];
+    source = "unavailable";
   }
 
   const payload = { ok: true, source, ts: Date.now(), ttl: 900, events };
@@ -1386,8 +1210,8 @@ async function handleNews(request, env, ctx) {
 }
 
 async function handleWsConfig(request, env, _ctx) {
-  const tdKey = getTdKey(env);
-  return new Response(JSON.stringify({ ok: true, tdKey }), {
+  // TASK-02: never send a Twelve Data key to the browser.
+  return new Response(JSON.stringify({ ok: true, tdKey: "" }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
@@ -1399,18 +1223,51 @@ async function handleWsConfig(request, env, _ctx) {
 async function handleQuote(request, env, _ctx) {
   const url = new URL(request.url);
   const raw = (url.searchParams.get("symbols") || url.searchParams.get("symbol") || "").trim();
-  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean) : ["BTCUSDT"];
+  const list = raw ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 24) : ["BTCUSDT"];
   const quotes = {};
   const now = Math.floor(Date.now() / 1000);
-  for (const s of list) {
-    const meta = inferMeta(s);
-    quotes[s] = {
-      s,
-      c: meta.p || 1,
-      t: now,
-      m: meta.m || "STK",
-    };
-  }
+  await Promise.all(
+    list.map(async (s) => {
+      const meta = inferMeta(s);
+      const isCry = meta.pr === "bn" || meta.m === "CRY" || s.endsWith("USDT") || s.endsWith("BUSD") || s.endsWith("BTC");
+      if (isCry) {
+        const r = await fetchBinanceWithFallback(`/api/v3/ticker/price?symbol=${encodeURIComponent(meta.api || s)}`);
+        if (r && r.ok) {
+          const j = await r.json().catch(() => null);
+          const px = j && Number(j.price);
+          if (Number.isFinite(px) && px > 0) {
+            quotes[s] = { s, c: px, t: now, m: meta.m || "CRY", source: "binance" };
+          }
+        }
+        if (!quotes[s]) {
+          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
+          if (q && q.c > 0) {
+            quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "CRY", source: "yahoo" };
+          }
+        }
+      } else {
+        if (isTdPrimaryMarket(meta.m || "STK") && tdSource(env)) {
+          const tdSym = toTdApiSymbol(s, meta);
+          if (tdSym) {
+            const r = await fetchTdEndpoint("/quote", new URLSearchParams({ symbol: tdSym }), env);
+            if (r && r.ok) {
+              const j = await r.json().catch(() => null);
+              const q = parseTdQuoteEntry(j);
+              if (q && q.c > 0) {
+                quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "twelvedata" };
+              }
+            }
+          }
+        }
+        if (!quotes[s]) {
+          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
+          if (q && q.c > 0) {
+            quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "yahoo" };
+          }
+        }
+      }
+    })
+  );
   return new Response(JSON.stringify({ ok: true, ts: Date.now(), quotes }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
@@ -1420,15 +1277,40 @@ async function handleQuote(request, env, _ctx) {
   });
 }
 
-// Durable Object using the WebSocket Hibernation API for /ws fan-out
+// Durable Object using the WebSocket Hibernation API for /ws fan-out (live Twelve Data + Binance upstream WebSockets)
 export class MarketRelayDO {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
-    this.binanceWs = null;
+    this.binanceFeed = null; // shared/market/binanceFeed.js: backoff, 24h rotation, serverShutdown, stall watchdog
     this.tdWs = null;
-    this.prices = new Map(BASE_INSTRUMENTS.map((x) => [x.s, x.p]));
-    this.lastBinanceMsg = 0;
+    this.tdSlots = new TdSubscriptionManager({
+      maxSlots: Math.max(1, Number(env && env.TD_WS_MAX) || 8),
+    });
+    this.tickGuard = createTickGuard();
+    this.candles = createCandleBuilder({
+      timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"],
+      openMode: "auto",
+    });
+    this.prices = new Map();
+    this.lastTdMsg = 0;
+  }
+
+  _nextSeq(ws) {
+    const att = (typeof ws.deserializeAttachment === "function" && ws.deserializeAttachment()) || { subs: [], interval: "1H", seq: 0 };
+    const next = (Number(att.seq) || 0) + 1;
+    att.seq = next;
+    if (typeof ws.serializeAttachment === "function") {
+      try { ws.serializeAttachment(att); } catch (_e) {}
+    }
+    return next;
+  }
+
+  _sendV2(ws, type, payload, seqOverride) {
+    try {
+      const seq = seqOverride !== undefined ? seqOverride : (type === "pong" ? 0 : this._nextSeq(ws));
+      ws.send(JSON.stringify({ v: 2, seq, type, ...payload }));
+    } catch (_e) {}
   }
 
   async fetch(request) {
@@ -1441,51 +1323,162 @@ export class MarketRelayDO {
 
     // WebSocket Hibernation API: ctx.acceptWebSocket enables hibernation when idle
     this.ctx.acceptWebSocket(server, ["client"]);
-    server.serializeAttachment({ subs: [], interval: "1H" });
+    server.serializeAttachment({ subs: [], chart: null, interval: "1H", seq: 0 });
 
     this.ensureUpstream();
     await this.scheduleNextTick();
 
-    server.send(
-      JSON.stringify({
-        type: "hello",
-        relay: "MarketRelayDO",
-        hibernation: true,
-        mode: getTdKey(this.env) ? "live+twelvedata" : "live+simulator",
-        ts: Date.now(),
-      })
-    );
+    this._sendV2(server, "hello", {
+      serverTime: Date.now(),
+      capabilities: ["bars", "quotes", "screener", "heatmap"],
+      relay: "MarketRelayDO",
+      hibernation: true,
+      mode: getTdKey(this.env) ? "live+twelvedata" : "live",
+    });
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  _collectTdDemand() {
+    const chartSymbols = [];
+    const requestedSymbols = [];
+    const activeViewers = new Map();
+    const seenChart = new Set();
+    const sockets = this.ctx.getWebSockets("client");
+
+    for (const ws of sockets) {
+      const att = ws.deserializeAttachment() || {};
+      const clientSet = new Set();
+      if (att.chart && att.chart.sym) {
+        const s = normSymbol(att.chart.sym);
+        if (s) {
+          clientSet.add(s);
+          if (!seenChart.has(s)) {
+            seenChart.add(s);
+            chartSymbols.push(s);
+          }
+        }
+      }
+      if (Array.isArray(att.subs)) {
+        for (const raw of att.subs) {
+          const s = normSymbol(raw);
+          if (s) {
+            clientSet.add(s);
+            requestedSymbols.push(s);
+          }
+        }
+      }
+      for (const s of clientSet) {
+        activeViewers.set(s, (activeViewers.get(s) || 0) + 1);
+      }
+    }
+    return { chartSymbols, requestedSymbols, activeViewers };
+  }
+
+  _syncTdSubscriptions() {
+    if (!this.tdWs || this.tdWs.readyState !== 1) return;
+    const { toUnsubscribe, toSubscribe } = this.tdSlots.reconcile(this._collectTdDemand());
+    if (toUnsubscribe.length) {
+      const tdList = toUnsubscribe.map((x) => x.tdSym).filter(Boolean);
+      if (tdList.length) {
+        try {
+          this.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: tdList.join(",") } }));
+        } catch (_e) {}
+      }
+    }
+    if (toSubscribe.length) {
+      const tdList = toSubscribe.map((x) => x.tdSym).filter(Boolean);
+      if (tdList.length) {
+        try {
+          this.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdList.join(",") } }));
+        } catch (_e) {}
+      }
+    }
+  }
+
+  _replayCachedPrices(ws, syms) {
+    const quotes = [];
+    const now = Date.now();
+    for (const s of syms) {
+      const c = this.prices.get(s);
+      if (Number(c) > 0) {
+        quotes.push({
+          s,
+          c: Number(c),
+          t: now,
+          provenance: this.tdWs && this.tdSlots.has(s) ? PROVENANCE.LIVE : PROVENANCE.CACHED,
+        });
+      }
+    }
+    if (quotes.length) {
+      this._sendV2(ws, "quotes", { quotes: quotes.slice(0, 24) });
+    }
   }
 
   async webSocketMessage(ws, message) {
     try {
       const msg = typeof message === "string" ? JSON.parse(message) : null;
       if (!msg) return;
-      if (msg.type === "ping") {
-        ws.send(JSON.stringify({ type: "pong", ts: Date.now() }));
+
+      if (msg.op === "ping" || msg.type === "ping") {
+        this._sendV2(ws, "pong", { t: msg.t || Date.now() }, 0);
         return;
       }
+
+      if (msg.op === "hello") {
+        this._sendV2(ws, "hello", {
+          serverTime: Date.now(),
+          capabilities: ["bars", "quotes", "screener", "heatmap"],
+          ...(msg.session ? { session: msg.session } : {}),
+        });
+        return;
+      }
+
+      if (msg.op === "view") {
+        const prev = ws.deserializeAttachment() || { subs: [], chart: null, interval: "1H", seq: 0 };
+        const nextSubs = new Set();
+        let chart = prev.chart || null;
+        if (msg.chart && msg.chart.sym) {
+          const sym = normSymbol(msg.chart.sym);
+          if (sym) {
+            chart = { sym, tf: msg.chart.tf || prev.interval || "1H" };
+            nextSubs.add(sym);
+          }
+        } else if (msg.chart === null) {
+          chart = null;
+        }
+        if (Array.isArray(msg.watchlist)) {
+          for (const raw of msg.watchlist) {
+            const s = normSymbol(raw);
+            if (s) nextSubs.add(s);
+          }
+        } else if (Array.isArray(prev.subs)) {
+          for (const s of prev.subs) nextSubs.add(s);
+        }
+        ws.serializeAttachment({
+          ...prev,
+          chart,
+          interval: (chart && chart.tf) || prev.interval || "1H",
+          subs: [...nextSubs],
+        });
+        this.ensureUpstream();
+        this._syncTdSubscriptions();
+        this._replayCachedPrices(ws, nextSubs);
+        await this.scheduleNextTick();
+        return;
+      }
+
       if (msg.type === "subscribe") {
-        const prev = ws.deserializeAttachment() || { subs: [], interval: "1H" };
+        const prev = ws.deserializeAttachment() || { subs: [], chart: null, interval: "1H", seq: 0 };
         const nextSubs = Array.isArray(msg.symbols)
-          ? msg.symbols.map((s) => String(s).toUpperCase())
+          ? msg.symbols.map((s) => normSymbol(s)).filter(Boolean)
           : msg.symbol
-            ? [String(msg.symbol).toUpperCase()]
+            ? [normSymbol(msg.symbol)].filter(Boolean)
             : prev.subs;
         const interval = msg.interval && STEPS[msg.interval] ? msg.interval : prev.interval || "1H";
-        ws.serializeAttachment({ subs: [...new Set(nextSubs)], interval });
-
-        if (this.tdWs && this.tdWs.readyState === 1 && nextSubs.length) {
-          const tdSyms = nextSubs
-            .filter((s) => !s.endsWith("USDT"))
-            .map((s) => inferMeta(s).td)
-            .join(",");
-          if (tdSyms) {
-            this.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdSyms } }));
-          }
-        }
+        ws.serializeAttachment({ ...prev, subs: [...new Set(nextSubs)], interval });
+        this.ensureUpstream();
+        this._syncTdSubscriptions();
         await this.scheduleNextTick();
       }
     } catch (_e) {}
@@ -1507,99 +1500,153 @@ export class MarketRelayDO {
 
   cleanupIfEmpty() {
     if (this.ctx.getWebSockets("client").length === 0) {
-      if (this.binanceWs) {
-        try { this.binanceWs.close(); } catch (_e) {}
-        this.binanceWs = null;
+      if (this.binanceFeed) {
+        this.binanceFeed.stop();
+        this.binanceFeed = null;
       }
       if (this.tdWs) {
         try { this.tdWs.close(); } catch (_e) {}
         this.tdWs = null;
       }
+      this.tdSlots.resetActive();
+    } else {
+      this._syncTdSubscriptions();
     }
   }
 
   async scheduleNextTick() {
     if (this.ctx.getWebSockets("client").length > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + 1000);
+      await this.ctx.storage.setAlarm(Date.now() + 10000);
+    }
+  }
+
+  broadcastQuotes(quotes) {
+    if (!Array.isArray(quotes) || !quotes.length) return;
+    for (const ws of this.ctx.getWebSockets("client")) {
+      const att = ws.deserializeAttachment() || {};
+      const subs = new Set(Array.isArray(att.subs) ? att.subs : []);
+      if (att.chart && att.chart.sym) subs.add(att.chart.sym);
+      const filtered = subs.size ? quotes.filter((q) => subs.has(q.s)) : quotes;
+      if (!filtered.length) continue;
+      this._sendV2(ws, "quotes", { quotes: filtered.slice(0, 24) });
+    }
+  }
+
+  broadcastBarUpdates(sym, updates) {
+    if (!sym || !updates) return;
+    for (const ws of this.ctx.getWebSockets("client")) {
+      const att = ws.deserializeAttachment() || {};
+      const chartSym = att.chart && att.chart.sym ? att.chart.sym : null;
+      if (chartSym !== sym) continue;
+      const tf = (att.chart && att.chart.tf) || att.interval || "1H";
+      const u = updates[tf];
+      if (!u || u.ignored || !u.bar) continue;
+      if (u.closedBar) {
+        const cb = u.closedBar;
+        this._sendV2(ws, "bar", {
+          sym,
+          tf,
+          closed: true,
+          bar: [cb.t, cb.o, cb.h, cb.l, cb.c, cb.v || 0],
+        });
+      }
+      const b = u.bar;
+      this._sendV2(ws, "bar", {
+        sym,
+        tf,
+        closed: false,
+        bar: [b.t, b.o, b.h, b.l, b.c, b.v || 0],
+      });
     }
   }
 
   ensureUpstream() {
-    if (!this.binanceWs) {
-      try {
-        fetch("https://stream.binance.com:9443/ws/!ticker@arr", {
-          headers: { Upgrade: "websocket" },
-        })
-          .then((resp) => {
-            const ws = resp && resp.webSocket;
-            if (!ws) return;
-            ws.accept();
-            this.binanceWs = ws;
-            ws.addEventListener("message", (ev) => {
-              this.lastBinanceMsg = Date.now();
-              try {
-                const arr = JSON.parse(ev.data);
-                if (!Array.isArray(arr)) return;
-                const ticks = [];
-                for (const t of arr) {
-                  if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
-                  const c = +t.c;
-                  if (c > 0) {
-                    this.prices.set(t.s, c);
-                    ticks.push({ s: t.s, c, h: +t.h, l: +t.l, v: +t.v });
-                  }
-                }
-                if (ticks.length) {
-                  this.broadcast({ type: "ticks", source: "binance", ticks: ticks.slice(0, 120), ts: Date.now() });
-                }
-              } catch (_e) {}
+    if (resolveCryptoProvider(this.env) === "binance" && !this.binanceFeed) {
+      this.binanceFeed = new BinanceMiniTickerFeed({
+        // symbols already carried by a Twelve Data slot are skipped here (no double feed)
+        accept: (sym) => sym.endsWith("USDT") && !STABLE_RE.test(sym) && !(this.tdWs && this.tdSlots.has(sym)),
+        onRows: (rows) => {
+          const now = Date.now();
+          const quotes = [];
+          for (const t of rows) {
+            this.prices.set(t.s, t.c);
+            const pct = t.o > 0 ? ((t.c - t.o) / t.o) * 100 : NaN;
+            quotes.push({
+              s: t.s,
+              c: t.c,
+              t: now,
+              ...(Number.isFinite(t.v) && t.v >= 0 ? { v: t.v } : {}),
+              ...(Number.isFinite(pct) ? { chgPct: Number(pct.toFixed(2)) } : {}),
+              provenance: PROVENANCE.LIVE,
             });
-            ws.addEventListener("close", () => { this.binanceWs = null; });
-            ws.addEventListener("error", () => { this.binanceWs = null; });
-          })
-          .catch(() => { this.binanceWs = null; });
-      } catch (_e) {}
+          }
+          if (quotes.length) this.broadcastQuotes(quotes);
+        },
+      });
+      this.binanceFeed.start();
     }
 
     const tdKey = getTdKey(this.env);
     if (tdKey && !this.tdWs) {
       try {
         fetch(`https://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(tdKey)}`, {
-          headers: { Upgrade: "websocket" },
+          headers: { Upgrade: "websocket", "X-TD-APIKEY": tdKey },
         })
           .then((resp) => {
             const ws = resp && resp.webSocket;
             if (!ws) return;
             ws.accept();
             this.tdWs = ws;
+            this.lastTdMsg = Date.now();
+            this.tdSlots.resetActive();
+            this._syncTdSubscriptions();
             ws.addEventListener("message", (ev) => {
+              this.lastTdMsg = Date.now();
               try {
                 const d = JSON.parse(ev.data);
-                if (d.event === "price" && d.symbol && +d.price > 0) {
-                  const sym = d.symbol.replace("/", "");
-                  this.prices.set(sym, +d.price);
-                  this.broadcast({ type: "ticks", source: "twelvedata", ticks: [{ s: sym, c: +d.price }], ts: Date.now() });
+                if (!d || typeof d !== "object") return;
+                if (d.event === "subscribe-status") {
+                  const { released } = this.tdSlots.handleSubscribeStatus(d);
+                  if (released.length > 0) this._syncTdSubscriptions();
+                  return;
+                }
+                if (d.event === "price" && d.symbol && Number(d.price) > 0) {
+                  const sym = this.tdSlots.resolveInternal(d.symbol);
+                  if (!sym) return;
+                  const price = Number(d.price);
+                  const rawT = Number(d.timestamp ?? Date.now());
+                  const tsMs = Number.isFinite(rawT) && rawT > 0 ? (rawT < 1e12 ? rawT * 1000 : rawT) : Date.now();
+                  const checked = this.tickGuard({ s: sym, c: price, t: tsMs });
+                  if (!checked) return;
+                  this.prices.set(sym, price);
+                  const quote = {
+                    s: sym,
+                    c: price,
+                    t: tsMs,
+                    provenance: PROVENANCE.LIVE,
+                  };
+                  if (Number(d.bid) > 0) quote.bid = Number(d.bid);
+                  if (Number(d.ask) > 0 && (!quote.bid || Number(d.ask) >= quote.bid)) quote.ask = Number(d.ask);
+                  if (Number(d.day_volume) >= 0) quote.v = Number(d.day_volume);
+                  this.broadcastQuotes([quote]);
+                  const updates = this.candles.onTick({
+                    s: sym,
+                    p: price,
+                    t: Math.floor(tsMs / 1000),
+                  });
+                  this.broadcastBarUpdates(sym, updates);
                 }
               } catch (_e) {}
             });
-            ws.addEventListener("close", () => { this.tdWs = null; });
-            ws.addEventListener("error", () => { this.tdWs = null; });
+            ws.addEventListener("close", () => { this.tdWs = null; this.tdSlots.resetActive(); });
+            ws.addEventListener("error", () => { this.tdWs = null; this.tdSlots.resetActive(); });
           })
           .catch(() => { this.tdWs = null; });
       } catch (_e) {}
     }
   }
 
-  broadcast(payload) {
-    const raw = JSON.stringify(payload);
-    for (const ws of this.ctx.getWebSockets("client")) {
-      try {
-        ws.send(raw);
-      } catch (_e) {}
-    }
-  }
-
-  // Hibernation alarm: emits realistic live ticks + multi-timeframe candle updates when clients are connected
+  // Hibernation alarm: sends Twelve Data 10s heartbeat & keeps live upstream WebSockets healthy (zero simulated ticks)
   async alarm() {
     const clients = this.ctx.getWebSockets("client");
     if (!clients.length) {
@@ -1607,73 +1654,20 @@ export class MarketRelayDO {
       return;
     }
 
+    if (this.tdWs) {
+      if (this.lastTdMsg > 0 && Date.now() - this.lastTdMsg > 30000) {
+        try { this.tdWs.close(); } catch (_e) {}
+        this.tdWs = null;
+        this.tdSlots.resetActive();
+      } else {
+        try { this.tdWs.send('{"action":"heartbeat"}'); } catch (_e) {}
+      }
+    }
+
+    if (this.binanceFeed) this.binanceFeed.check();
     this.ensureUpstream();
-
-    const nowSec = Math.floor(Date.now() / 1000);
-    const activeSubs = new Set();
-    const subIntervals = new Map();
-    for (const ws of clients) {
-      const att = ws.deserializeAttachment() || {};
-      const iv = att.interval || "1H";
-      for (const s of att.subs || []) {
-        activeSubs.add(s);
-        if (!subIntervals.has(s)) subIntervals.set(s, new Set());
-        subIntervals.get(s).add(iv);
-      }
-    }
-
-    const bnSilent = Date.now() - this.lastBinanceMsg > 5000;
-    const ticks = [];
-    for (const item of BASE_INSTRUMENTS) {
-      if (item.m === "CRY" && !bnSilent) continue;
-      if (getTdKey(this.env) && (item.m === "FX" || item.m === "STK" || item.m === "ETF") && this.tdWs) continue;
-      const prev = this.prices.get(item.s) || item.p;
-      const stepPct = (Math.random() - 0.5) * (item.vf || 0.015) * 0.08;
-      const dec = prev < 10 ? 5 : prev < 100 ? 3 : 2;
-      const next = Number(Math.max(0.0001, prev * (1 + stepPct)).toFixed(dec));
-      this.prices.set(item.s, next);
-      ticks.push({ s: item.s, c: next });
-    }
-
-    // Also tick any extra subscribed symbols not in BASE_INSTRUMENTS
-    for (const sym of activeSubs) {
-      if (BY_SYM.has(sym)) continue;
-      const prev = this.prices.get(sym) || 100;
-      const next = Number((prev * (1 + (Math.random() - 0.5) * 0.0012)).toFixed(prev < 10 ? 4 : 2));
-      this.prices.set(sym, next);
-      ticks.push({ s: sym, c: next });
-    }
-
-    if (ticks.length) {
-      this.broadcast({ type: "ticks", source: "simulator", ticks, ts: Date.now() });
-    }
-
-    // Emit live candle updates for each subscribed symbol & active timeframes
-    for (const sym of activeSubs) {
-      const c = this.prices.get(sym);
-      if (!c) continue;
-      const ivs = subIntervals.get(sym) || new Set(["1m", "1H"]);
-      for (const iv of ivs) {
-        const step = STEPS[iv] || 3600;
-        const bucket = Math.floor(nowSec / step) * step;
-        const spread = c * 0.0008;
-        this.broadcast({
-          type: "kline",
-          symbol: sym,
-          interval: iv,
-          bar: {
-            t: bucket,
-            o: c,
-            h: Number((c + spread).toFixed(c < 10 ? 5 : 2)),
-            l: Number(Math.max(0.0001, c - spread).toFixed(c < 10 ? 5 : 2)),
-            c,
-            v: Math.round(100 + Math.random() * 900),
-          },
-        });
-      }
-    }
-
-    await this.scheduleNextTick();
+    this._syncTdSubscriptions();
+    await this.ctx.storage.setAlarm(Date.now() + 10000);
   }
 }
 

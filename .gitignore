@@ -4,3 +4,10 @@ config.local.js
 .env
 *.env
 vektor-private/
+.dev.vars
+node_modules/
+.wrangler/
+.vektor-data/
+
+# test screenshots
+shots/

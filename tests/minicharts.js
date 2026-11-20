@@ -4,10 +4,12 @@ const {launch}=require("./harness");const assert=require("assert");const fs=requ
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
 const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"))};
-(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.goto(h.base);await ready(P);
-await P.evaluate(()=>{window.__ws=__WS.length;window.__w=BNWS.ws;go("screener");S.mkt="CRY";render()});await P.waitForTimeout(300);
+(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.goto(h.app);await ready(P);
+await P.evaluate(()=>{window.__ws=__edge.sockets.length;window.__w=VT_EDGE.ws;go("screener");S.mkt="CRY";render()});await P.waitForTimeout(300);
 assert.strictEqual(await P.getAttribute("#minib","aria-pressed"),"false");
 await P.click("#minib");await P.waitForTimeout(400);
+// the edge client only fetches candles for the active chart (card data is server-side, Task 13): merge the history /api/candles would return
+await P.evaluate(()=>{for(const s of PGL.slice(0,MINI.lim)){const r=symOf(s);vtMergeBars(s+"|"+S.mini.tf,__edge.bars(S.mini.tf,r[2],60,s))}miniSync(true)});await P.waitForTimeout(300);
 // 1) same symbols, same order as the table page; table hidden
 let st=await P.evaluate(()=>({on:document.documentElement.classList.contains("vt-mini"),tHidden:getComputedStyle(document.getElementById("t")).display==="none",cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice(0,MINI.lim),pressed:document.getElementById("minib").getAttribute("aria-pressed")}));
 assert(st.on&&st.tHidden&&st.pressed==="true");assert.deepStrictEqual(st.cards,st.pgl);assert(st.cards.length>=5);
@@ -28,9 +30,9 @@ await P.screenshot({path:__dirname+"/../shots/17_minicharts.png"});
 const sym=await P.evaluate(()=>document.querySelector("#vtmini .mc:not(.na)").dataset.s);
 await P.evaluate(()=>{window.__dr=[];const o=miniDraw;miniDraw=function(el,s){__dr.push(s[0]);return o.apply(this,arguments)}});
 /* background loads finishing (e.g. failed forex fetches) can legitimately redraw every card; wait for the queues to settle and retry a busy window */
-let dr;for(let tr=0;tr<4;tr++){await P.waitForFunction(()=>QB.length+QY.length+QT.length===0&&!Object.keys(PEND).length,null,{timeout:20000}).catch(()=>{});await P.waitForTimeout(300);
+let dr;for(let tr=0;tr<4;tr++){await P.waitForFunction(()=>QE.length===0&&!Object.keys(PEND).length,null,{timeout:20000}).catch(()=>{});await P.waitForTimeout(300);
 const cset=await P.evaluate(s=>{window.__dr=[];const x=symOf(s),c=x[2]*1.02;for(const k in LIVE)if(k.startsWith(s+"|")){const b=LIVE[k][LIVE[k].length-1];if(b){b.c=c;b.h=Math.max(b.h,c)}}
-  BNWS.ws.onmessage({data:JSON.stringify([{s,c:String(c),h:String(c),l:String(c)}])});render();return fp(c)},sym);await P.waitForTimeout(150);
+  __edge.quotes([{s,c}]);render();return fp(c)},sym);await P.waitForTimeout(150);
 dr=await P.evaluate(s=>({dr:__dr,px:document.querySelector(`#vtmini .mc[data-s="${s}"] .mcp`).textContent,exp:fp(symOf(s)[2])}),sym);dr.set=cset;if(dr.dr.length<=3)break}
 assert(dr.dr.includes(sym),"ticked card redrawn");assert(dr.dr.length<=3,"only changed cards redraw: "+dr.dr.join(","));/* the periodic 24h ticker refresh can replace the price between the draw and this read */assert(dr.px===dr.exp||dr.px===dr.set,JSON.stringify({sym,dr}));
 // 4) the list changes -> cards follow; 5) interval switch shows loading state and queues candles
@@ -47,8 +49,8 @@ assert.strictEqual(await P.evaluate(()=>S.chart.sym),tgt);
 // 7) axe on the grid; 8) cost and sockets
 await P.evaluate(()=>go("screener"));await P.waitForTimeout(400);
 let v=await axe(P,"#vtmini");assert.deepStrictEqual(v,[],"axe: "+v.join(" | "));
-await P.evaluate(()=>{window.__ws=__WS.length;window.__w=BNWS.ws});
-const perf=await P.evaluate(async s=>{const t=[];for(let i=0;i<40;i++){const x=symOf(s);BNWS.ws.onmessage({data:JSON.stringify([{s,c:String(x[2]*(i%2?1.001:.999)),h:String(x[2]*1.01),l:String(x[2]*.99)}])});const a=performance.now();render();miniFlush();t.push(performance.now()-a);await new Promise(r=>requestAnimationFrame(r))}t.sort((a,b)=>a-b);return{med:t[20],ws:__WS.length===__ws&&BNWS.ws===__w}},sym);
+await P.evaluate(()=>{window.__ws=__edge.sockets.length;window.__w=VT_EDGE.ws});
+const perf=await P.evaluate(async s=>{const t=[];for(let i=0;i<40;i++){const x=symOf(s);__edge.quotes([{s,c:x[2]*(i%2?1.001:.999)}]);const a=performance.now();render();miniFlush();t.push(performance.now()-a);await new Promise(r=>requestAnimationFrame(r))}t.sort((a,b)=>a-b);return{med:t[20],ws:__edge.sockets.length===__ws&&VT_EDGE.ws===__w}},sym);
 console.log("render+mini ms",JSON.stringify(perf));assert(perf.ws,"no new sockets");assert(perf.med<16,"median "+perf.med);
 // 9) persists across reload; turning it off restores the table
 await P.evaluate(()=>save());await P.reload();await ready(P);await P.evaluate(()=>{go("screener");render()});await P.waitForTimeout(400);
@@ -57,9 +59,9 @@ await P.click("#minib");await P.waitForTimeout(150);
 st=await P.evaluate(()=>({grid:!!document.getElementById("vtmini"),t:getComputedStyle(document.getElementById("t")).display,on:S.mini.on}));assert.deepStrictEqual(st,{grid:false,t:st.t==="none"?"x":st.t,on:false});
 console.log("errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
 // 10) light theme axe + phone layout
-h=await launch({viewport:{width:1440,height:900},colorScheme:"light"});P=h.page;await P.goto(h.base);await ready(P);await P.evaluate(()=>{go("screener");S.mkt="CRY";miniToggle(true);render()});await P.waitForTimeout(600);
+h=await launch({viewport:{width:1440,height:900},colorScheme:"light"});P=h.page;await P.goto(h.app);await ready(P);await P.evaluate(()=>{go("screener");S.mkt="CRY";miniToggle(true);render()});await P.waitForTimeout(600);
 v=await axe(P,"#vtmini");assert.deepStrictEqual(v,[],"light axe: "+v.join(" | "));await h.close();
-h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base);await ready(P);await P.evaluate(()=>{go("screener");S.mkt="CRY";miniToggle(true);render()});await P.waitForTimeout(800);
+h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.app);await ready(P);await P.evaluate(()=>{go("screener");S.mkt="CRY";miniToggle(true);render()});await P.waitForTimeout(800);
 const ph=await P.evaluate(()=>{const c=[...document.querySelectorAll("#vtmini .mc")].map(b=>b.getBoundingClientRect());return{n:c.length,cols:new Set(c.map(r=>Math.round(r.left))).size,over:c.filter(r=>r.right>innerWidth+1).length,sw:document.documentElement.scrollWidth<=innerWidth+1}});
 assert(ph.n>=4&&ph.cols===2&&ph.over===0&&ph.sw,JSON.stringify(ph));
 await P.waitForFunction(()=>document.querySelectorAll("#vtmini .mc:not(.na)").length>=4,null,{timeout:15000}).catch(()=>{});

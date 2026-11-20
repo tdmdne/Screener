@@ -3,11 +3,11 @@
 // bottom-sheet editor, drawing tools via pointer events (drag-draw and tap-tap), WebSockets untouched.
 const {launch}=require("./harness");const assert=require("assert");
 const PAGES=["workspace","chart","screener","heatmap","calendar","journal","calc","backtest"];
-async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.base);
+async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.alerts=[];S.dr={};save();openChart("BTCUSDT","1H")});
 await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(800);
 assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.ui),"phone");
-const ws0=await P.evaluate(()=>{window.__w0=BNWS.ws;return __WS.length});
+const ws0=await P.evaluate(()=>{window.__w0=VT_EDGE.ws;return __edge.sockets.length});
 // 1) no horizontal page scroll on any page (with the safety clip switched off so real overflow shows)
 const pages=[...PAGES,"legal/privacy","legal/your-data"];
 for(const p of pages){await P.evaluate(p=>{location.hash="#/"+p},p);await P.waitForTimeout(500);
@@ -63,6 +63,6 @@ await P.tap('.tbar button[data-tool="trend"]');await P.touchscreen.tap(ax,by);aw
 dl=await P.evaluate(()=>DL().filter(d=>d.t==="trend").map(d=>d.p.map(q=>[q.t,+q.y.toFixed(3)])));console.log("tap-tap",JSON.stringify(dl[1]));
 assert.strictEqual(dl.length,2);assert(dl[1][0][0]!==dl[1][1][0]&&dl[1][0][1]!==dl[1][1][1]);
 await P.screenshot({path:`shots/m/${W}_chart_touch.png`});
-const ws1=await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0);assert(ws1,"websockets untouched");
-console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);await h.close()}
+const ws1=await P.evaluate(n=>VT_EDGE.ws===__w0&&__edge.sockets.length===n,ws0);assert(ws1,"websockets untouched");
+console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close()}
 (async()=>{await run(375,812);await run(390,844);console.log("MOBILE OK")})().catch(e=>{console.error(e);process.exit(1)});

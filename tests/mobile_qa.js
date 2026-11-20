@@ -13,11 +13,11 @@ function audit(P,sc){return P.evaluate(sc=>{const W=document.documentElement.cli
     if(e.tagName==="TR"||e.tagName==="TD"||e.tagName==="TH"||e.tagName==="DIV"&&e.querySelector("button,a,input"))return;
     const r=e.getBoundingClientRect();if(r.height<43.5||r.width<43.5)small.push((e.id?"#"+e.id:e.tagName.toLowerCase()+"."+[...e.classList].join("."))+"["+(e.getAttribute("aria-label")||e.textContent||e.value||"").trim().slice(0,16)+"] "+Math.round(r.width)+"x"+Math.round(r.height))});
   return{sw:document.documentElement.scrollWidth,W,small:[...new Set(small)]}},sc)}
-async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.base);
+async function run(W,H){const h=await launch({viewport:{width:W,height:H},mobile:true});const P=h.page;await P.goto(h.app);
 await P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForTimeout(800);
 const ui=await P.evaluate(()=>document.documentElement.dataset.ui);assert.strictEqual(ui,W<600?"phone":"tablet");
-const ws0=await P.evaluate(()=>(window.__w0=BNWS.ws,__WS.length));const bad=[];
+const ws0=await P.evaluate(()=>(window.__w0=VT_EDGE.ws,__edge.sockets.length));const bad=[];
 for(const p of PAGES){await P.evaluate(p=>{location.hash="#/"+p;scrollTo(0,0)},p);await P.waitForTimeout(800);
   const a=await audit(P,"body");if(a.sw>a.W)bad.push(p+" overflow "+a.sw);if(a.small.length)bad.push(p+": "+a.small.join(", "));
   await P.screenshot({path:`shots/m/qa_${W}_${p.replace(/\W/g,"_")}.png`})}
@@ -59,7 +59,7 @@ let r1=await rng();assert(Math.abs(r1[0]-r0[0])>2,"pan moved the chart");
 r0=r1;await touch("touchStart",[[box.x+pw*0.45,cy],[box.x+pw*0.55,cy]]);for(let i=1;i<=8;i++){await touch("touchMove",[[box.x+pw*0.45-i*10,cy],[box.x+pw*0.55+i*10,cy]]);await P.waitForTimeout(16)}await touch("touchEnd",[]);await P.waitForTimeout(400);
 r1=await rng();assert(r1[1]-r1[0]<(r0[1]-r0[0])*0.9,"pinch zoomed in");await P.screenshot({path:`shots/m/qa_${W}_chart_touch.png`});
 // sign-in screen
-const ws1=await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0);assert(ws1,"websockets untouched by page switches");
+const ws1=await P.evaluate(n=>VT_EDGE.ws===__w0&&__edge.sockets.length===n,ws0);assert(ws1,"websockets untouched by page switches");
 console.log(W+"x"+H,ui,bad.length?bad:"all targets >=44px, no overflow");assert.deepStrictEqual(bad,[]);
 assert(!h.errors.length&&!h.consoleErr.length,JSON.stringify([h.errors,h.consoleErr]));await h.close();
 const g=await launch({viewport:{width:W,height:H},mobile:true,auth:false});await g.page.goto(g.base);await g.page.waitForTimeout(1200);

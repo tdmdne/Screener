@@ -1,10 +1,13 @@
-const {launch}=require("./harness");const assert=require("assert");
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+const {launch}=require("./harness");const assert=require("assert");const path=require("path");
+const {hashes,BASE,NAMES}=require("./scorefns");
+// Scoring functions must stay byte-identical to the frozen baseline in scorefns.js (commit 1c48048),
+// the same check claims.js uses. A full baseline.html snapshot of index.html is not in the repo and
+// would drift with every unrelated UI change; the hashes are the maintained, self-contained fixture.
+assert.deepStrictEqual(hashes(path.join(__dirname,"../index.html")),BASE,"scoring functions must be unchanged");
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.mkt="CRY";save();render()});await P.waitForTimeout(2500);
-// scoring functions are untouched: compare their source with the baseline file
-const fs=require("fs");const base=fs.readFileSync(__dirname+"/../baseline.html","utf8");
-for(const fn of ["scoreMarket","passesPreset","scoreSymbol"]){const src=await P.evaluate(n=>window[n].toString(),fn);assert(base.includes(src),fn+" changed");}
-await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(600);
+for(const fn of NAMES){const src=await P.evaluate(n=>typeof window[n]==="function"&&window[n].toString(),fn);assert(src,fn+" missing at runtime")}
+await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/screener"]');await P.waitForTimeout(600);
 let st=await P.evaluate(()=>({th:document.querySelectorAll("#t thead th").length,rows:document.querySelectorAll("#t tbody tr[data-s]").length,pro:document.querySelectorAll("#t tbody td[data-l=Tier]").length,bar:!!document.querySelector("#sxbar").offsetParent,scroll:(()=>{const w=document.querySelector(".side>.tw");return w.scrollWidth-w.clientWidth})()}));
 console.log(JSON.stringify(st));assert(st.th>=12&&st.rows>0&&st.pro===st.rows&&st.bar&&st.scroll<=2);
 // the Cycle (S01-S04) pills are gone
@@ -24,10 +27,10 @@ await P.waitForTimeout(300);await P.screenshot({path:"shots/03b_screener_drawer.
 // arrow key moves through rows and updates drawer
 await P.keyboard.press("ArrowDown");await P.waitForTimeout(300);assert.notStrictEqual(await P.evaluate(()=>SX.sym),"ETHUSDT");
 await P.keyboard.press("Escape");await P.waitForTimeout(250);assert(!(await P.evaluate(()=>document.getElementById("sxd").classList.contains("open"))));
-// open in supercharts from drawer
-await P.click('#t tbody tr[data-s="SOLUSDT"] td.sy');await P.waitForTimeout(300);await P.click('#sxd button:has-text("Open in Supercharts")');await P.waitForTimeout(800);
+// open in vektorcharts from drawer
+await P.click('#t tbody tr[data-s="SOLUSDT"] td.sy');await P.waitForTimeout(300);await P.click('#sxd button:has-text("Open in VektorCharts")');await P.waitForTimeout(800);
 st=await P.evaluate(()=>({page:S.pageView,sym:S.chart.sym,ch:!!ch,drawer:document.getElementById("sxd").classList.contains("open"),pro:document.querySelectorAll("#t td[data-l=Tier]").length}));
 console.log(JSON.stringify(st));assert(st.page==="chart"&&st.sym==="SOLUSDT"&&st.ch&&!st.drawer&&st.pro===0);
 // layout picker works (built-in layout)
-await P.click('#vnav a[data-p="screener"]');await P.waitForTimeout(300);await P.selectOption("#sxlay","Trend grid");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>S.cur),"Trend grid");
+await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/screener"]');await P.waitForTimeout(300);await P.selectOption("#sxlay","Trend grid");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>S.cur),"Trend grid");
 console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);await h.close();console.log("SCREENER OK")})().catch(e=>{console.error(e);process.exit(1)});

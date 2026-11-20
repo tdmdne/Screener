@@ -4,7 +4,7 @@ Deploy Vektor Terminal globally with sub-50ms `/api/screener` and `/api/candles`
 
 ## Prerequisites
 
-- [Node.js 20+](https://nodejs.org/)
+- [Node.js 22.12+](https://nodejs.org/) — `server.js` (CommonJS) loads the shared catalogs in `shared/*.js` (ES modules) with `require()`, which needs `require(esm)` support (unflagged since Node 22.12). On older Node, `npm run dev` fails with `ERR_REQUIRE_ESM`.
 - A [Cloudflare account](https://dash.cloudflare.com/)
 - Wrangler CLI (`npm install -g wrangler` or via `npx wrangler`)
 
@@ -77,3 +77,9 @@ Once deployed, check your Worker URL:
   ```bash
   npx wrangler dev
   ```
+
+## Email Validation (TASK-05)
+
+`shared/emailValidator.js` exports `validateEmail(str)` → `{ ok: true, email }` or `{ ok: false, error }`. It allows only ASCII letters, digits and `! * + - = ? ^ _ . @`, and checks the address structure. The sign-in form already uses it through `src/auth_email_validation.js`, but a browser check can be bypassed.
+
+**Any future `/api/register` or `/api/login` handler (in `worker.js`, `worker/`, `functions/api/[[path]].js` or `server.js`) must call `validateEmail` on the server and reject the request with `400` when `ok` is `false`.** No such endpoint exists yet, so the server-side half of TASK-05 is still open. Tests: `npm run test:email` and `node tests/email_ui.js`.

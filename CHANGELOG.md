@@ -2,6 +2,21 @@
 
 Short dated log of changes to `index.html` (the whole app) and why.
 
+## 2026-11-18
+- **Removed leftover client-side Twelve Data key helpers.** Keys live only in the `vektor-market` Worker. `vtTdKey` / `vt_tdkey~` / `vtCfgTdKey` / the `config.local.js` key loader are gone from the app (the Settings › Data field was already removed in TASK-02). A one-time cleanup deletes any leftover `vt_tdkey~` entries and any `S.data.key` from older settings; it never reads or sends those values. The legal privacy row about `vt_tdkey~` is unchanged (Iris's v1.1 still has it) and can be dropped in a follow-up.
+- **Correction — Backtest Lab.** The 16 Nov entry described a rules-based runner (EMA cross, RSI reversal or N-bar breakout, with no-look-ahead fills at the next bar's open, Journal-style results and a CSV account of "Backtest"). That runner is not in the running app: `index.html` has no `btRun`. `#/backtest` is the Manual Backtest Lab — pick a symbol and start time, step or play bars, and place manual Long/Short orders with stop-loss and take-profit. CSV export uses the Journal format with account "Manual Replay". The same 16 Nov note said the lab usually uses the latest ~250 bars; it will fetch more if fewer than about 250 are cached (a replay request can ask the edge for up to 1,500 bars). `tests/backtest.js` uses `btBuild`, `btPlay` and `btSeek`.
+- **Launch-readiness SEO (head tags, robots, sitemap, favicon).**
+  - `index.html` `<head>` now has a generated `<!-- vt:seo-start -->` block: a clearer title and meta description, canonical, Open Graph and Twitter tags, favicon / apple-touch-icon links, theme-color, and a simple WebApplication JSON-LD. There is no `og:image` yet (needs a 1200×630 image).
+  - New static `robots.txt` and `sitemap.xml` so those URLs stop falling through to the HTML app. The sitemap lists only `/`.
+  - Favicon files (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) use the existing VT lettermark.
+  - Public URL and SEO copy live in `site.config.js`. `useCustomDomain` is `false` until `vektorterminal.com` is live, so canonical / OG / JSON-LD / sitemap / robots currently use `https://screener-cso.pages.dev`. Cutover is: flip the flag, run `npm run sync-seo`, attach the domain in Cloudflare Pages, and 301-redirect pages.dev to it (keep pages.dev out of search results).
+
+- **Starter watchlist and chart-to-watchlist buttons (TASK-06).** New code is in `src/watchlist_starter.js`. `index.html` gained one line that loads it and one flag line, `VT_WL_FRESH`.
+  - A guest, or an account with no saved work on this device, now starts with BTCUSDT, EURUSD, SPY, XAUUSD and NVDA in the first watchlist section instead of an empty list. Accounts that already have saved work are never changed, even if their watchlist is empty.
+  - "Clear starter list" appears in the watchlist header while the list is still exactly the starter list. Clearing it, or changing the list in any way, removes the button for good. The state is a small `wlStarter` field saved inside the account's existing `scr2~<code>` entry. For guests it stays in memory, so nothing is written to localStorage.
+  - The chart header (Workspace and Supercharts) has "+ Watchlist", which adds the charted symbol to the first section and then shows "✓ In Watchlist", and "Locate in Screener", which opens the Screener with that row selected and in view. If a search or market filter hides the row, the filter is cleared and a message says so. If a preset hides it, or the symbol isn't in the screener list, a message explains why.
+  - The header star button called a `wlStar()` function that didn't exist, so it threw an error. It now adds or removes the charted symbol.
+
 ## 2026-11-17
 - **Removed the S01–S04 "Cycle" filter from the Screener page.** The Cycle button row, `applySFilter`, the `SXF` list and the `S.sFilter` state are gone, so the list is no longer re-sorted by cycle score. `scoreSymbol` stays because the Expansion column, the chart preview panel and the heatmap momentum metric use it. `tests/scorefns.js` and `tests/screener.js` no longer expect `applySFilter`.
 

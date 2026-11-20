@@ -7,9 +7,9 @@ const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="B
 const spy=()=>{window.__osc=0;const A=window.AudioContext;if(A){window.AudioContext=function(){const c=new A();const o=c.createOscillator.bind(c);c.createOscillator=function(){window.__osc++;return o()};return c}}};
 // cross an alert level with two ticks from the existing feed handler
 const fire=P=>P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2],lvl=+(p*1.01).toFixed(4);S.alerts=S.alerts||[];S.alerts.push({id:Date.now(),sym:"BTCUSDT",price:lvl,dir:"above",on:true});
-  const t=c=>BNWS.ws.onmessage({data:JSON.stringify([{s:"BTCUSDT",c:String(c),h:String(c),l:String(c)}])});t(p*.999);t(p*1.02);return lvl});
+  const t=c=>__edge.quotes([{s:"BTCUSDT",c:c}]);t(p*.999);t(p*1.02);return lvl});
 const st=P=>P.evaluate(()=>({on:VT_PREF.alertSound,saved:localStorage.getItem("vt_prefs"),osc:window.__osc,chimes:window.__vtChimes||0}));
-(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.addInitScript(spy);await P.goto(h.base);await ready(P);
+(async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.addInitScript(spy);await P.goto(h.app);await ready(P);
 // 1) default: off, and an alert makes no sound at all
 let s=await st(P);assert.deepStrictEqual([s.on,s.saved],[false,null]);
 const lvl=await fire(P);await P.waitForTimeout(150);s=await st(P);assert.strictEqual(s.osc,0,"no oscillator when off");
@@ -44,5 +44,5 @@ await P.evaluate(()=>localStorage.setItem("vt_consent",JSON.stringify({v:"1.0",t
 // 8) the cookie notice lists it
 await P.evaluate(()=>go("legal"));await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(300);
 const t=await P.textContent("#pv-legal");assert(/vt_prefs/.test(t)&&/Optional preferences/.test(t),"cookie notice");
-console.log("errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("errors",h.errors);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 console.log("SOUND OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

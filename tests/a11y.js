@@ -4,21 +4,23 @@ const {launch}=require("./harness");const assert=require("assert");const fs=requ
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
 const PAGES=["workspace","chart","screener","heatmap","calendar","journal","calc","backtest","legal/privacy","legal/your-data"];
-(async()=>{for(const theme of ["dark","light"]){const h=await launch({colorScheme:theme});const P=h.page;await P.goto(h.base);
+(async()=>{for(const theme of ["dark","light"]){const h=await launch({colorScheme:theme});const P=h.page;await P.goto(h.base+"#/workspace");
   await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>openChart("BTCUSDT","1H"));
   for(const pg of PAGES){await P.evaluate(p=>{location.hash="#/"+p},pg);await P.waitForTimeout(700);const v=await axe(P);assert.deepStrictEqual(v,[],theme+" "+pg+": "+v.join(" | "))}
   await P.evaluate(()=>{location.hash="#/chart"});await P.waitForTimeout(500);
   for(const f of ["alertsM()","setM()","tplM()","presetInfo()","indM&&indM()"]){await P.evaluate(f);await P.waitForTimeout(250);const v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" "+f+": "+v.join(" | "));await P.evaluate(()=>closeM())}
   console.log(theme,"axe clean");assert.deepStrictEqual(h.errors,[]);await h.close()}
-const h=await launch();const P=h.page;await P.goto(h.base);await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
+const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{openChart("BTCUSDT","1H");go("workspace")});await P.waitForTimeout(500);
 // skip link is the first Tab stop and moves focus to the main landmark
 await P.evaluate(()=>document.activeElement&&document.activeElement.blur());await P.keyboard.press("Tab");
 assert.strictEqual(await P.evaluate(()=>document.activeElement.className),"vt-skip");await P.keyboard.press("Enter");
 assert.strictEqual(await P.evaluate(()=>document.activeElement.getAttribute("role")),"main");assert.strictEqual(await P.evaluate(()=>document.querySelectorAll('[role="main"]').length),1);
-// nav by keyboard
-await P.focus('#vnav a[data-p="calc"]');await P.keyboard.press("Enter");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"calc");
-assert.strictEqual(await P.getAttribute('#vnav a[data-p="calc"]',"aria-current"),"page");await P.evaluate(()=>go("workspace"));await P.waitForTimeout(300);
+// nav by keyboard via desktop Features dropdown (#vtFeatBtn -> #vtFeatMenu)
+await P.focus('#vtFeatBtn');await P.keyboard.press("Enter");await P.waitForSelector('#vtFeatMenu.open');
+await P.focus('#vtFeatMenu a[href="#/calc"]');await P.keyboard.press("Enter");await P.waitForTimeout(300);assert.strictEqual(await P.evaluate(()=>document.documentElement.dataset.page),"calc");
+await P.click('#vtFeatBtn');await P.waitForSelector('#vtFeatMenu.open');
+assert.strictEqual(await P.getAttribute('#vtFeatMenu a[href="#/calc"]',"aria-current"),"page");await P.keyboard.press("Escape");await P.evaluate(()=>go("workspace"));await P.waitForTimeout(300);
 // sortable header: focusable, Enter sorts, aria-sort exposed
 const hd=P.locator("#t thead span.h").first();assert.strictEqual(await hd.getAttribute("role"),"button");await hd.focus();await P.keyboard.press("Enter");await P.waitForTimeout(250);
 assert(await P.evaluate(()=>[...document.querySelectorAll("#t thead th")].some(th=>/ascending|descending/.test(th.getAttribute("aria-sort")||""))));

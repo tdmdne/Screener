@@ -7,7 +7,7 @@ const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await
 const ready=P=>P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED);
 async function addTrade(P,o){await P.click("#jr_add");await P.waitForSelector("#jre_f");await P.waitForFunction(()=>document.activeElement&&/^jr[ea]_(sym|name)$/.test(document.activeElement.id));for(const [k,v] of Object.entries(o)){if(k==="side")await P.selectOption("#jre_side",v);else await P.fill("#jre_"+k,String(v))}await P.click('#jre_f button[type="submit"]');await P.waitForFunction(()=>!document.getElementById("jre_f"));await P.waitForTimeout(350)}
 (async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base);await ready(P);
-const ws0=await P.evaluate(()=>(window.__w0=BNWS.ws,__WS.length));
+const ws0=await P.evaluate(()=>(window.__w0=VT_EDGE.ws,__edge.sockets.length));
 await P.evaluate(()=>{location.hash="#/journal"});await P.waitForSelector("#jr_kpis");
 if(theme==="dark"){
 // 1) empty state: no stub, no invented numbers
@@ -53,7 +53,7 @@ await P.screenshot({path:__dirname+"/../shots/22_journal.png"});
 }else{await P.evaluate(()=>{const J=jrCfg();J.accts.push({name:"A",size:10000,target:8,daily:5,maxdd:10});J.trades.push(jrClean({sym:"ES",side:"long",entry:1,exit:2,qty:10,close:"2026-11-02T10:00",acct:"A",setup:"ORB"}).t);save();jrBuild()})}
 await P.waitForTimeout(600);let v=await axe(P,"#pv-journal");assert.deepStrictEqual(v,[],theme+" journal axe: "+v.join(" | "));
 await P.click("#jr_add");await P.waitForTimeout(600);v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" trade form axe: "+v.join(" | "));await P.keyboard.press("Escape");
-const ws1=await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0).catch(()=>true);
+const ws1=await P.evaluate(n=>VT_EDGE.ws===__w0&&__edge.sockets.length===n,ws0).catch(()=>true);
 console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
 // phone
 const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base);await ready(P);

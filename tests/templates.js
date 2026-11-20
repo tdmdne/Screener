@@ -2,8 +2,8 @@
 const {launch}=require("./harness");const assert=require("assert");const fs=require("fs");const os=require("os");const path=require("path");
 fs.mkdirSync(__dirname+"/../shots/m",{recursive:true});
 const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{S.dr={};S.tpl={list:[],def:null};save();openChart("BTCUSDT","1H");go("chart")});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]&&document.getElementById("tplb"))};
-(async()=>{let h=await launch();let P=h.page;await P.goto(h.base);await ready(P);
-const ws0=await P.evaluate(()=>__WS.length);
+(async()=>{let h=await launch();let P=h.page;await P.goto(h.app);await ready(P);
+const ws0=await P.evaluate(()=>__edge.sockets.length);
 // set up a distinctive chart: line type, custom colour, an extra indicator, 2 panes, a drawing
 await P.evaluate(()=>{S.chart.type="line";S.chart.lineCol="#123456";S.chart.ind.push({id:"i9",t:"sma",len:50,col:"#00ff00"});S.sc.tfB="4H";
   DL().push({id:1,t:"hline",p:[{t:G.a[G.a.length-5].t,y:120}],c:"#ff0000",w:2,s:0});save();scSetPanes(2);drawChart()});
@@ -52,18 +52,18 @@ c=await P.evaluate(()=>({lc:S.chart.lineCol,type:S.chart.type,sym:S.chart.sym}))
 // delete (with confirmation); deleting the default clears it
 await P.click("#tplb");await P.locator('.tplr',{hasText:"Default"}).locator(".tpl_dl").click();await P.click(".tpl_dy");await P.waitForTimeout(100);
 assert.deepStrictEqual(await P.evaluate(()=>({n:S.tpl.list.length,def:S.tpl.def})),{n:3,def:null});
-assert.strictEqual(await P.evaluate(()=>__WS.length>=1),true);
-console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
+assert.strictEqual(await P.evaluate(()=>__edge.sockets.length>=1),true);
+console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // guest: the menu opens but saving asks to sign in
-h=await launch({auth:false});P=h.page;await P.goto(h.base);await P.click("#auGuest");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
+h=await launch({auth:false});P=h.page;await P.goto(h.app);await P.click("#auGuest");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{openChart("BTCUSDT","1H");go("chart")});await P.waitForFunction(()=>document.getElementById("tplb"));
 await P.click("#tplb");await P.fill("#tpl_name","G");await P.click("#tpl_save");await P.waitForSelector("#vg_h");assert(/chart templates/.test(await P.textContent("#vg_h")));
-assert.strictEqual(await P.evaluate(()=>(S.tpl&&S.tpl.list||[]).length),0);await h.close();
+assert.strictEqual(await P.evaluate(()=>(S.tpl&&S.tpl.list||[]).length),0);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // phone: menu is a bottom sheet with usable targets
-h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base);await ready(P);
+h=await launch({viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>{S.tpl={list:[tplCapture("Clean candles",false),tplCapture("Scalping 5m",true)],def:null};save()});
 await P.locator("#tplb").scrollIntoViewIfNeeded();await P.tap("#tplb");await P.waitForSelector(".tplm");await P.waitForTimeout(400);
 const small=await P.evaluate(()=>[...document.querySelectorAll(".tplm button")].filter(b=>b.offsetParent&&b.getBoundingClientRect().height<39.5).map(b=>b.textContent));assert.deepStrictEqual(small,[]);
 await P.screenshot({path:__dirname+"/../shots/m/390_templates.png"});
-console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 console.log("TEMPLATES OK")})().catch(e=>{console.error(e);process.exit(1)});

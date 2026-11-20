@@ -373,22 +373,7 @@ function vtClearFeedGap(sym, tf) {
 }
 
 async function vtResolveTdKey() {
-  if (typeof vtTdKey === "function") {
-    const k = vtTdKey();
-    if (k) return k;
-  }
-  if (VT_EDGE.tdKey) return VT_EDGE.tdKey;
-  if (VT_EDGE.tdKeyFetched) return "";
-  VT_EDGE.tdKeyFetched = true;
-  try {
-    const r = await fetch("/api/ws-config", { cache: "no-store" });
-    if (!r.ok) return "";
-    const j = await r.json();
-    if (j && j.ok && j.tdKey) {
-      VT_EDGE.tdKey = String(j.tdKey).trim();
-      return VT_EDGE.tdKey;
-    }
-  } catch (_e) {}
+  // TASK-02: the browser never holds a Twelve Data key any more; the vektor-market Worker adds it server-side.
   return "";
 }
 
@@ -444,6 +429,21 @@ function vtMergeBars(k, incoming) {
   return LIVE[k];
 }
 
+async function vtBnDirectCandles(s, tf, limit, beforeSec) {
+  try {
+    if (typeof bnGet !== "function" || typeof BNI === "undefined" || !BNI[tf]) return null;
+    const sym = String(s[6] || s[0] || "").toUpperCase();
+    if (!/^[A-Z0-9]{2,20}$/.test(sym)) return null;
+    let p = `/api/v3/klines?symbol=${sym}&interval=${BNI[tf]}&limit=${Math.max(10, Math.min(1000, limit || 1000))}`;
+    if (beforeSec > 0) p += `&endTime=${beforeSec * 1000 - 1}`;
+    const raw = await bnGet(p);
+    if (!Array.isArray(raw)) return null;
+    return raw.map((x) => ({ t: Math.floor(x[0] / 1000), o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] })).filter((x) => x.c > 0);
+  } catch (_e) {
+    return null;
+  }
+}
+
 async function edgeFetchCandles(s, tf, opts) {
   if (!vtCanUseEdge() || !s) return null;
   const o = opts || {};
@@ -479,12 +479,22 @@ async function edgeFetchCandles(s, tf, opts) {
       if (limit > 0) u += `&limit=${limit}`;
       if (replay) u += `&replay=1`;
       if (refresh) u += `&refresh=1`;
-      const r = await fetch(u);
-      if (!r.ok) {
-        if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
-        return null;
+      let j = null;
+      const crypto = vtIsCryptoSym(s);
+      // After one failed server attempt for crypto, go straight to Binance for 10 minutes.
+      if (!(crypto && !replay && VT_EDGE.bnServerDownUntil > Date.now())) {
+        try {
+          const r = await fetch(u);
+          if (r.ok) j = await r.json();
+        } catch (_e) {}
+        if (crypto && !replay && (!j || !j.ok)) VT_EDGE.bnServerDownUntil = Date.now() + 600000;
       }
-      const j = await r.json();
+      // Binance blocks some Cloudflare egress locations (HTTP 451/403), so if our server can't reach it,
+      // load crypto candles straight from Binance in the browser (public data, no key involved).
+      if (!replay && crypto && (!j || !j.ok || !Array.isArray(j.bars) || (!j.bars.length && !beforeSec))) {
+        const direct = await vtBnDirectCandles(s, tf, limit, beforeSec);
+        if (direct) j = { ok: true, bars: direct, source: "binance", hasMore: direct.length > 0 };
+      }
       if (!j || !j.ok || !Array.isArray(j.bars)) {
         if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
         return null;
@@ -1002,63 +1012,22 @@ async function vtTdWsConnect(sym) {
   }
   if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 0) return;
 
-  const key = await vtResolveTdKey();
-  if (!key || VT_EDGE.tdActiveSym !== sym || !isLive()) return;
-  if (VT_EDGE.tdWs && (VT_EDGE.tdWs.readyState === 0 || VT_EDGE.tdWs.readyState === 1)) return;
-
-  try {
-    const ws = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(key)}`);
-    VT_EDGE.tdWs = ws;
-    ws.onopen = () => {
-      VT_EDGE.tdRetry = 0;
+  // TASK-02: no browser WebSocket to Twelve Data (that needed the key). Poll the latest price
+  // through our vektor-market Worker instead; it caches each symbol and enforces the plan limits.
+  if (VT_EDGE.tdActiveSym !== sym || !isLive()) return;
+  clearInterval(VT_EDGE.tdHb);
+  const vtTdPoll = async () => {
+    if (VT_EDGE.tdActiveSym !== sym || !isLive() || document.hidden) return;
+    try {
+      const r = await fetch(`/api/quote?symbols=${encodeURIComponent(sym)}`);
+      const d = await r.json();
+      if (VT_EDGE.tdActiveSym !== sym || !d || !(Number(d.price) > 0)) return;
       markOk("tdws");
-      const targetTd = VT_EDGE.tdActiveTdSym || tdSym;
-      try {
-        ws.send(JSON.stringify({ action: "subscribe", params: { symbols: targetTd } }));
-        VT_EDGE.tdSubTdSym = targetTd;
-      } catch (_e) {}
-      clearInterval(VT_EDGE.tdHb);
-      VT_EDGE.tdHb = setInterval(() => {
-        if (ws.readyState === 1) {
-          try { ws.send(JSON.stringify({ action: "heartbeat" })); } catch (_e) {}
-        }
-      }, 10000);
-    };
-    ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (!d || d.event !== "price" || !(Number(d.price) > 0)) return;
-        const evSym = String(d.symbol || "").trim().toUpperCase();
-        const activeTd = String(VT_EDGE.tdActiveTdSym || "").trim().toUpperCase();
-        if (!evSym || !activeTd || (evSym !== activeTd && evSym.replace("/", "") !== VT_EDGE.tdActiveSym)) {
-          return;
-        }
-        markOk("tdws");
-        vtApplyTwelveDataTick(VT_EDGE.tdActiveSym, Number(d.price), Number(d.timestamp));
-      } catch (_err) {}
-    };
-    ws.onclose = () => {
-      clearInterval(VT_EDGE.tdHb);
-      VT_EDGE.tdHb = 0;
-      if (VT_EDGE.tdWs === ws) {
-        VT_EDGE.tdWs = null;
-        VT_EDGE.tdSubTdSym = "";
-      }
-      const cur = S && S.chart && S.chart.sym;
-      if (cur && !vtIsCryptoSym(cur) && isLive() && VT_EDGE.tdActiveSym === cur) {
-        const delay = vtNextBackoff(VT_EDGE.tdRetry++);
-        clearTimeout(VT_EDGE.tdTimer);
-        VT_EDGE.tdTimer = setTimeout(() => {
-          if (S && S.chart && S.chart.sym === cur && !vtIsCryptoSym(cur)) {
-            vtTdWsConnect(cur);
-          }
-        }, delay);
-      }
-    };
-    ws.onerror = () => {
-      try { ws.close(); } catch (_e) {}
-    };
-  } catch (_e) {}
+      vtApplyTwelveDataTick(sym, Number(d.price), Math.floor(Date.now() / 1000));
+    } catch (_e) {}
+  };
+  vtTdPoll();
+  VT_EDGE.tdHb = setInterval(vtTdPoll, 60000);
 }
 
 function vtSyncChartFeed(sym, tf) {

@@ -1,0 +1,41 @@
+# Vektor Market Worker (vektor-market) — SQLite Durable Objects + KV cache.
+# Deploy from this folder:  cd workers/market && npx wrangler deploy
+# Secrets are NEVER placed in this file. Configure via:
+#   npx wrangler secret put TWELVEDATA_KEY
+name = "vektor-market"
+main = "index.js"
+compatibility_date = "2025-11-01"
+workers_dev = false
+
+# Hard per-invocation CPU cap on Workers Paid so runaway requests can never rack up CPU bills.
+[limits]
+cpu_ms = 50
+
+[vars]
+TD_PER_MIN = "8"
+TD_PER_DAY = "800"
+TD_WS_MAX = "8"
+# Where crypto comes from: "binance" (public !miniTicker@arr, no Twelve Data slots) or "twelvedata" (BTC/USD, ETH/USD, ...).
+# Flip to "twelvedata" when the Venture plan is active; no code change needed.
+CRYPTO_PROVIDER = "binance"
+ALLOWED_ORIGINS = "https://vektorterminal.com,https://www.vektorterminal.com,https://feat-phase-a-backend-core.screener-cso.pages.dev,https://screener-cso.pages.dev"
+
+[[kv_namespaces]]
+binding = "MARKET_KV"
+id = "999790ad01b6464483f28060542fff68"
+
+[[durable_objects.bindings]]
+name = "TD_BUDGET"
+class_name = "TdBudget"
+
+[[durable_objects.bindings]]
+name = "MARKET_HUB"
+class_name = "MarketHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TdBudget"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["MarketHub"]

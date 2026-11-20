@@ -1,6 +1,6 @@
 // Price-scale "+" -> alert at that price (fires once on a cross) and horizontal line; Workspace + both Supercharts panes
 const {launch}=require("./harness");const assert=require("assert");
-(async()=>{const h=await launch();const P=h.page;await P.goto(h.base);
+(async()=>{const h=await launch();const P=h.page;await P.goto(h.base+"#/workspace");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{S.alerts=[];S.dr={};save();openChart("BTCUSDT","1H")});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(600);
 await P.evaluate(()=>{window.__fires=0;const f=fireAlert;window.fireAlert=function(){__fires++;return f.apply(this,arguments)}});
@@ -25,7 +25,7 @@ console.log("fires",fires);assert.deepStrictEqual(fires,[1,true]);
 // 2) Workspace chart -> horizontal line
 px=await viaPlus("#cv",["ch","MS"],"Draw horizontal");const hl=await P.evaluate(()=>DL().filter(d=>d.t==="hline").map(d=>d.p[0].y));assert.deepStrictEqual(hl,[px]);
 // 3) Supercharts main pane + pane 2
-await P.evaluate(()=>{S.sc.panes=2;save()});await P.click('#vnav a[data-p="chart"]');await P.waitForFunction(()=>SC.chB,null,{timeout:10000});await P.waitForTimeout(500);
+await P.evaluate(()=>{S.sc.panes=2;save()});await P.click('#vtFeatBtn');await P.click('#vtFeatMenu a[href="#/chart"]');await P.waitForFunction(()=>SC.chB,null,{timeout:10000});await P.waitForTimeout(500);
 px=await viaPlus("#cv",["ch","MS"],"Add alert");assert.strictEqual(await P.evaluate(()=>S.alerts.slice(-1)[0].price),px);
 assert((await P.textContent("#dkal")).includes("BTCUSDT"));
 px=await viaPlus("#cvB",["SC.chB","SC.serB"],"Add alert");assert.strictEqual(await P.evaluate(()=>S.alerts.slice(-1)[0].price),px);

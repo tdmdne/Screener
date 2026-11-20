@@ -203,6 +203,22 @@ Valid provenance values:
 
 ---
 
+### Chart history with indicators (HTTP, Tasks 9/11)
+The chart's one request is `GET /api/candles?symbol=ETHUSDT&interval=1H&limit=1000&ind=ema:10,sma:20,bb:20:2,rsi:14`
+(`before=<sec>` pages older history). The server fetches `limit` plus warm-up bars (window indicators: `period`;
+EMA/RSI: `4 × period`; capped at 1,000), computes every series with `shared/market/chartIndicators.js`, and returns
+only the newest bars, so every returned point is fully warmed and independently fetched pages join without gaps.
+```json
+{ "ok": true, "bars": [{ "t": 1732000000, "o": 1, "h": 1, "l": 1, "c": 1, "v": 0 }],
+  "ind": { "ema:10": { "type": "ema", "points": [{ "t": 1732000000, "v": 3180.2 }] },
+           "bb:20:2": { "type": "bb", "upper": [], "middle": [], "lower": [] } } }
+```
+Spec ids are the hub's canonical keys (`ema:20`, `bb:20:2`) and match `view.chart.ind` and `ind` frame ids. Invalid or
+more than 24 specs → `400 { ok:false, error }`. Without `ind` the response is unchanged. Live values for closed bars
+come from `ind` frames; the browser never computes them.
+
+---
+
 ## 6. Validation & Fan-Out Coalescing
 
 - Use `validateClientMessage(raw)` on every inbound socket message; reply with an `error` frame on failure.

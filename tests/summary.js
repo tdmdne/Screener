@@ -3,7 +3,7 @@
 const {launch}=require("./harness");const assert=require("assert");const fs=require("fs");const path=require("path");
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
-const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{for(const s of SYMS)vtMergeBars(s[0]+"|1D",__edge.bars("1D",s[2]||1,40,s[0]))})};
+const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{for(const s of SYMS)vtSetServerBars(s[0]+"|1D",__edge.bars("1D",s[2]||1,40,s[0]))})};
 (async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>{const a=candles(symOf("BTCUSDT"),"1H");return a&&a.length>30});
 // seed: one closed long (target hit today) and one open short, from the real candle store; two alerts (today, yesterday).

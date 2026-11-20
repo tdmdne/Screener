@@ -291,66 +291,27 @@ const row=document.querySelector(`#t tbody tr[data-s="${sym}"]`);
 if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
 if(getComputedStyle(document.querySelector(".ws")).gridTemplateColumns.split(" ").length<2)document.getElementById("cp").scrollIntoView({behavior:"smooth",block:"start"})}
 let vtLastPlotT={};
+// Push the newest server bar (hub `bar` frame) to the series verbatim.
 function updateLiveBar(sym,tf){
   if(!ch||!MS||S.chart.sym!==sym||S.chart.tf!==tf)return;
-  const s=symOf(sym);
-  const a=candles(s,tf);if(!a||!a.length)return;
-  const last=a[a.length-1];
-  if(!last||!(last.c>0)||!isFinite(last.t))return;
-  const k=sym+"|"+tf;
+  const a=candles(symOf(sym),tf);if(!a||!a.length)return;
+  const last=a[a.length-1],k=sym+"|"+tf;
   if(vtLastPlotT[k]&&last.t<vtLastPlotT[k])return;
   vtLastPlotT[k]=last.t;
-  const o=last.o!=null&&isFinite(last.o)?last.o:last.c;
-  const h=Math.max(isFinite(last.h)?last.h:o,o,last.c);
-  const l=Math.min(isFinite(last.l)?last.l:o,o,last.c);
-  const bar={time:last.t,open:o,high:h,low:l,close:last.c};
-  try{MS.update(bar)}catch(e){}
-  const q=document.getElementById("cpx");if(q&&last.c>0){const t=fp(last.c,s||sym);if(q.textContent!==t){q.textContent=t;if(typeof vtPxWatch==="function")vtPxWatch()}}
+  try{MS.update({time:last.t,open:last.o,high:last.h,low:last.l,close:last.c})}catch(e){}
 }
 let vtChartMeta=null,vtHistGuard=0;
-function vtBuildChartData(s,tf,C,d1,rawA){
-  const st=STEP[tf]||3600,now=Math.floor(Date.now()/1000/st)*st;
-  const byT=new Map();
-  const src=Array.isArray(rawA)?rawA:[];
-  for(let i=0;i<src.length;i++){
-    const b=src[i];
-    if(!b||!(b.c>0)||!isFinite(b.c))continue;
-    const rawT=b.t!=null&&isFinite(b.t)&&b.t>0?Math.floor(b.t):now-(src.length-1-i)*st;
-    const t=st<86400?Math.floor(rawT/st)*st:rawT;
-    const prev=byT.get(t);
-    if(prev){
-      const o=prev.o!=null&&isFinite(prev.o)?prev.o:(b.o!=null&&isFinite(b.o)?b.o:b.c);
-      byT.set(t,Object.assign({},prev,b,{
-        t,
-        o,
-        h:Math.max(isFinite(prev.h)?prev.h:o,isFinite(b.h)?b.h:b.c,o,b.c),
-        l:Math.min(isFinite(prev.l)?prev.l:o,isFinite(b.l)?b.l:b.c,o,b.c),
-        c:b.c,
-      }));
-    }else{
-      byT.set(t,Object.assign({},b,{t}));
-    }
-  }
-  const a=[...byT.values()].sort((x,y)=>x.t-y.t);
-  const T=i=>a[i]?a[i].t:now;
-  const cl=a.map(x=>x.c);
-  const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(tf);
-  const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null&&isFinite(x.o)?x.o:i?a[i-1].c:x.c;const hi=isFinite(x.h)?x.h:Math.max(q,x.c),lo=isFinite(x.l)?x.l:Math.min(q,x.c);return{time:x.t,open:q,high:Math.max(hi,q,x.c),low:Math.min(lo,q,x.c),close:x.c}});
-  const pts=arr=>{
-    if(!Array.isArray(arr)||!D.length)return[];
-    const out=[];
-    const lim=Math.min(arr.length,D.length);
-    for(let i=0;i<lim;i++){
-      const y=arr[i];
-      if(y!=null&&isFinite(y))out.push({time:D[i].time,value:y});
-    }
-    return out;
-  };
+// Map server bars (already bucketed, deduplicated and merged server-side) to LightweightCharts rows. Formatting only.
+function vtChartSeries(s,tf,C,d1,rawA){
+  const a=Array.isArray(rawA)?rawA:[];
+  const st=STEP[tf]||3600;
+  const T=i=>a[i]?a[i].t:0;
+  const D=a.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c}));
   if(C.colorPrev&&D.length>1){
     const prevC=d1&&d1.length>1?d1[d1.length-2].c:D[0].close;
-    D.forEach(d=>{if(d.close>=prevC){d.color=C.upBody}else{d.color=C.dnBody}});
+    D.forEach(d=>{d.color=d.close>=prevC?C.upBody:C.dnBody});
   }
-  return{a,st,T,cl,pts,D};
+  return{a,st,T,D};
 }
 function vtApplyHistoryPrepend(sym,tf,added){
   try{
@@ -364,7 +325,7 @@ function vtApplyHistoryPrepend(sym,tf,added){
         drawChart(preserveRange?{preserveRange}:undefined);
       }else if(vtChartMeta&&vtChartMeta.sym===sym&&vtChartMeta.tf===tf&&(vtChartMeta.candleSer||MS)){
         let prevRg=null;try{prevRg=ch.timeScale().getVisibleLogicalRange()}catch(_e){}
-        const C=S.chart,d1=candles(s,"1D"),B=vtBuildChartData(s,tf,C,d1,a);
+        const C=S.chart,d1=candles(s,"1D"),B=vtChartSeries(s,tf,C,d1,a);
         vtHistGuard=1;
         try{
           if(vtChartMeta.overlaySer){
@@ -377,22 +338,22 @@ function vtApplyHistoryPrepend(sym,tf,added){
             if(pc)vtChartMeta.prevLine.setData([{time:B.T(0),value:pc},{time:B.T(B.a.length-1),value:pc}]);
           }
           for(const item of vtChartMeta.indSeries){
-            if(item.kind==="ema")item.ser.setData(B.pts(emaArr(B.cl,item.d.len)));
-            else if(item.kind==="sma")item.ser.setData(B.pts(smaArr(B.cl,item.d.len)));
+            if(item.kind==="ema"||item.kind==="sma")item.ser.setData(vtIndSeriesData(sym,tf,item.d,B.a));
             else if(item.kind==="bb"){
-              const m=smaArr(B.cl,item.d.len),sd=B.cl.map((_,i)=>i<item.d.len-1?null:Math.sqrt(B.cl.slice(i-item.d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/item.d.len));
-              [1,-1].forEach((g,idx)=>{if(item.sers[idx])item.sers[idx].setData(B.pts(m.map((x,i)=>x==null?null:x+g*2*sd[i])))});
+              const bd=vtIndSeriesData(sym,tf,item.d,B.a);
+              if(item.sers[0])item.sers[0].setData(bd.upper);
+              if(item.sers[1])item.sers[1].setData(bd.lower);
             }else if(item.kind==="vol"){
               item.ser.setData(vols(s,tf).map((x,i)=>({time:B.T(i),value:x,color:(B.D[i].close>=B.D[i].open?C.upBody:C.dnBody)+"66"})));
             }
           }
           if(vtChartMeta.rsiSer){
             const r=C.ind.find(d=>d.t==="rsi");
-            if(r)vtChartMeta.rsiSer.setData(B.pts(rsiArr(B.cl,r.len)));
+            if(r)vtChartMeta.rsiSer.setData(vtIndSeriesData(sym,tf,r,B.a));
           }
           if(typeof G!=="undefined"&&G){G={a:B.a,st:B.st,tt:B.a.map((_,i)=>B.T(i))}}
           if(typeof SC!=="undefined"&&SC&&SC.dw&&SC.dw.s&&SC.dw.s[0]===sym){
-            const inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(B.cl,d.len):d.t==="sma"?smaArr(B.cl,d.len):rsiArr(B.cl,d.len)}));
+            const inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:vtIndAligned(sym,tf,d,B.a)}));
             SC.dw={s,a:B.a,T:B.T,inds,vol:vols(s,tf),i:Math.min(B.a.length-1,(SC.dw.i||0)+added)};
             if(typeof scDW==="function")scDW();
           }
@@ -412,11 +373,8 @@ function vtApplyHistoryPrepend(sym,tf,added){
         SC._histGuard=1;
         try{
           SC.serB.setData(B2.D);
-          const cl2=B2.a.map(x=>x.c),pts2=arr=>arr.map((y,i)=>y==null?null:{time:B2.T(i),value:y}).filter(Boolean);
           if(Array.isArray(SC.indSeries)){
-            for(const it of SC.indSeries){
-              it.ser.setData(pts2(it.d.t==="ema"?emaArr(cl2,it.d.len):smaArr(cl2,it.d.len)));
-            }
+            for(const it of SC.indSeries)it.ser.setData(vtIndSeriesData(sym,tf,it.d,B2.a));
           }
           SC.barsB=B2;
           if(prevRgB&&isFinite(prevRgB.from)&&isFinite(prevRgB.to)){
@@ -514,7 +472,7 @@ leftPriceScale:{visible:C.scalePlace==="left",borderVisible:C.scBorder!==false},
 watermark:{visible:C.wm==="show",text:s[0]+", "+C.tf,color:(C.wmCol||"#787882")+"40",fontSize:48,horzAlign:"center",vertAlign:"center"}});
 if(!rawCandles||!rawCandles.length){const ek=ERR[s[0]+"|"+C.tf];if(ek&&typeof vtChartErr==="function"){vtChartErr(cvEl,ek);return}cvEl.innerHTML=`<p class="mut vt-skel" role="status">Loading candles…</p>`;try{need(s,C.tf,true)}catch(_e){}return}
 ch=L.createChart(cvEl,op(true));
-const a=rawCandles,{st,T,cl,pts,D}=vtBuildChartData(s,C.tf,C,d1,a);
+const a=rawCandles,{st,T,D}=vtChartSeries(s,C.tf,C,d1,a);
 const meta={sym:s[0],tf:C.tf,overlaySer:null,overlayType:C.type,candleSer:null,prevLine:null,indSeries:[],rsiSer:null};
 const ps=typeof vtPriceSpec==="function"?vtPriceSpec(s,s[2]):{precision:s[2]<5?5:2,minMove:s[2]<5?0.00001:0.01};
 const pF={type:"price",precision:ps.precision,minMove:ps.minMove};
@@ -531,15 +489,16 @@ if(C.prevClose==="line"||C.prevClose==="val"){
 }
 // plus button on price scale: TradingView-style hover "+" (see vtPlusAttach), attached in vtAfterDraw
 const ls=(col,w)=>ch.addLineSeries({color:col,lineWidth:w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+// Indicator lines come from the server (vt_13_server_indicators.js); missing series are fetched, never computed here.
+if(vtIndMissing(s[0],C.tf).length)vtEnsureChartInd(s[0],C.tf);
+if(typeof vtSyncWsView==="function")vtSyncWsView(); // hub recomputes view.chart.ind on bar close (deduped by view key)
 C.ind.filter(d=>!d.hidden&&d.t!=="atr").forEach(d=>{try{
-if(d.t==="ema"){const sr=ls(d.col,d.w||2);sr.setData(pts(emaArr(cl,d.len)));meta.indSeries.push({d,kind:"ema",ser:sr})}
-else if(d.t==="sma"){const sr=ls(d.col,d.w||2);sr.setData(pts(smaArr(cl,d.len)));meta.indSeries.push({d,kind:"sma",ser:sr})}
-else if(d.t==="bb"){const m=smaArr(cl,d.len),sd=cl.map((_,i)=>i<d.len-1?null:Math.sqrt(cl.slice(i-d.len+1,i+1).reduce((q,x)=>q+(x-m[i])**2,0)/d.len));
-const bbs=[1,-1].map(g=>{const sr=ls(d.col,1);sr.setData(pts(m.map((x,i)=>x==null?null:x+g*2*sd[i])));return sr});meta.indSeries.push({d,kind:"bb",sers:bbs})}
+if(d.t==="ema"||d.t==="sma"){const sr=ls(d.col,d.w||2);sr.setData(vtIndSeriesData(s[0],C.tf,d,a));meta.indSeries.push({d,kind:d.t,ser:sr})}
+else if(d.t==="bb"){const bd=vtIndSeriesData(s[0],C.tf,d,a);const bbs=[bd.upper,bd.lower].map(pts=>{const sr=ls(d.col,1);sr.setData(pts);return sr});meta.indSeries.push({d,kind:"bb",sers:bbs})}
 else if(d.t==="vol"){const vh=ch.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});vh.priceScale().applyOptions({scaleMargins:{top:.8,bottom:0}});
 vh.setData(vols(s,C.tf).map((x,i)=>({time:T(i),value:x,color:(D[i].close>=D[i].open?C.upBody:C.dnBody)+"66"})));meta.indSeries.push({d,kind:"vol",ser:vh})}}catch(e){console.error("ind error:",e)}});
 const cv2El=hasR?document.getElementById("cv2"):null;
-if(hasR&&cv2El){try{ch2=L.createChart(cv2El,op(false));const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});rs.setData(pts(rsiArr(cl,r.len)));meta.rsiSer=rs;
+if(hasR&&cv2El){try{ch2=L.createChart(cv2El,op(false));const r=C.ind.find(d=>d.t==="rsi"),rs=ch2.addLineSeries({color:r.col,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});rs.setData(vtIndSeriesData(s[0],C.tf,r,a));meta.rsiSer=rs;meta.rsiId=vtIndSpec(r);
 [70,30].forEach(v=>rs.createPriceLine({price:v,color:p.tx,lineWidth:1,lineStyle:2,axisLabelVisible:false}));
 let busy=0;const sy=(x,y)=>{try{if(!x||!y||typeof x.timeScale!=="function"||typeof y.timeScale!=="function"||!rs||!document.getElementById("cv2"))return;const xts=x.timeScale();if(!xts||typeof xts.subscribeVisibleLogicalRangeChange!=="function")return;xts.subscribeVisibleLogicalRangeChange(rg=>{try{if(rg&&!busy&&typeof y.timeScale==="function"){busy=1;y.timeScale().setVisibleLogicalRange(rg);busy=0}}catch(_e){busy=0}})}catch(_e){}};sy(ch,ch2);sy(ch2,ch)}catch(e){console.error("rsi pane error:",e)}}
 vtChartMeta=meta;
@@ -583,11 +542,7 @@ if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
     idv.style.top=topPos;
     idv.style.left=leftPad;
     const rowsHtml=C.ind.map(d=>{
-      let valStr="";
-      try{
-        const vals=d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):d.t==="rsi"?rsiArr(cl,d.len):null;
-        if(vals&&vals.length){const lv=vals[vals.length-1];if(lv!=null)valStr=d.t==="rsi"?lv.toFixed(1):fp(lv,s)}
-      }catch(_e){}
+      const valStr=vtIndLabel(s[0],C.tf,d,s);
       const nm=esc((IND[d.t]||d.t)+(d.len?" "+d.len:""));
       const did=esc(d.id);
       return `<div class="vt-ind-row" data-indid="${did}"><span class="vt-ind-dot" aria-hidden="true" style="background:${d.hidden?"#64748b":esc(d.col)}"></span><span class="vt-ind-name" style="${d.hidden?"opacity:.45":""}">${nm}</span>${valStr?`<b class="vt-ind-val" style="color:${esc(d.col)}">${esc(valStr)}</b>`:`<b class="vt-ind-val" style="color:${esc(d.col)}"></b>`}<span class="vt-ind-acts"><button type="button" onclick="togInd('${did}')" title="${d.hidden?"Show":"Hide"}" aria-label="${d.hidden?"Show":"Hide"} ${nm}">${d.hidden?VT_IC.eyeOff:VT_IC.eyeOn}</button><button type="button" onclick="editInd('${did}')" title="Settings" aria-label="${nm} settings">${VT_IC.gear}</button><button type="button" onclick="rmInd('${did}')" title="Remove" aria-label="Remove ${nm}">${VT_IC.x}</button></span></div>`;
@@ -602,9 +557,8 @@ if(C.indTitles!==false&&C.ind.length&&cvEl.parentElement){
 if(C.ind.some(d=>d.t==="atr")&&cvEl.parentElement){
   try{
     const atrInd=C.ind.find(d=>d.t==="atr");
-    const atrVal=atrArr(a,atrInd.len||14);
-    const lastAtr=atrVal[atrVal.length-1];
-    if(lastAtr!=null&&isFinite(lastAtr)){
+    const lastAtr=vtIndLast(s[0],C.tf,atrInd);
+    if(typeof lastAtr==="number"&&isFinite(lastAtr)){
       const atrEl=document.createElement("div");
       atrEl.style.cssText="position:absolute;bottom:80px;right:60px;background:#000;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;z-index:5;display:flex;gap:8px";
       atrEl.innerHTML=`<span>ATR</span><b>${lastAtr.toFixed(1)}</b>`;

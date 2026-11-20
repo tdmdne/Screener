@@ -432,11 +432,12 @@ await test("single normalized WS quotes & bar frames update chart, watchlist, sc
   assert.equal(sandbox.SNAP.uni[0][2], 1.0854, "SNAP.uni EURUSD updated");
   assert.equal(metaMap.get("EURUSD").last, 1.0854, "VT_EDGE_META EURUSD updated");
   assert.equal(metaMap.get("EURUSD").pct, 0.5, "VT_EDGE_META EURUSD chgPct updated");
-  assert.equal(sandbox.LIVE["EURUSD|1H"][0].c, 1.0854, "active 1H chart candle close updated");
-  assert.equal(sandbox.LIVE["EURUSD|1H"][0].h, 1.0854, "active 1H chart candle high updated");
-  assert.equal(sandbox.LIVE["EURUSD|1D"][1].c, 1.0854, "1D candle close synced for watchlist/screener");
+  // Task 11: quote ticks update prices only. Candles (chart and 1D) change solely through server `bar` frames.
+  assert.equal(sandbox.LIVE["EURUSD|1H"][0].c, 1.0800, "quote tick leaves the chart candle close untouched");
+  assert.equal(sandbox.LIVE["EURUSD|1H"][0].h, 1.0810, "quote tick leaves the chart candle high untouched");
+  assert.equal(sandbox.LIVE["EURUSD|1D"][1].c, 1.0800, "quote tick leaves the 1D candle untouched");
   assert.equal(fakeCpx.textContent, "1.0854", "chart live price header updated");
-  assert.equal(updatedBars.length, 1, "updateLiveBar called once for active chart symbol");
+  assert.equal(updatedBars.length, 0, "quote ticks never push candles to the chart");
 
   assert.equal(sandbox.SYMS[1][2], 224.50, "SYMS AAPL updated");
   assert.equal(sandbox.SNAP.uni[1][2], 224.50, "SNAP.uni AAPL updated");
@@ -456,14 +457,15 @@ await test("single normalized WS quotes & bar frames update chart, watchlist, sc
   });
   sandbox.vtHandleEdgeWsMessage(barFrame);
 
-  assert.equal(sandbox.LIVE["EURUSD|1H"][0].c, 1.0865, "server bar close applied to active chart");
-  assert.equal(sandbox.LIVE["EURUSD|1H"][0].h, 1.0870, "server bar high applied to active chart");
+  assert.deepEqual({ ...sandbox.LIVE["EURUSD|1H"][0] }, { t: baseSec, o: 1.0800, h: 1.0870, l: 1.0790, c: 1.0865, v: 1650 }, "server bar applied verbatim");
+  assert.equal(updatedBars.length, 1, "server bar pushed to the chart once");
+  assert.equal(fakeCpx.textContent, "1.0865", "chart price header follows the server bar");
   assert.equal(sandbox.SYMS[0][2], 1.0865, "server bar price synced to SYMS");
   assert.equal(sandbox.SNAP.uni[0][2], 1.0865, "server bar price synced to SNAP.uni");
   assert.equal(metaMap.get("EURUSD").last, 1.0865, "server bar price synced to VT_EDGE_META");
 });
 
-await test("FX pairs retain 5-decimal precision (0.00001) and live 1m WS bars form genuine wicks/bodies without polling gap freeze", () => {
+await test("FX pairs retain 5-decimal precision (0.00001) and live 1m server bar frames render verbatim without polling gap freeze", () => {
   const coreSrc = fs.readFileSync(path.join(ROOT, "src/vt_01_core_state.js"), "utf8");
   const specIdx = coreSrc.indexOf("const vtPriceSpec=");
   const labelIdx = coreSrc.indexOf("function label(c)");
@@ -531,25 +533,27 @@ await test("FX pairs retain 5-decimal precision (0.00001) and live 1m WS bars fo
   assert.equal(sandbox.fp(154.321, sandbox.SYMS[1]), "154.321");
   assert.equal(sandbox.fp(4.35, sandbox.SYMS[3]), "4.35");
 
-  // 2. Stream 4 live ticks inside a new 1m bucket 10m ahead of stale REST bar -> MUST NOT pause or flatten!
-  const ticks = [
-    { p: 1.09874, s: baseMin + 2 },
-    { p: 1.09889, s: baseMin + 14 },
-    { p: 1.09861, s: baseMin + 28 },
-    { p: 1.09878, s: baseMin + 47 },
+  // 2. Stream 4 hub `bar` frames for a 1m bucket 10m ahead of stale history: each is rendered verbatim (no client
+  //    open/high/low reshaping, no pause), and the gap triggers a server history request instead of local patching.
+  const frames = [
+    [baseMin, 1.09874, 1.09874, 1.09874, 1.09874, 0],
+    [baseMin, 1.09874, 1.09889, 1.09874, 1.09889, 0],
+    [baseMin, 1.09874, 1.09889, 1.09861, 1.09861, 0],
+    [baseMin, 1.09874, 1.09889, 1.09861, 1.09878, 0],
   ];
-  for (const tk of ticks) {
-    sandbox.vtApplyNormalizedTick("EURUSD", tk.p, tk.s * 1000, { source: "twelvedata" });
+  for (const bar of frames) {
+    sandbox.vtHandleEdgeWsMessage(JSON.stringify({ v: 2, seq: 1, type: "bar", sym: "EURUSD", tf: "1m", bar }));
   }
 
   const liveBar = sandbox.LIVE["EURUSD|1m"].at(-1);
-  assert.equal(liveBar.t, baseMin, "1m bar timestamp must be minute-aligned");
-  assert.equal(liveBar.o, 1.09874, "new bucket must initialize open = first tick.price (not bridged to stale close)");
-  assert.equal(liveBar.h, 1.09889, "high must expand to intra-bar peak with 5-decimal precision");
-  assert.equal(liveBar.l, 1.09861, "low must expand to intra-bar trough with 5-decimal precision");
-  assert.equal(liveBar.c, 1.09878, "close must equal latest tick.price");
+  assert.equal(sandbox.LIVE["EURUSD|1m"].length, 2, "one new bar appended after the stale one");
+  assert.equal(liveBar.t, baseMin, "1m bar timestamp comes from the server");
+  assert.equal(liveBar.o, 1.09874, "open is the server's open");
+  assert.equal(liveBar.h, 1.09889, "high is the server's high (5-decimal precision)");
+  assert.equal(liveBar.l, 1.09861, "low is the server's low (5-decimal precision)");
+  assert.equal(liveBar.c, 1.09878, "close is the server's close");
   assert.equal(fakeCpx.textContent, "1.09878", "header live price must format to 5 decimals for EURUSD");
-  assert.equal(updatedChartBars.length, 4, "every live tick must update LightweightCharts series without gap freeze");
+  assert.equal(updatedChartBars.length, 4, "every server bar frame updates LightweightCharts without gap freeze");
 });
 
 await test("legacy REST-polling timers, staggered fetch queues, and header-override patches are removed across src/vt_*.js", () => {

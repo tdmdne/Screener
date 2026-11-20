@@ -35,7 +35,8 @@ function sxWl(){const g=S.wlx.groups[0];if(!wlAll().includes(SX.sym)){g.syms.pus
 function sxMini(){clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}const el=document.getElementById("sxc"),s=symOf(SX.sym);if(!el||!s||!window.LightweightCharts)return;
 const B=vtBars(s,S.sx.tf);if(!B){el.innerHTML=`<p class="mut vt-skel" role="status" style="padding:10px">Loading ${esc(S.sx.tf)} candles\u2026</p>`;if(isLive()&&READY)need(s,S.sx.tf,true);SX.retry=setTimeout(()=>{if(document.querySelector("#sxd.open"))sxMini()},1500);return}
 el.innerHTML="";const c=LightweightCharts.createChart(el,vtChartOpts(S.sx.tf));const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
-const cl=B.a.map(x=>x.c);S.chart.ind.filter(x=>!x.hidden&&(x.t==="ema"||x.t==="sma")).forEach(x=>{const l=c.addLineSeries({color:x.col,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData((x.t==="ema"?emaArr(cl,x.len):smaArr(cl,x.len)).map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean))});
+// Overlays only where the server already sent the series (same symbol + timeframe as the chart); never computed here.
+S.chart.ind.filter(x=>!x.hidden&&(x.t==="ema"||x.t==="sma")).forEach(x=>{const pts=vtIndSeriesData(SX.sym,S.sx.tf,x,B.a);if(!pts.length)return;const l=c.addLineSeries({color:x.col,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts)});
 const n=B.D.length;c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-90),to:n+4});SX.ch=c}
 function sxClose(){const d=document.getElementById("sxd");if(d)d.classList.remove("open");clearTimeout(SX.retry);if(SX.ch){try{SX.ch.remove()}catch(e){}SX.ch=null}sxSel()}
 // hook render/openChart without changing them: Screener Pro only adds to what they already do

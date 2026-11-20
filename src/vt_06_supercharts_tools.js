@@ -4,9 +4,9 @@ const SC={chB:null,serB:null,barsB:null,keyB:"",dw:null,iv:0,retry:0,lock:0,main
 const SC_TFS=["5m","15m","1H","4H","1D","1W"];
 function scApplyAttr(){document.documentElement.dataset.panes=S.sc.panes===2?"2":"1"}
 // candles for any symbol/timeframe as chart bars, built the same way the main chart builds them
-function vtBars(s,tf){const a=candles(s,tf);if(!a||!a.length)return null;const st=STEP[tf]||3600,now=Math.floor(Date.now()/1000/st)*st,T=i=>a[i].t||now-(a.length-1-i)*st;
-const fxo=(s[1]==="FX"||s[1]==="CFD")&&/^(1D|1W|1M)$/.test(tf);
-const D=a.map((x,i)=>{const q=fxo&&i?a[i-1].c:x.o!=null?x.o:i?a[i-1].c:x.c;return{time:T(i),open:q,high:Math.max(x.h,q,x.c),low:Math.min(x.l,q,x.c),close:x.c}});
+// Server bars -> LightweightCharts rows (formatting only; bars arrive bucketed and merged from the backend).
+function vtBars(s,tf){const a=candles(s,tf);if(!a||!a.length)return null;const st=STEP[tf]||3600,T=i=>a[i].t;
+const D=a.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c}));
 return{a,D,T,st}}
 function vtChartOpts(tf,extra){const p=pal(),C=S.chart,L=window.LightweightCharts;
 return Object.assign({autoSize:true,layout:{background:{type:"solid",color:C.bg==="custom"&&C.bgCol?C.bgCol:p.bg},textColor:C.txtCol||p.tx,fontSize:+C.fs||12},
@@ -29,9 +29,8 @@ if(!B){cvBEl.innerHTML=`<p class="mut vt-skel" role="status">Loading ${esc(tf)} 
 if(!window.LightweightCharts)return;
 const c=LightweightCharts.createChart(cvBEl,vtChartOpts(tf));
 const ser=c.addCandlestickSeries(vtCandleOpts(s));ser.setData(B.D);
-const cl=B.a.map(x=>x.c),pts=arr=>arr.map((y,i)=>y==null?null:{time:B.T(i),value:y}).filter(Boolean);
-const indSeriesB=[];
-S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{try{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(pts(d.t==="ema"?emaArr(cl,d.len):smaArr(cl,d.len)));indSeriesB.push({d,ser:l})}catch(_e){}});
+const indSeriesB=[];if(vtIndMissing(s[0],tf).length)vtEnsureChartInd(s[0],tf);
+S.chart.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma")).forEach(d=>{try{const l=c.addLineSeries({color:d.col,lineWidth:d.w||2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});l.setData(vtIndSeriesData(s[0],tf,d,B.a));indSeriesB.push({d,ser:l})}catch(_e){}});
 const n=B.D.length;SC._histGuard=1;try{if(c&&typeof c.timeScale==="function")c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8})}catch(_e){}finally{SC._histGuard=0}
 SC.chB=c;SC.serB=ser;SC.barsB=B;SC.indSeries=indSeriesB;SC.keyB=s[0]+"|"+tf;
 try{vtPlusAttach(c,ser,cvBEl,()=>S.chart.sym);vtAlertAttach(c,ser,cvBEl,()=>S.chart.sym);vtTouchChart(c)}catch(_e){}
@@ -61,7 +60,7 @@ function scTogDock(){S.sc.dock=!S.sc.dock;save();scDock()}
 function scTogSec(k){S.sc.secs[k]=!S.sc.secs[k];save();scDock()}
 // main chart -> data window + pane 2 crosshair
 function vtAfterDraw(s,a,T){scApplyAttr();vtPlusAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtAlertAttach(ch,MS,document.getElementById("cv"),()=>S.chart.sym);vtTouchChart(ch);vtPosAttach();
-const C=S.chart,cl=a.map(x=>x.c),inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:d.t==="ema"?emaArr(cl,d.len):d.t==="sma"?smaArr(cl,d.len):rsiArr(cl,d.len)}));
+const C=S.chart,inds=C.ind.filter(d=>!d.hidden&&(d.t==="ema"||d.t==="sma"||d.t==="rsi")).map(d=>({d,v:vtIndAligned(s[0],C.tf,d,a)}));
 const vol=vols(s,C.tf);
 SC.dw={s,a,T,inds,vol,i:a.length-1};scDW();
 ch.subscribeCrosshairMove(p=>{const tt=G&&G.tt;if(!tt)return;

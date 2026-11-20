@@ -9,7 +9,7 @@ await P.evaluate(()=>{window.__ws=__edge.sockets.length;window.__w=VT_EDGE.ws;go
 assert.strictEqual(await P.getAttribute("#minib","aria-pressed"),"false");
 await P.click("#minib");await P.waitForTimeout(400);
 // the edge client only fetches candles for the active chart (card data is server-side, Task 13): merge the history /api/candles would return
-await P.evaluate(()=>{for(const s of PGL.slice(0,MINI.lim)){const r=symOf(s);vtMergeBars(s+"|"+S.mini.tf,__edge.bars(S.mini.tf,r[2],60,s))}miniSync(true)});await P.waitForTimeout(300);
+await P.evaluate(()=>{for(const s of PGL.slice(0,MINI.lim)){const r=symOf(s);vtSetServerBars(s+"|"+S.mini.tf,__edge.bars(S.mini.tf,r[2],60,s))}miniSync(true)});await P.waitForTimeout(300);
 // 1) same symbols, same order as the table page; table hidden
 let st=await P.evaluate(()=>({on:document.documentElement.classList.contains("vt-mini"),tHidden:getComputedStyle(document.getElementById("t")).display==="none",cards:[...document.querySelectorAll("#vtmini .mc")].map(b=>b.dataset.s),pgl:PGL.slice(0,MINI.lim),pressed:document.getElementById("minib").getAttribute("aria-pressed")}));
 assert(st.on&&st.tHidden&&st.pressed==="true");assert.deepStrictEqual(st.cards,st.pgl);assert(st.cards.length>=5);

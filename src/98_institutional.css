@@ -368,6 +368,11 @@ header .vt-brand-h svg {
   display: none;
 }
 
+/* Feed-health badge: label comes from the backend's provenance (LIVE / DELAYED / RECONNECTING / CACHED) */
+#dst[data-feed="LIVE"] { color: var(--g); }
+#dst[data-feed="DELAYED"],
+#dst[data-feed="RECONNECTING"] { color: #e0a93b; }
+
 /* ---------- Global Header Dropdown Menus (Features & Web Settings/Account) ---------- */
 .vt-dd-wrap {
   position: relative;

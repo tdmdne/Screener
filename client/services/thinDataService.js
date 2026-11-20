@@ -905,7 +905,7 @@ export function createThinDataService(opts = {}) {
     },
 
     /**
-     * Latest server-declared provenance (`LIVE | DELAYED | CACHED | UNAVAILABLE`) + `asOf`.
+     * Latest server-declared provenance (`LIVE | DELAYED | RECONNECTING | CACHED | UNAVAILABLE`) + `asOf`.
      */
     get status() {
       return { ...currentStatus };

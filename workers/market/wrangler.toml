@@ -15,6 +15,9 @@ cpu_ms = 50
 TD_PER_MIN = "8"
 TD_PER_DAY = "800"
 TD_WS_MAX = "8"
+# Where crypto comes from: "binance" (public !miniTicker@arr, no Twelve Data slots) or "twelvedata" (BTC/USD, ETH/USD, ...).
+# Flip to "twelvedata" when the Venture plan is active; no code change needed.
+CRYPTO_PROVIDER = "binance"
 ALLOWED_ORIGINS = "https://vektorterminal.com,https://www.vektorterminal.com,https://feat-phase-a-backend-core.screener-cso.pages.dev,https://screener-cso.pages.dev"
 
 [[kv_namespaces]]

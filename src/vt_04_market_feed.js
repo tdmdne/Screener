@@ -34,7 +34,13 @@ let calm="";
 if(n>0)calm="Syncing";
 else if(snapOn()||lt)calm="Updated "+ago(snapOn()?SNAP.t:lt);
 else calm="";
-d.textContent=calm;
+const fv=typeof VT_EDGE!=="undefined"?VT_EDGE.wsProvenance:"";
+const FEEDLBL={LIVE:"Live",DELAYED:"Delayed",RECONNECTING:"Reconnecting\u2026",CACHED:"Cached"};
+if(FEEDLBL[fv]){
+  // Presentation only: the label is the backend's own provenance for the stream (no client-side health logic).
+  const feeds=VT_EDGE.wsFeeds||{};const detail=Object.keys(feeds).map(k=>k+": "+String(feeds[k]).toLowerCase()).join(" \u00b7 ");
+  d.textContent=FEEDLBL[fv];d.dataset.feed=fv;d.title=[detail,d.title].filter(Boolean).join(" \u00b7 ");
+}else{d.textContent=calm;delete d.dataset.feed}
 if(typeof vtRenderGapBadge==="function")vtRenderGapBadge()}
 // REST /api/candles is strictly for initial historical candle seeding on chart/timeframe load.
 function need(s,tf,front){const k=s[0]+"|"+tf;if(PEND[k]||ERR[k]||(LIVE[k]&&(Date.now()-(LT[k]||0)<ttl(k)||(SN[k]&&snapOn()))))return;if(typeof vtCanUseEdge==="function"&&vtCanUseEdge()){const isActive=(S.chart&&S.chart.sym===s[0]&&S.chart.tf===tf)||(S.pageView==="chart"&&S.sc&&S.sc.panes===2&&S.chart&&S.chart.sym===s[0]&&S.sc.tfB===tf);if(!isActive&&!front)return;PEND[k]=1;front?QE.unshift([s,tf,k]):QE.push([s,tf,k]);pumpEdge();return}}

@@ -318,7 +318,7 @@ await test("Task 2: Persisted SQLite subs resubscribed on DO restart + TD_WS_MAX
 
   const hub1 = new MarketHub(
     createMockDoCtx(sql),
-    { TWELVEDATA_KEY: "KEY_RESTART", TD_WS_MAX: "3" },
+    { TWELVEDATA_KEY: "KEY_RESTART", TD_WS_MAX: "3", CRYPTO_PROVIDER: "twelvedata" }, // crypto rides Twelve Data slots in this test
     {
       jitter: false,
       setTimer: timers1.setTimer,
@@ -348,7 +348,7 @@ await test("Task 2: Persisted SQLite subs resubscribed on DO restart + TD_WS_MAX
   const ctx2 = createMockDoCtx(sql);
   const hub2 = new MarketHub(
     ctx2,
-    { TWELVEDATA_KEY: "KEY_RESTART", TD_WS_MAX: "3" },
+    { TWELVEDATA_KEY: "KEY_RESTART", TD_WS_MAX: "3", CRYPTO_PROVIDER: "twelvedata" }, // crypto rides Twelve Data slots in this test
     {
       jitter: false,
       setTimer: timers2.setTimer,

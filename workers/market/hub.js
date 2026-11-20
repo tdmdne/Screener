@@ -30,6 +30,9 @@ import {
 } from "../../shared/protocol.js";
 import { INSTRUMENT_BY_SYMBOL } from "../../shared/instruments.js";
 import { normSymbol, toTwelveSymbol } from "../../shared/schema.js";
+import { BinanceMiniTickerFeed } from "../../shared/market/binanceFeed.js";
+import { isBinanceRouted, resolveCryptoProvider } from "../../shared/market/cryptoProvider.js";
+import { combineFeedProvenance } from "../../shared/market/feedHealth.js";
 import { HubCore, tickToQuote } from "./hubCore.js";
 import { MAX_HOT_BARS, MarketStore, utcDayKey } from "./store.js";
 
@@ -169,6 +172,7 @@ export class MarketHub {
    *   jitter?: boolean,
    *   maxBars?: number,
    *   maxUpstreamSymbols?: number,
+   *   openBinanceWs?: () => Promise<WebSocket>,
    *   timeframes?: string[],
    * }} [opts]
    */
@@ -222,6 +226,7 @@ export class MarketHub {
         clearTimer: this.clearTimer,
         onFrameSent: (id, seq) => this._persistClientSeq(id, seq),
         onEvict: (sym) => this._onCoreEvict(sym),
+        capExempt: (sym) => this._isBinance(sym),
       }
     );
 
@@ -237,6 +242,12 @@ export class MarketHub {
     this.lastHeartbeatAt = 0;
     this.hbTimer = null;
     this.reconnectTimer = null;
+
+    // Crypto routing: CRYPTO_PROVIDER=binance (default) keeps crypto off Twelve Data; =twelvedata sends it all there.
+    this.cryptoProvider = resolveCryptoProvider(this.env);
+    this.openBinanceWs = typeof opts.openBinanceWs === "function" ? opts.openBinanceWs : undefined;
+    this.binanceFeed = null;
+    this._binanceSyms = new Set();
 
     // Subscription & view tracking
     this.desiredSubs = new Set();     // persisted admin/seed internal symbols (capped at maxUpstreamSymbols)
@@ -284,6 +295,7 @@ export class MarketHub {
       if (this._activeUpstreamCount() > 0 && this.env.TWELVEDATA_KEY) {
         this._scheduleEnsureUpstream();
       }
+      this._syncBinance();
     };
 
     if (typeof this.ctx.blockConcurrencyWhile === "function") {
@@ -338,17 +350,31 @@ export class MarketHub {
 
   /** Total active upstream symbol count (persisted admin subs U ephemeral client subs). */
   _activeUpstreamCount() {
-    let count = this.desiredSubs.size;
+    let count = 0;
+    for (const s of this.desiredSubs) if (!this._isBinance(s)) count += 1;
     for (const s of this.ephemeralSubs) {
-      if (!this.desiredSubs.has(s)) count += 1;
+      if (!this.desiredSubs.has(s) && !this._isBinance(s)) count += 1;
     }
     return count;
   }
 
+  /** True when `sym` is served by the Binance feed (and therefore kept off Twelve Data). */
+  _isBinance(sym) {
+    return isBinanceRouted(sym, this.cryptoProvider);
+  }
+
+  /** Desired (persisted) Twelve Data symbols only; Binance-routed crypto never counts against TD_WS_MAX. */
+  _desiredTdCount() {
+    let n = 0;
+    for (const s of this.desiredSubs) if (!this._isBinance(s)) n += 1;
+    return n;
+  }
+
   /** Sorted list of all currently active upstream symbols (persisted U ephemeral). */
   _activeUpstreamSymbols() {
-    const all = new Set(this.desiredSubs);
-    for (const s of this.ephemeralSubs) all.add(s);
+    const all = new Set();
+    for (const s of this.desiredSubs) if (!this._isBinance(s)) all.add(s);
+    for (const s of this.ephemeralSubs) if (!this._isBinance(s)) all.add(s);
     return [...all].sort();
   }
 
@@ -444,7 +470,7 @@ export class MarketHub {
           if (this._activeUpstreamCount() > 0) {
             this.upReconnects += 1;
             this._scheduleReconnect();
-            this._broadcastStatus(PROVENANCE.DELAYED, "Upstream stream disconnected; reconnecting");
+            this._emitHealth("Twelve Data stream disconnected; reconnecting");
           }
         };
         ws.addEventListener("close", onLost);
@@ -452,7 +478,7 @@ export class MarketHub {
 
         this._startHeartbeat();
         this._sendUpstreamSubscribe(this._activeUpstreamSymbols());
-        this._broadcastStatus(PROVENANCE.LIVE, "Upstream stream connected");
+        this._emitHealth("Twelve Data stream connected");
         return true;
       } catch {
         this.upConnected = false;
@@ -506,7 +532,7 @@ export class MarketHub {
     const mapped = [];
     for (const raw of syms) {
       const s = normSymbol(raw);
-      if (!s) continue;
+      if (!s || this._isBinance(s)) continue;
       const td = toTwelveSymbol(s);
       this.tdToInternal.set(td, s);
       mapped.push(td);
@@ -521,7 +547,8 @@ export class MarketHub {
 
   _sendUpstreamUnsubscribe(syms) {
     if (!this.upWs || !this.upConnected || !syms || !syms.length) return;
-    const mapped = syms.map(toTwelveSymbol);
+    const mapped = syms.filter((x) => !this._isBinance(x)).map(toTwelveSymbol);
+    if (!mapped.length) return;
     try {
       this.upWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: mapped.join(",") } }));
     } catch {
@@ -571,6 +598,7 @@ export class MarketHub {
     await this._ready;
     await this._armAlarm();
 
+    if (this.binanceFeed) this.binanceFeed.check();
     if (this._activeUpstreamCount() === 0) return;
     const now = this.now();
 
@@ -580,7 +608,7 @@ export class MarketHub {
         this._teardownUpstreamSocket(true, "silent-timeout");
         this.upReconnects += 1;
         this._scheduleReconnect();
-        this._broadcastStatus(PROVENANCE.DELAYED, "Upstream silent >30s; reconnecting");
+        this._emitHealth("Twelve Data silent >30s; reconnecting");
         return;
       }
       this._sendHeartbeat();
@@ -611,11 +639,12 @@ export class MarketHub {
         continue;
       }
       const alreadyEphemeral = this.ephemeralSubs.has(s);
-      if (!alreadyEphemeral && this._activeUpstreamCount() >= this.maxUpstreamSymbols) {
+      const viaBinance = this._isBinance(s);
+      if (!viaBinance && !alreadyEphemeral && this._activeUpstreamCount() >= this.maxUpstreamSymbols) {
         rejected.push(s);
         continue;
       }
-      if (this.desiredSubs.size >= this.maxUpstreamSymbols) {
+      if (!viaBinance && this._desiredTdCount() >= this.maxUpstreamSymbols) {
         rejected.push(s);
         continue;
       }
@@ -633,6 +662,7 @@ export class MarketHub {
       if (!this.upWs || !this.upConnected) {
         this._scheduleEnsureUpstream();
       }
+      this._syncBinance();
     }
 
     return { accepted, rejected };
@@ -667,6 +697,7 @@ export class MarketHub {
       if (this._activeUpstreamCount() === 0) {
         this._teardownUpstreamSocket(true, "idle");
       }
+      this._syncBinance();
     }
     return removed;
   }
@@ -680,9 +711,10 @@ export class MarketHub {
         // Ephemeral client-driven subscription — never persisted to SQLite `subs`
         this.ephemeralSubs.add(s);
       }
-      this.tdToInternal.set(toTwelveSymbol(s), s);
+      if (!this._isBinance(s)) this.tdToInternal.set(toTwelveSymbol(s), s);
       toSend.push(s);
     }
+    this._syncBinance();
     if (!toSend.length) return;
     if (this.upWs && this.upConnected) {
       this._sendUpstreamSubscribe(toSend);
@@ -700,6 +732,7 @@ export class MarketHub {
     if (wasDesired || wasEphemeral) {
       this.tdToInternal.delete(toTwelveSymbol(s).toUpperCase());
       this._sendUpstreamUnsubscribe([s]);
+      this._syncBinance();
     }
   }
 
@@ -720,6 +753,7 @@ export class MarketHub {
       if (this._activeUpstreamCount() === 0) {
         this._teardownUpstreamSocket(true, "idle");
       }
+      this._syncBinance();
     }
   }
 
@@ -895,16 +929,71 @@ export class MarketHub {
     return records;
   }
 
+  /** Overall badge state: the worst ACTIVE upstream (see shared/market/feedHealth.js), else CACHED / UNAVAILABLE. */
   _currentProvenance(hasCachedData) {
-    const now = this.now();
-    if (this.upConnected && this.lastUpstreamMsgAt > 0 && now - this.lastUpstreamMsgAt <= LIVE_STALE_MS) {
-      return PROVENANCE.LIVE;
+    return combineFeedProvenance(this._feedStates(), { hasCache: Boolean(hasCachedData) });
+  }
+
+  /** Twelve Data upstream health: LIVE | DELAYED | RECONNECTING | UNAVAILABLE (no key). */
+  _tdFeedState() {
+    if (!this.env.TWELVEDATA_KEY) return PROVENANCE.UNAVAILABLE;
+    if (this.upConnected) {
+      const fresh = this.lastUpstreamMsgAt > 0 && this.now() - this.lastUpstreamMsgAt <= LIVE_STALE_MS;
+      return fresh ? PROVENANCE.LIVE : PROVENANCE.DELAYED;
     }
-    if (this.upConnected || (this.lastUpstreamMsgAt > 0 && now - this.lastUpstreamMsgAt > LIVE_STALE_MS)) {
-      return PROVENANCE.DELAYED;
+    return PROVENANCE.RECONNECTING;
+  }
+
+  /** Per-upstream health for ACTIVE feeds only, e.g. { twelvedata: "LIVE", binance: "RECONNECTING" }. */
+  _feedStates() {
+    const feeds = {};
+    if (this._activeUpstreamCount() > 0) feeds.twelvedata = this._tdFeedState();
+    if (this.binanceFeed && this._binanceSyms.size > 0) {
+      feeds.binance = this.binanceFeed.state === PROVENANCE.LIVE ? PROVENANCE.LIVE : PROVENANCE.RECONNECTING;
     }
-    if (hasCachedData) return PROVENANCE.CACHED;
-    return PROVENANCE.UNAVAILABLE;
+    return feeds;
+  }
+
+  /** Push the current overall + per-feed health to every connected client (status frame). */
+  _emitHealth(detail) {
+    this._broadcastStatus(this._currentProvenance(this.core.last.size > 0), detail);
+  }
+
+  /** Start/stop/refresh the Binance miniTicker feed so it covers exactly the crypto symbols clients/admins want. */
+  _syncBinance() {
+    const want = new Set();
+    if (this.cryptoProvider === "binance") {
+      for (const s of this.desiredSubs) if (this._isBinance(s)) want.add(s);
+      for (const s of this.ephemeralSubs) if (this._isBinance(s)) want.add(s);
+    }
+    this._binanceSyms = want;
+    if (want.size === 0) {
+      if (this.binanceFeed) {
+        this.binanceFeed.stop();
+        this.binanceFeed = null;
+        this._emitHealth("Binance stream idle");
+      }
+      return;
+    }
+    if (!this.binanceFeed) {
+      this.binanceFeed = new BinanceMiniTickerFeed({
+        accept: (sym) => this._binanceSyms.has(sym),
+        connect: this.openBinanceWs,
+        now: this.now,
+        setTimeoutFn: this.setTimeoutFn,
+        clearTimeoutFn: this.clearTimeoutFn,
+        onRows: (rows) => this._onBinanceRows(rows),
+        onState: ({ state, detail }) => this._emitHealth(`Binance ${String(detail || state).toLowerCase()}`),
+      });
+      this.binanceFeed.start();
+    }
+  }
+
+  /** miniTicker rows -> the same tick pipeline Twelve Data ticks use (guard, candles, alerts, fan-out). */
+  _onBinanceRows(rows) {
+    for (const r of rows) {
+      this.ingestTick({ s: r.s, c: r.c, t: r.t, v: 0, src: "binance" });
+    }
   }
 
   /** Load closed SQLite history bars for (sym, tf), excluding any open forming bar to avoid double-counting. */
@@ -1151,6 +1240,7 @@ export class MarketHub {
       status: {
         provenance,
         asOf,
+        feeds: this._feedStates(),
       },
     };
 
@@ -1377,6 +1467,9 @@ export class MarketHub {
         lastHeartbeatAt: this.lastHeartbeatAt,
         nextReconnectAt: this.nextReconnectAt,
       },
+      cryptoProvider: this.cryptoProvider,
+      feeds: this._feedStates(),
+      binance: this.binanceFeed ? { ...this.binanceFeed.snapshot(), symbols: this._binanceSyms.size } : null,
       symbols: this._activeUpstreamSymbols(),
       persistedSymbols: [...this.desiredSubs].sort(),
       maxUpstreamSymbols: this.maxUpstreamSymbols,
@@ -1761,7 +1854,7 @@ export class MarketHub {
   _broadcastStatus(provenance, detail) {
     const asOf = this.lastUpstreamMsgAt || this.now();
     for (const id of this.core.clients.keys()) {
-      this._sendToClient(id, "status", { provenance, asOf, detail });
+      this._sendToClient(id, "status", { provenance, asOf, detail, feeds: this._feedStates() });
     }
   }
 
@@ -1841,6 +1934,10 @@ export class MarketHub {
     this._stopHeartbeat();
     this._clearReconnectTimer();
     this._teardownUpstreamSocket(true, "destroy");
+    if (this.binanceFeed) {
+      this.binanceFeed.stop();
+      this.binanceFeed = null;
+    }
     this.core.stop();
   }
 }

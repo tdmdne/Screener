@@ -18,6 +18,8 @@ const { vsCompute } = require("./shared/vs/index.js");
 const { normSymbol, toTwelveSymbol, createTickGuard } = require("./shared/schema.js");
 const { createCandleBuilder, normalizeTf } = require("./shared/market/candles.js");
 const { TdSubscriptionManager } = require("./shared/market/tdSlots.js");
+const { BinanceMiniTickerFeed } = require("./shared/market/binanceFeed.js");
+const { resolveCryptoProvider } = require("./shared/market/cryptoProvider.js");
 const {
   PROTOCOL_VERSION,
   PROVENANCE,
@@ -1854,51 +1856,49 @@ const BINANCE_WS_URLS = [
   "wss://data-stream.binance.vision/ws/!miniTicker@arr",
   "wss://stream.binance.com:9443/ws/!miniTicker@arr",
 ];
-let binanceWsIdx = 0;
+
+// Local-dev connector: the `ws` package speaks addEventListener, so the shared feed (exponential backoff,
+// 24h rotation, serverShutdown handling, stall watchdog) runs unchanged here.
+function openBinanceNodeWs() {
+  return new Promise((resolve, reject) => {
+    let i = 0;
+    const attempt = () => {
+      const uws = new WebSocket(BINANCE_WS_URLS[i % BINANCE_WS_URLS.length]);
+      uws.once("open", () => resolve(uws));
+      uws.once("error", (err) => {
+        try { uws.close(); } catch (_e) {}
+        i += 1;
+        if (i >= BINANCE_WS_URLS.length) reject(err);
+        else attempt();
+      });
+    };
+    attempt();
+  });
+}
 
 function ensureBinanceUpstream() {
   if (binanceUpstream || clients.size === 0) return;
-  const wsUrl = BINANCE_WS_URLS[binanceWsIdx % BINANCE_WS_URLS.length];
-  try {
-    const uws = new WebSocket(wsUrl);
-    binanceUpstream = uws;
-    uws.on("message", (data) => {
-      try {
-        const arr = JSON.parse(String(data));
-        if (!Array.isArray(arr)) return;
-        const now = Date.now();
-        for (const t of arr) {
-          if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
-          // Prefer Twelve Data WebSocket whenever a symbol is actively streamed from Twelve Data
-          if (tdConnected && tdSlots.has(t.s)) continue;
-          const c = Number(t.c);
-          if (!(c > 0)) continue;
-          const o = Number(t.o);
-          const pct = t.P !== undefined ? Number(t.P) : (o > 0 ? ((c - o) / o) * 100 : NaN);
-          const vol = Number(t.v);
-          ingestServerTick(
-            { s: t.s, c, t: now, v: Number.isFinite(vol) && vol >= 0 ? vol : 0, src: "binance" },
-            {
-              dayVol: Number.isFinite(vol) && vol >= 0 ? vol : undefined,
-              chgPct: Number.isFinite(pct) ? Number(pct.toFixed(2)) : undefined,
-              source: "binance",
-            }
-          );
-        }
-      } catch (_e) {}
-    });
-    uws.on("close", () => {
-      if (binanceUpstream === uws) binanceUpstream = null;
-    });
-    uws.on("error", () => {
-      binanceWsIdx = (binanceWsIdx + 1) % BINANCE_WS_URLS.length;
-      try { uws.close(); } catch (_e) {}
-      if (binanceUpstream === uws) binanceUpstream = null;
-    });
-  } catch (_e) {
-    binanceWsIdx = (binanceWsIdx + 1) % BINANCE_WS_URLS.length;
-    binanceUpstream = null;
-  }
+  if (resolveCryptoProvider(process.env) !== "binance") return; // CRYPTO_PROVIDER=twelvedata: crypto rides Twelve Data
+  binanceUpstream = new BinanceMiniTickerFeed({
+    connect: openBinanceNodeWs,
+    // Prefer Twelve Data WebSocket whenever a symbol is actively streamed from Twelve Data
+    accept: (sym) => sym.endsWith("USDT") && !STABLE_RE.test(sym) && !(tdConnected && tdSlots.has(sym)),
+    onRows: (rows) => {
+      for (const t of rows) {
+        const vol = t.v;
+        const pct = t.o > 0 ? ((t.c - t.o) / t.o) * 100 : NaN;
+        ingestServerTick(
+          { s: t.s, c: t.c, t: t.t, v: Number.isFinite(vol) && vol >= 0 ? vol : 0, src: "binance" },
+          {
+            dayVol: Number.isFinite(vol) && vol >= 0 ? vol : undefined,
+            chgPct: Number.isFinite(pct) ? Number(pct.toFixed(2)) : undefined,
+            source: "binance",
+          }
+        );
+      }
+    },
+  });
+  binanceUpstream.start();
 }
 
 function replayKnownQuotesToClient(ws, state) {
@@ -2017,7 +2017,7 @@ wss.on("connection", (ws) => {
     if (clients.size === 0) {
       teardownTdUpstream();
       if (binanceUpstream) {
-        try { binanceUpstream.close(); } catch (_e) {}
+        try { binanceUpstream.stop(); } catch (_e) {}
         binanceUpstream = null;
       }
     } else {

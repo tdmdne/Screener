@@ -14,6 +14,7 @@ export const MAX_CLIENT_FRAME_BYTES = 8192;
 export const PROVENANCE = Object.freeze({
   LIVE: "LIVE",
   DELAYED: "DELAYED",
+  RECONNECTING: "RECONNECTING",
   CACHED: "CACHED",
   UNAVAILABLE: "UNAVAILABLE",
 });
@@ -420,7 +421,7 @@ function validateQuoteShape(q) {
 function validateStatusObj(s) {
   if (!isPlainObject(s)) return { ok: false, code: "INVALID_STATUS", error: "status must be an object" };
   if (!PROVENANCE_VALUES.has(s.provenance)) {
-    return { ok: false, code: "INVALID_STATUS", error: "status.provenance must be LIVE|DELAYED|CACHED|UNAVAILABLE" };
+    return { ok: false, code: "INVALID_STATUS", error: "status.provenance must be LIVE|DELAYED|RECONNECTING|CACHED|UNAVAILABLE" };
   }
   if (!isPosFinite(s.asOf)) return { ok: false, code: "INVALID_STATUS", error: "status.asOf must be positive finite" };
   if (s.sym !== undefined && !isValidSymbol(s.sym)) {
@@ -428,6 +429,17 @@ function validateStatusObj(s) {
   }
   if (s.detail !== undefined && !isNonEmptyStr(s.detail, 256)) {
     return { ok: false, code: "INVALID_STATUS", error: "status.detail must be a string <= 256 chars" };
+  }
+  if (s.feeds !== undefined) {
+    if (!isPlainObject(s.feeds)) return { ok: false, code: "INVALID_STATUS", error: "status.feeds must be an object" };
+    const names = Object.keys(s.feeds);
+    if (names.length > 8) return { ok: false, code: "INVALID_STATUS", error: "status.feeds has too many entries" };
+    for (const name of names) {
+      if (!/^[a-z0-9_-]{1,24}$/i.test(name)) return { ok: false, code: "INVALID_STATUS", error: "status.feeds key is invalid" };
+      if (!PROVENANCE_VALUES.has(s.feeds[name])) {
+        return { ok: false, code: "INVALID_STATUS", error: `status.feeds.${name} must be a provenance state` };
+      }
+    }
   }
   return null;
 }

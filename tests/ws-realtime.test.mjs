@@ -252,7 +252,7 @@ await test("MarketHub DO performs LRU zero-viewer eviction and subscribe-status 
 
   const hub = new MarketHub(
     ctx,
-    { TWELVEDATA_KEY: "TEST_KEY", TD_WS_MAX: "2" },
+    { TWELVEDATA_KEY: "TEST_KEY", TD_WS_MAX: "2", CRYPTO_PROVIDER: "twelvedata" }, // this test exercises crypto on Twelve Data slots
     {
       now: () => now,
       jitter: false,

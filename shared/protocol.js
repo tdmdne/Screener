@@ -17,6 +17,7 @@ export const MAX_CLIENT_FRAME_BYTES = 8192;
 export const PROVENANCE = Object.freeze({
   LIVE: "LIVE",
   DELAYED: "DELAYED",
+  RECONNECTING: "RECONNECTING",
   CACHED: "CACHED",
   UNAVAILABLE: "UNAVAILABLE",
 });
@@ -202,7 +203,7 @@ function validateQuoteShape(q) {
     return "quote.chgPct must be finite";
   }
   if (q.provenance !== undefined && !PROVENANCE_SET.has(q.provenance)) {
-    return "quote.provenance must be LIVE|DELAYED|CACHED|UNAVAILABLE";
+    return "quote.provenance must be LIVE|DELAYED|RECONNECTING|CACHED|UNAVAILABLE";
   }
   return null;
 }
@@ -259,11 +260,20 @@ function validateHeatmapBody(body) {
 function validateStatusPayload(s) {
   if (!isPlainObject(s)) return fail("INVALID_STATUS", "status must be an object");
   if (!PROVENANCE_SET.has(s.provenance)) {
-    return fail("INVALID_STATUS", "status.provenance must be LIVE|DELAYED|CACHED|UNAVAILABLE");
+    return fail("INVALID_STATUS", "status.provenance must be LIVE|DELAYED|RECONNECTING|CACHED|UNAVAILABLE");
   }
   if (!isPosFinite(s.asOf)) return fail("INVALID_STATUS", "status.asOf must be a positive timestamp");
   if (s.sym !== undefined && !isValidSymbol(s.sym)) return fail("INVALID_STATUS", "status.sym is invalid");
   if (s.detail !== undefined && !isNonEmptyStr(s.detail, 256)) return fail("INVALID_STATUS", "status.detail must be a string <= 256 chars");
+  if (s.feeds !== undefined) {
+    if (!isPlainObject(s.feeds)) return fail("INVALID_STATUS", "status.feeds must be an object");
+    const names = Object.keys(s.feeds);
+    if (names.length > 8) return fail("INVALID_STATUS", "status.feeds has too many entries");
+    for (const name of names) {
+      if (!/^[a-z0-9_-]{1,24}$/i.test(name)) return fail("INVALID_STATUS", "status.feeds key is invalid");
+      if (!PROVENANCE_SET.has(s.feeds[name])) return fail("INVALID_STATUS", `status.feeds.${name} must be a provenance state`);
+    }
+  }
   return null;
 }
 
@@ -497,7 +507,7 @@ export function validateServerFrame(input, opts = {}) {
         return fail("INVALID_BAR", "bar.closed must be boolean");
       }
       if (frame.provenance !== undefined && !PROVENANCE_SET.has(frame.provenance)) {
-        return fail("INVALID_BAR", "bar.provenance must be LIVE|DELAYED|CACHED|UNAVAILABLE");
+        return fail("INVALID_BAR", "bar.provenance must be LIVE|DELAYED|RECONNECTING|CACHED|UNAVAILABLE");
       }
       if (frame.asOf !== undefined && !isPosFinite(frame.asOf)) {
         return fail("INVALID_BAR", "bar.asOf must be a positive timestamp");

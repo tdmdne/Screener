@@ -8,6 +8,8 @@ import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yaho
 import { normSymbol, toTwelveSymbol, createTickGuard } from "./shared/schema.js";
 import { createCandleBuilder } from "./shared/market/candles.js";
 import { TdSubscriptionManager } from "./shared/market/tdSlots.js";
+import { BinanceMiniTickerFeed } from "./shared/market/binanceFeed.js";
+import { resolveCryptoProvider } from "./shared/market/cryptoProvider.js";
 import { PROVENANCE } from "./shared/protocol.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
@@ -1280,7 +1282,7 @@ export class MarketRelayDO {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
-    this.binanceWs = null;
+    this.binanceFeed = null; // shared/market/binanceFeed.js: backoff, 24h rotation, serverShutdown, stall watchdog
     this.tdWs = null;
     this.tdSlots = new TdSubscriptionManager({
       maxSlots: Math.max(1, Number(env && env.TD_WS_MAX) || 8),
@@ -1291,7 +1293,6 @@ export class MarketRelayDO {
       openMode: "tick",
     });
     this.prices = new Map();
-    this.lastBinanceMsg = 0;
     this.lastTdMsg = 0;
   }
 
@@ -1499,9 +1500,9 @@ export class MarketRelayDO {
 
   cleanupIfEmpty() {
     if (this.ctx.getWebSockets("client").length === 0) {
-      if (this.binanceWs) {
-        try { this.binanceWs.close(); } catch (_e) {}
-        this.binanceWs = null;
+      if (this.binanceFeed) {
+        this.binanceFeed.stop();
+        this.binanceFeed = null;
       }
       if (this.tdWs) {
         try { this.tdWs.close(); } catch (_e) {}
@@ -1560,52 +1561,29 @@ export class MarketRelayDO {
   }
 
   ensureUpstream() {
-    if (!this.binanceWs) {
-      try {
-        fetch("https://data-stream.binance.vision/ws/!miniTicker@arr", {
-          headers: { Upgrade: "websocket" },
-        })
-          .then((resp) => {
-            const ws = resp && resp.webSocket;
-            if (!ws) return;
-            ws.accept();
-            this.binanceWs = ws;
-            ws.addEventListener("message", (ev) => {
-              this.lastBinanceMsg = Date.now();
-              try {
-                const arr = JSON.parse(ev.data);
-                if (!Array.isArray(arr)) return;
-                const quotes = [];
-                const now = Date.now();
-                for (const t of arr) {
-                  if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
-                  if (this.tdWs && this.tdSlots.has(t.s)) continue;
-                  const c = Number(t.c);
-                  if (c > 0) {
-                    this.prices.set(t.s, c);
-                    const o = Number(t.o);
-                    const pct = t.P !== undefined ? Number(t.P) : (o > 0 ? ((c - o) / o) * 100 : NaN);
-                    const vol = Number(t.v);
-                    quotes.push({
-                      s: t.s,
-                      c,
-                      t: now,
-                      ...(Number.isFinite(vol) && vol >= 0 ? { v: vol } : {}),
-                      ...(Number.isFinite(pct) ? { chgPct: Number(pct.toFixed(2)) } : {}),
-                      provenance: PROVENANCE.LIVE,
-                    });
-                  }
-                }
-                if (quotes.length) {
-                  this.broadcastQuotes(quotes);
-                }
-              } catch (_e) {}
+    if (resolveCryptoProvider(this.env) === "binance" && !this.binanceFeed) {
+      this.binanceFeed = new BinanceMiniTickerFeed({
+        // symbols already carried by a Twelve Data slot are skipped here (no double feed)
+        accept: (sym) => sym.endsWith("USDT") && !STABLE_RE.test(sym) && !(this.tdWs && this.tdSlots.has(sym)),
+        onRows: (rows) => {
+          const now = Date.now();
+          const quotes = [];
+          for (const t of rows) {
+            this.prices.set(t.s, t.c);
+            const pct = t.o > 0 ? ((t.c - t.o) / t.o) * 100 : NaN;
+            quotes.push({
+              s: t.s,
+              c: t.c,
+              t: now,
+              ...(Number.isFinite(t.v) && t.v >= 0 ? { v: t.v } : {}),
+              ...(Number.isFinite(pct) ? { chgPct: Number(pct.toFixed(2)) } : {}),
+              provenance: PROVENANCE.LIVE,
             });
-            ws.addEventListener("close", () => { this.binanceWs = null; });
-            ws.addEventListener("error", () => { this.binanceWs = null; });
-          })
-          .catch(() => { this.binanceWs = null; });
-      } catch (_e) {}
+          }
+          if (quotes.length) this.broadcastQuotes(quotes);
+        },
+      });
+      this.binanceFeed.start();
     }
 
     const tdKey = getTdKey(this.env);
@@ -1686,6 +1664,7 @@ export class MarketRelayDO {
       }
     }
 
+    if (this.binanceFeed) this.binanceFeed.check();
     this.ensureUpstream();
     this._syncTdSubscriptions();
     await this.ctx.storage.setAlarm(Date.now() + 10000);

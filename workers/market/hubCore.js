@@ -63,6 +63,8 @@ export class HubCore {
     this.provenance = opts.provenance ?? PROVENANCE.LIVE;
     this.onFrameSent = typeof opts.onFrameSent === "function" ? opts.onFrameSent : null;
     this.onEvict = typeof opts.onEvict === "function" ? opts.onEvict : null;
+    // Symbols served by a different upstream (e.g. Binance crypto) never consume Twelve Data slots.
+    this.capExempt = typeof opts.capExempt === "function" ? opts.capExempt : () => false;
     this.now = typeof opts.now === "function" ? opts.now : () => Date.now();
 
     this.clients = new Map(); // id -> { id, send(str), syms: Set<string>, seq: Sequencer }
@@ -77,9 +79,10 @@ export class HubCore {
 
   /** Number of unique upstream symbols currently tracked (browser refs ∪ pinned). */
   upstreamCount() {
-    let count = this.pinned.size;
+    let count = 0;
+    for (const s of this.pinned) if (!this.capExempt(s)) count += 1;
     for (const s of this.refs.keys()) {
-      if (!this.pinned.has(s)) count += 1;
+      if (!this.pinned.has(s) && !this.capExempt(s)) count += 1;
     }
     return count;
   }
@@ -115,7 +118,7 @@ export class HubCore {
         continue;
       }
       const alreadyUp = this.hasUpstreamSymbol(s);
-      if (!alreadyUp && this.upstreamCount() >= this.maxUpstreamSymbols) {
+      if (!alreadyUp && !this.capExempt(s) && this.upstreamCount() >= this.maxUpstreamSymbols) {
         rejected.push(s);
         continue;
       }
@@ -253,12 +256,13 @@ export class HubCore {
         continue;
       }
       const alreadyUp = this.hasUpstreamSymbol(s);
-      if (!alreadyUp && this.upstreamCount() >= this.maxUpstreamSymbols) {
+      if (!alreadyUp && !this.capExempt(s) && this.upstreamCount() >= this.maxUpstreamSymbols) {
         // LRU eviction of least-recently-used pinned slot that currently has zero active viewers
         let victim = null;
         let oldestAt = Infinity;
         for (const cand of this.pinned) {
           if ((this.refs.get(cand) || 0) > 0) continue;
+          if (this.capExempt(cand)) continue; // evicting it would not free a Twelve Data slot
           const accessed = this.lastAccessedAt.get(cand) ?? 0;
           if (accessed < oldestAt) {
             oldestAt = accessed;

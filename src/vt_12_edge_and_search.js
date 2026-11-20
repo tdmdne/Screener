@@ -17,6 +17,7 @@ const VT_EDGE = {
   wsViewTimer: 0,
   wsLastViewKey: "",
   wsProvenance: "UNAVAILABLE",
+  wsFeeds: {},
   dirtySyms: new Set(),
   uiRaf: 0,
   lastScreenerRenderAt: 0,
@@ -1108,7 +1109,9 @@ function vtHandleEdgeWsMessage(raw) {
 
   if (msg.type === "status") {
     if (msg.provenance) VT_EDGE.wsProvenance = msg.provenance;
+    if (msg.feeds && typeof msg.feeds === "object") VT_EDGE.wsFeeds = msg.feeds;
     if (msg.provenance === "LIVE" && typeof markOk === "function") markOk("tdws");
+    if (typeof status === "function") status(); // badge mirrors the backend's stream health
     return;
   }
 
@@ -1134,6 +1137,8 @@ function vtHandleEdgeWsMessage(raw) {
   if (msg.type === "state") {
     if (msg.status && msg.status.provenance) {
       VT_EDGE.wsProvenance = msg.status.provenance;
+      if (msg.status.feeds && typeof msg.status.feeds === "object") VT_EDGE.wsFeeds = msg.status.feeds;
+      if (typeof status === "function") status();
     }
     if (Array.isArray(msg.watchlist)) {
       for (const q of msg.watchlist) {

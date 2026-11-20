@@ -5,13 +5,15 @@ const ROOT=path.resolve(__dirname,"..");
 function serve(){return new Promise(r=>{const s=http.createServer((q,res)=>{let p=decodeURIComponent(q.url.split("?")[0]);if(p==="/")p="/index.html";const f=path.join(ROOT,p);
 if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);res.end();return}
 res.writeHead(200,{"content-type":f.endsWith(".html")?"text/html":f.endsWith(".js")?"application/javascript":f.endsWith(".css")?"text/css":"application/json"});fs.createReadStream(f).pipe(res)});s.listen(0,()=>r(s))})}
-function genBars(sym,n,step){let p=100+(sym.charCodeAt(0)%50),out=[];const now=Math.floor(Date.now()/1000/step)*step;let seed=sym.split("").reduce((a,c)=>a*31+c.charCodeAt(0),7)>>>0;
+const FXP={GBPUSD:1.27,EURUSD:1.08,USDJPY:151.2,AUDUSD:0.65};
+function genBars(sym,n,step){const fx=FXP[sym];let p=fx||100+(sym.charCodeAt(0)%50),out=[];const vol=fx?0.0012:0.03;const now=Math.floor(Date.now()/1000/step)*step;let seed=sym.split("").reduce((a,c)=>a*31+c.charCodeAt(0),7)>>>0;
 const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
-for(let i=0;i<n;i++){const o=p,c=o*(1+(rnd()-.48)*.03),h=Math.max(o,c)*(1+rnd()*.01),l=Math.min(o,c)*(1-rnd()*.01);out.push({t:now-(n-1-i)*step,o:+o.toFixed(4),h:+h.toFixed(4),l:+l.toFixed(4),c:+c.toFixed(4),v:+(1000+rnd()*5000).toFixed(2)});p=c}return out}
+for(let i=0;i<n;i++){const o=p,c=o*(1+(rnd()-.5)*vol),h=Math.max(o,c)*(1+rnd()*vol/3),l=Math.min(o,c)*(1-rnd()*vol/3);out.push({t:now-(n-1-i)*step,o:+o.toFixed(5),h:+h.toFixed(5),l:+l.toFixed(5),c:+c.toFixed(5),v:+(1000+rnd()*5000).toFixed(2)});p=c}return out}
 const STEPS={"1m":60,"5m":300,"15m":900,"30m":1800,"1H":3600,"4H":14400,"1D":86400,"1W":604800,"1M":2592000,"1h":3600,"4h":14400,"1d":86400,"1w":604800};
 const CRY=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","DOTUSDT","LTCUSDT","TRXUSDT"];
 // /api/screener universe rows: [sym, market, price, vol, prec, tick, apiSym, exch, src, id, name, exchange, pct]
-const UNIVERSE=CRY.map((s,i)=>[s,"CRY",100+i,1e8/(i+1),2,0.01,s,"BINANCE","bn",s,s.replace(/USDT$/,"")+" / Tether","BINANCE",0]);
+const FXU=Object.keys(FXP).map(s=>[s,"FX",FXP[s],0,5,0.00001,s,"",  "td",s,s.slice(0,3)+" / "+s.slice(3),"FOREX",0]);
+const UNIVERSE=FXU.concat(CRY.map((s,i)=>[s,"CRY",100+i,1e8/(i+1),2,0.01,s,"BINANCE","bn",s,s.replace(/USDT$/,"")+" / Tether","BINANCE",0]));
 // Unified edge mock: the browser's only peer is its own origin. window.__edge.sockets records every /ws socket the page opens
 // (the page must never open any other); __edge.push(frame) delivers a protocol-v2 frame exactly as the vektor-market hub would.
 const EDGEMOCK=`(()=>{const E={sockets:[],sent:[],seq:0,

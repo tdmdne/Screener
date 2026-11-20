@@ -1469,7 +1469,7 @@ const clients = new Map(); // ws -> { subs: Set<string>, chart: { sym, tf } | nu
 const serverTickGuard = createTickGuard();
 const serverCandles = createCandleBuilder({
   timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"],
-  openMode: "tick",
+  openMode: "auto",
 });
 const serverLiveBars = new Map(); // "SYM|TF" -> Map<bucketT, Bar> (rolling WS-aggregated bars)
 const SERVER_LIVE_BARS_CAP = 240;

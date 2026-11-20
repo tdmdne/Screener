@@ -150,6 +150,7 @@ Before each step merges, Grok runs a preview with a network-egress check (Task 1
     - Live chart for 3 symbols works on a preview and on prod after merge.
     - `rg` finds none of the deleted function names.
     - `tests/supercharts.js`, `tests/reliability.js` and `tests/minicharts.js` are updated and green.
+  - **Status (20 Nov, `feat/tasks-9-11-bootstrap-server-indicators`):** code and tests done; tick this box after the preview and prod check. Paging uses `/api/candles?before=&ind=` (server-merged, the same pipeline as the initial load) rather than a separate `/api/bars`. `vtBuildChartData`, `vtMergeBars` and `vtNewBarOpen` are deleted; `updateLiveBar`, `edgeFetchCandles` and `vtLoadMoreHistory` remain as render/transport wrappers with no maths. The dead `src/54_backtest.js` still contains old names (Task 20).
 
 - [ ] **Task 12: Vektor Script runs on the server; the editor stays.** *Claude Sonnet.*
   - **Read:** `index.html` 4246-4368, `src/48_vs_ui.js`.

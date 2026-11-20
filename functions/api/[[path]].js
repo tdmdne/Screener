@@ -17,7 +17,8 @@ import worker, {
   fetchBinanceTickers,
 } from "../../worker.js";
 import { MAX_CHART_BARS, PROVENANCE } from "../../shared/protocol.js";
-import { toTwelveSymbol } from "../../shared/schema.js";
+import { resolveInterval } from "../../shared/intervals.js";
+import { hubBarsSymbol, hubTfLabel } from "../../shared/market/candleRoute.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -50,47 +51,6 @@ export {
 };
 
 const MARKET_SERVICE_PATHS = new Set(["/api/bootstrap", "/api/bars", "/api/hub/stats"]);
-
-const CANDLES_TF_MAP = Object.freeze({
-  "1m": "1m",
-  "1min": "1m",
-  "5m": "5m",
-  "5M": "5m",
-  "5min": "5m",
-  "15m": "15m",
-  "15M": "15m",
-  "15min": "15m",
-  "30m": "30m",
-  "30M": "30m",
-  "30min": "30m",
-  "1H": "1h",
-  "1h": "1h",
-  "60m": "1h",
-  "4H": "4h",
-  "4h": "4h",
-  "1D": "1d",
-  "1d": "1d",
-  "1day": "1d",
-  "1W": "1w",
-  "1w": "1w",
-  "1week": "1w",
-  "1wk": "1w",
-  "1M": "1M",
-  "1month": "1M",
-  "1mo": "1M",
-});
-
-function mapCandlesSymbol(rawSym, mktHint = "") {
-  const sym = String(rawSym || "").trim().toUpperCase();
-  if (!sym) return "";
-  if (sym.includes("/")) return sym;
-  const mapped = toTwelveSymbol(sym);
-  if (mapped && mapped.includes("/")) return mapped;
-  if (mktHint === "FX" && /^[A-Z]{6}$/.test(sym)) {
-    return `${sym.slice(0, 3)}/${sym.slice(3)}`;
-  }
-  return mapped || sym;
-}
 
 const VS_RUN_MAX_BYTES = 256 * 1024;
 const JOURNAL_STATS_MAX_BYTES = 1024 * 1024;
@@ -459,7 +419,8 @@ async function handleCandlesViaMarketService(request, env) {
   const rawSym = (url.searchParams.get("symbol") || url.searchParams.get("sym") || "").trim().toUpperCase();
   const interval = (url.searchParams.get("interval") || url.searchParams.get("tf") || "1H").trim();
   const mktHint = (url.searchParams.get("mkt") || "").trim().toUpperCase();
-  const mappedTf = CANDLES_TF_MAP[interval] || null;
+  const iv = resolveInterval(interval);
+  const mappedTf = iv ? hubTfLabel(iv.key) : null;
 
   if (!rawSym || !VS_SYMBOL_RE.test(rawSym) || !mappedTf) {
     return jsonResponse(
@@ -478,7 +439,7 @@ async function handleCandlesViaMarketService(request, env) {
   const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
   const limit = Math.max(10, Math.min(MAX_CHART_BARS, rawLimit || 500));
 
-  const mappedSym = mapCandlesSymbol(rawSym, mktHint);
+  const mappedSym = hubBarsSymbol(rawSym, mktHint);
   const barsUrl = new URL("/api/bars", request.url);
   barsUrl.searchParams.set("sym", mappedSym);
   barsUrl.searchParams.set("tf", mappedTf);
@@ -525,7 +486,7 @@ async function handleCandlesViaMarketService(request, env) {
     {
       ok: true,
       symbol: rawSym,
-      interval,
+      interval: iv.key,
       ttl: 60,
       ts: Date.now(),
       source: "market-service",
@@ -1384,19 +1345,18 @@ export async function onRequest(context) {
     env.MARKET_SERVICE &&
     typeof env.MARKET_SERVICE.fetch === "function"
   ) {
-    const msRes = await handleCandlesViaMarketService(request, env);
-    if (msRes.status === 200 || msRes.status === 400 || msRes.status === 405) {
-      return msRes;
-    }
-    try {
-      const fallbackRes = await worker.fetch(request, augmentedEnv, context);
-      if (fallbackRes && fallbackRes.ok) {
-        return withCors(fallbackRes, request, env);
+    // 1) Backend pipeline: Twelve Data REST (/time_series) history, cached server-side, with the hub's live WebSocket bars
+    //    laid on top and custom timeframes resampled here (worker.js handleCandles). This is what backfills 5m/30m/1H/4H/custom.
+    if (request.method === "GET") {
+      try {
+        const full = await worker.fetch(request, augmentedEnv, context);
+        if (full && full.ok) return withCors(full, request, env);
+      } catch {
+        // fall through to the hub-only answer
       }
-    } catch {
-      // Fall through to clean 503 UNAVAILABLE response without leaking upstream errors
     }
-    return msRes;
+    // 2) Fallback: whatever the hub's tick-built store holds (also owns 400/405 validation and the clean 503 body).
+    return handleCandlesViaMarketService(request, env);
   }
 
   // Forward legacy /api/screener, /api/candles, /api/calendar, /api/news, etc. to worker.js

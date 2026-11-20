@@ -2,67 +2,40 @@
 // Deterministic, zero Node APIs, zero synthetic bars, zero artificial clamping (AGENTS.md §0, §3).
 // Compatible with Node 22+ and Cloudflare Workers.
 
-import { INTERVAL_SECONDS } from "../intervals.js";
+import { INTERVAL_SECONDS, resolveInterval } from "../intervals.js";
 import { normalizeBar, normSymbol, assetClass } from "../schema.js";
 import { ASSET } from "../constants.js";
 
 /** Canonical timeframe labels supported by the backend (single source of truth: shared/intervals.js). */
 export const TIMEFRAMES = Object.freeze(Object.keys(INTERVAL_SECONDS));
 
-/** Higher timeframes supported by rollup() from 1m bars. */
+/** Higher native timeframes supported by rollup(); custom intervals (3m, 2H, 3M ...) roll up from their `base` too. */
 export const ROLLUP_TIMEFRAMES = Object.freeze(TIMEFRAMES.filter((tf) => tf !== "1m"));
-
-// Case-insensitive / provider aliases that never collide with "1m" (minute) vs "1M" (month).
-const TF_ALIASES = Object.freeze({
-  "1min": "1m",
-  "5M": "5m",
-  "5min": "5m",
-  "15M": "15m",
-  "15min": "15m",
-  "30M": "30m",
-  "30min": "30m",
-  "1h": "1H",
-  "60m": "1H",
-  "4h": "4H",
-  "1d": "1D",
-  "1day": "1D",
-  "1w": "1W",
-  "1week": "1W",
-  "1wk": "1W",
-  "1month": "1M",
-  "1mo": "1M",
-});
 
 // 1970-01-01 was a Thursday; 1970-01-05 (Monday 00:00:00 UTC) is 4 * 86400 = 345600 seconds after epoch.
 const MONDAY_EPOCH_OFFSET_SEC = 345600;
-const WEEK_SEC = INTERVAL_SECONDS["1W"]; // 604800
 
 /**
- * Normalize a timeframe label to the canonical key in shared/intervals.js.
+ * Normalize a timeframe label to its canonical key (shared/intervals.js `resolveInterval`).
+ * Accepts native labels, provider aliases ("5min", "1h", "1day") and custom intervals ("3m", "45m", "2H", "3M").
  * Preserves "1m" (1 minute) vs "1M" (1 month) without case-folding collision.
  * Returns null if unrecognized.
  * @param {string} tf
  * @returns {string|null}
  */
 export function normalizeTf(tf) {
-  if (typeof tf !== "string") return null;
-  const trimmed = tf.trim();
-  if (!trimmed) return null;
-  if (Object.prototype.hasOwnProperty.call(INTERVAL_SECONDS, trimmed)) return trimmed;
-  if (Object.prototype.hasOwnProperty.call(TF_ALIASES, trimmed)) return TF_ALIASES[trimmed];
-  const lower = trimmed.toLowerCase();
-  if (lower !== "1m" && Object.prototype.hasOwnProperty.call(TF_ALIASES, lower)) return TF_ALIASES[lower];
-  return null;
+  const r = resolveInterval(tf);
+  return r ? r.key : null;
 }
 
 /**
- * Return bar duration in seconds for a timeframe label, or null if unsupported.
+ * Return bar duration in seconds for a timeframe label (native or custom), or null if unsupported.
  * @param {string} tf
  * @returns {number|null}
  */
 export function stepSeconds(tf) {
-  const norm = normalizeTf(tf);
-  return norm ? INTERVAL_SECONDS[norm] : null;
+  const r = resolveInterval(tf);
+  return r ? r.step : null;
 }
 
 /**
@@ -82,15 +55,19 @@ export function bucketStart(tsSec, tf = "1m") {
   if (sec >= 1e12) sec = Math.floor(sec / 1000);
   else sec = Math.floor(sec);
 
-  if (norm === "1M") {
+  const iv = resolveInterval(norm);
+  if (norm === "1M" || (iv && !iv.native && iv.base === "1M")) {
+    // N-month buckets align to calendar boundaries: 3M = quarters, 6M = halves, 12M = years.
+    const n = iv.step / INTERVAL_SECONDS["1M"];
     const d = new Date(sec * 1000);
-    return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000);
+    const monthIx = d.getUTCFullYear() * 12 + d.getUTCMonth();
+    const start = Math.floor(monthIx / n) * n;
+    return Math.floor(Date.UTC(Math.floor(start / 12), start % 12, 1) / 1000);
   }
-  if (norm === "1W") {
-    return Math.floor((sec - MONDAY_EPOCH_OFFSET_SEC) / WEEK_SEC) * WEEK_SEC + MONDAY_EPOCH_OFFSET_SEC;
+  if (norm === "1W" || (iv && !iv.native && iv.base === "1W")) {
+    return Math.floor((sec - MONDAY_EPOCH_OFFSET_SEC) / iv.step) * iv.step + MONDAY_EPOCH_OFFSET_SEC;
   }
-  const step = INTERVAL_SECONDS[norm];
-  return Math.floor(sec / step) * step;
+  return Math.floor(sec / iv.step) * iv.step;
 }
 
 /**
@@ -136,7 +113,7 @@ export function createCandleState(opts = {}) {
   const tf = normalizeTf(opts.tf ?? "1m");
   if (!tf) throw new RangeError(`Unsupported timeframe: ${opts.tf}`);
   const current = opts.current ? normalizeBar(opts.current) : null;
-  return { tf, step: INTERVAL_SECONDS[tf], current };
+  return { tf, step: stepSeconds(tf), current };
 }
 
 /**
@@ -168,7 +145,7 @@ export function applyTick(state, tick, opts = {}) {
   const base = state && typeof state === "object" && state.tf
     ? {
         tf: normalizeTf(state.tf) || "1m",
-        step: INTERVAL_SECONDS[normalizeTf(state.tf) || "1m"],
+        step: stepSeconds(normalizeTf(state.tf) || "1m"),
         current: state.current || null,
       }
     : createCandleState({ tf: opts.tf ?? "1m" });
@@ -282,7 +259,45 @@ export function mergeBars(oldBars, incomingBars, opts = {}) {
 }
 
 /**
- * Aggregate 1m bars into any higher timeframe (5m, 15m, 30m, 1H, 4H, 1D, 1W, 1M) or 1m.
+ * Lay live (WebSocket-built) bars over a REST history series without duplicates or gaps.
+ * - Closed history bars win on matching timestamps (REST carries real OHLC + volume).
+ * - Live bars fill holes inside history and extend it past the last REST bar (REST lag, WS reconnect gaps).
+ * - The newest REST bar is the still-forming candle: it keeps the REST open/volume and takes the live close
+ *   and the widest high/low, so the active candle is current without losing its true open.
+ * Never invents bars and never clamps prices.
+ *
+ * @param {Array<object|Array>} historyBars REST bars (any order)
+ * @param {Array<object|Array>} liveBars    hub bars (any order)
+ * @returns {Array<{t:number,o:number,h:number,l:number,c:number,v:number}>}
+ */
+export function overlayLiveBars(historyBars, liveBars) {
+  const hist = mergeBars([], historyBars);
+  const live = mergeBars([], liveBars);
+  if (!live.length) return hist;
+  if (!hist.length) return live;
+
+  const lastHist = hist[hist.length - 1];
+  const byTime = new Map();
+  for (const b of live) byTime.set(b.t, b);
+  for (const b of hist) byTime.set(b.t, b);
+
+  const liveAtLast = live.find((b) => b.t === lastHist.t);
+  if (liveAtLast) {
+    byTime.set(lastHist.t, {
+      t: lastHist.t,
+      o: lastHist.o,
+      h: Math.max(lastHist.h, liveAtLast.h),
+      l: Math.min(lastHist.l, liveAtLast.l),
+      c: liveAtLast.c,
+      v: Math.max(lastHist.v, liveAtLast.v),
+    });
+  }
+  return Array.from(byTime.values()).sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Aggregate finer bars into any coarser timeframe: native (5m ... 1M) or custom (3m, 45m, 2H, 12H, 2D, 3M ...).
+ * Input must be bars of the interval's `base` (or finer); output buckets follow `bucketStart`.
  * - Pure: never mutates input array or bars.
  * - Deduplicates and sorts input bars ascending by `t` before aggregation.
  * - Emits ONLY buckets that contain real input bars (zero synthetic fill).
@@ -317,6 +332,9 @@ export function rollup(bars1m, tf) {
   return out;
 }
 
+/** Backend resampling entry point for custom timeframes (alias of `rollup`). */
+export const resampleBars = rollup;
+
 /**
  * Stateful multi-symbol candle orchestrator for MarketHub (Task 2/4).
  * Wires live ticks through `applyTick`, maintains active bars across configured timeframes,
@@ -349,6 +367,24 @@ export class CandleBuilder {
     this.onBarUpdate = typeof opts.onBarUpdate === "function" ? opts.onBarUpdate : null;
     // Map<sym, Map<tf, CandleState>>
     this._states = new Map();
+  }
+
+  /**
+   * Start building an additional timeframe (e.g. a custom "3m"/"2H" a client is viewing). No-op if already present.
+   * @param {string} tf
+   * @returns {string} canonical timeframe key
+   */
+  addTimeframe(tf) {
+    const norm = normalizeTf(tf);
+    if (!norm) throw new RangeError(`Unsupported timeframe: ${tf}`);
+    if (!this.timeframes.includes(norm)) this.timeframes = Object.freeze([...this.timeframes, norm]);
+    return norm;
+  }
+
+  /** @param {string} tf */
+  hasTimeframe(tf) {
+    const norm = normalizeTf(tf);
+    return Boolean(norm) && this.timeframes.includes(norm);
   }
 
   /**

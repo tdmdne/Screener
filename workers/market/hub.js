@@ -9,7 +9,8 @@
 //   IndicatorTracker + buildScreenerSnapshot -> broadcasts Protocol v2 frames to Hibernation WS clients.
 // - Routes: GET /hub/stats, GET /api/bootstrap, GET /api/bars, GET /ws.
 import { createAlertEvaluator } from "../../shared/alerts.js";
-import { createCandleBuilder, mergeBars, normalizeTf } from "../../shared/market/candles.js";
+import { createCandleBuilder, mergeBars, normalizeTf, rollup } from "../../shared/market/candles.js";
+import { resolveInterval } from "../../shared/intervals.js";
 import {
   computeIndicator,
   createIndicatorTracker,
@@ -52,7 +53,9 @@ export const VIEW_COOLDOWN_MS = 500;
 export const BOOTSTRAP_RECORDS_TTL_MS = 1_500;
 const MAX_SCREENER_CACHE_ENTRIES = 32;
 
-const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"]);
+const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"]);
+/** Max extra (custom) timeframes the builder maintains live; custom bars are derived from native bars, never persisted. */
+const MAX_CUSTOM_TIMEFRAMES = 16;
 const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap"]);
 const SCREENER_SNAPSHOT_KEY = "screener:latest";
 const VALID_PRESETS = new Set(["P1", "P2", "P3", "P4", "P5"]);
@@ -342,6 +345,7 @@ export class MarketHub {
       this.core.addClient(id, (msg) => ws.send(msg), { startSeq, userId });
       if (att && att.view && typeof att.view === "object") {
         this.clientViews.set(id, att.view);
+        this._ensureCustomViewTf(att.view);
         const syms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(att.view));
         if (syms.length) this.core.setClientSymbols(id, syms);
         this._syncClientIndicators(id, att.view);
@@ -871,7 +875,8 @@ export class MarketHub {
     }
 
     for (const evt of candleRes.closed) {
-      this.store.upsertBar(evt.sym, evt.tf, evt.bar);
+      // Custom timeframes (3m, 2H, 3M ...) are derived from native bars on read; only native bars are persisted.
+      if (HUB_TIMEFRAMES.includes(evt.tf)) this.store.upsertBar(evt.sym, evt.tf, evt.bar);
       this.barsClosed += 1;
       this._broadcastBar(evt.sym, evt.tf, evt.bar, true);
 
@@ -1025,9 +1030,40 @@ export class MarketHub {
     }
   }
 
-  /** Load closed SQLite history bars for (sym, tf), excluding any open forming bar to avoid double-counting. */
+  /**
+   * Bars for (sym, tf) from the hot store. Native timeframes read straight from SQLite; custom timeframes
+   * (3m, 45m, 2H, 12H, 3M ...) are resampled here from the stored bars of their native base. Never persisted.
+   * `includeForming` adds the CandleBuilder's open candle(s).
+   * @returns {{ bars: object[], baseCount: number, baseLimit: number }}
+   */
+  _barsFor(sym, tf, { limit = MAX_CHART_BARS, before, includeForming = false } = {}) {
+    const iv = resolveInterval(tf);
+    if (!iv) return { bars: [], baseCount: 0, baseLimit: 0 };
+    if (iv.native) {
+      let bars = this.store.getBars(sym, iv.key, { before, limit });
+      if (includeForming && !before) {
+        const open = this.candles.getCurrent(sym, iv.key);
+        if (open) bars = mergeBars(bars, [open], { maxBars: limit });
+      }
+      return { bars, baseCount: bars.length, baseLimit: limit };
+    }
+    const baseLimit = Math.min(MAX_HOT_BARS, Math.max(1, limit * iv.ratio));
+    let base = this.store.getBars(sym, iv.base, { before, limit: baseLimit });
+    const baseCount = base.length;
+    if (includeForming && !before) {
+      const open = this.candles.getCurrent(sym, iv.base);
+      if (open) base = mergeBars(base, [open]);
+    }
+    let bars = rollup(base, iv.key);
+    if (before) bars = bars.filter((b) => b.t < before);
+    // The oldest bucket is partial when the base window was cut by the hot-store cap.
+    if (baseCount >= baseLimit && bars.length > 1) bars = bars.slice(1);
+    return { bars: bars.length > limit ? bars.slice(-limit) : bars, baseCount, baseLimit };
+  }
+
+  /** Load closed history bars for (sym, tf), excluding any open forming bar to avoid double-counting. */
   _getClosedHistoryBars(sym, tf, limit = MAX_CHART_BARS) {
-    const hist = this.store.getBars(sym, tf, { limit });
+    const hist = this._barsFor(sym, tf, { limit }).bars;
     const openBar = this.candles.getCurrent(sym, tf);
     if (!openBar || !hist.length) return hist;
     let end = hist.length;
@@ -1037,12 +1073,36 @@ export class MarketHub {
     return end === hist.length ? hist : hist.slice(0, end);
   }
 
-  /** Load SQLite closed bars merged with any live in-memory forming candle from CandleBuilder. */
+  /** Load stored bars merged with any live in-memory forming candle (native: CandleBuilder; custom: derived from base). */
   _getBarsWithForming(sym, tf, limit = MAX_CHART_BARS) {
-    const stored = this.store.getBars(sym, tf, { limit });
-    const openBar = this.candles.getCurrent(sym, tf);
-    if (!openBar) return stored;
-    return mergeBars(stored, [openBar], { maxBars: limit });
+    return this._barsFor(sym, tf, { limit, includeForming: true }).bars;
+  }
+
+  /**
+   * Make sure the live builder is producing (sym, tf) for a custom timeframe a client is viewing, and that its active
+   * candle starts from the REAL forming bucket (derived from base bars) instead of the first tick after the view opened.
+   */
+  _ensureCustomViewTf(view) {
+    try {
+      if (!view || !view.chart || !view.chart.sym) return;
+      const iv = resolveInterval(view.chart.tf);
+      if (!iv || iv.native) return;
+      const sym = normSymbol(view.chart.sym);
+      if (!sym) return;
+      if (!this.candles.hasTimeframe(iv.key)) {
+        const custom = this.candles.timeframes.filter((t) => !HUB_TIMEFRAMES.includes(t)).length;
+        if (custom >= MAX_CUSTOM_TIMEFRAMES) return;
+        this.candles.addTimeframe(iv.key);
+      }
+      if (!this.candles.getCurrent(sym, iv.key)) {
+        const derived = this._barsFor(sym, iv.key, { limit: 2, includeForming: true }).bars;
+        const last = derived[derived.length - 1];
+        const nowBucket = Math.floor(this.now() / 1000);
+        if (last && nowBucket - last.t < iv.step * 2) this.candles.restoreState(sym, { tf: iv.key, current: last });
+      }
+    } catch {
+      // Custom live bars are best-effort; HTTP /api/bars always derives them from native history.
+    }
   }
 
   /**
@@ -1333,11 +1393,18 @@ export class MarketHub {
       return Response.json({ ok: false, error: "invalid before timestamp" }, { status: 400 });
     }
 
-    let bars = this.store.getBars(sym, tf, { before, limit });
-    if (!before) {
-      const openBar = this.candles.getCurrent(sym, tf);
-      if (openBar) {
-        bars = mergeBars(bars, [openBar], { maxBars: limit });
+    const resolved = resolveInterval(tf);
+    let bars;
+    if (resolved && !resolved.native) {
+      // Custom timeframe: resampled in the backend from the native base bars (+ the base's live forming bar).
+      bars = this._barsFor(sym, tf, { limit, before, includeForming: true }).bars;
+    } else {
+      bars = this.store.getBars(sym, tf, { before, limit });
+      if (!before) {
+        const openBar = this.candles.getCurrent(sym, tf);
+        if (openBar) {
+          bars = mergeBars(bars, [openBar], { maxBars: limit });
+        }
       }
     }
     let usedKv = false;
@@ -1352,7 +1419,8 @@ export class MarketHub {
     };
 
     // If paging older history beyond SQLite's hot window, merge immutable KV monthly chunks server-side.
-    if (before && bars.length < limit && this.env.MARKET_KV) {
+    const isNativeTf = !resolved || resolved.native;
+    if (isNativeTf && before && bars.length < limit && this.env.MARKET_KV) {
       const months = previousMonthKeys(before, 3);
       const kvChunks = [];
       for (const ym of months) {
@@ -1378,9 +1446,10 @@ export class MarketHub {
     const oldestT = bars.length ? bars[0].t : null;
     let hasMore = kvHadMore;
     if (!hasMore && oldestT) {
-      if (this.store.getBars(sym, tf, { before: oldestT, limit: 1 }).length > 0) {
+      const histTf = isNativeTf ? tf : resolved.base;
+      if (this.store.getBars(sym, histTf, { before: oldestT, limit: 1 }).length > 0) {
         hasMore = true;
-      } else if (this.env.MARKET_KV) {
+      } else if (isNativeTf && this.env.MARKET_KV) {
         // Check if an immutable KV chunk holds bars strictly older than oldestT.
         const olderMonths = previousMonthKeys(oldestT, 2);
         for (const ym of olderMonths) {
@@ -1711,6 +1780,7 @@ export class MarketHub {
 
       this.clientViews.set(id, nextView);
       att.view = nextView;
+      this._ensureCustomViewTf(nextView);
 
       // Sync ephemeral client subscriptions (unauthenticated clients restricted to known universe) & refcounted indicators
       const desiredSyms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(nextView));

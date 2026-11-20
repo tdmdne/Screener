@@ -1164,7 +1164,11 @@ describe("Security & architecture hardening regressions (CORS, CSWSH, body bound
 });
 
 describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => {
-  it("adapts GET /api/candles through env.MARKET_SERVICE /api/bars with symbol/tf mapping", async () => {
+  it("adapts GET /api/candles through env.MARKET_SERVICE /api/bars with symbol/tf mapping (REST backfill unavailable -> hub-only)", async () => {
+    // REST history is tried first (worker.js); with every upstream down the hub-only answer must still be served.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response("{}", { status: 500 });
+    try {
     const bars = sampleBars(5);
     const seenUrls = [];
     const env = {
@@ -1217,13 +1221,20 @@ describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => 
     assert.equal(cryData.interval, "1D");
     assert.equal(cryData.bars.length, 5);
 
-    assert.deepEqual(seenUrls, [
+    assert.deepEqual(seenUrls.filter((u) => u.startsWith("/api/bars")), [
       "/api/bars?sym=EUR%2FUSD&tf=1h&limit=100",
       "/api/bars?sym=BTC%2FUSD&tf=1d&limit=50",
     ]);
+    assert.ok(seenUrls.some((u) => u.startsWith("/td/time_series")), "Twelve Data REST history is attempted before the hub-only fallback");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
-  it("returns clean 503 JSON with PROVENANCE.UNAVAILABLE (never 502 plain text) when upstream has no bars or throws", async () => {
+  it("returns clean 503 JSON with PROVENANCE.UNAVAILABLE (never 502 plain text) when upstream has no bars or throws", async (t) => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response("{}", { status: 500 });
+    t.after(() => { globalThis.fetch = realFetch; });
     const emptyEnv = {
       TWELVEDATA_KEY: SECRET_TD,
       MARKET_SERVICE: {

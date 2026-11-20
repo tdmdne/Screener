@@ -44,11 +44,14 @@ const DIR_SET = new Set(["long", "short"]);
 const HM_METRIC_SET = new Set(["chg", "mom", "score"]);
 const HM_TF_SET = new Set(["1H", "4H", "1D", "1W", "1h", "4h", "1d", "1w"]);
 const HM_SIZE_SET = new Set(["value", "equal"]);
-const VALID_TF_SET = new Set([
+const NATIVE_TF_SET = new Set([
   "1m", "5m", "15m", "30m",
   "1h", "4h", "1d", "1w",
   "1H", "4H", "1D", "1W", "1M",
 ]);
+// Custom intervals (3m, 45m, 2H, 12H, 2D, 3M ...) are resampled by the backend; the browser only checks the label grammar.
+const CUSTOM_TF_RE = /^[1-9]\d{0,3}(?:m|H|h|D|d|W|w|M)$/;
+const VALID_TF_SET = { has: (tf) => typeof tf === "string" && (NATIVE_TF_SET.has(tf) || CUSTOM_TF_RE.test(tf)) };
 const SYMBOL_RE = /^[A-Z0-9.=^/-]{1,24}$/i;
 const FORBIDDEN_SOURCE_RE = /(^|[+:\s_/-])(sim|simulated|synthetic|mock|fake|demo)($|[+:\s_/-])/i;
 const CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/;

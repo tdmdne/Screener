@@ -2,6 +2,7 @@
 // Pure ES module compatible with Node 22+ and Cloudflare Workers (no Node-only imports).
 
 import { isForbiddenSource } from "./market/screener.js";
+import { resolveInterval } from "./intervals.js";
 
 export const PROTOCOL_VERSION = 2;
 
@@ -59,11 +60,13 @@ const DIR_SET = new Set(["long", "short"]);
 const HM_METRIC_SET = new Set(["chg", "mom", "score"]);
 const HM_TF_SET = new Set(["1H", "4H", "1D", "1W", "1h", "4h", "1d", "1w"]);
 const HM_SIZE_SET = new Set(["value", "equal"]);
-const VALID_TF_SET = new Set([
+const NATIVE_TF_SET = new Set([
   "1m", "5m", "15m", "30m",
   "1h", "4h", "1d", "1w",
   "1H", "4H", "1D", "1W", "1M",
 ]);
+/** Valid timeframes: the native set plus any custom interval the backend can resample (3m, 45m, 2H, 12H, 2D, 3M ...). */
+const VALID_TF_SET = Object.freeze({ has: (tf) => NATIVE_TF_SET.has(tf) || resolveInterval(tf) !== null });
 
 const SYMBOL_RE = /^[A-Z0-9.=^/-]{1,24}$/i;
 const encoder = new TextEncoder();

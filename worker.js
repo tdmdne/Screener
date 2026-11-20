@@ -1,12 +1,13 @@
 // Vektor Terminal — Cloudflare Worker + KV + Edge Cache + MarketRelayDO (WebSocket Hibernation API)
 
 // Catalogs, interval maps and symbol helpers live in shared/ (single source of truth with server.js).
-import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI } from "./shared/intervals.js";
+import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI, resolveInterval } from "./shared/intervals.js";
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
 import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
 import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
 import { normSymbol, toTwelveSymbol, createTickGuard } from "./shared/schema.js";
-import { createCandleBuilder } from "./shared/market/candles.js";
+import { createCandleBuilder, bucketStart, mergeBars, overlayLiveBars, rollup } from "./shared/market/candles.js";
+import { hubBarsSymbol, hubTfLabel } from "./shared/market/candleRoute.js";
 import { TdSubscriptionManager } from "./shared/market/tdSlots.js";
 import { BinanceMiniTickerFeed } from "./shared/market/binanceFeed.js";
 import { resolveCryptoProvider } from "./shared/market/cryptoProvider.js";
@@ -682,7 +683,7 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
         if (Array.isArray(j) && j.length) {
           chunk = j
             .map((x) => {
-              const t = Math.floor(Math.floor(x[0] / 1000) / step) * step;
+              const t = bucketStart(Math.floor(x[0] / 1000), interval);
               return { t, o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] };
             })
             .filter((x) => x.o > 0 && x.h > 0 && x.l > 0 && x.c > 0);
@@ -695,7 +696,7 @@ async function fetchBinanceCandles(apiSym, interval, opts = {}) {
     }
     if (!chunk || !chunk.length) break;
     all.unshift(...chunk);
-    endMs = chunk[0].t * 1000 - step * 1000;
+    endMs = chunk[0].t * 1000 - 1;
     if (chunk.length < chunkLim || (startMs > 0 && endMs < startMs)) break;
   }
 
@@ -765,7 +766,7 @@ async function fetchTwelveDataCandles(tdSym, interval, apiKey, opts = {}) {
           v.datetime.length > 10 ? v.datetime.replace(" ", "T") + "Z" : v.datetime + "T00:00:00Z"
         );
         if (!isFinite(rawMs)) continue;
-        const t = Math.floor(Math.floor(rawMs / 1000) / step) * step;
+        const t = bucketStart(Math.floor(rawMs / 1000), interval);
         const o = +v.open, h = +v.high, l = +v.low, c = +v.close, vol = +(v.volume || 0);
         if (!(o > 0 && h > 0 && l > 0 && c > 0)) continue;
         byBucket.set(t, { t, o, h: Math.max(h, o, c), l: Math.min(l, o, c), c, v: vol });
@@ -837,54 +838,50 @@ async function handleScreener(request, env, ctx) {
   return res;
 }
 
-async function handleCandles(request, env, ctx) {
-  const t0 = Date.now();
-  const url = new URL(request.url);
-  const rawSym = (url.searchParams.get("symbol") || "").trim().toUpperCase();
-  const interval = (url.searchParams.get("interval") || "1H").trim();
-  const mktHint = (url.searchParams.get("mkt") || "").trim().toUpperCase();
-  const apiHint = (url.searchParams.get("apiSym") || "").trim();
-  const fromSec = Math.max(0, Math.floor(Number(url.searchParams.get("from")) || 0));
-  const toSec = Math.max(0, Math.floor(Number(url.searchParams.get("to")) || 0));
-  const rawBefore = Number(url.searchParams.get("before")) || 0;
-  const beforeSec = rawBefore > 0 ? Math.floor(rawBefore > 1e11 ? rawBefore / 1000 : rawBefore) : 0;
-  const replay = url.searchParams.get("replay") === "1";
-  const refresh = url.searchParams.get("refresh") === "1";
-
-  if (!rawSym || !STEPS[interval]) {
-    return new Response(JSON.stringify({ ok: false, error: "Invalid symbol or interval" }), {
-      status: 400,
-      headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders() },
-    });
+/**
+ * Latest live bars for (symbol, native base interval) from the MarketHub's WebSocket-built store, via the service binding.
+ * Returns null when the hub is not bound / unreachable; never throws.
+ * @returns {Promise<{bars: object[], provenance: string} | null>}
+ */
+async function fetchHubBars(env, rawSym, mktHint, baseKey, limit) {
+  if (!env || !env.MARKET_SERVICE || typeof env.MARKET_SERVICE.fetch !== "function") return null;
+  try {
+    const u = new URL("https://market-service/api/bars");
+    u.searchParams.set("sym", hubBarsSymbol(rawSym, mktHint));
+    u.searchParams.set("tf", hubTfLabel(baseKey));
+    u.searchParams.set("limit", String(Math.max(1, Math.min(1500, limit))));
+    const r = await env.MARKET_SERVICE.fetch(new Request(u.toString(), { method: "GET" }));
+    if (!r || !r.ok) return null;
+    const j = await r.json();
+    if (!j || j.ok === false || !Array.isArray(j.bars)) return null;
+    return { bars: mergeBars([], j.bars), provenance: typeof j.provenance === "string" ? j.provenance : PROVENANCE.LIVE };
+  } catch (_e) {
+    return null;
   }
+}
 
-  const meta = inferMeta(rawSym, mktHint, apiHint);
-  const tdKey = tdSource(env);
-  const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT") || rawSym.endsWith("BUSD") || rawSym.endsWith("BTC");
-  const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
-  const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
-  const limit = Math.max(10, Math.min(5000, rawLimit || defaultLimit));
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  const step = STEPS[interval];
-  const isHistoricalChunk = beforeSec > 0;
-  const isHistoricalReplay = replay && ((toSec > 0 && toSec < nowSec - step * 4) || (fromSec > 0 && !toSec && limit > 250));
-  const ttl = isHistoricalChunk ? 86400 : isHistoricalReplay ? HISTORICAL_KV_TTL : 60;
-  const cache = typeof caches !== "undefined" && caches.default ? caches.default : null;
-  const normUrl = `${url.origin}/api/candles?symbol=${encodeURIComponent(rawSym)}&interval=${encodeURIComponent(interval)}&from=${fromSec}&to=${toSec}&before=${beforeSec}&limit=${limit}&replay=${replay ? 1 : 0}`;
+/**
+ * Historical candles for the NATIVE interval `iv.base`, cached server-side (edge cache + KV + in-flight dedupe).
+ * Custom timeframes (3m, 45m, 2H, 3M ...) share the base interval's cache entry; they are resampled afterwards.
+ * @returns {Promise<{bars: object[]|null, source: string, cache: string}>}
+ */
+async function loadCandleHistory(p) {
+  const { env, ctx, cache, t0, rawSym, meta, tdKey, isCrypto, iv, fromSec, toSec, beforeSec, fetchLimit, replay, refresh, ttl, isHistoricalChunk, isHistoricalReplay } = p;
+  const base = iv.base;
+  const normUrl = `${p.origin}/api/candles?symbol=${encodeURIComponent(rawSym)}&interval=${encodeURIComponent(base)}&from=${fromSec}&to=${toSec}&before=${beforeSec}&limit=${fetchLimit}&replay=${replay ? 1 : 0}`;
   const cacheKey = new Request(normUrl, { method: "GET" });
 
   if (!refresh && cache) {
     const edgeHit = await cache.match(cacheKey);
     if (edgeHit) {
-      const res = new Response(edgeHit.body, edgeHit);
-      res.headers.set("x-cache", "HIT-EDGE");
-      res.headers.set("server-timing", `edge;dur=${Date.now() - t0}`);
-      return res;
+      try {
+        const j = await edgeHit.clone().json();
+        if (j && Array.isArray(j.bars)) return { bars: j.bars, source: j.source || "cache", cache: "HIT-EDGE" };
+      } catch (_e) {}
     }
   }
 
-  const kvKey = `candles:${rawSym}:${interval}:${fromSec}:${toSec}:${beforeSec}:${limit}:${replay ? 1 : 0}`;
+  const kvKey = `candles:${rawSym}:${base}:${fromSec}:${toSec}:${beforeSec}:${fetchLimit}:${replay ? 1 : 0}`;
   if (!refresh && env.SCREENER_KV) {
     const kvCached = await env.SCREENER_KV.get(kvKey, "json");
     if (
@@ -893,21 +890,11 @@ async function handleCandles(request, env, ctx) {
       (kvCached.bars.length || isHistoricalChunk) &&
       (isHistoricalChunk || isHistoricalReplay || Date.now() - kvCached.ts < ttl * 1000)
     ) {
-      const res = new Response(JSON.stringify(kvCached), {
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "cache-control": `public, max-age=${ttl}, s-maxage=${ttl}`,
-          "x-cache": "HIT-KV",
-          "server-timing": `kv;dur=${Date.now() - t0}`,
-          ...corsHeaders(),
-        },
-      });
-      if (cache && ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(cache.put(cacheKey, res.clone()));
-      return res;
+      return { bars: kvCached.bars, source: kvCached.source || "cache", cache: "HIT-KV" };
     }
   }
 
-  const opts = { from: fromSec, to: toSec, before: beforeSec, limit, replay, refresh, env };
+  const opts = { from: fromSec, to: toSec, before: beforeSec, limit: fetchLimit, replay, refresh, env };
   const flightKey = kvKey;
   let resultPromise = CANDLE_IN_FLIGHT.get(flightKey);
   if (!resultPromise) {
@@ -918,46 +905,46 @@ async function handleCandles(request, env, ctx) {
       if (replay) {
         // Offline Backtest Replay mode ONLY (Dukascopy strictly isolated here)
         if (isCrypto) {
-          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchBinanceCandles(meta.api || rawSym, base, opts);
           if (bars) source = "binance";
           if (!bars) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
             if (bars && bars.length) source = "yahoo";
           }
         } else if (DUKASCOPY_MAP[rawSym]) {
-          bars = await fetchDukascopyCandles(rawSym, interval, opts, env, meta.p);
+          bars = await fetchDukascopyCandles(rawSym, base, opts, env, meta.p);
           if (bars) source = "dukascopy";
         }
         if (!bars && !isCrypto && tdKey) {
           const tdResolved = toTdApiSymbol(rawSym, meta);
           if (tdResolved) {
-            bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
+            bars = await fetchTwelveDataCandles(tdResolved, base, tdKey, opts);
             if (bars) source = "twelvedata";
           }
         }
         if (!bars && !isCrypto) {
-          bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+          bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
           if (bars && bars.length) source = "yahoo";
         }
       } else {
         // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing, Zero Synthetic Data)
         if (isCrypto) {
-          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchBinanceCandles(meta.api || rawSym, base, opts);
           if (bars !== null) source = "binance";
           if (bars === null) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
             if (bars !== null) source = "yahoo";
           }
         } else {
           if (tdKey) {
             const tdResolved = toTdApiSymbol(rawSym, meta);
             if (tdResolved) {
-              bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
+              bars = await fetchTwelveDataCandles(tdResolved, base, tdKey, opts);
               if (bars !== null) source = "twelvedata";
             }
           }
           if (bars === null) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
+            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
             if (bars !== null) source = "yahoo";
           }
         }
@@ -971,7 +958,106 @@ async function handleCandles(request, env, ctx) {
   }
 
   const { bars, source } = await resultPromise;
-  if (bars === null || (!bars.length && !isHistoricalChunk)) {
+  if (bars === null || (!bars.length && !isHistoricalChunk)) return { bars: null, source, cache: "MISS" };
+
+  const body = JSON.stringify({ ok: true, symbol: rawSym, interval: base, ttl, ts: Date.now(), source, bars });
+  if (ctx && typeof ctx.waitUntil === "function") {
+    const edgeRes = new Response(body, {
+      headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${ttl}, s-maxage=${ttl}` },
+    });
+    ctx.waitUntil(
+      Promise.all([
+        cache ? cache.put(cacheKey, edgeRes) : Promise.resolve(),
+        env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(60, ttl) }) : Promise.resolve(),
+      ])
+    );
+  }
+  return { bars, source, cache: "MISS" };
+}
+
+async function handleCandles(request, env, ctx) {
+  const t0 = Date.now();
+  const url = new URL(request.url);
+  const rawSym = (url.searchParams.get("symbol") || "").trim().toUpperCase();
+  const iv = resolveInterval(url.searchParams.get("interval") || "1H");
+  const mktHint = (url.searchParams.get("mkt") || "").trim().toUpperCase();
+  const apiHint = (url.searchParams.get("apiSym") || "").trim();
+  const fromSec = Math.max(0, Math.floor(Number(url.searchParams.get("from")) || 0));
+  const toSec = Math.max(0, Math.floor(Number(url.searchParams.get("to")) || 0));
+  const rawBefore = Number(url.searchParams.get("before")) || 0;
+  const beforeSec = rawBefore > 0 ? Math.floor(rawBefore > 1e11 ? rawBefore / 1000 : rawBefore) : 0;
+  const replay = url.searchParams.get("replay") === "1";
+  const refresh = url.searchParams.get("refresh") === "1";
+
+  if (!rawSym || !iv) {
+    return new Response(JSON.stringify({ ok: false, error: "Invalid symbol or interval" }), {
+      status: 400,
+      headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders() },
+    });
+  }
+
+  // Canonical interval key: "5m" / "5min" / "5M" and "1h" / "1H" / "60m" all share cache entries; "1m" (minute) != "1M" (month).
+  const interval = iv.key;
+  const meta = inferMeta(rawSym, mktHint, apiHint);
+  const tdKey = tdSource(env);
+  const isCrypto = meta.pr === "bn" || meta.m === "CRY" || rawSym.endsWith("USDT") || rawSym.endsWith("BUSD") || rawSym.endsWith("BTC");
+  const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
+  const defaultLimit = replay ? (fromSec || toSec ? 1500 : 1000) : (isCrypto ? 1000 : 5000);
+  const limit = Math.max(10, Math.min(5000, rawLimit || defaultLimit));
+  // Custom timeframes are resampled from `iv.base` bars; request enough base bars to cover `limit` resampled bars.
+  const providerMax = replay ? (isCrypto ? 10000 : 5000) : (isCrypto ? 1000 : 5000);
+  const fetchLimit = iv.native ? limit : Math.max(10, Math.min(providerMax, limit * iv.ratio));
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const step = iv.step;
+  const isHistoricalChunk = beforeSec > 0;
+  const isHistoricalReplay = replay && ((toSec > 0 && toSec < nowSec - step * 4) || (fromSec > 0 && !toSec && limit > 250));
+  const ttl = isHistoricalChunk ? 86400 : isHistoricalReplay ? HISTORICAL_KV_TTL : 60;
+  const cache = typeof caches !== "undefined" && caches.default ? caches.default : null;
+
+  const hist = await loadCandleHistory({
+    env, ctx, cache, t0, origin: url.origin, rawSym, meta, tdKey, isCrypto, iv,
+    fromSec, toSec, beforeSec, fetchLimit, replay, refresh, ttl, isHistoricalChunk, isHistoricalReplay,
+  });
+
+  if (hist.bars === null) {
+    return new Response(
+      JSON.stringify({ ok: false, symbol: rawSym, interval, source: hist.source, error: "Upstream candle feed unavailable" }),
+      {
+        status: 502,
+        headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...corsHeaders() },
+      }
+    );
+  }
+
+  let bars = hist.bars;
+  let source = hist.source;
+  let provenance = PROVENANCE.CACHED;
+  let live = false;
+
+  // Lay the hub's live WebSocket bars over the REST history: fills holes left by WS disconnects, extends past REST lag,
+  // and keeps the forming candle current. Applied per request (never cached) at the base interval, before resampling.
+  const overlayEligible = !replay && !isHistoricalChunk && (toSec === 0 || toSec >= nowSec - step * 2);
+  if (overlayEligible) {
+    const hub = await fetchHubBars(env, rawSym, mktHint, iv.base, fetchLimit);
+    if (hub && hub.bars.length) {
+      bars = overlayLiveBars(bars, hub.bars);
+      if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
+      source = `${source}+hub`;
+      provenance = hub.provenance;
+      live = true;
+    }
+  }
+
+  if (!iv.native) {
+    const truncated = bars.length >= fetchLimit;
+    bars = rollup(bars, interval);
+    if (isHistoricalChunk) bars = bars.filter((b) => b.t < beforeSec);
+    if (truncated && bars.length > 1) bars = bars.slice(1); // oldest bucket may be partial when the base window was cut
+  }
+  if (bars.length > limit) bars = bars.slice(-limit);
+
+  if (!bars.length && !isHistoricalChunk) {
     return new Response(
       JSON.stringify({ ok: false, symbol: rawSym, interval, source, error: "Upstream candle feed unavailable" }),
       {
@@ -985,32 +1071,23 @@ async function handleCandles(request, env, ctx) {
     ok: true,
     symbol: rawSym,
     interval,
-    ttl,
+    ttl: live ? 0 : ttl,
     ts: Date.now(),
     source,
+    provenance,
     hasMore: isHistoricalChunk ? bars.length > 0 : true,
     bars,
   };
-  const body = JSON.stringify(payload);
-  const res = new Response(body, {
+  return new Response(JSON.stringify(payload), {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": source === "simulator" ? "no-store" : `public, max-age=${ttl}, s-maxage=${ttl}`,
-      "x-cache": "MISS",
+      "cache-control": live || source === "simulator" ? "no-store" : `public, max-age=${ttl}, s-maxage=${ttl}`,
+      "x-cache": hist.cache,
+      "x-provenance": provenance,
       "server-timing": `origin;dur=${Date.now() - t0}`,
       ...corsHeaders(),
     },
   });
-
-  if (ctx && typeof ctx.waitUntil === "function") {
-    ctx.waitUntil(
-      Promise.all([
-        cache ? cache.put(cacheKey, res.clone()) : Promise.resolve(),
-        env.SCREENER_KV ? env.SCREENER_KV.put(kvKey, body, { expirationTtl: Math.max(60, ttl) }) : Promise.resolve(),
-      ])
-    );
-  }
-  return res;
 }
 
 async function handleCalendar(request, env, ctx) {

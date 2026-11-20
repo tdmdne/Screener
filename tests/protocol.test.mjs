@@ -75,7 +75,7 @@ await test("client ops: rejects wrong version, malformed JSON, unknown op, inval
     [{ op: "ping", t: -5 }, "INVALID_PING"],
     [{ op: "view" }, "INVALID_VIEW"],
     [{ op: "view", chart: { sym: "BAD SYMBOL!", tf: "1H" } }, "INVALID_VIEW"],
-    [{ op: "view", chart: { sym: "BTCUSDT", tf: "2H" } }, "INVALID_VIEW"],
+    [{ op: "view", chart: { sym: "BTCUSDT", tf: "30s" } }, "INVALID_VIEW"], // seconds cannot be backfilled from REST history
     [{ op: "view", screener: { preset: "P9", page: 1 } }, "INVALID_VIEW"],
     [{ op: "view", screener: { preset: "P1", page: 0 } }, "INVALID_VIEW"],
     [{ op: "view", screener: { preset: "P1", page: 1, pageSize: MAX_SCREENER_PAGE_ROWS + 1 } }, "BUDGET_EXCEEDED"],

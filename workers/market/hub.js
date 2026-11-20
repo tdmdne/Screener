@@ -239,6 +239,7 @@ export class MarketHub {
     this.retryAttempt = 0;
     this.nextReconnectAt = 0;
     this.lastUpstreamMsgAt = 0;
+    this.lastUpstreamDataAt = 0; // last PRICE frame (not connect/heartbeat) — what status.asOf reports
     this.lastHeartbeatAt = 0;
     this.hbTimer = null;
     this.reconnectTimer = null;
@@ -292,7 +293,7 @@ export class MarketHub {
         this._initializing = false;
       }
       // Fire upstream WS connection asynchronously via waitUntil — NEVER await external WS inside blockConcurrencyWhile.
-      if (this._activeUpstreamCount() > 0 && this.env.TWELVEDATA_KEY) {
+      if (this._wantsUpstream() && this.env.TWELVEDATA_KEY) {
         this._scheduleEnsureUpstream();
       }
       this._syncBinance();
@@ -349,6 +350,22 @@ export class MarketHub {
   }
 
   /** Total active upstream symbol count (persisted admin subs U ephemeral client subs). */
+  /**
+   * Persistent-connection policy: with a Twelve Data key configured the single outbound WS is kept open even
+   * when no symbol is subscribed (idle socket, 10 s heartbeats), so prices are flowing the instant a symbol is added.
+   * Set `TD_WS_KEEPALIVE=0` to go back to a demand-driven connection.
+   */
+  _keepalive() {
+    if (!this.env.TWELVEDATA_KEY) return false;
+    const v = String(this.env.TD_WS_KEEPALIVE ?? "1").trim().toLowerCase();
+    return !(v === "0" || v === "false" || v === "off");
+  }
+
+  /** True when the upstream socket should exist: symbols wanted, or keepalive with a key. */
+  _wantsUpstream() {
+    return this._activeUpstreamCount() > 0 || this._keepalive();
+  }
+
   _activeUpstreamCount() {
     let count = 0;
     for (const s of this.desiredSubs) if (!this._isBinance(s)) count += 1;
@@ -381,7 +398,7 @@ export class MarketHub {
   /** Fire `ensureUpstream()` asynchronously via `ctx.waitUntil` without stalling callers. */
   _scheduleEnsureUpstream() {
     if (this._initializing) return;
-    if (this._activeUpstreamCount() === 0 || !this.env.TWELVEDATA_KEY) return;
+    if (!this._wantsUpstream() || !this.env.TWELVEDATA_KEY) return;
     const work = Promise.resolve()
       .then(() => this.ensureUpstream())
       .catch(() => false);
@@ -417,7 +434,7 @@ export class MarketHub {
    * Ensure the single upstream Twelve Data WebSocket is connected (deduplicated; never opens >1).
    */
   async ensureUpstream() {
-    if (this._activeUpstreamCount() === 0) return false;
+    if (!this._wantsUpstream()) return false;
     if (this.upWs && this.upConnected) return true;
     if (this._connectPromise) return this._connectPromise;
     if (this.nextReconnectAt > 0 && this.now() < this.nextReconnectAt) return false;
@@ -444,7 +461,7 @@ export class MarketHub {
           return true;
         }
         // Guard against all subscriptions being evicted while connecting
-        if (this._activeUpstreamCount() === 0) {
+        if (!this._wantsUpstream()) {
           try {
             ws.close(1000, "idle");
           } catch {
@@ -467,7 +484,7 @@ export class MarketHub {
         const onLost = () => {
           if (this.upWs !== ws) return;
           this._teardownUpstreamSocket(false);
-          if (this._activeUpstreamCount() > 0) {
+          if (this._wantsUpstream()) {
             this.upReconnects += 1;
             this._scheduleReconnect();
             this._emitHealth("Twelve Data stream disconnected; reconnecting");
@@ -599,7 +616,7 @@ export class MarketHub {
     await this._armAlarm();
 
     if (this.binanceFeed) this.binanceFeed.check();
-    if (this._activeUpstreamCount() === 0) return;
+    if (!this._wantsUpstream()) return;
     const now = this.now();
 
     if (this.upWs && this.upConnected) {
@@ -694,7 +711,7 @@ export class MarketHub {
       if (fullyGone.length) {
         this._sendUpstreamUnsubscribe(fullyGone);
       }
-      if (this._activeUpstreamCount() === 0) {
+      if (!this._wantsUpstream()) {
         this._teardownUpstreamSocket(true, "idle");
       }
       this._syncBinance();
@@ -750,7 +767,7 @@ export class MarketHub {
     }
     if (removed.length) {
       this._sendUpstreamUnsubscribe(removed);
-      if (this._activeUpstreamCount() === 0) {
+      if (!this._wantsUpstream()) {
         this._teardownUpstreamSocket(true, "idle");
       }
       this._syncBinance();
@@ -799,6 +816,16 @@ export class MarketHub {
     if (m.event === "heartbeat" || m.event === "unsubscribe-status") {
       return;
     }
+    // Account-level error frames ({"code":401|403|429,"status":"error",...}) are NOT subscribe-status events:
+    // they mean the key was rejected or the connection/credit limit was hit. Drop the socket and back off
+    // (otherwise any inbound frame keeps `lastUpstreamMsgAt` fresh and the feed looks healthy forever).
+    if (m.status === "error" && m.event !== "subscribe-status" && /^(401|403|429)$/.test(String(m.code ?? ""))) {
+      this._teardownUpstreamSocket(true, "upstream-error");
+      this.upReconnects += 1;
+      this._scheduleReconnect();
+      this._emitHealth("Twelve Data rejected the connection; reconnecting with backoff");
+      return;
+    }
     if (m.event === "subscribe-status") {
       this._handleUpstreamSubscribeStatus(m);
       return;
@@ -810,6 +837,7 @@ export class MarketHub {
       const rawT = m.timestamp ?? m.t ?? this.now();
       const numT = Number(rawT);
       const tickMs = Number.isFinite(numT) && numT > 0 ? (numT < 1e12 ? numT * 1000 : numT) : this.now();
+      this.lastUpstreamDataAt = this.now();
       const tickVol = this._extractUpstreamTickVolume(internalSym, m, tickMs);
       this.ingestTick({
         s: internalSym,
@@ -947,6 +975,7 @@ export class MarketHub {
   /** Per-upstream health for ACTIVE feeds only, e.g. { twelvedata: "LIVE", binance: "RECONNECTING" }. */
   _feedStates() {
     const feeds = {};
+    // Only symbols actually served by Twelve Data make it an ACTIVE feed; an idle keepalive socket must not change provenance.
     if (this._activeUpstreamCount() > 0) feeds.twelvedata = this._tdFeedState();
     if (this.binanceFeed && this._binanceSyms.size > 0) {
       feeds.binance = this.binanceFeed.state === PROVENANCE.LIVE ? PROVENANCE.LIVE : PROVENANCE.RECONNECTING;
@@ -1233,7 +1262,7 @@ export class MarketHub {
     const provenance = fromKvFallback
       ? PROVENANCE.CACHED
       : this._currentProvenance(hasAnyData);
-    const dataAsOf = Math.max(this.lastUpstreamMsgAt || 0, snap?.asOf || 0);
+    const dataAsOf = Math.max(this.lastUpstreamDataAt || 0, snap?.asOf || 0);
     const asOf = dataAsOf > 0 ? dataAsOf : now;
 
     const stateBody = {
@@ -1496,11 +1525,37 @@ export class MarketHub {
     if (p === "/api/bars") {
       return this.handleBarsRoute(url);
     }
+    if (p === "/api/quotes") {
+      return this.handleQuotesRoute(url);
+    }
     if (p === "/ws") {
       return this._handleWebSocketUpgrade(req);
     }
 
     return Response.json({ ok: false, error: "not found" }, { status: 404 });
+  }
+
+  /**
+   * GET /api/quotes?symbols=EURUSD,AAPL — latest WS-fed prices from the hub's tick cache (internal, via service binding).
+   * Lets worker.js fill screener/quote responses without spending Twelve Data REST credits on live prices.
+   */
+  handleQuotesRoute(url) {
+    const raw = String(url.searchParams.get("symbols") || "");
+    const syms = [...new Set(raw.split(",").map((x) => normSymbol(x)).filter(Boolean))].slice(0, 200);
+    const quotes = {};
+    for (const s of syms) {
+      const t = this.core.getLastTick(s);
+      if (!t || !(Number(t.c) > 0)) continue;
+      quotes[s] = {
+        s,
+        c: t.c,
+        t: t.t,
+        ...(Number(t.bid) > 0 ? { bid: t.bid } : {}),
+        ...(Number(t.ask) > 0 ? { ask: t.ask } : {}),
+        src: t.src || "twelvedata",
+      };
+    }
+    return Response.json({ ok: true, ts: this.now(), feed: this._tdFeedState(), quotes }, { headers: { "Cache-Control": "no-store" } });
   }
 
   _handleWebSocketUpgrade(req) {

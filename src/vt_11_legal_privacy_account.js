@@ -362,6 +362,10 @@ m.innerHTML=`<h3>Pages</h3><div class="grid">${VT_MORE_PAGES.map(id=>`<a href="#
 ${dst?`<p class="st">${esc(dst)}</p>`:""}`;
 document.body.appendChild(bg);document.body.appendChild(m);m.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>setTimeout(vtMoreClose,0)));
 m.querySelector("#vm_ck").onclick=()=>{vtMoreClose();vtBanner(true)};document.getElementById("vnmore").setAttribute("aria-expanded","true");const f=m.querySelector("a");if(f)f.focus({preventScroll:true})}
+// "Today's session" entry in the phone More sheet. Wrapped HERE (not in vt_07): vtMoreOpen is declared in this file, which loads after vt_07,
+// so a `typeof vtMoreOpen` check in vt_07 was always false and #vm_sum never rendered.
+if(typeof vtMoreOpen==="function"){const _vtSMo=vtMoreOpen;vtMoreOpen=function(){const r=_vtSMo.apply(this,arguments);try{const m=document.getElementById("vmore");if(m&&!m.querySelector("#vm_sum")){const h=document.createElement("h3");h.textContent="Tools";const g=document.createElement("div");g.className="grid";
+  g.innerHTML='<button type="button" id="vm_sum">Today\u2019s session</button>';const pg=m.querySelector(".grid");(pg?pg.nextSibling:null)?m.insertBefore(h,pg.nextSibling):m.appendChild(h);h.after(g);g.querySelector("#vm_sum").onclick=()=>{vtMoreClose();vtSumM()}}}catch(e){}return r}}
 (function(){const nav=document.getElementById("vnav");if(!nav)return;const add=()=>{if(document.getElementById("vnmore"))return;const b=document.createElement("button");b.type="button";b.className="vnmore";b.id="vnmore";
 b.setAttribute("aria-haspopup","dialog");b.setAttribute("aria-expanded","false");
 b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span>More</span>';

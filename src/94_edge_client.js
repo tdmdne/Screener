@@ -1012,22 +1012,10 @@ async function vtTdWsConnect(sym) {
   }
   if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 0) return;
 
-  // TASK-02: no browser WebSocket to Twelve Data (that needed the key). Poll the latest price
-  // through our vektor-market Worker instead; it caches each symbol and enforces the plan limits.
-  if (VT_EDGE.tdActiveSym !== sym || !isLive()) return;
+  // Live prices for Twelve Data symbols arrive over the single same-origin /ws (server-side Twelve Data WebSocket in
+  // the MarketHub). The browser never polls /api/quote for live ticks (Zero Frontend Logic; no REST credit burn).
   clearInterval(VT_EDGE.tdHb);
-  const vtTdPoll = async () => {
-    if (VT_EDGE.tdActiveSym !== sym || !isLive() || document.hidden) return;
-    try {
-      const r = await fetch(`/api/quote?symbols=${encodeURIComponent(sym)}`);
-      const d = await r.json();
-      if (VT_EDGE.tdActiveSym !== sym || !d || !(Number(d.price) > 0)) return;
-      markOk("tdws");
-      vtApplyTwelveDataTick(sym, Number(d.price), Math.floor(Date.now() / 1000));
-    } catch (_e) {}
-  };
-  vtTdPoll();
-  VT_EDGE.tdHb = setInterval(vtTdPoll, 60000);
+  VT_EDGE.tdHb = 0;
 }
 
 function vtSyncChartFeed(sym, tf) {

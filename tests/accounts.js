@@ -36,7 +36,7 @@ await Promise.all([P.waitForNavigation(),P.click("#ac_open")]);await booted(P);a
 // export on Your data only includes this account
 const ex=await P.evaluate(async()=>{const o=await vtExportData(false);return{keys:Object.keys(o.localStorage),other:o.otherAccounts||""}});
 assert(ex.keys.filter(k=>/^scr2~/.test(k)).length===1&&/other accounts/.test(ex.other),"export scoped "+JSON.stringify(ex));
-console.log("A errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("A errors",h.errors);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 
 // B) older unscoped data, nobody signed in: never shown to guests; later sign-ins are asked
 const legacy={cols:[{id:"price",type:"price"}],chart:{sym:"XRPUSDT"},__who:"LEGACY-WORK",dr:{BTCUSDT:[{id:5,t:"hline",p:[{t:1,y:9}]}]}};
@@ -49,7 +49,7 @@ await Promise.all([P.waitForNavigation(),P.click("#lgo")]);await signIn(P,"dave"
 await Promise.all([P.waitForNavigation(),P.click("#lg_yes")]);await booted(P);
 let d=await P.evaluate(()=>({all:JSON.stringify(S),ks:Object.keys(localStorage)}));
 assert(d.all.includes("LEGACY-WORK")&&!d.ks.includes("scr2")&&!d.ks.includes("vt_legacy"),"dave imported it "+d.ks);
-console.log("B errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("B errors",h.errors);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 
 // C) older data while someone is signed in: it becomes theirs automatically
 h=await launch({state:Object.assign({},legacy,{data:{key:"myOwnTdKey9",mode:"all",v:3}})});P=h.page;await P.goto(h.base+"#/workspace");await booted(P);
@@ -57,7 +57,7 @@ let e=await P.evaluate(()=>({all:JSON.stringify(S),ks:Object.keys(localStorage),
 assert(e.all.includes("LEGACY-WORK")&&!e.ks.includes("scr2")&&!e.ks.includes("vt_legacy")&&e.ks.some(k=>/^scr2~/.test(k)),"auto-claimed "+e.ks);
 // a Twelve Data key saved inside settings by an older version is deleted, not kept in memory or storage
 assert(!e.dk&&!e.all.includes("myOwnTdKey9")&&!e.saved.includes("myOwnTdKey9")&&!e.ks.some(k=>/^vt_tdkey/.test(k)),"legacy Twelve Data key dropped");
-await h.close();
+assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 
 // D) leftover client Twelve Data keys are deleted; the browser never holds or sends one
 h=await launch({auth:false});P=h.page;const td=[],proxy=[];
@@ -77,10 +77,10 @@ assert.strictEqual(wiped.td,"undefined");assert.strictEqual(wiped.tdk,"undefined
 assert.strictEqual(wiped.set,"undefined");assert.strictEqual(wiped.cfg,"undefined");assert.strictEqual(wiped.note,"undefined");
 assert.strictEqual(td.length,0,"nothing sent to Twelve Data");
 assert(proxy.every(u=>!/[?&]apikey=/.test(u)),"no per-user apikey on the market-data URL");
-const ws1=await P.evaluate(()=>!!BNWS.ws&&__WS.length>0);assert(ws1,"binance socket up");
-console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close();
+const ws1=await P.evaluate(()=>!!VT_EDGE.ws&&__edge.sockets.length>0);assert(ws1,"edge socket up");
+console.log("D errors",h.errors);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // E) legal pages describe it
 h=await launch({});P=h.page;await P.goto(h.base+"#/workspace");await booted(P);await P.evaluate(()=>{location.hash="#/legal/cookies"});await P.waitForTimeout(500);
 const lg=await P.textContent("#pv-legal");for(const s of ["scr2~","scr2p~","vt_tdkey~","vt_aikey~","vt_legacy","your own Twelve Data API key"])assert(lg.includes(s),"legal mentions "+s);
-await h.close();
+assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 console.log("ACCOUNTS OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

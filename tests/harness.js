@@ -21,8 +21,9 @@ const EDGEMOCK=`(()=>{const E={sockets:[],sent:[],seq:0,
   push(f,ws){const w=ws||E.sockets[E.sockets.length-1];if(!w||w.readyState!==1||!w.onmessage)return false;w.onmessage({data:JSON.stringify(f)});return true},
   quotes(list,ws){return E.push(E.frame("quotes",{quotes:list.map(q=>Object.assign({t:Date.now()},q))}),ws)},
   // candle history as /api/candles would return it for a symbol: n bars ending now, oldest first
-  bars(tf,base,n){const step=(window.STEP&&window.STEP[tf])||3600,now=Math.floor(Date.now()/1000/step)*step,out=[];
-    for(let i=0;i<n;i++){const o=base*(1+0.003*Math.sin(i/3)),c=base*(1+0.003*Math.sin((i+1)/3));out.push({t:now-(n-1-i)*step,o,h:Math.max(o,c)*1.001,l:Math.min(o,c)*.999,c,v:1000+i})}return out},
+  bars(tf,base,n,sym){const step=(typeof STEP!=="undefined"&&STEP[tf])||3600,now=Math.floor(Date.now()/1000/step)*step,out=[];
+    const h=String(sym||"").split("").reduce((a,c)=>a+c.charCodeAt(0),0),ph=h%17,amp=0.003*(1+(h%5)/4); // distinct per symbol so rankings have no ties
+    for(let i=0;i<n;i++){const o=base*(1+amp*Math.sin((i+ph)/3)),c=base*(1+amp*Math.sin((i+1+ph)/3));out.push({t:now-(n-1-i)*step,o,h:Math.max(o,c)*1.001,l:Math.min(o,c)*.999,c,v:1000+i})}return out},
   status(provenance,feeds,ws){return E.push(E.frame("status",{provenance,feeds:feeds||{}}),ws)}};
 window.__edge=E;
 class FakeWS{constructor(u){this.url=u;this.readyState=0;E.sockets.push(this);setTimeout(()=>{if(this.readyState===0){this.readyState=1;this.onopen&&this.onopen({});
@@ -58,6 +59,9 @@ async function launch(opts={}){
   const base="http://127.0.0.1:"+port+"/index.html";
   // "/" is the public landing page (no terminal, no /ws); tests that need the terminal open `app`
   const app=base+"#/workspace";
-  return {browser,ctx,page,errors,consoleErr,offOrigin,base,app,close:async()=>{await browser.close();srv.close()}};
+  // The edge client only fetches candles for the active chart (card/heatmap data is server-side, Task 13). Tests that need
+  // history for every symbol merge what /api/candles would return: `await h.seedBars("1D",40)`.
+  const seedBars=(tf,n)=>page.evaluate(({tf,n})=>{for(const s of SYMS)vtMergeBars(s[0]+"|"+tf,__edge.bars(tf,s[2]||1,n||40,s[0]));if(typeof render==="function")render()},{tf,n});
+  return {browser,ctx,page,errors,consoleErr,offOrigin,seedBars,base,app,close:async()=>{await browser.close();srv.close()}};
 }
 module.exports={launch,ROOT};

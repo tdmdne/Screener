@@ -217,9 +217,11 @@ export class MarketHub {
       {
         protocolVersion: 2,
         maxUpstreamSymbols: this.maxUpstreamSymbols,
+        now: this.now,
         setTimer: this.setTimer,
         clearTimer: this.clearTimer,
         onFrameSent: (id, seq) => this._persistClientSeq(id, seq),
+        onEvict: (sym) => this._onCoreEvict(sym),
       }
     );
 
@@ -239,6 +241,7 @@ export class MarketHub {
     // Subscription & view tracking
     this.desiredSubs = new Set();     // persisted admin/seed internal symbols (capped at maxUpstreamSymbols)
     this.ephemeralSubs = new Set();   // ephemeral client-view internal symbols (evicted when clients disconnect)
+    this.failedUpstreamUntil = new Map(); // internal sym -> epoch ms cooldown after subscribe-status fails
     this.tdToInternal = new Map();    // "EUR/USD" -> "EURUSD"
     this.socketById = new Map();      // clientId -> server WebSocket
     this.clientViews = new Map();     // clientId -> { chart?, watchlist?, screener?, heatmap? }
@@ -688,13 +691,25 @@ export class MarketHub {
     }
   }
 
+  _onCoreEvict(rawSym) {
+    const s = normSymbol(rawSym);
+    if (!s) return;
+    // Evicted zero-viewer slot: remove from upstream active sets while preserving SQLite bars & core.last cache
+    const wasDesired = this.desiredSubs.delete(s);
+    const wasEphemeral = this.ephemeralSubs.delete(s);
+    if (wasDesired || wasEphemeral) {
+      this.tdToInternal.delete(toTwelveSymbol(s).toUpperCase());
+      this._sendUpstreamUnsubscribe([s]);
+    }
+  }
+
   _onCoreUnsubscribe(syms) {
     const removed = [];
     for (const raw of syms || []) {
       const s = normSymbol(raw);
       if (!s || this.desiredSubs.has(s)) continue;
       if (this.ephemeralSubs.delete(s)) {
-        this.tdToInternal.delete(toTwelveSymbol(s));
+        this.tdToInternal.delete(toTwelveSymbol(s).toUpperCase());
         this.candles.clear(s);
         this._lastDayVolume.delete(s);
         removed.push(s);
@@ -747,11 +762,16 @@ export class MarketHub {
       return;
     }
     if (!m || typeof m !== "object") return;
-    if (m.event === "heartbeat" || m.event === "subscribe-status" || m.event === "unsubscribe-status") {
+    if (m.event === "heartbeat" || m.event === "unsubscribe-status") {
+      return;
+    }
+    if (m.event === "subscribe-status") {
+      this._handleUpstreamSubscribeStatus(m);
       return;
     }
     if (m.event === "price" || (m.symbol && (m.price !== undefined || m.c !== undefined))) {
-      const internalSym = this.tdToInternal.get(m.symbol) || normSymbol(m.symbol);
+      const tdKey = String(m.symbol || "").trim().toUpperCase();
+      const internalSym = this.tdToInternal.get(tdKey) || normSymbol(tdKey);
       if (!internalSym) return;
       const rawT = m.timestamp ?? m.t ?? this.now();
       const numT = Number(rawT);
@@ -1603,14 +1623,85 @@ export class MarketHub {
     return false;
   }
 
+  _isUpstreamRejected(sym) {
+    const s = normSymbol(sym);
+    if (!s) return false;
+    const until = this.failedUpstreamUntil.get(s);
+    if (!until) return false;
+    if (this.now() >= until) {
+      this.failedUpstreamUntil.delete(s);
+      return false;
+    }
+    return true;
+  }
+
+  _handleUpstreamSubscribeStatus(m) {
+    const ts = this.now();
+    if (Array.isArray(m.success)) {
+      for (const item of m.success) {
+        const rawTd = String(
+          typeof item === "string" ? item : (item && (item.symbol || item.s)) || ""
+        )
+          .trim()
+          .toUpperCase();
+        if (!rawTd) continue;
+        const internal = this.tdToInternal.get(rawTd) || normSymbol(rawTd);
+        if (internal) {
+          this.tdToInternal.set(rawTd, internal);
+          this.failedUpstreamUntil.delete(internal);
+        }
+      }
+    }
+
+    const fails = Array.isArray(m.fails)
+      ? m.fails
+      : m.status === "error" && m.symbol
+        ? [m.symbol]
+        : [];
+    if (!fails.length) return;
+
+    let releasedAny = false;
+    for (const item of fails) {
+      const rawTd = String(
+        typeof item === "string" ? item : (item && (item.symbol || item.s)) || ""
+      )
+        .trim()
+        .toUpperCase();
+      if (!rawTd) continue;
+      const internal = this.tdToInternal.get(rawTd) || normSymbol(rawTd);
+      if (!internal) continue;
+      this.failedUpstreamUntil.set(internal, ts + 600_000);
+      const wasDesired = this.desiredSubs.delete(internal);
+      const wasEphemeral = this.ephemeralSubs.delete(internal);
+      const wasCore = this.core.releaseUpstreamSymbol(internal);
+      if (wasDesired) this.store.removeSubs([internal]);
+      this.tdToInternal.delete(rawTd);
+      this.tdToInternal.delete(toTwelveSymbol(internal).toUpperCase());
+      if (wasDesired || wasEphemeral || wasCore) releasedAny = true;
+    }
+
+    if (releasedAny) {
+      // Immediately backfill released slots from connected clients' waiting views
+      for (const [clientId, view] of this.clientViews) {
+        if (this._activeUpstreamCount() >= this.maxUpstreamSymbols) break;
+        const rawSyms = this._symbolsFromView(view);
+        const eligible = this._filterUpstreamSymbolsForClient(clientId, rawSyms);
+        if (eligible.length) {
+          this.core.subscribe(clientId, eligible);
+        }
+      }
+    }
+  }
+
   /** Filter client view symbols so unauthenticated sockets can only subscribe upstream to known universe symbols. */
   _filterUpstreamSymbolsForClient(clientId, syms) {
     if (!Array.isArray(syms) || syms.length === 0) return [];
     const client = this.core.clients.get(clientId);
+    const notRejected = syms.filter((s) => !this._isUpstreamRejected(s));
     if (client && typeof client.userId === "string" && client.userId) {
-      return syms;
+      return notRejected;
     }
-    return syms.filter((s) => this._isKnownSymbol(s));
+    return notRejected.filter((s) => this._isKnownSymbol(s));
   }
 
   _symbolsFromView(view) {

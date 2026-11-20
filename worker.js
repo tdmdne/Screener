@@ -6,6 +6,7 @@ import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURE
 import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
 import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
 import { normSymbol, toTwelveSymbol } from "./shared/schema.js";
+import { TdSubscriptionManager } from "./shared/market/tdSlots.js";
 import { PROVENANCE } from "./shared/protocol.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
@@ -1280,8 +1281,9 @@ export class MarketRelayDO {
     this.env = env;
     this.binanceWs = null;
     this.tdWs = null;
-    this.tdSubscribed = new Set();
-    this.tdToInternal = new Map();
+    this.tdSlots = new TdSubscriptionManager({
+      maxSlots: Math.max(1, Number(env && env.TD_WS_MAX) || 8),
+    });
     this.prices = new Map();
     this.lastBinanceMsg = 0;
     this.lastTdMsg = 0;
@@ -1330,66 +1332,79 @@ export class MarketRelayDO {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  _collectDesiredTdSymbols() {
-    const maxSyms = Math.max(1, Number(this.env && this.env.TD_WS_MAX) || 8);
-    const out = [];
-    const seen = new Set();
-    const add = (raw) => {
-      const s = normSymbol(raw);
-      if (!s || seen.has(s)) return;
-      seen.add(s);
-      out.push(s);
-    };
+  _collectTdDemand() {
+    const chartSymbols = [];
+    const requestedSymbols = [];
+    const activeViewers = new Map();
+    const seenChart = new Set();
     const sockets = this.ctx.getWebSockets("client");
+
     for (const ws of sockets) {
       const att = ws.deserializeAttachment() || {};
-      if (att.chart && att.chart.sym) add(att.chart.sym);
+      const clientSet = new Set();
+      if (att.chart && att.chart.sym) {
+        const s = normSymbol(att.chart.sym);
+        if (s) {
+          clientSet.add(s);
+          if (!seenChart.has(s)) {
+            seenChart.add(s);
+            chartSymbols.push(s);
+          }
+        }
+      }
+      if (Array.isArray(att.subs)) {
+        for (const raw of att.subs) {
+          const s = normSymbol(raw);
+          if (s) {
+            clientSet.add(s);
+            requestedSymbols.push(s);
+          }
+        }
+      }
+      for (const s of clientSet) {
+        activeViewers.set(s, (activeViewers.get(s) || 0) + 1);
+      }
     }
-    for (const ws of sockets) {
-      const att = ws.deserializeAttachment() || {};
-      if (Array.isArray(att.subs)) att.subs.forEach(add);
-    }
-    return out.slice(0, maxSyms);
+    return { chartSymbols, requestedSymbols, activeViewers };
   }
 
   _syncTdSubscriptions() {
     if (!this.tdWs || this.tdWs.readyState !== 1) return;
-    const desired = new Set(this._collectDesiredTdSymbols());
-    const toRemove = [];
-    const toAdd = [];
-    for (const s of this.tdSubscribed) {
-      if (!desired.has(s)) toRemove.push(s);
-    }
-    for (const s of desired) {
-      if (!this.tdSubscribed.has(s)) toAdd.push(s);
-    }
-    if (toRemove.length) {
-      const tdList = [];
-      for (const s of toRemove) {
-        this.tdSubscribed.delete(s);
-        const td = toTwelveSymbol(s);
-        if (td) tdList.push(td);
-      }
+    const { toUnsubscribe, toSubscribe } = this.tdSlots.reconcile(this._collectTdDemand());
+    if (toUnsubscribe.length) {
+      const tdList = toUnsubscribe.map((x) => x.tdSym).filter(Boolean);
       if (tdList.length) {
         try {
           this.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: tdList.join(",") } }));
         } catch (_e) {}
       }
     }
-    if (toAdd.length) {
-      const tdList = [];
-      for (const s of toAdd) {
-        const td = toTwelveSymbol(s);
-        if (!td) continue;
-        this.tdSubscribed.add(s);
-        this.tdToInternal.set(td.toUpperCase(), s);
-        tdList.push(td);
-      }
+    if (toSubscribe.length) {
+      const tdList = toSubscribe.map((x) => x.tdSym).filter(Boolean);
       if (tdList.length) {
         try {
           this.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdList.join(",") } }));
         } catch (_e) {}
       }
+    }
+  }
+
+  _replayCachedPrices(ws, syms) {
+    const quotes = [];
+    const now = Date.now();
+    for (const s of syms) {
+      const c = this.prices.get(s);
+      if (Number(c) > 0) {
+        quotes.push({
+          s,
+          c: Number(c),
+          t: now,
+          provenance: this.tdWs && this.tdSlots.has(s) ? PROVENANCE.LIVE : PROVENANCE.CACHED,
+        });
+      }
+    }
+    if (quotes.length) {
+      this._sendV2(ws, "quotes", { quotes: quotes.slice(0, 24) });
     }
   }
 
@@ -1441,6 +1456,7 @@ export class MarketRelayDO {
         });
         this.ensureUpstream();
         this._syncTdSubscriptions();
+        this._replayCachedPrices(ws, nextSubs);
         await this.scheduleNextTick();
         return;
       }
@@ -1485,7 +1501,7 @@ export class MarketRelayDO {
         try { this.tdWs.close(); } catch (_e) {}
         this.tdWs = null;
       }
-      this.tdSubscribed.clear();
+      this.tdSlots.resetActive();
     } else {
       this._syncTdSubscriptions();
     }
@@ -1512,7 +1528,7 @@ export class MarketRelayDO {
   ensureUpstream() {
     if (!this.binanceWs) {
       try {
-        fetch("https://stream.binance.com:9443/ws/!ticker@arr", {
+        fetch("https://data-stream.binance.vision/ws/!miniTicker@arr", {
           headers: { Upgrade: "websocket" },
         })
           .then((resp) => {
@@ -1529,11 +1545,12 @@ export class MarketRelayDO {
                 const now = Date.now();
                 for (const t of arr) {
                   if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
-                  if (this.tdWs && this.tdSubscribed.has(t.s)) continue;
+                  if (this.tdWs && this.tdSlots.has(t.s)) continue;
                   const c = Number(t.c);
                   if (c > 0) {
                     this.prices.set(t.s, c);
-                    const pct = Number(t.P);
+                    const o = Number(t.o);
+                    const pct = t.P !== undefined ? Number(t.P) : (o > 0 ? ((c - o) / o) * 100 : NaN);
                     const vol = Number(t.v);
                     quotes.push({
                       s: t.s,
@@ -1569,15 +1586,20 @@ export class MarketRelayDO {
             ws.accept();
             this.tdWs = ws;
             this.lastTdMsg = Date.now();
-            this.tdSubscribed.clear();
+            this.tdSlots.resetActive();
             this._syncTdSubscriptions();
             ws.addEventListener("message", (ev) => {
               this.lastTdMsg = Date.now();
               try {
                 const d = JSON.parse(ev.data);
+                if (!d || typeof d !== "object") return;
+                if (d.event === "subscribe-status") {
+                  const { released } = this.tdSlots.handleSubscribeStatus(d);
+                  if (released.length > 0) this._syncTdSubscriptions();
+                  return;
+                }
                 if (d.event === "price" && d.symbol && Number(d.price) > 0) {
-                  const tdKeySym = String(d.symbol).trim().toUpperCase();
-                  const sym = this.tdToInternal.get(tdKeySym) || normSymbol(tdKeySym);
+                  const sym = this.tdSlots.resolveInternal(d.symbol);
                   if (!sym) return;
                   const price = Number(d.price);
                   const rawT = Number(d.timestamp ?? Date.now());
@@ -1596,8 +1618,8 @@ export class MarketRelayDO {
                 }
               } catch (_e) {}
             });
-            ws.addEventListener("close", () => { this.tdWs = null; this.tdSubscribed.clear(); });
-            ws.addEventListener("error", () => { this.tdWs = null; this.tdSubscribed.clear(); });
+            ws.addEventListener("close", () => { this.tdWs = null; this.tdSlots.resetActive(); });
+            ws.addEventListener("error", () => { this.tdWs = null; this.tdSlots.resetActive(); });
           })
           .catch(() => { this.tdWs = null; });
       } catch (_e) {}
@@ -1616,7 +1638,7 @@ export class MarketRelayDO {
       if (this.lastTdMsg > 0 && Date.now() - this.lastTdMsg > 30000) {
         try { this.tdWs.close(); } catch (_e) {}
         this.tdWs = null;
-        this.tdSubscribed.clear();
+        this.tdSlots.resetActive();
       } else {
         try { this.tdWs.send('{"action":"heartbeat"}'); } catch (_e) {}
       }

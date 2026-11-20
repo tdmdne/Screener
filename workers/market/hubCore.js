@@ -62,10 +62,13 @@ export class HubCore {
     this.protocolVersion = opts.protocolVersion ?? PROTOCOL_VERSION;
     this.provenance = opts.provenance ?? PROVENANCE.LIVE;
     this.onFrameSent = typeof opts.onFrameSent === "function" ? opts.onFrameSent : null;
+    this.onEvict = typeof opts.onEvict === "function" ? opts.onEvict : null;
+    this.now = typeof opts.now === "function" ? opts.now : () => Date.now();
 
     this.clients = new Map(); // id -> { id, send(str), syms: Set<string>, seq: Sequencer }
     this.refs = new Map();    // sym -> number of browser clients subscribed
     this.pinned = new Set();  // upstream symbols kept active even with 0 browser clients
+    this.lastAccessedAt = new Map(); // sym -> epoch ms last accessed/viewed
     this.pending = new Map(); // sym -> latest tick since last flush
     this.last = new Map();    // sym -> last accepted tick (replayed to new subscribers)
     this.timer = null;
@@ -117,6 +120,7 @@ export class HubCore {
         continue;
       }
       this.pinned.add(s);
+      this.lastAccessedAt.set(s, this.now());
       accepted.push(s);
       if (!alreadyUp) fresh.push(s);
     }
@@ -137,10 +141,30 @@ export class HubCore {
       if (!this.refs.has(s)) {
         this.pending.delete(s);
         this.last.delete(s);
+        this.lastAccessedAt.delete(s);
         gone.push(s);
       }
     }
     if (gone.length) this.up.unsubscribe(gone);
+  }
+
+  /**
+   * Immediately release an upstream symbol slot (e.g. rejected in Twelve Data subscribe-status fails)
+   * without discarding its last cached quote fallback.
+   * @param {string} rawSym
+   */
+  releaseUpstreamSymbol(rawSym) {
+    const s = normSymbol(rawSym);
+    if (!s) return false;
+    let released = false;
+    if (this.pinned.delete(s)) released = true;
+    if (this.refs.delete(s)) released = true;
+    this.pending.delete(s);
+    this.lastAccessedAt.delete(s);
+    for (const c of this.clients.values()) {
+      if (c.syms.delete(s)) released = true;
+    }
+    return released;
   }
 
   /**
@@ -213,36 +237,65 @@ export class HubCore {
     const fresh = [];
     const replay = [];
 
+    const ts = this.now();
+    const evicted = [];
+
     for (const raw of symbols || []) {
       const s = normSymbol(raw);
       if (!s) continue;
       if (c.syms.has(s)) {
+        this.lastAccessedAt.set(s, ts);
         accepted.push(s);
         continue;
       }
-      const alreadyUp = this.hasUpstreamSymbol(s);
-      const over =
-        c.syms.size >= this.maxSymbolsPerClient ||
-        (!alreadyUp && this.upstreamCount() >= this.maxUpstreamSymbols);
-      if (over) {
+      if (c.syms.size >= this.maxSymbolsPerClient) {
         rejected.push(s);
         continue;
+      }
+      const alreadyUp = this.hasUpstreamSymbol(s);
+      if (!alreadyUp && this.upstreamCount() >= this.maxUpstreamSymbols) {
+        // LRU eviction of least-recently-used pinned slot that currently has zero active viewers
+        let victim = null;
+        let oldestAt = Infinity;
+        for (const cand of this.pinned) {
+          if ((this.refs.get(cand) || 0) > 0) continue;
+          const accessed = this.lastAccessedAt.get(cand) ?? 0;
+          if (accessed < oldestAt) {
+            oldestAt = accessed;
+            victim = cand;
+          }
+        }
+        if (victim) {
+          this.pinned.delete(victim);
+          this.pending.delete(victim);
+          this.lastAccessedAt.delete(victim);
+          // Retain `this.last.get(victim)` as cached quote fallback
+          evicted.push(victim);
+          if (this.onEvict) {
+            try { this.onEvict(victim); } catch {}
+          }
+        } else {
+          rejected.push(s);
+          continue;
+        }
       }
       c.syms.add(s);
       accepted.push(s);
       const n = (this.refs.get(s) || 0) + 1;
       this.refs.set(s, n);
+      this.lastAccessedAt.set(s, ts);
       if (!alreadyUp) fresh.push(s);
 
       const lastTick = this.last.get(s);
       if (lastTick) replay.push(lastTick);
     }
 
+    if (evicted.length) this.up.unsubscribe(evicted);
     if (replay.length) {
       this._sendTicksToClient(c, replay);
     }
     if (fresh.length) this.up.subscribe(fresh);
-    return { accepted, rejected };
+    return { accepted, rejected, evicted };
   }
 
   unsubscribe(id, symbols) {

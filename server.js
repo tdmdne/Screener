@@ -17,6 +17,7 @@ const { createAlertEvaluator } = require("./shared/alerts.js");
 const { vsCompute } = require("./shared/vs/index.js");
 const { normSymbol, toTwelveSymbol, createTickGuard } = require("./shared/schema.js");
 const { createCandleBuilder, normalizeTf } = require("./shared/market/candles.js");
+const { TdSubscriptionManager } = require("./shared/market/tdSlots.js");
 const {
   PROTOCOL_VERSION,
   PROVENANCE,
@@ -1163,7 +1164,17 @@ app.get("/api/quote", async (req, res) => {
 
 app.get("/api/ws-config", (_req, res) => {
   res.set({ "Cache-Control": "no-store" });
-  return res.json({ ok: true, tdKey: "" }); // TASK-02: never expose the key
+  return res.json({
+    ok: true,
+    tdKey: "", // TASK-02: never expose the key
+    ws: {
+      connected: tdConnected,
+      maxSlots: tdSlots.maxSlots,
+      active: tdSlots.getActiveSymbols(),
+      rejected: [...tdSlots.failedUntil.keys()],
+      lastSubscribeStatus: lastTdSubStatus,
+    },
+  });
 });
 
 app.get("/api/candles", async (req, res) => {
@@ -1449,8 +1460,7 @@ const clients = new Map(); // ws -> { subs: Set<string>, chart: { sym, tf } | nu
 const serverTickGuard = createTickGuard();
 const serverCandles = createCandleBuilder({ timeframes: ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"] });
 const pendingQuotes = new Map(); // sym -> Protocol v2 quote object
-const tdSubscribed = new Set(); // active Twelve Data WS internal symbols
-const tdToInternalMap = new Map(); // "EUR/USD" -> "EURUSD"
+const tdSlots = new TdSubscriptionManager({ maxSlots: TD_WS_MAX });
 const tdDayVolume = new Map(); // sym -> { day: "YYYY-MM-DD", value: number }
 
 let binanceUpstream = null;
@@ -1460,6 +1470,7 @@ let tdHbTimer = null;
 let tdReconnectTimer = null;
 let tdRetryAttempt = 0;
 let tdLastMsgAt = 0;
+let lastTdSubStatus = null;
 
 function sendFrameToClient(ws, state, type, payload, opts = {}) {
   if (!ws || ws.readyState !== WebSocket.OPEN || !state) return;
@@ -1561,22 +1572,36 @@ setInterval(() => {
   }
 }, 250);
 
-function desiredTdSymbols() {
-  const priority = [];
-  const seen = new Set();
-  const push = (raw) => {
-    const s = normSymbol(raw);
-    if (!s || seen.has(s)) return;
-    seen.add(s);
-    priority.push(s);
-  };
+function collectClientTdDemand() {
+  const chartSymbols = [];
+  const requestedSymbols = [];
+  const activeViewers = new Map();
+  const seenChart = new Set();
+
   for (const [, state] of clients) {
-    if (state.chart && state.chart.sym) push(state.chart.sym);
+    const clientSet = new Set();
+    if (state.chart && state.chart.sym) {
+      const s = normSymbol(state.chart.sym);
+      if (s) {
+        clientSet.add(s);
+        if (!seenChart.has(s)) {
+          seenChart.add(s);
+          chartSymbols.push(s);
+        }
+      }
+    }
+    for (const raw of state.subs) {
+      const s = normSymbol(raw);
+      if (s) {
+        clientSet.add(s);
+        requestedSymbols.push(s);
+      }
+    }
+    for (const s of clientSet) {
+      activeViewers.set(s, (activeViewers.get(s) || 0) + 1);
+    }
   }
-  for (const [, state] of clients) {
-    for (const s of state.subs) push(s);
-  }
-  return priority.slice(0, TD_WS_MAX);
+  return { chartSymbols, requestedSymbols, activeViewers };
 }
 
 function syncTdUpstreamSubscriptions() {
@@ -1585,30 +1610,19 @@ function syncTdUpstreamSubscriptions() {
     teardownTdUpstream();
     return;
   }
-  const desired = new Set(desiredTdSymbols());
-  if (!desired.size) return;
+  const demand = collectClientTdDemand();
+  if (!demand.chartSymbols.length && !demand.requestedSymbols.length) return;
 
   if (!tdUpstream || !tdConnected) {
     ensureTdUpstream();
     return;
   }
 
-  const toAdd = [];
-  const toRemove = [];
-  for (const s of desired) {
-    if (!tdSubscribed.has(s)) toAdd.push(s);
-  }
-  for (const s of tdSubscribed) {
-    if (!desired.has(s)) toRemove.push(s);
-  }
+  const { toUnsubscribe, toSubscribe } = tdSlots.reconcile(demand);
 
-  if (toRemove.length) {
-    const tdList = [];
-    for (const s of toRemove) {
-      tdSubscribed.delete(s);
-      const tdSym = toTwelveSymbol(s);
-      if (tdSym) tdList.push(tdSym);
-    }
+  // Evicted symbols are unsubscribed upstream while retaining cached liveQuotes / REST snapshots
+  if (toUnsubscribe.length) {
+    const tdList = toUnsubscribe.map((x) => x.tdSym).filter(Boolean);
     if (tdList.length) {
       try {
         tdUpstream.send(JSON.stringify({ action: "unsubscribe", params: { symbols: tdList.join(",") } }));
@@ -1616,15 +1630,8 @@ function syncTdUpstreamSubscriptions() {
     }
   }
 
-  if (toAdd.length) {
-    const tdList = [];
-    for (const s of toAdd) {
-      const tdSym = toTwelveSymbol(s);
-      if (!tdSym) continue;
-      tdSubscribed.add(s);
-      tdToInternalMap.set(tdSym.toUpperCase(), s);
-      tdList.push(tdSym);
-    }
+  if (toSubscribe.length) {
+    const tdList = toSubscribe.map((x) => x.tdSym).filter(Boolean);
     if (tdList.length) {
       try {
         tdUpstream.send(JSON.stringify({ action: "subscribe", params: { symbols: tdList.join(",") } }));
@@ -1639,7 +1646,7 @@ function teardownTdUpstream() {
   clearTimeout(tdReconnectTimer);
   tdReconnectTimer = null;
   tdConnected = false;
-  tdSubscribed.clear();
+  tdSlots.resetActive();
   if (tdUpstream) {
     try { tdUpstream.close(); } catch (_e) {}
     tdUpstream = null;
@@ -1677,8 +1684,8 @@ function extractTdTickVol(sym, msg, tickMs) {
 
 function ensureTdUpstream() {
   if (!TWELVEDATA_KEY || tdUpstream || clients.size === 0) return;
-  const desired = desiredTdSymbols();
-  if (!desired.length) return;
+  const demand = collectClientTdDemand();
+  if (!demand.chartSymbols.length && !demand.requestedSymbols.length) return;
 
   try {
     const url = `wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(TWELVEDATA_KEY)}`;
@@ -1690,7 +1697,7 @@ function ensureTdUpstream() {
       tdConnected = true;
       tdRetryAttempt = 0;
       tdLastMsgAt = Date.now();
-      tdSubscribed.clear();
+      tdSlots.resetActive();
       clearInterval(tdHbTimer);
       tdHbTimer = setInterval(() => {
         if (!tdUpstream || !tdConnected) return;
@@ -1713,10 +1720,22 @@ function ensureTdUpstream() {
       try {
         const m = JSON.parse(String(raw));
         if (!m || typeof m !== "object") return;
-        if (m.event === "heartbeat" || m.event === "subscribe-status" || m.event === "unsubscribe-status") return;
+        if (m.event === "heartbeat" || m.event === "unsubscribe-status") return;
+        if (m.event === "subscribe-status") {
+          lastTdSubStatus = {
+            status: m.status || null,
+            success: Array.isArray(m.success) ? m.success.map((x) => (typeof x === "string" ? x : x && x.symbol)) : [],
+            fails: Array.isArray(m.fails) ? m.fails.map((x) => (typeof x === "string" ? x : x && (x.symbol || x.message))) : [],
+          };
+          const { released } = tdSlots.handleSubscribeStatus(m);
+          if (released.length > 0) {
+            // Immediately backfill freed slots with waiting valid symbols
+            syncTdUpstreamSubscriptions();
+          }
+          return;
+        }
         if (m.event === "price" || (m.symbol && (m.price !== undefined || m.c !== undefined))) {
-          const tdKey = String(m.symbol || "").trim().toUpperCase();
-          const internalSym = tdToInternalMap.get(tdKey) || normSymbol(tdKey);
+          const internalSym = tdSlots.resolveInternal(m.symbol);
           if (!internalSym) return;
           const rawT = Number(m.timestamp ?? m.t ?? Date.now());
           const tickMs = Number.isFinite(rawT) && rawT > 0 ? (rawT < 1e12 ? rawT * 1000 : rawT) : Date.now();
@@ -1743,7 +1762,7 @@ function ensureTdUpstream() {
       tdHbTimer = null;
       tdUpstream = null;
       tdConnected = false;
-      tdSubscribed.clear();
+      tdSlots.resetActive();
       if (clients.size > 0) {
         broadcastStatus(PROVENANCE.DELAYED, "Twelve Data stream disconnected; reconnecting");
         scheduleTdReconnect();
@@ -1761,10 +1780,17 @@ function ensureTdUpstream() {
   }
 }
 
+const BINANCE_WS_URLS = [
+  "wss://data-stream.binance.vision/ws/!miniTicker@arr",
+  "wss://stream.binance.com:9443/ws/!miniTicker@arr",
+];
+let binanceWsIdx = 0;
+
 function ensureBinanceUpstream() {
   if (binanceUpstream || clients.size === 0) return;
+  const wsUrl = BINANCE_WS_URLS[binanceWsIdx % BINANCE_WS_URLS.length];
   try {
-    const uws = new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr");
+    const uws = new WebSocket(wsUrl);
     binanceUpstream = uws;
     uws.on("message", (data) => {
       try {
@@ -1774,10 +1800,11 @@ function ensureBinanceUpstream() {
         for (const t of arr) {
           if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
           // Prefer Twelve Data WebSocket whenever a symbol is actively streamed from Twelve Data
-          if (tdConnected && tdSubscribed.has(t.s)) continue;
+          if (tdConnected && tdSlots.has(t.s)) continue;
           const c = Number(t.c);
           if (!(c > 0)) continue;
-          const pct = Number(t.P);
+          const o = Number(t.o);
+          const pct = t.P !== undefined ? Number(t.P) : (o > 0 ? ((c - o) / o) * 100 : NaN);
           const vol = Number(t.v);
           ingestServerTick(
             { s: t.s, c, t: now, v: Number.isFinite(vol) && vol >= 0 ? vol : 0, src: "binance" },
@@ -1790,12 +1817,16 @@ function ensureBinanceUpstream() {
         }
       } catch (_e) {}
     });
-    uws.on("close", () => { binanceUpstream = null; });
+    uws.on("close", () => {
+      if (binanceUpstream === uws) binanceUpstream = null;
+    });
     uws.on("error", () => {
+      binanceWsIdx = (binanceWsIdx + 1) % BINANCE_WS_URLS.length;
       try { uws.close(); } catch (_e) {}
-      binanceUpstream = null;
+      if (binanceUpstream === uws) binanceUpstream = null;
     });
   } catch (_e) {
+    binanceWsIdx = (binanceWsIdx + 1) % BINANCE_WS_URLS.length;
     binanceUpstream = null;
   }
 }
@@ -1807,7 +1838,8 @@ function replayKnownQuotesToClient(ws, state) {
   for (const s of syms) {
     const q = liveQuotes.get(s);
     if (q && q.c > 0) {
-      replay.push(toProtocolQuote(q, tdConnected ? PROVENANCE.LIVE : PROVENANCE.CACHED));
+      const prov = tdConnected && tdSlots.has(s) ? PROVENANCE.LIVE : PROVENANCE.CACHED;
+      replay.push(toProtocolQuote(q, prov));
     }
   }
   if (!replay.length) return;

@@ -30,12 +30,16 @@ export function providerFor(sym) {
   return assetClass(sym) === ASSET.CRY ? "binance" : "twelvedata";
 }
 
-/** Internal -> Twelve Data symbol ("EURUSD" -> "EUR/USD"). */
+const CRYPTO_USD_RE = /^(BTC|ETH|SOL|XRP|BNB|ADA|DOGE|AVAX|LINK|DOT|MATIC|POL|LTC|BCH|SHIB|TON|TRX|UNI|ATOM|XLM|ETC|FIL|NEAR|APT|ARB|OP|SUI|INJ|AAVE|MKR|PEPE|WIF|BONK|HBAR|ICP|VET|ALGO|FTM|SAND|MANA|GALA|RUNE|LDO|STX|SEI|TIA|JUP|PYTH|WLD|RENDER|FET|TAO|ENA|ONDO|PENDLE)USD$/;
+
+/** Internal -> Twelve Data symbol ("EURUSD" -> "EUR/USD", "BTCUSDT" -> "BTC/USD"). */
 export function toTwelveSymbol(sym) {
   const s = normSymbol(sym);
+  if (!s) return "";
   const cls = assetClass(s);
   if (cls === ASSET.FX) return `${s.slice(0, 3)}/${s.slice(3)}`;
-  if (cls === ASSET.CRY) return s.replace(/(USDT|USDC)$/, "/USD");
+  if (cls === ASSET.CRY) return s.replace(/(USDT|USDC|BUSD|FDUSD)$/, "/USD");
+  if (CRYPTO_USD_RE.test(s)) return `${s.slice(0, -3)}/USD`;
   return s;
 }
 

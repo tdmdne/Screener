@@ -8,16 +8,17 @@ function markOk(src){
 }
 function checkFailover(){
   if(!isLive())return;
+  const wsUp=typeof VT_EDGE!=="undefined"&&VT_EDGE.ws&&VT_EDGE.ws.readyState===1;
+  if(wsUp&&VT_EDGE.wsLastMsgAt>FAILOVER.lastOk)FAILOVER.lastOk=VT_EDGE.wsLastMsgAt;
   const silent=Date.now()-FAILOVER.lastOk;
-  if(silent>3000&&!FAILOVER.on){
+  if(!wsUp&&silent>15000&&!FAILOVER.on){
     FAILOVER.on=true;FAILOVER.since=Date.now();
-    FAILOVER.reason=BNWS.ws&&BNWS.ws.readyState!==1?"websocket down":"upstream silent";
-    // last-good 1m (and other) series already restored into LIVE from IndexedDB on boot (silent fallback)
+    FAILOVER.reason="websocket reconnecting";
     status();
     tick();
   }
 }
-setInterval(checkFailover,1000);
+setInterval(checkFailover,2000);
 
 const BNWS={ws:null,subs:new Set()};
 const BNKL={ws:null,sym:"",tf:""};
@@ -123,9 +124,9 @@ function favApply(){
     const g=S.wlx.groups.find(x=>x.id===grpId);
     if(g&&!g.syms.includes(sym))g.syms.push(sym);
   }
-  save();closeM();renderWL();
+  save();closeM();renderWL();if(typeof vtSyncWsView==="function")vtSyncWsView();
 }
-function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Single-source chart routing: Crypto loads exclusively from Binance Spot (REST &amp; WebSocket); Forex, Stocks, Indices, ETFs and Futures load via the backend edge router from Twelve Data (60s edge cache + single-symbol WebSocket stream). Dukascopy historical archives are isolated strictly to offline Backtest Replay.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p>
+function dataM(){const D=S.data;modal(`<h3>Data</h3><p class="mut">Unified real-time streaming: all live price updates flow through the backend Twelve Data WebSocket hub over a single same-origin WebSocket connection, keeping charts, watchlists, screeners, and heatmaps synchronized from one normalized source. Dukascopy historical archives remain isolated to offline Backtest Replay.</p><p class="mut">Absolute = |latest close − close N candles ago|. Expansion = move from the lowest low (bullish) or highest high (bearish) of the last N candles to the latest close. Dollar volume = price × 7-day average volume × contract size; FX/CFD volume is tick volume, so it isn’t filtered.</p>
 <label>Finnhub key (stocks fallback)<input id="d_fh" value="${esc(D.fhKey||"")}" placeholder="optional · finnhub.io"></label>
 <label>Polygon key (stocks fallback)<input id="d_pg" value="${esc(D.polyKey||"")}" placeholder="optional · polygon.io"></label>
 <div class="mut">${Object.keys(LIVE).length} candle series loaded · ${Object.keys(ERR).length} failed</div><div class="row"><button onclick="retryErr();closeM()">Retry failed</button><button onclick="dataReset()">Reload data</button><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="dataSave()">Save</button></div>`)}
@@ -194,11 +195,11 @@ Promise.resolve()
   .then(()=>{
     try{render()}catch(e){console.error("post-init render error:",e)}
     try{drawChart()}catch(e){console.error("post-init drawChart error:",e)}
+    try{if(typeof vtWsConnect==="function")vtWsConnect()}catch(e){console.error("ws connect error:",e)}
   })
   .catch(e=>console.error("boot async error:",e));
-// every 15 minutes, and when you come back to the tab: pick up a newer snapshot, then refresh anything stale
-setInterval(()=>{try{autoRefresh()}catch(e){console.error("autoRefresh error:",e)}},15*60*1000);
-document.addEventListener("visibilitychange",()=>{try{if(document.visibilityState==="visible"&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}}catch(_e){}})}
+// On tab wake after >5 min away, resync snapshot if WebSocket was disconnected
+document.addEventListener("visibilitychange",()=>{try{if(document.visibilityState==="visible"){const wsUp=typeof VT_EDGE!=="undefined"&&VT_EDGE.ws&&VT_EDGE.ws.readyState===1;if(!wsUp&&typeof vtWsConnect==="function")vtWsConnect();if(!wsUp&&Date.now()-(window._ar||0)>3e5){window._ar=Date.now();autoRefresh()}}}catch(_e){}})}
 
 /* ---- Login (UI only) ----
    authSignIn() is a PLACEHOLDER: it accepts any username/email + password and just remembers the name on this device.

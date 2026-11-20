@@ -9,6 +9,21 @@ const VT_MAX_BARS = 25000;
 const VT_EDGE = {
   ok: false,
   ts: 0,
+  ws: null,
+  wsReady: false,
+  wsConnecting: false,
+  wsRetry: 0,
+  wsReconnectTimer: 0,
+  wsPingTimer: 0,
+  wsLastMsgAt: 0,
+  wsLastViewAt: 0,
+  wsViewTimer: 0,
+  wsLastViewKey: "",
+  wsProvenance: "UNAVAILABLE",
+  dirtySyms: new Set(),
+  uiRaf: 0,
+  lastScreenerRenderAt: 0,
+  lastHeatmapRenderAt: 0,
   bnWs: null,
   bnSym: "",
   bnTf: "",
@@ -350,15 +365,23 @@ async function edgeScreenerInit() {
     SNAP.uni = m.universe
       .map((u) => {
         if (!Array.isArray(u) || !u[0]) return null;
-        if (u[10] || u[11]) {
+        const px = Number(u[2]);
+        const pct = typeof u[12] === "number" && isFinite(u[12]) ? u[12] : null;
+        const prevClose = px > 0 && pct !== null && pct > -99.9 ? px / (1 + pct / 100) : null;
+        const existing = VT_EDGE_META.get(u[0]);
+        if (u[10] || u[11] || pct !== null || px > 0) {
           VT_EDGE_META.set(u[0], {
-            name: u[10] || u[0],
-            ex: u[11] || "",
-            m: u[1] || "STK",
-            pct: u[12],
+            name: u[10] || (existing && existing.name) || u[0],
+            ex: u[11] || (existing && existing.ex) || "",
+            m: u[1] || (existing && existing.m) || "STK",
+            pct: pct !== null ? pct : (existing ? existing.pct : undefined),
+            prevClose: prevClose || (existing ? existing.prevClose : undefined),
+            last: px > 0 ? px : (existing ? existing.last : undefined),
+            vol: Number(u[3]) > 0 ? Number(u[3]) : (existing ? existing.vol : undefined),
+            ts: m.ts || Date.now(),
           });
         }
-        return [u[0], u[1], u[2], u[3], u[4] || 1, u[5] || 0.01, u[6] || u[0], u[7] || "", u[8] || "yf", u[9] || u[0]];
+        return [u[0], u[1], u[2], u[3], u[4] || 1, u[5] || 0.01, u[6] || u[0], u[7] || "", u[8] || "td", u[9] || u[0]];
       })
       .filter(Boolean);
     SNAP.ok = true;
@@ -366,6 +389,7 @@ async function edgeScreenerInit() {
     VT_EDGE.ts = SNAP.t;
     if (typeof dirtySnap === "function") try { dirtySnap(); } catch (_e) {}
     if (typeof setLive === "function") try { setLive(); } catch (_e) {}
+    if (typeof vtSyncWsView === "function") try { vtSyncWsView(); } catch (_e) {}
     return true;
   } catch (_e) {
     return false;
@@ -703,50 +727,10 @@ function vtBnKlineStop() {
   VT_EDGE.bnTimer = 0;
   VT_EDGE.bnSym = "";
   VT_EDGE.bnTf = "";
-  if (VT_EDGE.bnWs) {
-    try {
-      VT_EDGE.bnWs.onopen = VT_EDGE.bnWs.onmessage = VT_EDGE.bnWs.onclose = VT_EDGE.bnWs.onerror = null;
-      VT_EDGE.bnWs.close();
-    } catch (_e) {}
-    VT_EDGE.bnWs = null;
-  }
-}
-
-function vtBnKlineStart(sym, tf) {
-  if (!vtCanUseEdge() || !isLive() || !sym || !tf || vtIsPublicNonTerminalRoute()) return;
-  // Same-origin edge policy (§0): refresh active crypto chart via /api/candles (no direct external WS).
-  VT_EDGE.bnSym = sym;
-  VT_EDGE.bnTf = tf;
-  clearTimeout(VT_EDGE.bnTimer);
-  const poll = async () => {
-    if (VT_EDGE.bnSym !== sym || VT_EDGE.bnTf !== tf || !isLive() || document.hidden || vtIsPublicNonTerminalRoute()) return;
-    try {
-      const s = typeof symOf === "function" ? symOf(sym) : [sym, "CRY", 0, 0, 1, 0.01, sym, "", "bn", sym];
-      const bars = await edgeFetchCandles(s, tf, { refresh: true });
-      if (VT_EDGE.bnSym !== sym || VT_EDGE.bnTf !== tf || !bars || !bars.length) return;
-      const last = bars[bars.length - 1];
-      if (!last || !(Number(last.c) > 0)) return;
-      LIVE[sym + "|" + tf] = bars;
-      LT[sym + "|" + tf] = Date.now();
-      markOk("edge");
-      const row = typeof SYMS !== "undefined" ? SYMS.find((x) => x && x[0] === sym) : null;
-      if (row) row[2] = Number(last.c);
-      if (typeof checkAlerts === "function") checkAlerts(sym, Number(last.c));
-      if (S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
-        if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") updateLiveBar(sym, tf, last.t);
-        const q = document.getElementById("cpx");
-        if (q) { q.textContent = fp(Number(last.c)); if (typeof vtPxWatch === "function") vtPxWatch(); }
-      }
-    } catch (_e) {}
-    if (VT_EDGE.bnSym === sym && VT_EDGE.bnTf === tf) {
-      VT_EDGE.bnTimer = setTimeout(poll, 15000);
-    }
-  };
-  VT_EDGE.bnTimer = setTimeout(poll, 15000);
+  VT_EDGE.bnWs = null;
 }
 
 function vtTdWsStop() {
-  const prevSub = VT_EDGE.tdSubTdSym;
   clearTimeout(VT_EDGE.tdTimer);
   VT_EDGE.tdTimer = 0;
   clearInterval(VT_EDGE.tdHb);
@@ -754,143 +738,566 @@ function vtTdWsStop() {
   VT_EDGE.tdActiveSym = "";
   VT_EDGE.tdActiveTdSym = "";
   VT_EDGE.tdSubTdSym = "";
-  if (VT_EDGE.tdWs) {
+  VT_EDGE.tdWs = null;
+}
+
+function vtBuildWsUrl() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return proto + "//" + location.host + "/ws";
+}
+
+function vtCollectWsPrioritySymbols() {
+  const out = [];
+  const seen = new Set();
+  const add = (raw) => {
+    const s = String(raw || "").trim().toUpperCase();
+    if (!s || seen.has(s) || !/^[A-Z0-9.=^/-]{1,24}$/.test(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+  if (typeof S !== "undefined" && S && S.chart && S.chart.sym) add(S.chart.sym);
+  if (typeof wlAll === "function") {
     try {
-      if (VT_EDGE.tdWs.readyState === 1 && prevSub) {
-        VT_EDGE.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: prevSub } }));
-      }
+      const wl = wlAll();
+      if (Array.isArray(wl)) wl.forEach(add);
     } catch (_e) {}
-    try {
-      VT_EDGE.tdWs.onopen = VT_EDGE.tdWs.onmessage = VT_EDGE.tdWs.onclose = VT_EDGE.tdWs.onerror = null;
-      VT_EDGE.tdWs.close();
-    } catch (_e) {}
-    VT_EDGE.tdWs = null;
+  }
+  if (typeof PGL !== "undefined" && Array.isArray(PGL)) {
+    for (let i = 0; i < PGL.length && out.length < 40; i++) add(PGL[i]);
+  }
+  if (typeof SYMS !== "undefined" && Array.isArray(SYMS)) {
+    for (let i = 0; i < SYMS.length && out.length < 40; i++) {
+      if (SYMS[i] && SYMS[i][0]) add(SYMS[i][0]);
+    }
+  }
+  return out.slice(0, 64);
+}
+
+function vtBuildViewFrame() {
+  const syms = vtCollectWsPrioritySymbols();
+  const sym = (typeof S !== "undefined" && S && S.chart && S.chart.sym) || syms[0] || "EURUSD";
+  const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
+  return {
+    op: "view",
+    chart: { sym: String(sym).toUpperCase(), tf: String(tf) },
+    watchlist: syms,
+  };
+}
+
+function vtSendWsViewNow(force) {
+  if (!VT_EDGE.ws || VT_EDGE.ws.readyState !== 1) return false;
+  const view = vtBuildViewFrame();
+  const key = JSON.stringify(view);
+  if (!force && key === VT_EDGE.wsLastViewKey) return true;
+  try {
+    VT_EDGE.ws.send(key);
+    VT_EDGE.wsLastViewKey = key;
+    VT_EDGE.wsLastViewAt = Date.now();
+    return true;
+  } catch (_e) {
+    return false;
   }
 }
 
-function vtApplyTwelveDataTick(sym, price, tsSec) {
-  if (!sym || !(price > 0) || !isFinite(price)) return;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const rawTs = tsSec && isFinite(tsSec) && tsSec > 1000000000 ? Math.floor(tsSec) : nowSec;
-  const tf = (S && S.chart && S.chart.tf) || "1H";
-  const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-  const bucket = Math.floor(rawTs / step) * step;
-  const kChart = sym + "|" + tf;
+function vtSyncWsView(force) {
+  if (!vtCanUseEdge() || !isLive() || vtIsPublicNonTerminalRoute()) return;
+  if (!VT_EDGE.ws || (VT_EDGE.ws.readyState !== 0 && VT_EDGE.ws.readyState !== 1)) {
+    vtOpenEdgeWs();
+    return;
+  }
+  if (VT_EDGE.ws.readyState !== 1) return;
 
-  const arr = Array.isArray(LIVE[kChart]) ? LIVE[kChart] : null;
-  const last = arr && arr.length ? arr[arr.length - 1] : null;
-
-  if (vtIsChartPaused(sym, tf)) {
-    vtBackfillChart(sym, tf);
-  } else if (!last) {
-    if (typeof PEND === "undefined" || !PEND[kChart]) {
-      vtSetChartGap(sym, tf, true);
-      vtBackfillChart(sym, tf);
-    }
-  } else if (bucket < last.t) {
-    // Ignore out-of-order older packets
-  } else if (bucket - last.t > step * 2) {
-    vtSetChartGap(sym, tf, true);
-    vtBackfillChart(sym, tf);
+  // Respect MarketHub's 500ms VIEW_COOLDOWN_MS while delivering immediately when idle
+  const elapsed = Date.now() - (VT_EDGE.wsLastViewAt || 0);
+  clearTimeout(VT_EDGE.wsViewTimer);
+  if (elapsed >= 550) {
+    vtSendWsViewNow(!!force);
   } else {
-    if (bucket === last.t) {
-      last.c = price;
-      last.h = Math.max(last.h, price);
-      last.l = Math.min(last.l, price);
-    } else {
-      const open = last.c > 0 ? last.c : price;
-      arr.push({
-        t: bucket,
-        o: open,
-        h: Math.max(open, price),
-        l: Math.min(open, price),
-        c: price,
-        v: 0,
-      });
+    VT_EDGE.wsViewTimer = setTimeout(() => {
+      VT_EDGE.wsViewTimer = 0;
+      vtSendWsViewNow(!!force);
+    }, Math.max(50, 560 - elapsed));
+  }
+}
+
+function vtPatchLiveDomForSymbols(syms) {
+  if (typeof document === "undefined" || !syms || !syms.length) return;
+  for (const sym of syms) {
+    const s = typeof symOf === "function" ? symOf(sym) : null;
+    if (!s) continue;
+    const d = typeof wlData === "function" ? wlData(sym) : { last: s[2], chg: null, vol: s[3] };
+    const priceTxt = d.last == null ? "…" : fp(d.last);
+    const chgTxt = d.chg == null ? "…" : (d.chg > 0 ? "+" : "") + d.chg.toFixed(2) + "%";
+    const volTxt = d.vol ? fm(d.vol) : "–";
+
+    // Targeted zero-jitter patch for Watchlist rows
+    const wlRows = document.querySelectorAll(`#wl .wr[data-s="${sym}"]`);
+    for (const row of wlRows) {
+      const vals = row.querySelectorAll(".wv");
+      if (vals[0] && vals[0].textContent !== priceTxt) vals[0].textContent = priceTxt;
+      if (vals[1]) {
+        if (vals[1].textContent !== chgTxt) vals[1].textContent = chgTxt;
+        vals[1].classList.toggle("up", d.chg != null && d.chg >= 0);
+        vals[1].classList.toggle("dn", d.chg != null && d.chg < 0);
+      }
+      if (vals[2] && vals[2].textContent !== volTxt) vals[2].textContent = volTxt;
+    }
+
+    // Targeted zero-jitter patch for active Screener rows
+    const tr = document.querySelector(`#t tbody tr[data-s="${sym}"]`);
+    if (tr && typeof S !== "undefined" && S && Array.isArray(S.cols)) {
+      const visCols = S.cols.filter((c) => !c.hide);
+      const cells = tr.querySelectorAll("td");
+      for (let i = 0; i < visCols.length; i++) {
+        const col = visCols[i];
+        const td = cells[i + 1];
+        if (!td) continue;
+        if (col.type === "price" && d.last != null) {
+          if (td.textContent !== priceTxt) td.textContent = priceTxt;
+        } else if (col.type === "pct" && col.tf === "1D" && d.chg != null) {
+          if (td.textContent !== chgTxt) td.textContent = chgTxt;
+          td.classList.toggle("up", d.chg >= 0);
+          td.classList.toggle("dn", d.chg < 0);
+        } else if (col.type === "vol" && d.vol != null) {
+          if (td.textContent !== volTxt) td.textContent = volTxt;
+        }
+      }
+    }
+  }
+}
+
+function vtFlushLiveUi() {
+  VT_EDGE.uiRaf = 0;
+  if (!VT_EDGE.dirtySyms.size) return;
+  const syms = [...VT_EDGE.dirtySyms];
+  VT_EDGE.dirtySyms.clear();
+
+  vtPatchLiveDomForSymbols(syms);
+
+  const now = Date.now();
+  // Periodic throttled full re-render for Screener sorting & Heatmap tiles (never on every tick)
+  if (typeof S !== "undefined" && S) {
+    if (S.pageView === "screener" && now - VT_EDGE.lastScreenerRenderAt > 2500) {
+      const ae = typeof document !== "undefined" ? document.activeElement : null;
+      const typing = ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName || "");
+      const modalOpen = typeof MD !== "undefined" && MD && MD.innerHTML;
+      if (!typing && !modalOpen && typeof render === "function") {
+        VT_EDGE.lastScreenerRenderAt = now;
+        try { render(); } catch (_e) {}
+      }
+    } else if (S.pageView === "heatmap" && now - VT_EDGE.lastHeatmapRenderAt > 2500) {
+      if (typeof render === "function") {
+        VT_EDGE.lastHeatmapRenderAt = now;
+        try { render(); } catch (_e) {}
+      }
+    }
+  }
+}
+
+function vtScheduleLiveUiFlush(sym) {
+  if (sym) VT_EDGE.dirtySyms.add(sym);
+  if (VT_EDGE.uiRaf) return;
+  const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 50);
+  VT_EDGE.uiRaf = raf(vtFlushLiveUi);
+}
+
+// Single normalized real-time price ingestion store for Charts, Watchlists, Screeners, and Heatmaps
+function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
+  const sym = String(rawSym || "").trim().toUpperCase();
+  const price = Number(rawPrice);
+  if (!sym || !(price > 0) || !isFinite(price)) return;
+
+  const opts = meta || {};
+  const nowMs = Date.now();
+  const numT = Number(rawTs);
+  const tsMs = isFinite(numT) && numT > 0 ? (numT < 1e12 ? numT * 1000 : numT) : nowMs;
+  const rawTsSec = Math.floor(tsMs / 1000);
+
+  // 1. Update single normalized metadata map (prevClose, live Chg%, live vol, bid/ask, source)
+  const prevMeta = VT_EDGE_META.get(sym) || { name: sym, ex: "", m: "" };
+  const d1 = typeof LIVE !== "undefined" && Array.isArray(LIVE[sym + "|1D"]) ? LIVE[sym + "|1D"] : null;
+  let prevClose = d1 && d1.length > 1 && d1[d1.length - 2].c > 0 ? d1[d1.length - 2].c : prevMeta.prevClose;
+  let chgPct = typeof opts.chgPct === "number" && isFinite(opts.chgPct) ? opts.chgPct : undefined;
+  if (!(prevClose > 0) && chgPct !== undefined && chgPct > -99.9) {
+    prevClose = price / (1 + chgPct / 100);
+  }
+  if (chgPct === undefined && prevClose > 0) {
+    chgPct = ((price - prevClose) / prevClose) * 100;
+  }
+  const vol = typeof opts.vol === "number" && isFinite(opts.vol) && opts.vol > 0 ? opts.vol : prevMeta.vol;
+  VT_EDGE_META.set(sym, {
+    ...prevMeta,
+    last: price,
+    prevClose: prevClose > 0 ? prevClose : prevMeta.prevClose,
+    pct: chgPct !== undefined ? chgPct : prevMeta.pct,
+    vol,
+    bid: opts.bid > 0 ? opts.bid : prevMeta.bid,
+    ask: opts.ask > 0 ? opts.ask : prevMeta.ask,
+    ts: tsMs,
+    source: opts.source || prevMeta.source || "twelvedata",
+  });
+
+  // 2. Sync SYMS, SNAP.uni, and custom watchlist cache so every screen reads the exact same price
+  if (typeof SYMS !== "undefined" && Array.isArray(SYMS)) {
+    const row = SYMS.find((x) => x && x[0] === sym);
+    if (row) {
+      row[2] = price;
+      if (vol > 0) row[3] = vol;
+    }
+  }
+  if (typeof SNAP !== "undefined" && Array.isArray(SNAP.uni)) {
+    const uRow = SNAP.uni.find((x) => x && x[0] === sym);
+    if (uRow) {
+      uRow[2] = price;
+      if (vol > 0) uRow[3] = vol;
+    }
+  }
+  if (typeof CUS !== "undefined" && CUS && CUS["L" + sym]) {
+    CUS["L" + sym][2] = price;
+    if (vol > 0) CUS["L" + sym][3] = vol;
+  }
+
+  // 3. Keep loaded 1D bar in sync so Watchlist/Screener/Heatmap 1D change matches live tick
+  if (d1 && d1.length) {
+    const dayBucket = Math.floor(rawTsSec / 86400) * 86400;
+    const last1D = d1[d1.length - 1];
+    if (last1D && dayBucket >= last1D.t && dayBucket - last1D.t <= 86400) {
+      if (dayBucket === last1D.t) {
+        last1D.c = price;
+        if (price > last1D.h) last1D.h = price;
+        if (price < last1D.l) last1D.l = price;
+        if (vol > 0 && vol > (last1D.v || 0)) last1D.v = vol;
+      }
+    }
+  }
+
+  // 4. Sync active chart & split pane B in real time
+  if (!opts.skipChartUpdate) {
+    const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
+    if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym) {
+      const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+      const bucket = Math.floor(rawTsSec / step) * step;
+      const kChart = sym + "|" + tf;
+      const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[kChart]) ? LIVE[kChart] : null;
+      const last = arr && arr.length ? arr[arr.length - 1] : null;
+
+      if (vtIsChartPaused(sym, tf)) {
+        vtBackfillChart(sym, tf);
+      } else if (!last) {
+        if (typeof PEND === "undefined" || !PEND[kChart]) {
+          vtSetChartGap(sym, tf, true);
+          vtBackfillChart(sym, tf);
+        }
+      } else if (bucket < last.t) {
+        // Ignore out-of-order older packets
+      } else if (bucket - last.t > step * 2) {
+        vtSetChartGap(sym, tf, true);
+        vtBackfillChart(sym, tf);
+      } else {
+        if (bucket === last.t) {
+          last.c = price;
+          last.h = Math.max(last.h, price);
+          last.l = Math.min(last.l, price);
+        } else {
+          const open = last.c > 0 ? last.c : price;
+          arr.push({
+            t: bucket,
+            o: open,
+            h: Math.max(open, price),
+            l: Math.min(open, price),
+            c: price,
+            v: 0,
+          });
+          if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
+        }
+        if (typeof LT !== "undefined") LT[kChart] = nowMs;
+        if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+          updateLiveBar(sym, tf, bucket);
+        }
+        const q = document.getElementById("cpx");
+        if (q) {
+          const txt = fp(price);
+          if (q.textContent !== txt) {
+            q.textContent = txt;
+            if (typeof vtPxWatch === "function") vtPxWatch();
+          }
+        }
+      }
+    }
+
+    if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
+      const tfB = (S && S.sc && S.sc.tfB) || "1D";
+      const kB = sym + "|" + tfB;
+      const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
+      const bktB = Math.floor(rawTsSec / stB) * stB;
+      if (vtIsChartPaused(sym, tfB)) {
+        vtBackfillChart(sym, tfB);
+      } else if (LIVE[kB] && LIVE[kB].length) {
+        const lb = LIVE[kB][LIVE[kB].length - 1];
+        if (bktB - lb.t > stB * 2) {
+          vtSetChartGap(sym, tfB, true);
+          vtBackfillChart(sym, tfB);
+        } else if (bktB >= lb.t) {
+          if (bktB === lb.t) {
+            lb.c = price;
+            lb.h = Math.max(lb.h, price);
+            lb.l = Math.min(lb.l, price);
+            try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
+          } else {
+            const nb = { t: bktB, o: lb.c, h: Math.max(lb.c, price), l: Math.min(lb.c, price), c: price, v: 0 };
+            LIVE[kB].push(nb);
+            try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
+          }
+        }
+      }
+    }
+  }
+
+  if (typeof checkAlerts === "function") checkAlerts(sym, price);
+  if (typeof markOk === "function") markOk("tdws");
+  vtScheduleLiveUiFlush(sym);
+}
+
+// Backward-compatible alias used by tests/callers
+function vtApplyTwelveDataTick(sym, price, tsSec) {
+  vtApplyNormalizedTick(sym, price, tsSec, { source: "twelvedata" });
+}
+
+function vtApplyServerBar(sym, tf, rawBar) {
+  if (!sym || !tf || !rawBar) return;
+  const b = Array.isArray(rawBar)
+    ? { t: Number(rawBar[0]), o: Number(rawBar[1]), h: Number(rawBar[2]), l: Number(rawBar[3]), c: Number(rawBar[4]), v: Number(rawBar[5]) || 0 }
+    : { t: Number(rawBar.t), o: Number(rawBar.o), h: Number(rawBar.h), l: Number(rawBar.l), c: Number(rawBar.c), v: Number(rawBar.v) || 0 };
+  if (!(b.t > 0) || !(b.c > 0) || !isFinite(b.c)) return;
+
+  const k = sym + "|" + tf;
+  const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[k]) ? LIVE[k] : null;
+  if (arr && arr.length) {
+    const last = arr[arr.length - 1];
+    const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+    if (b.t === last.t) {
+      last.h = Math.max(last.h, b.h, b.c);
+      last.l = Math.min(last.l, b.l, b.c);
+      last.c = b.c;
+      if (b.v > 0) last.v = Math.max(last.v || 0, b.v);
+    } else if (b.t > last.t && b.t - last.t <= step * 2) {
+      arr.push(b);
       if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
     }
-
-    const row = SYMS.find((x) => x[0] === sym);
-    if (row) row[2] = price;
-    checkAlerts(sym, price);
-
-    if (S && S.chart && S.chart.sym === sym) {
+    if (typeof LT !== "undefined") LT[k] = Date.now();
+    if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
       if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
-        updateLiveBar(sym, tf, bucket);
+        updateLiveBar(sym, tf, b.t);
       }
       const q = document.getElementById("cpx");
-      if (q) { q.textContent = fp(price); if (typeof vtPxWatch === "function") vtPxWatch(); }
-    }
-  }
-
-  if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
-    const tfB = (S.sc && S.sc.tfB) || "1D";
-    const kB = sym + "|" + tfB;
-    const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
-    const bktB = Math.floor(rawTs / stB) * stB;
-    if (vtIsChartPaused(sym, tfB)) {
-      vtBackfillChart(sym, tfB);
-    } else if (LIVE[kB] && LIVE[kB].length) {
-      const lb = LIVE[kB][LIVE[kB].length - 1];
-      if (bktB - lb.t > stB * 2) {
-        vtSetChartGap(sym, tfB, true);
-        vtBackfillChart(sym, tfB);
-      } else if (bktB >= lb.t) {
-        if (bktB === lb.t) {
-          lb.c = price;
-          lb.h = Math.max(lb.h, price);
-          lb.l = Math.min(lb.l, price);
-          try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
-        } else {
-          const nb = { t: bktB, o: lb.c, h: Math.max(lb.c, price), l: Math.min(lb.c, price), c: price, v: 0 };
-          LIVE[kB].push(nb);
-          try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
+      if (q) {
+        const txt = fp(b.c);
+        if (q.textContent !== txt) {
+          q.textContent = txt;
+          if (typeof vtPxWatch === "function") vtPxWatch();
         }
       }
     }
   }
+
+  // Feed the same normalized price into Watchlist, Screener, and Heatmap store
+  vtApplyNormalizedTick(sym, b.c, b.t * 1000, { source: "twelvedata", skipChartUpdate: true });
 }
 
-async function vtTdWsConnect(sym) {
-  if (!vtCanUseEdge() || !isLive() || !sym || vtIsCryptoSym(sym)) return;
-  const sObj = typeof symOf === "function" ? symOf(sym) : null;
-  const tdSym = vtToTdSym(sObj || sym);
-  if (!tdSym) return;
-  VT_EDGE.tdActiveSym = sym;
-  VT_EDGE.tdActiveTdSym = tdSym;
+function vtHandleEdgeWsMessage(raw) {
+  VT_EDGE.wsLastMsgAt = Date.now();
+  let msg;
+  try {
+    msg = JSON.parse(raw);
+  } catch (_e) {
+    return;
+  }
+  if (!msg || typeof msg !== "object") return;
 
-  if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 1) {
-    if (VT_EDGE.tdSubTdSym !== tdSym) {
-      try {
-        if (VT_EDGE.tdSubTdSym) {
-          VT_EDGE.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: VT_EDGE.tdSubTdSym } }));
-        }
-        VT_EDGE.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdSym } }));
-        VT_EDGE.tdSubTdSym = tdSym;
-      } catch (_e) {}
+  if (msg.type === "pong") {
+    if (typeof markOk === "function") markOk("edge");
+    return;
+  }
+
+  if (msg.type === "hello") {
+    VT_EDGE.wsReady = true;
+    VT_EDGE.wsRetry = 0;
+    if (typeof markOk === "function") markOk("edge");
+    if (!VT_EDGE.wsLastViewKey) vtSendWsViewNow(true);
+    return;
+  }
+
+  if (msg.type === "status") {
+    if (msg.provenance) VT_EDGE.wsProvenance = msg.provenance;
+    if (msg.provenance === "LIVE" && typeof markOk === "function") markOk("tdws");
+    return;
+  }
+
+  if (msg.type === "quotes" && Array.isArray(msg.quotes)) {
+    for (const q of msg.quotes) {
+      if (!q || !q.s || !(Number(q.c) > 0)) continue;
+      vtApplyNormalizedTick(q.s, Number(q.c), q.t, {
+        vol: Number(q.v),
+        chgPct: typeof q.chgPct === "number" ? q.chgPct : undefined,
+        bid: Number(q.bid),
+        ask: Number(q.ask),
+        source: q.source || "twelvedata",
+      });
     }
     return;
   }
-  if (VT_EDGE.tdWs && VT_EDGE.tdWs.readyState === 0) return;
 
-  // TASK-02 / Phase 3: poll or stream strictly via same-origin /api/candles when edge is active
-  if (VT_EDGE.tdActiveSym !== sym || !isLive() || vtIsPublicNonTerminalRoute()) return;
-  clearInterval(VT_EDGE.tdHb);
-  const vtTdPoll = async () => {
-    if (VT_EDGE.tdActiveSym !== sym || !isLive() || document.hidden || vtIsPublicNonTerminalRoute()) return;
+  if (msg.type === "bar" && msg.sym && msg.tf && msg.bar) {
+    vtApplyServerBar(String(msg.sym).toUpperCase(), String(msg.tf), msg.bar);
+    return;
+  }
+
+  if (msg.type === "state") {
+    if (msg.status && msg.status.provenance) {
+      VT_EDGE.wsProvenance = msg.status.provenance;
+    }
+    if (Array.isArray(msg.watchlist)) {
+      for (const q of msg.watchlist) {
+        if (!q || !q.s || !(Number(q.c) > 0)) continue;
+        vtApplyNormalizedTick(q.s, Number(q.c), q.t, {
+          vol: Number(q.v),
+          chgPct: typeof q.chgPct === "number" ? q.chgPct : undefined,
+          bid: Number(q.bid),
+          ask: Number(q.ask),
+          source: q.source || "twelvedata",
+        });
+      }
+    }
+    if (msg.chart && msg.chart.sym && msg.chart.tf && Array.isArray(msg.chart.bars) && msg.chart.bars.length) {
+      const last = msg.chart.bars[msg.chart.bars.length - 1];
+      vtApplyServerBar(String(msg.chart.sym).toUpperCase(), String(msg.chart.tf), last);
+    }
+    return;
+  }
+
+  // Backward-compatible legacy ticks frame
+  if (msg.type === "ticks") {
+    const arr = Array.isArray(msg.ticks) ? msg.ticks : (Array.isArray(msg.d) ? msg.d : []);
+    for (const t of arr) {
+      if (!t || !t.s || !(Number(t.c) > 0)) continue;
+      vtApplyNormalizedTick(t.s, Number(t.c), t.t || msg.ts, {
+        vol: Number(t.v),
+        source: msg.source || t.src || "twelvedata",
+      });
+    }
+  }
+}
+
+function vtCloseEdgeWs() {
+  clearTimeout(VT_EDGE.wsReconnectTimer);
+  VT_EDGE.wsReconnectTimer = 0;
+  clearInterval(VT_EDGE.wsPingTimer);
+  VT_EDGE.wsPingTimer = 0;
+  clearTimeout(VT_EDGE.wsViewTimer);
+  VT_EDGE.wsViewTimer = 0;
+  VT_EDGE.wsReady = false;
+  VT_EDGE.wsConnecting = false;
+  VT_EDGE.wsLastViewKey = "";
+  if (VT_EDGE.ws) {
     try {
-      const s = typeof symOf === "function" ? symOf(sym) : null;
-      const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
-      const bars = s ? await edgeFetchCandles(s, tf, { refresh: true }) : null;
-      if (VT_EDGE.tdActiveSym !== sym || !bars || !bars.length) return;
-      const last = bars[bars.length - 1];
-      if (!last || !(Number(last.c) > 0)) return;
-      markOk("tdws");
-      vtApplyTwelveDataTick(sym, Number(last.c), last.t || Math.floor(Date.now() / 1000));
+      VT_EDGE.ws.onopen = VT_EDGE.ws.onmessage = VT_EDGE.ws.onclose = VT_EDGE.ws.onerror = null;
+      VT_EDGE.ws.close(1000, "client-stop");
     } catch (_e) {}
+    VT_EDGE.ws = null;
+  }
+}
+
+function vtScheduleEdgeWsReconnect() {
+  if (!vtCanUseEdge() || !isLive() || vtIsPublicNonTerminalRoute()) return;
+  if (VT_EDGE.wsReconnectTimer) return;
+  const base = vtNextBackoff(VT_EDGE.wsRetry);
+  VT_EDGE.wsRetry += 1;
+  const jitter = Math.floor((Date.now() % 250));
+  VT_EDGE.wsReconnectTimer = setTimeout(() => {
+    VT_EDGE.wsReconnectTimer = 0;
+    vtOpenEdgeWs();
+  }, base + jitter);
+}
+
+function vtOpenEdgeWs() {
+  if (!vtCanUseEdge() || !isLive() || vtIsPublicNonTerminalRoute()) return;
+  if (typeof WebSocket === "undefined") return;
+  if (VT_EDGE.ws && (VT_EDGE.ws.readyState === 0 || VT_EDGE.ws.readyState === 1)) return;
+
+  clearTimeout(VT_EDGE.wsReconnectTimer);
+  VT_EDGE.wsReconnectTimer = 0;
+  VT_EDGE.wsConnecting = true;
+
+  let ws;
+  try {
+    ws = new WebSocket(vtBuildWsUrl());
+  } catch (_e) {
+    VT_EDGE.wsConnecting = false;
+    vtScheduleEdgeWsReconnect();
+    return;
+  }
+
+  VT_EDGE.ws = ws;
+  ws.onopen = () => {
+    if (VT_EDGE.ws !== ws) return;
+    VT_EDGE.wsConnecting = false;
+    VT_EDGE.wsReady = true;
+    VT_EDGE.wsRetry = 0;
+    VT_EDGE.wsLastMsgAt = Date.now();
+    VT_EDGE.wsLastViewKey = "";
+    try {
+      ws.send(JSON.stringify({ op: "hello", v: 2 }));
+    } catch (_e) {}
+    vtSendWsViewNow(true);
+
+    clearInterval(VT_EDGE.wsPingTimer);
+    VT_EDGE.wsPingTimer = setInterval(() => {
+      if (!VT_EDGE.ws || VT_EDGE.ws.readyState !== 1) return;
+      if (VT_EDGE.wsLastMsgAt > 0 && Date.now() - VT_EDGE.wsLastMsgAt > 65000) {
+        try { VT_EDGE.ws.close(4000, "stale"); } catch (_e) {}
+        return;
+      }
+      try {
+        VT_EDGE.ws.send(JSON.stringify({ op: "ping", t: Date.now() }));
+      } catch (_e) {}
+    }, 25000);
   };
-  vtTdPoll();
-  VT_EDGE.tdHb = setInterval(vtTdPoll, 60000);
+
+  ws.onmessage = (ev) => {
+    if (VT_EDGE.ws !== ws) return;
+    if (typeof ev.data === "string") vtHandleEdgeWsMessage(ev.data);
+  };
+
+  const onDrop = () => {
+    if (VT_EDGE.ws !== ws) return;
+    clearInterval(VT_EDGE.wsPingTimer);
+    VT_EDGE.wsPingTimer = 0;
+    VT_EDGE.ws = null;
+    VT_EDGE.wsReady = false;
+    VT_EDGE.wsConnecting = false;
+    VT_EDGE.wsLastViewKey = "";
+    vtScheduleEdgeWsReconnect();
+  };
+
+  ws.onclose = onDrop;
+  ws.onerror = () => {
+    try { ws.close(); } catch (_e) {}
+    onDrop();
+  };
+}
+
+function vtBnKlineStart(sym, tf) {
+  if (!vtCanUseEdge() || !isLive() || !sym || !tf || vtIsPublicNonTerminalRoute()) return;
+  VT_EDGE.bnSym = sym;
+  VT_EDGE.bnTf = tf;
+  vtSyncWsView();
+}
+
+async function vtTdWsConnect(sym) {
+  if (!vtCanUseEdge() || !isLive() || !sym || vtIsPublicNonTerminalRoute()) return;
+  VT_EDGE.tdActiveSym = sym;
+  VT_EDGE.tdActiveTdSym = vtToTdSym(sym);
+  vtSyncWsView();
 }
 
 function vtIsPublicNonTerminalRoute() {
@@ -904,14 +1311,10 @@ function vtIsPublicNonTerminalRoute() {
 
 function vtSyncChartFeed(sym, tf) {
   if (!vtCanUseEdge() || !isLive() || !sym || vtIsPublicNonTerminalRoute()) return;
-  const s = typeof symOf === "function" ? symOf(sym) : null;
-  if (vtIsCryptoSym(s || sym)) {
-    vtTdWsStop();
-    vtBnKlineStart(sym, tf || (S && S.chart && S.chart.tf) || "1H");
-  } else {
-    vtBnKlineStop();
-    vtTdWsConnect(sym);
-  }
+  VT_EDGE.tdActiveSym = sym;
+  VT_EDGE.bnSym = sym;
+  VT_EDGE.bnTf = tf || (S && S.chart && S.chart.tf) || "1H";
+  vtSyncWsView();
 }
 
 function vtWsSubscribe(sym, tf) {
@@ -920,10 +1323,8 @@ function vtWsSubscribe(sym, tf) {
 }
 
 function vtWsConnect() {
-  if (!vtCanUseEdge()) {
-    bnwsConnect();
-    return;
-  }
+  if (!vtCanUseEdge() || vtIsPublicNonTerminalRoute()) return;
+  vtOpenEdgeWs();
   if (S && S.chart && S.chart.sym) {
     vtSyncChartFeed(S.chart.sym, S.chart.tf);
   }
@@ -932,6 +1333,7 @@ function vtWsConnect() {
 function vtStopAllFeeds() {
   vtBnKlineStop();
   vtTdWsStop();
+  vtCloseEdgeWs();
 }
 
 async function vtHandleTabWake() {

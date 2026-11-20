@@ -9,10 +9,10 @@ if(!c)c=CUS[k]=[n,guessM(n),null,0,1,.01,n,"","yf",n,1];
 if(isLive()){const d=LIVE[n+"|1D"];if(d&&d.length)c[2]=d[d.length-1].c}
 return c}
 function wlData(n){const s=symOf(n);if(!s)return{};const d=candles(s,"1D"),L=d&&d.length?d[d.length-1]:null,Pv=d&&d.length>1?d[d.length-2]:null;
-const meta=(typeof VT_EDGE_META!=="undefined"&&VT_EDGE_META&&VT_EDGE_META[n])||null;
-const last=L?L.c:(s[2]>0?s[2]:null);
+const meta=(typeof VT_EDGE_META!=="undefined"&&VT_EDGE_META&&(typeof VT_EDGE_META.get==="function"?VT_EDGE_META.get(n):VT_EDGE_META[n]))||null;
+const last=L?L.c:(meta&&meta.last>0?meta.last:(s[2]>0?s[2]:null));
 const chg=L&&Pv?(L.c/Pv.c-1)*100:(meta&&typeof meta.pct==="number"&&isFinite(meta.pct)?meta.pct:null);
-const vol=L&&L.v?L.v:(s[3]>0?s[3]:null);
+const vol=L&&L.v?L.v:(meta&&meta.vol>0?meta.vol:(s[3]>0?s[3]:null));
 return{last,chg,vol}}
 function renderWL(){const el=document.getElementById("wl"),W=S.wlx;if(!el)return;
 el.className="wl"+(W.open?"":" shut");
@@ -26,16 +26,16 @@ h+=`</div>`}
 el.innerHTML=h}
 function wlTog(){S.wlx.open=!S.wlx.open;save();renderWL()}
 function wlGTog(id){const g=S.wlx.groups.find(x=>x.id===id);if(g){g.open=!g.open;save();renderWL()}}
-function wlRm(gid,n){const g=S.wlx.groups.find(x=>x.id===gid);if(g){g.syms=g.syms.filter(x=>x!==n);save();renderWL();wlStarSync()}}
+function wlRm(gid,n){const g=S.wlx.groups.find(x=>x.id===gid);if(g){g.syms=g.syms.filter(x=>x!==n);save();renderWL();wlStarSync();if(typeof vtSyncWsView==="function")vtSyncWsView()}}
 function wlDelG(id){const g=S.wlx.groups.find(x=>x.id===id);if(!g)return;
 if(g.syms.length&&!confirm("Delete the section “"+g.name+"” and its "+g.syms.length+" symbol(s)?"))return;
-S.wlx.groups=S.wlx.groups.filter(x=>x.id!==id);if(!S.wlx.groups.length)S.wlx=WLD();save();renderWL();wlStarSync()}
+S.wlx.groups=S.wlx.groups.filter(x=>x.id!==id);if(!S.wlx.groups.length)S.wlx=WLD();save();renderWL();wlStarSync();if(typeof vtSyncWsView==="function")vtSyncWsView()}
 function wlAddM(gid){const W=S.wlx;
 modal(`<h3>Add to watchlist</h3><label>Symbols<input id="wl_s" placeholder="AAPL, MRNA, EURUSD, ES=F" autocomplete="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')wlAdd()"></label><label>Section<select id="wl_g">${W.groups.map(g=>`<option value="${g.id}" ${g.id===gid?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label><p class="mut">Anything already in the screener is matched by name. For other stocks and ETFs just type the ticker. Otherwise use the Yahoo format: ES=F (futures), EURUSD=X (forex), BTC-USD (crypto), ^GSPC (indices). Separate several with commas or spaces.</p><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="wlAdd()">Add</button></div>`);
 setTimeout(()=>{const i=document.getElementById("wl_s");if(i)i.focus()},30)}
 function wlAdd(){const g=S.wlx.groups.find(x=>x.id===document.getElementById("wl_g").value)||S.wlx.groups[0],have=new Set(wlAll());
 document.getElementById("wl_s").value.toUpperCase().split(/[\s,;]+/).map(x=>x.replace(/[^A-Z0-9.\-=^_]/g,"")).filter(Boolean).forEach(n=>{if(!have.has(n)){have.add(n);g.syms.push(n)}});
-save();closeM();render();wlStarSync()}
+save();closeM();render();wlStarSync();if(typeof vtSyncWsView==="function")vtSyncWsView()}
 function wlSecM(id){const g=id&&S.wlx.groups.find(x=>x.id===id);
 modal(`<h3>${g?"Rename section":"New section"}</h3><label>Name<input id="wl_n" maxlength="30" value="${g?esc(g.name):""}" onkeydown="if(event.key==='Enter')wlSecSave('${id||""}')"></label><div class="row"><span class="sp"></span><button onclick="closeM()">Cancel</button><button class="pri" onclick="wlSecSave('${id||""}')">Save</button></div>`);
 setTimeout(()=>{const i=document.getElementById("wl_n");if(i)i.focus()},30)}

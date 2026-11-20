@@ -5,6 +5,8 @@ import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVA
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
 import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
 import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
+import { normSymbol, toTwelveSymbol } from "./shared/schema.js";
+import { PROVENANCE } from "./shared/protocol.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
   for (const base of BINANCE_MIRRORS) {
@@ -1271,15 +1273,35 @@ async function handleQuote(request, env, _ctx) {
   });
 }
 
-// Durable Object using the WebSocket Hibernation API for /ws fan-out (live upstream feeds only)
+// Durable Object using the WebSocket Hibernation API for /ws fan-out (live Twelve Data + Binance upstream WebSockets)
 export class MarketRelayDO {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
     this.binanceWs = null;
     this.tdWs = null;
+    this.tdSubscribed = new Set();
+    this.tdToInternal = new Map();
     this.prices = new Map();
     this.lastBinanceMsg = 0;
+    this.lastTdMsg = 0;
+  }
+
+  _nextSeq(ws) {
+    const att = (typeof ws.deserializeAttachment === "function" && ws.deserializeAttachment()) || { subs: [], interval: "1H", seq: 0 };
+    const next = (Number(att.seq) || 0) + 1;
+    att.seq = next;
+    if (typeof ws.serializeAttachment === "function") {
+      try { ws.serializeAttachment(att); } catch (_e) {}
+    }
+    return next;
+  }
+
+  _sendV2(ws, type, payload, seqOverride) {
+    try {
+      const seq = seqOverride !== undefined ? seqOverride : (type === "pong" ? 0 : this._nextSeq(ws));
+      ws.send(JSON.stringify({ v: 2, seq, type, ...payload }));
+    } catch (_e) {}
   }
 
   async fetch(request) {
@@ -1292,51 +1314,148 @@ export class MarketRelayDO {
 
     // WebSocket Hibernation API: ctx.acceptWebSocket enables hibernation when idle
     this.ctx.acceptWebSocket(server, ["client"]);
-    server.serializeAttachment({ subs: [], interval: "1H" });
+    server.serializeAttachment({ subs: [], chart: null, interval: "1H", seq: 0 });
 
     this.ensureUpstream();
     await this.scheduleNextTick();
 
-    server.send(
-      JSON.stringify({
-        type: "hello",
-        relay: "MarketRelayDO",
-        hibernation: true,
-        mode: getTdKey(this.env) ? "live+twelvedata" : "live",
-        ts: Date.now(),
-      })
-    );
+    this._sendV2(server, "hello", {
+      serverTime: Date.now(),
+      capabilities: ["bars", "quotes", "screener", "heatmap"],
+      relay: "MarketRelayDO",
+      hibernation: true,
+      mode: getTdKey(this.env) ? "live+twelvedata" : "live",
+    });
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  _collectDesiredTdSymbols() {
+    const maxSyms = Math.max(1, Number(this.env && this.env.TD_WS_MAX) || 8);
+    const out = [];
+    const seen = new Set();
+    const add = (raw) => {
+      const s = normSymbol(raw);
+      if (!s || seen.has(s)) return;
+      seen.add(s);
+      out.push(s);
+    };
+    const sockets = this.ctx.getWebSockets("client");
+    for (const ws of sockets) {
+      const att = ws.deserializeAttachment() || {};
+      if (att.chart && att.chart.sym) add(att.chart.sym);
+    }
+    for (const ws of sockets) {
+      const att = ws.deserializeAttachment() || {};
+      if (Array.isArray(att.subs)) att.subs.forEach(add);
+    }
+    return out.slice(0, maxSyms);
+  }
+
+  _syncTdSubscriptions() {
+    if (!this.tdWs || this.tdWs.readyState !== 1) return;
+    const desired = new Set(this._collectDesiredTdSymbols());
+    const toRemove = [];
+    const toAdd = [];
+    for (const s of this.tdSubscribed) {
+      if (!desired.has(s)) toRemove.push(s);
+    }
+    for (const s of desired) {
+      if (!this.tdSubscribed.has(s)) toAdd.push(s);
+    }
+    if (toRemove.length) {
+      const tdList = [];
+      for (const s of toRemove) {
+        this.tdSubscribed.delete(s);
+        const td = toTwelveSymbol(s);
+        if (td) tdList.push(td);
+      }
+      if (tdList.length) {
+        try {
+          this.tdWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: tdList.join(",") } }));
+        } catch (_e) {}
+      }
+    }
+    if (toAdd.length) {
+      const tdList = [];
+      for (const s of toAdd) {
+        const td = toTwelveSymbol(s);
+        if (!td) continue;
+        this.tdSubscribed.add(s);
+        this.tdToInternal.set(td.toUpperCase(), s);
+        tdList.push(td);
+      }
+      if (tdList.length) {
+        try {
+          this.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdList.join(",") } }));
+        } catch (_e) {}
+      }
+    }
   }
 
   async webSocketMessage(ws, message) {
     try {
       const msg = typeof message === "string" ? JSON.parse(message) : null;
       if (!msg) return;
-      if (msg.type === "ping") {
-        ws.send(JSON.stringify({ type: "pong", ts: Date.now() }));
+
+      if (msg.op === "ping" || msg.type === "ping") {
+        this._sendV2(ws, "pong", { t: msg.t || Date.now() }, 0);
         return;
       }
+
+      if (msg.op === "hello") {
+        this._sendV2(ws, "hello", {
+          serverTime: Date.now(),
+          capabilities: ["bars", "quotes", "screener", "heatmap"],
+          ...(msg.session ? { session: msg.session } : {}),
+        });
+        return;
+      }
+
+      if (msg.op === "view") {
+        const prev = ws.deserializeAttachment() || { subs: [], chart: null, interval: "1H", seq: 0 };
+        const nextSubs = new Set();
+        let chart = prev.chart || null;
+        if (msg.chart && msg.chart.sym) {
+          const sym = normSymbol(msg.chart.sym);
+          if (sym) {
+            chart = { sym, tf: msg.chart.tf || prev.interval || "1H" };
+            nextSubs.add(sym);
+          }
+        } else if (msg.chart === null) {
+          chart = null;
+        }
+        if (Array.isArray(msg.watchlist)) {
+          for (const raw of msg.watchlist) {
+            const s = normSymbol(raw);
+            if (s) nextSubs.add(s);
+          }
+        } else if (Array.isArray(prev.subs)) {
+          for (const s of prev.subs) nextSubs.add(s);
+        }
+        ws.serializeAttachment({
+          ...prev,
+          chart,
+          interval: (chart && chart.tf) || prev.interval || "1H",
+          subs: [...nextSubs],
+        });
+        this.ensureUpstream();
+        this._syncTdSubscriptions();
+        await this.scheduleNextTick();
+        return;
+      }
+
       if (msg.type === "subscribe") {
-        const prev = ws.deserializeAttachment() || { subs: [], interval: "1H" };
+        const prev = ws.deserializeAttachment() || { subs: [], chart: null, interval: "1H", seq: 0 };
         const nextSubs = Array.isArray(msg.symbols)
-          ? msg.symbols.map((s) => String(s).toUpperCase())
+          ? msg.symbols.map((s) => normSymbol(s)).filter(Boolean)
           : msg.symbol
-            ? [String(msg.symbol).toUpperCase()]
+            ? [normSymbol(msg.symbol)].filter(Boolean)
             : prev.subs;
         const interval = msg.interval && STEPS[msg.interval] ? msg.interval : prev.interval || "1H";
-        ws.serializeAttachment({ subs: [...new Set(nextSubs)], interval });
-
-        if (this.tdWs && this.tdWs.readyState === 1 && nextSubs.length) {
-          const tdSyms = nextSubs
-            .filter((s) => !s.endsWith("USDT"))
-            .map((s) => inferMeta(s).td)
-            .join(",");
-          if (tdSyms) {
-            this.tdWs.send(JSON.stringify({ action: "subscribe", params: { symbols: tdSyms } }));
-          }
-        }
+        ws.serializeAttachment({ ...prev, subs: [...new Set(nextSubs)], interval });
+        this.ensureUpstream();
+        this._syncTdSubscriptions();
         await this.scheduleNextTick();
       }
     } catch (_e) {}
@@ -1366,12 +1485,27 @@ export class MarketRelayDO {
         try { this.tdWs.close(); } catch (_e) {}
         this.tdWs = null;
       }
+      this.tdSubscribed.clear();
+    } else {
+      this._syncTdSubscriptions();
     }
   }
 
   async scheduleNextTick() {
     if (this.ctx.getWebSockets("client").length > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + 1000);
+      await this.ctx.storage.setAlarm(Date.now() + 10000);
+    }
+  }
+
+  broadcastQuotes(quotes) {
+    if (!Array.isArray(quotes) || !quotes.length) return;
+    for (const ws of this.ctx.getWebSockets("client")) {
+      const att = ws.deserializeAttachment() || {};
+      const subs = new Set(Array.isArray(att.subs) ? att.subs : []);
+      if (att.chart && att.chart.sym) subs.add(att.chart.sym);
+      const filtered = subs.size ? quotes.filter((q) => subs.has(q.s)) : quotes;
+      if (!filtered.length) continue;
+      this._sendV2(ws, "quotes", { quotes: filtered.slice(0, 24) });
     }
   }
 
@@ -1391,17 +1525,28 @@ export class MarketRelayDO {
               try {
                 const arr = JSON.parse(ev.data);
                 if (!Array.isArray(arr)) return;
-                const ticks = [];
+                const quotes = [];
+                const now = Date.now();
                 for (const t of arr) {
                   if (!t.s || !t.s.endsWith("USDT") || STABLE_RE.test(t.s)) continue;
-                  const c = +t.c;
+                  if (this.tdWs && this.tdSubscribed.has(t.s)) continue;
+                  const c = Number(t.c);
                   if (c > 0) {
                     this.prices.set(t.s, c);
-                    ticks.push({ s: t.s, c, h: +t.h, l: +t.l, v: +t.v });
+                    const pct = Number(t.P);
+                    const vol = Number(t.v);
+                    quotes.push({
+                      s: t.s,
+                      c,
+                      t: now,
+                      ...(Number.isFinite(vol) && vol >= 0 ? { v: vol } : {}),
+                      ...(Number.isFinite(pct) ? { chgPct: Number(pct.toFixed(2)) } : {}),
+                      provenance: PROVENANCE.LIVE,
+                    });
                   }
                 }
-                if (ticks.length) {
-                  this.broadcast({ type: "ticks", source: "binance", ticks: ticks.slice(0, 120), ts: Date.now() });
+                if (quotes.length) {
+                  this.broadcastQuotes(quotes);
                 }
               } catch (_e) {}
             });
@@ -1416,41 +1561,50 @@ export class MarketRelayDO {
     if (tdKey && !this.tdWs) {
       try {
         fetch(`https://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(tdKey)}`, {
-          headers: { Upgrade: "websocket" },
+          headers: { Upgrade: "websocket", "X-TD-APIKEY": tdKey },
         })
           .then((resp) => {
             const ws = resp && resp.webSocket;
             if (!ws) return;
             ws.accept();
             this.tdWs = ws;
+            this.lastTdMsg = Date.now();
+            this.tdSubscribed.clear();
+            this._syncTdSubscriptions();
             ws.addEventListener("message", (ev) => {
+              this.lastTdMsg = Date.now();
               try {
                 const d = JSON.parse(ev.data);
-                if (d.event === "price" && d.symbol && +d.price > 0) {
-                  const sym = d.symbol.replace("/", "");
-                  this.prices.set(sym, +d.price);
-                  this.broadcast({ type: "ticks", source: "twelvedata", ticks: [{ s: sym, c: +d.price }], ts: Date.now() });
+                if (d.event === "price" && d.symbol && Number(d.price) > 0) {
+                  const tdKeySym = String(d.symbol).trim().toUpperCase();
+                  const sym = this.tdToInternal.get(tdKeySym) || normSymbol(tdKeySym);
+                  if (!sym) return;
+                  const price = Number(d.price);
+                  const rawT = Number(d.timestamp ?? Date.now());
+                  const tsMs = Number.isFinite(rawT) && rawT > 0 ? (rawT < 1e12 ? rawT * 1000 : rawT) : Date.now();
+                  this.prices.set(sym, price);
+                  const quote = {
+                    s: sym,
+                    c: price,
+                    t: tsMs,
+                    provenance: PROVENANCE.LIVE,
+                  };
+                  if (Number(d.bid) > 0) quote.bid = Number(d.bid);
+                  if (Number(d.ask) > 0 && (!quote.bid || Number(d.ask) >= quote.bid)) quote.ask = Number(d.ask);
+                  if (Number(d.day_volume) >= 0) quote.v = Number(d.day_volume);
+                  this.broadcastQuotes([quote]);
                 }
               } catch (_e) {}
             });
-            ws.addEventListener("close", () => { this.tdWs = null; });
-            ws.addEventListener("error", () => { this.tdWs = null; });
+            ws.addEventListener("close", () => { this.tdWs = null; this.tdSubscribed.clear(); });
+            ws.addEventListener("error", () => { this.tdWs = null; this.tdSubscribed.clear(); });
           })
           .catch(() => { this.tdWs = null; });
       } catch (_e) {}
     }
   }
 
-  broadcast(payload) {
-    const raw = JSON.stringify(payload);
-    for (const ws of this.ctx.getWebSockets("client")) {
-      try {
-        ws.send(raw);
-      } catch (_e) {}
-    }
-  }
-
-  // Hibernation alarm: keeps real upstream WebSocket connections alive while clients are connected (zero simulated ticks)
+  // Hibernation alarm: sends Twelve Data 10s heartbeat & keeps live upstream WebSockets healthy (zero simulated ticks)
   async alarm() {
     const clients = this.ctx.getWebSockets("client");
     if (!clients.length) {
@@ -1458,8 +1612,19 @@ export class MarketRelayDO {
       return;
     }
 
+    if (this.tdWs) {
+      if (this.lastTdMsg > 0 && Date.now() - this.lastTdMsg > 30000) {
+        try { this.tdWs.close(); } catch (_e) {}
+        this.tdWs = null;
+        this.tdSubscribed.clear();
+      } else {
+        try { this.tdWs.send('{"action":"heartbeat"}'); } catch (_e) {}
+      }
+    }
+
     this.ensureUpstream();
-    await this.ctx.storage.setAlarm(Date.now() + 15000);
+    this._syncTdSubscriptions();
+    await this.ctx.storage.setAlarm(Date.now() + 10000);
   }
 }
 

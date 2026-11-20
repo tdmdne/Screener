@@ -71,69 +71,118 @@ export class HubCore {
     this.refs = new Map();    // sym -> number of browser clients subscribed
     this.pinned = new Set();  // upstream symbols kept active even with 0 browser clients
     this.lastAccessedAt = new Map(); // sym -> epoch ms last accessed/viewed
+    // Server-side LRU pool of Twelve Data WebSocket slots (capped at maxUpstreamSymbols = TD_WS_MAX). Map order is
+    // recency: the first key is the least recently used. Cap-exempt (Binance) symbols never enter the pool.
+    this.pool = new Map(); // sym -> epoch ms promoted
     this.pending = new Map(); // sym -> latest tick since last flush
     this.last = new Map();    // sym -> last accepted tick (replayed to new subscribers)
     this.timer = null;
     this.stats = { in: 0, dropped: 0, out: 0 };
   }
 
-  /** Number of unique upstream symbols currently tracked (browser refs ∪ pinned). */
+  /** Twelve Data WebSocket slots in use (the LRU pool). */
   upstreamCount() {
-    let count = 0;
-    for (const s of this.pinned) if (!this.capExempt(s)) count += 1;
-    for (const s of this.refs.keys()) {
-      if (!this.pinned.has(s) && !this.capExempt(s)) count += 1;
-    }
-    return count;
+    return this.pool.size;
   }
 
-  /** Whether a symbol is already active upstream via refs or pinned set. */
+  /** Whether ticks for `sym` are being ingested: in the TD LRU pool, or a referenced/pinned cap-exempt symbol. */
   hasUpstreamSymbol(sym) {
-    return this.refs.has(sym) || this.pinned.has(sym);
+    if (this.capExempt(sym)) return this.refs.has(sym) || this.pinned.has(sym);
+    return this.pool.has(sym);
   }
 
-  /** Sorted list of all active upstream symbols (refs ∪ pinned). */
+  /** Sorted list of all symbols currently streamed (TD pool plus referenced/pinned cap-exempt symbols). */
   activeSymbols() {
-    const all = new Set(this.pinned);
-    for (const s of this.refs.keys()) all.add(s);
+    const all = new Set(this.pool.keys());
+    for (const s of this.refs.keys()) if (this.capExempt(s)) all.add(s);
+    for (const s of this.pinned) if (this.capExempt(s)) all.add(s);
     return [...all].sort();
   }
 
+  /** TD pool symbols from least to most recently used. */
+  poolSymbols() {
+    return [...this.pool.keys()];
+  }
+
   /**
-   * Pin persisted upstream symbols so they remain subscribed and ingest ticks even when 0 browsers are connected.
-   * Respects `maxUpstreamSymbols`.
+   * Promote symbols to most-recently-used in the TD WebSocket pool (later entries end up more recent). When the pool
+   * is full the least-recently-used symbol is evicted: `onEvict(victim)` runs first (the hub persists its last quote),
+   * then the upstream unsubscribe and subscribe frames are sent. Only the last `maxUpstreamSymbols` requested symbols
+   * are promoted, so one call never evicts a symbol it just added.
+   * @param {string[]} symbols
+   * @returns {{ fresh: string[], evicted: string[] }}
+   */
+  promote(symbols, opts = {}) {
+    const want = [];
+    for (const raw of symbols || []) {
+      const s = normSymbol(raw);
+      if (!s || this.capExempt(s)) continue;
+      const at = want.indexOf(s);
+      if (at >= 0) want.splice(at, 1);
+      want.push(s);
+    }
+    const list = this.maxUpstreamSymbols > 0 ? want.slice(-this.maxUpstreamSymbols) : [];
+    const fresh = [];
+    const evicted = [];
+    const ts = this.now();
+    for (const s of list) {
+      if (this.pool.has(s)) {
+        this.pool.delete(s);
+        this.pool.set(s, ts);
+        this.lastAccessedAt.set(s, ts);
+        continue;
+      }
+      while (this.pool.size >= this.maxUpstreamSymbols) {
+        const victim = this.pool.keys().next().value;
+        this.pool.delete(victim);
+        this.pending.delete(victim);
+        this.lastAccessedAt.delete(victim);
+        this.pinned.delete(victim);
+        // `this.last` keeps the victim's final tick as an in-memory quote fallback.
+        evicted.push(victim);
+        if (this.onEvict) {
+          try { this.onEvict(victim); } catch {}
+        }
+      }
+      this.pool.set(s, ts);
+      this.lastAccessedAt.set(s, ts);
+      fresh.push(s);
+    }
+    if (opts.notify !== false) {
+      if (evicted.length) this.up.unsubscribe(evicted);
+      if (fresh.length) this.up.subscribe(fresh);
+    }
+    return { fresh, evicted };
+  }
+
+  /**
+   * Pin persisted/seed upstream symbols: TD symbols are promoted into the LRU pool (still evictable); cap-exempt ones
+   * stay subscribed even with 0 browsers.
    * @param {string[]} symbols
    * @returns {{accepted:string[], rejected:string[]}}
    */
   pinSymbols(symbols) {
     const accepted = [];
-    const rejected = [];
-    const fresh = [];
-
+    const exemptFresh = [];
+    const td = [];
     for (const raw of symbols || []) {
       const s = normSymbol(raw);
       if (!s) continue;
-      if (this.pinned.has(s)) {
-        accepted.push(s);
-        continue;
-      }
-      const alreadyUp = this.hasUpstreamSymbol(s);
-      if (!alreadyUp && !this.capExempt(s) && this.upstreamCount() >= this.maxUpstreamSymbols) {
-        rejected.push(s);
-        continue;
+      if (this.capExempt(s)) {
+        if (!this.hasUpstreamSymbol(s)) exemptFresh.push(s);
+      } else {
+        td.push(s);
       }
       this.pinned.add(s);
-      this.lastAccessedAt.set(s, this.now());
       accepted.push(s);
-      if (!alreadyUp) fresh.push(s);
     }
-
-    if (fresh.length) this.up.subscribe(fresh);
-    return { accepted, rejected };
+    if (exemptFresh.length) this.up.subscribe(exemptFresh);
+    if (td.length) this.promote(td);
+    return { accepted, rejected: [] };
   }
 
   /**
-   * Unpin upstream symbols; unsubscribes upstream only if no browser clients still reference them.
+   * Unpin symbols. TD symbols stay in the LRU pool until evicted; cap-exempt ones unsubscribe when unreferenced.
    * @param {string[]} symbols
    */
   unpinSymbols(symbols) {
@@ -141,10 +190,8 @@ export class HubCore {
     for (const raw of symbols || []) {
       const s = normSymbol(raw);
       if (!s || !this.pinned.delete(s)) continue;
-      if (!this.refs.has(s)) {
+      if (this.capExempt(s) && !this.refs.has(s)) {
         this.pending.delete(s);
-        this.last.delete(s);
-        this.lastAccessedAt.delete(s);
         gone.push(s);
       }
     }
@@ -160,6 +207,7 @@ export class HubCore {
     const s = normSymbol(rawSym);
     if (!s) return false;
     let released = false;
+    if (this.pool.delete(s)) released = true;
     if (this.pinned.delete(s)) released = true;
     if (this.refs.delete(s)) released = true;
     this.pending.delete(s);
@@ -231,77 +279,57 @@ export class HubCore {
     }
   }
 
+  /**
+   * Subscribe a browser client to symbols (fan-out), given in PRIORITY order (first = chart symbol). Never rejected for
+   * the TD cap: Twelve Data symbols are promoted in the server-side LRU pool so the first entry becomes most recently
+   * used; they get live ticks while they hold a slot, and outside it the hub serves their cached quote.
+   * @param {string} id
+   * @param {string[]} symbols
+   */
   subscribe(id, symbols) {
     const c = this.clients.get(id);
-    if (!c) return { accepted: [], rejected: Array.isArray(symbols) ? [...symbols] : [] };
+    if (!c) return { accepted: [], rejected: Array.isArray(symbols) ? [...symbols] : [], evicted: [] };
 
     const accepted = [];
     const rejected = [];
-    const fresh = [];
+    const exemptFresh = [];
     const replay = [];
-
+    const td = [];
     const ts = this.now();
-    const evicted = [];
 
     for (const raw of symbols || []) {
       const s = normSymbol(raw);
       if (!s) continue;
-      if (c.syms.has(s)) {
-        this.lastAccessedAt.set(s, ts);
-        accepted.push(s);
-        continue;
-      }
-      if (c.syms.size >= this.maxSymbolsPerClient) {
-        rejected.push(s);
-        continue;
-      }
-      const alreadyUp = this.hasUpstreamSymbol(s);
-      if (!alreadyUp && !this.capExempt(s) && this.upstreamCount() >= this.maxUpstreamSymbols) {
-        // LRU eviction of least-recently-used pinned slot that currently has zero active viewers
-        let victim = null;
-        let oldestAt = Infinity;
-        for (const cand of this.pinned) {
-          if ((this.refs.get(cand) || 0) > 0) continue;
-          if (this.capExempt(cand)) continue; // evicting it would not free a Twelve Data slot
-          const accessed = this.lastAccessedAt.get(cand) ?? 0;
-          if (accessed < oldestAt) {
-            oldestAt = accessed;
-            victim = cand;
-          }
-        }
-        if (victim) {
-          this.pinned.delete(victim);
-          this.pending.delete(victim);
-          this.lastAccessedAt.delete(victim);
-          // Retain `this.last.get(victim)` as cached quote fallback
-          evicted.push(victim);
-          if (this.onEvict) {
-            try { this.onEvict(victim); } catch {}
-          }
-        } else {
+      if (!c.syms.has(s)) {
+        if (c.syms.size >= this.maxSymbolsPerClient) {
           rejected.push(s);
           continue;
         }
+        const alreadyUp = this.hasUpstreamSymbol(s);
+        c.syms.add(s);
+        this.refs.set(s, (this.refs.get(s) || 0) + 1);
+        if (this.capExempt(s) && !alreadyUp) exemptFresh.push(s);
+        const lastTick = this.last.get(s);
+        if (lastTick) replay.push(lastTick);
       }
-      c.syms.add(s);
-      accepted.push(s);
-      const n = (this.refs.get(s) || 0) + 1;
-      this.refs.set(s, n);
       this.lastAccessedAt.set(s, ts);
-      if (!alreadyUp) fresh.push(s);
-
-      const lastTick = this.last.get(s);
-      if (lastTick) replay.push(lastTick);
+      accepted.push(s);
+      if (!this.capExempt(s)) td.push(s);
     }
 
+    if (replay.length) this._sendTicksToClient(c, replay);
+    // One upstream subscribe for everything new (TD slots first, then cap-exempt), as before the LRU pool.
+    const { fresh, evicted } = td.length ? this.promote(td.reverse(), { notify: false }) : { fresh: [], evicted: [] };
     if (evicted.length) this.up.unsubscribe(evicted);
-    if (replay.length) {
-      this._sendTicksToClient(c, replay);
-    }
-    if (fresh.length) this.up.subscribe(fresh);
+    const toSubscribe = [...fresh, ...exemptFresh];
+    if (toSubscribe.length) this.up.subscribe(toSubscribe);
     return { accepted, rejected, evicted };
   }
 
+  /**
+   * Remove a client's interest. Twelve Data symbols keep their pool slot (and keep streaming into the quote cache)
+   * until LRU eviction; cap-exempt symbols unsubscribe once no client references them.
+   */
   unsubscribe(id, symbols) {
     const c = this.clients.get(id);
     if (!c) return;
@@ -312,9 +340,8 @@ export class HubCore {
       const n = (this.refs.get(s) || 1) - 1;
       if (n <= 0) {
         this.refs.delete(s);
-        if (!this.pinned.has(s)) {
+        if (this.capExempt(s) && !this.pinned.has(s)) {
           this.pending.delete(s);
-          this.last.delete(s);
           gone.push(s);
         }
       } else {

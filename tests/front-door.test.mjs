@@ -1223,7 +1223,7 @@ describe("functions/api/[[path]].js — /api/candles via MARKET_SERVICE", () => 
 
     assert.deepEqual(seenUrls.filter((u) => u.startsWith("/api/bars")), [
       "/api/bars?sym=EUR%2FUSD&tf=1h&limit=100",
-      "/api/bars?sym=BTC%2FUSD&tf=1d&limit=50",
+      "/api/bars?sym=BTCUSDT&tf=1d&limit=50", // crypto: the hub stores Binance bars under the Binance pair
     ]);
     assert.ok(seenUrls.some((u) => u.startsWith("/td/time_series")), "Twelve Data REST history is attempted before the hub-only fallback");
     } finally {

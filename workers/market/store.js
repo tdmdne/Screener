@@ -118,6 +118,18 @@ export class MarketStore {
         "day TEXT PRIMARY KEY, " +
         "writes INTEGER NOT NULL)"
     );
+    // Last known Twelve Data quote per symbol: serves screener/watchlist rows outside the live WS slots (no REST, no Yahoo).
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS quote_cache (" +
+        "sym TEXT PRIMARY KEY, " +
+        "c REAL NOT NULL, " +
+        "t INTEGER NOT NULL, " +
+        "prev_close REAL, " +
+        "chg_pct REAL, " +
+        "v REAL, " +
+        "src TEXT NOT NULL, " +
+        "saved_at INTEGER NOT NULL)"
+    );
 
     this._initialized = true;
 
@@ -390,6 +402,53 @@ export class MarketStore {
     this._ensureInit();
     this.sql.exec("DELETE FROM subs");
     return this.addSubs(syms);
+  }
+
+  /**
+   * Upsert the last known quote for a symbol. Called on WS slot eviction and once per closed 1m bar, never per tick.
+   * @param {{ s: string, c: number, t: number, prevClose?: number|null, chgPct?: number|null, v?: number|null, src?: string }} q
+   * @returns {boolean}
+   */
+  saveQuoteCache(q) {
+    this._ensureInit();
+    const s = normSymbol(q && q.s);
+    const c = Number(q && q.c);
+    const t = Math.floor(Number(q && q.t));
+    if (!s || !(c > 0) || !(t > 0)) return false;
+    const num = (x) => (Number.isFinite(Number(x)) && x !== null && x !== undefined ? Number(x) : null);
+    this.sql.exec(
+      "INSERT OR REPLACE INTO quote_cache (sym, c, t, prev_close, chg_pct, v, src, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      s, c, t, num(q.prevClose), num(q.chgPct), num(q.v), String(q.src || "twelvedata"), Math.floor(this.now())
+    );
+    return true;
+  }
+
+  /**
+   * Cached quotes for many symbols (missing symbols are simply absent).
+   * @param {string[]} syms
+   * @returns {Map<string, { s: string, c: number, t: number, prevClose: number|null, chgPct: number|null, v: number|null, src: string, savedAt: number }>}
+   */
+  getQuoteCaches(syms) {
+    this._ensureInit();
+    const out = new Map();
+    for (const raw of syms || []) {
+      const s = normSymbol(raw);
+      if (!s || out.has(s)) continue;
+      const rows = cursorRows(this.sql.exec("SELECT * FROM quote_cache WHERE sym = ?", s));
+      if (!rows.length) continue;
+      const r = rows[0];
+      out.set(s, {
+        s,
+        c: Number(r.c),
+        t: Number(r.t),
+        prevClose: r.prev_close === null ? null : Number(r.prev_close),
+        chgPct: r.chg_pct === null ? null : Number(r.chg_pct),
+        v: r.v === null ? null : Number(r.v),
+        src: String(r.src),
+        savedAt: Number(r.saved_at),
+      });
+    }
+    return out;
   }
 
   /** Store a JSON snapshot in DO SQLite `snapshots`. */

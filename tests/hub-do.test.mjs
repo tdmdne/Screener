@@ -937,7 +937,7 @@ await test("Security Fix #3: Concurrent KV write-budget stampede TOCTOU guard (s
   hub.destroy();
 });
 
-await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MAX; disconnect evicts ephemeral subs & cleans caches", async () => {
+await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MAX; LRU slots outlive disconnects and admin unsubscribe frees them", async () => {
   const { sql } = createSqliteDb();
   const ctx = createMockDoCtx(sql);
   const timers = createFakeTimers();
@@ -977,7 +977,7 @@ await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MA
   assert.equal(hub.ephemeralSubs.size, 0);
   await hub.webSocketClose(attackerWs);
 
-  // Legitimate client connects and views known universe symbols -> gets ephemeral slots, evicted cleanly on disconnect
+  // Legitimate client connects and views known universe symbols -> they take LRU slots
   await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
   const legitWs = serverSockets[1];
   await hub.webSocketMessage(legitWs, JSON.stringify({ op: "view", watchlist: ["EURUSD", "GBPUSD"] }));
@@ -989,14 +989,21 @@ await test("Security Fix #4: Unauthenticated client views cannot poison TD_WS_MA
   hub.ingestTick({ s: "EURUSD", c: 1.09, t: Date.now() });
   assert.ok(hub.candles.getCurrent("EURUSD", "1m"));
 
-  // Client disconnects -> ephemeral subs immediately evicted, upstream unsubscribed, caches cleared!
+  // Client disconnects -> slots are KEPT until LRU eviction (they keep streaming into the TD quote cache that serves
+  // screener/watchlist rows), so a disconnect never discards live state.
   await hub.webSocketClose(legitWs);
-  assert.equal(hub.ephemeralSubs.size, 0);
-  assert.equal(hub.tdToInternal.has("EUR/USD"), false);
-  assert.equal(hub.candles.getCurrent("EURUSD", "1m"), null);
+  assert.deepEqual(hub.core.poolSymbols().sort(), ["EURUSD", "GBPUSD"]);
+  assert.equal(hub.tdToInternal.get("EUR/USD"), "EURUSD");
+  assert.ok(hub.candles.getCurrent("EURUSD", "1m"));
 
-  // Also test explicit unsubscribeUpstream clears tdToInternal & candles
+  // Pinning a new symbol into the full pool (TD_WS_MAX=2) evicts the least recently used one (the view listed EURUSD
+  // first, so GBPUSD is LRU); its last Twelve Data quote is persisted before the unsubscribe frame.
+  hub.ingestTick({ s: "GBPUSD", c: 1.27, t: Date.now() });
   hub.subscribeUpstream(["AAPL"]);
+  assert.deepEqual(hub.core.poolSymbols(), ["EURUSD", "AAPL"]);
+  assert.equal(hub.store.getQuoteCaches(["GBPUSD"]).get("GBPUSD").c, 1.27, "evicted GBPUSD quote persisted");
+
+  // Explicit unsubscribeUpstream frees the slot and clears tdToInternal & candles
   hub.ingestTick({ s: "AAPL", c: 225, t: Date.now() });
   assert.ok(hub.candles.getCurrent("AAPL", "1m"));
   assert.equal(hub.tdToInternal.get("AAPL"), "AAPL");

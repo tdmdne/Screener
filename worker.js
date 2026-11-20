@@ -3,7 +3,7 @@
 // Catalogs, interval maps and symbol helpers live in shared/ (single source of truth with server.js).
 import { INTERVAL_SECONDS as STEPS, BINANCE_INTERVALS as BNI, TWELVEDATA_INTERVALS as TDI } from "./shared/intervals.js";
 import { BASE_INSTRUMENTS, INSTRUMENT_BY_SYMBOL as BY_SYM, DUKASCOPY_MAP, FUTURES_TO_TWELVEDATA, BINANCE_MIRRORS, STABLE_RE } from "./shared/instruments.js";
-import { resolveTdSymbol, inferMeta } from "./shared/symbolNormalizer.js";
+import { resolveTdSymbol, inferMeta, normalizeSymbol } from "./shared/symbolNormalizer.js";
 import { fetchYahooCandles, fetchYahooQuote, toYahooSymbol } from "./shared/yahooFeed.js";
 
 async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
@@ -24,6 +24,93 @@ const HISTORICAL_KV_TTL = 2592000; // 30 days for immutable historical blocks
 
 const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
 const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
+const isTdPrimaryMarket = (m) => m === "FX" || m === "STK" || m === "ETF";
+
+function toTdApiSymbol(rawSym, meta) {
+  const known = BY_SYM.get(String(rawSym || "").trim().toUpperCase());
+  if (known && known.td) return known.td;
+  const norm = normalizeSymbol(rawSym, "twelvedata");
+  if (norm) return norm;
+  return resolveTdSymbol((meta && meta.td) || rawSym, "");
+}
+
+async function fetchTdEndpoint(tdPath, qs, env) {
+  const mode = tdSource(env);
+  if (!mode) return null;
+  try {
+    if (mode === "service" && env && env.MARKET_SERVICE && typeof env.MARKET_SERVICE.fetch === "function") {
+      return await env.MARKET_SERVICE.fetch(new Request(`https://market-service/td${tdPath}?${qs}`, { method: "GET" }));
+    }
+    if (mode === "proxy") {
+      return await fetch(`${tdProxyBase(env)}/td${tdPath}?${qs}`);
+    }
+    const directQs = new URLSearchParams(qs);
+    directQs.set("apikey", mode);
+    return await fetch(`https://api.twelvedata.com${tdPath}?${directQs}`);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function parseTdQuoteEntry(q) {
+  if (!q || typeof q !== "object" || q.status === "error") return null;
+  const c = Number(q.close ?? q.price);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  const prevClose = Number(q.previous_close);
+  const pctRaw = Number(q.percent_change);
+  const pct = Number.isFinite(pctRaw)
+    ? pctRaw
+    : Number.isFinite(prevClose) && prevClose > 0
+      ? ((c - prevClose) / prevClose) * 100
+      : 0;
+  const v = Number(q.volume);
+  const t = Number(q.timestamp);
+  return {
+    c,
+    prevClose: Number.isFinite(prevClose) && prevClose > 0 ? prevClose : c,
+    pct: Number(pct.toFixed(2)),
+    v: Number.isFinite(v) && v >= 0 ? v : 0,
+    t: Number.isFinite(t) && t > 0 ? Math.floor(t) : Math.floor(Date.now() / 1000),
+  };
+}
+
+async function fetchTwelveDataQuotes(items, env) {
+  const out = new Map();
+  if (!tdSource(env) || !items.length) return out;
+  const tdToInternal = new Map();
+  const tdList = [];
+  for (const item of items) {
+    const tdSym = toTdApiSymbol(item.s, item);
+    if (!tdSym || tdToInternal.has(tdSym)) continue;
+    tdToInternal.set(tdSym, item.s);
+    tdList.push(tdSym);
+  }
+  // Batch in groups of 8 symbols per Twelve Data /quote call
+  for (let i = 0; i < tdList.length; i += 8) {
+    const chunk = tdList.slice(i, i + 8);
+    const qs = new URLSearchParams({ symbol: chunk.join(",") });
+    const r = await fetchTdEndpoint("/quote", qs, env);
+    if (!r || !r.ok) {
+      if (r && r.status === 429) break; // stop immediately if rate-limited; remaining symbols fall back to Yahoo
+      continue;
+    }
+    const j = await r.json().catch(() => null);
+    if (!j || j.status === "error") {
+      if (j && (j.code === 429 || /credit|limit|quota/i.test(String(j.message || "")))) break;
+      continue;
+    }
+    if (chunk.length === 1) {
+      const parsed = parseTdQuoteEntry(j);
+      if (parsed) out.set(tdToInternal.get(chunk[0]), parsed);
+    } else {
+      for (const tdSym of chunk) {
+        const parsed = parseTdQuoteEntry(j[tdSym]);
+        if (parsed) out.set(tdToInternal.get(tdSym), parsed);
+      }
+    }
+  }
+  return out;
+}
 
 async function fetchYahooLiveQuotes(items, concurrency = 10) {
   const out = new Map();
@@ -86,13 +173,19 @@ async function fetchBinanceTickers() {
 
 async function buildScreenerSnapshot(env) {
   const ts = Date.now();
-  const [bnRows, nonCryptoQuotes] = await Promise.all([
+  const tdItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => isTdPrimaryMarket(item.m));
+  const otherItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => !isTdPrimaryMarket(item.m));
+
+  const [bnRows, tdQuotes, otherQuotes] = await Promise.all([
     fetchBinanceTickers(),
-    fetchYahooLiveQuotes(LIVE_SCREENER_NON_CRYPTO, 10),
+    fetchTwelveDataQuotes(tdItems, env),
+    fetchYahooLiveQuotes(otherItems, 10),
   ]);
-  const cryptoFallbackQuotes = bnRows && bnRows.length
-    ? new Map()
-    : await fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10);
+  const missingTdItems = tdItems.filter((item) => !tdQuotes.has(item.s));
+  const [missingTdYahooQuotes, cryptoFallbackQuotes] = await Promise.all([
+    missingTdItems.length ? fetchYahooLiveQuotes(missingTdItems, 10) : Promise.resolve(new Map()),
+    bnRows && bnRows.length ? Promise.resolve(new Map()) : fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10),
+  ]);
   const seen = new Set();
   const universe = [];
 
@@ -126,7 +219,7 @@ async function buildScreenerSnapshot(env) {
 
   for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
-    const q = nonCryptoQuotes.get(item.s);
+    const q = tdQuotes.get(item.s) || missingTdYahooQuotes.get(item.s) || otherQuotes.get(item.s);
     if (!q || !(q.c > 0)) continue;
     seen.add(item.s);
     universe.push([
@@ -148,7 +241,8 @@ async function buildScreenerSnapshot(env) {
 
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
-  if (nonCryptoQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
+  if (tdQuotes.size > 0) sources.push("twelvedata");
+  if (otherQuotes.size > 0 || missingTdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
@@ -557,8 +651,9 @@ function tdProxyBase(env) {
   const v = String((env && env.TD_PROXY_URL) || TD_PROXY_DEFAULT).trim().replace(/\/+$/, "");
   return v === "off" ? "" : v;
 }
-// Truthy when candles can be fetched from Twelve Data (via the proxy, or a direct key for local dev).
+// Truthy when candles/quotes can be fetched from Twelve Data (via MARKET_SERVICE binding, proxy, or direct key).
 function tdSource(env) {
+  if (env && env.MARKET_SERVICE && typeof env.MARKET_SERVICE.fetch === "function") return "service";
   return tdProxyBase(env) ? "proxy" : getTdKey(env);
 }
 
@@ -654,16 +749,14 @@ async function fetchTwelveDataCandles(tdSym, interval, apiKey, opts = {}) {
         outputsize: String(limit),
         timezone: "UTC",
       });
-      const viaProxy = apiKey === "proxy";
-      if (!viaProxy) qs.set("apikey", apiKey);
       if (beforeSec > 0) {
         qs.set("end_date", new Date((beforeSec - 1) * 1000).toISOString().slice(0, 19).replace("T", " "));
       } else if (opts.to > 0) {
         qs.set("end_date", new Date(opts.to * 1000).toISOString().slice(0, 19).replace("T", " "));
       }
-      const r = await fetch(viaProxy ? `${tdProxyBase(opts.env)}/td/time_series?${qs}` : `https://api.twelvedata.com/time_series?${qs}`);
-      if (!r.ok) {
-        if (beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
+      const r = await fetchTdEndpoint("/time_series", qs, opts.env);
+      if (!r || !r.ok) {
+        if (r && beforeSec > 0 && (r.status === 400 || r.status === 404)) return [];
         return null;
       }
       const j = await r.json();
@@ -844,7 +937,7 @@ async function handleCandles(request, env, ctx) {
           if (bars) source = "dukascopy";
         }
         if (!bars && !isCrypto && tdKey) {
-          const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+          const tdResolved = toTdApiSymbol(rawSym, meta);
           if (tdResolved) {
             bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
             if (bars) source = "twelvedata";
@@ -865,7 +958,7 @@ async function handleCandles(request, env, ctx) {
           }
         } else {
           if (tdKey) {
-            const tdResolved = resolveTdSymbol(meta.td || rawSym, "");
+            const tdResolved = toTdApiSymbol(rawSym, meta);
             if (tdResolved) {
               bars = await fetchTwelveDataCandles(tdResolved, interval, tdKey, opts);
               if (bars !== null) source = "twelvedata";
@@ -1147,9 +1240,24 @@ async function handleQuote(request, env, _ctx) {
           }
         }
       } else {
-        const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
-        if (q && q.c > 0) {
-          quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "yahoo" };
+        if (isTdPrimaryMarket(meta.m || "STK") && tdSource(env)) {
+          const tdSym = toTdApiSymbol(s, meta);
+          if (tdSym) {
+            const r = await fetchTdEndpoint("/quote", new URLSearchParams({ symbol: tdSym }), env);
+            if (r && r.ok) {
+              const j = await r.json().catch(() => null);
+              const q = parseTdQuoteEntry(j);
+              if (q && q.c > 0) {
+                quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "twelvedata" };
+              }
+            }
+          }
+        }
+        if (!quotes[s]) {
+          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
+          if (q && q.c > 0) {
+            quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "yahoo" };
+          }
         }
       }
     })

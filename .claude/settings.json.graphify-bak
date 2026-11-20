@@ -1,0 +1,26 @@
+﻿{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)",
+      "MultiEdit(*)",
+      "Agent(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -Command \"if ((Test-Path 'TASKS.md') -and (Select-String -Path 'TASKS.md' -Pattern '- \\[ \\]' -Quiet)) { Write-Output 'Unfinished items remain in TASKS.md. Continue working until all boxes are checked.'; exit 2 }\""
+          }
+        ]
+      }
+    ]
+  }
+}

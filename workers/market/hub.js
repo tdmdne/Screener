@@ -1938,6 +1938,12 @@ export class MarketHub {
         ? [m.symbol]
         : [];
     if (!fails.length) return;
+    // Twelve Data refused these symbols on the WebSocket (plan coverage, unknown symbol): log once per event, never silently.
+    console.warn(JSON.stringify({
+      op: "td_ws_subscribe_fails",
+      symbols: fails.map((x) => String(typeof x === "string" ? x : (x && (x.symbol || x.s)) || "")).slice(0, 20),
+      message: typeof m.message === "string" ? m.message.slice(0, 200) : undefined,
+    }));
 
     let releasedAny = false;
     for (const item of fails) {

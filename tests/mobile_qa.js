@@ -48,7 +48,7 @@ else{const n=await P.evaluate(()=>{const v=document.querySelector("#vnav");retur
   const t=await P.evaluate(()=>({cv:document.querySelector("#cv").offsetHeight,tb:document.querySelector(".tbar").scrollHeight>document.querySelector(".tbar").clientHeight?"scroll":"fit",tbh:document.querySelector(".tbar").clientHeight}));
   assert(t.cv>=500,"tablet chart is tall "+JSON.stringify(t));assert(t.tbh<=t.cv+80,"tool column no taller than the chart "+JSON.stringify(t))}
 // phone chart header starts at the left edge
-if(ui==="phone"){await P.evaluate(()=>{location.hash="#/chart"});await P.waitForTimeout(600);const x=await P.evaluate(()=>{const s=document.querySelector("#wst"),r=s.parentElement.getBoundingClientRect();return s.getBoundingClientRect().left-r.left});assert(x<30,"star button left-aligned "+x)}
+if(ui==="phone"){await P.evaluate(()=>{location.hash="#/chart"});await P.waitForTimeout(600);const x=await P.evaluate(()=>{const s=document.querySelector("#wst"),r=s.parentElement.getBoundingClientRect(),b=s.getBoundingClientRect();return{x:b.left-r.left,w:r.width,inView:b.left>=0&&b.right<=document.documentElement.clientWidth}});assert(x.x<x.w/3&&x.inView,"star button in the left third of the header row and on-screen "+JSON.stringify(x))}
 // touch gestures on the chart
 await P.evaluate(()=>{location.hash="#/chart"});await P.waitForTimeout(600);await P.evaluate(()=>document.querySelector("#cv").scrollIntoView({block:"center"}));await P.waitForTimeout(300);
 const cdp=await P.context().newCDPSession(P);const touch=(type,pts)=>cdp.send("Input.dispatchTouchEvent",{type,touchPoints:pts.map(([x,y],i)=>({x,y,id:i}))});
@@ -62,6 +62,6 @@ r1=await rng();assert(r1[1]-r1[0]<(r0[1]-r0[0])*0.9,"pinch zoomed in");await P.s
 const ws1=await P.evaluate(n=>VT_EDGE.ws===__w0&&__edge.sockets.length===n,ws0);assert(ws1,"websockets untouched by page switches");
 console.log(W+"x"+H,ui,bad.length?bad:"all targets >=44px, no overflow");assert.deepStrictEqual(bad,[]);
 assert(!h.errors.length&&!h.consoleErr.length,JSON.stringify([h.errors,h.consoleErr]));await h.close();
-const g=await launch({viewport:{width:W,height:H},mobile:true,auth:false});await g.page.goto(g.base);await g.page.waitForTimeout(1200);
-const s=await audit(g.page,"body");await g.page.screenshot({path:`shots/m/qa_${W}_signin.png`});assert(s.sw<=s.W&&!s.small.length,"sign-in "+JSON.stringify(s));await g.close()}
+const g=await launch({viewport:{width:W,height:H},mobile:true,auth:false,d1:true});await g.page.goto(g.base+"#/login");await g.page.waitForSelector("#auId",{state:"visible"});await g.page.waitForTimeout(600);
+const s=await audit(g.page,"#auth");await g.page.screenshot({path:`shots/m/qa_${W}_signin.png`});assert(s.sw<=s.W&&!s.small.length,"sign-in "+JSON.stringify(s));await g.close()}
 (async()=>{await run(390,844);await run(360,740);await run(768,1024);console.log("MOBILE QA OK")})().catch(e=>{console.error(e);process.exit(1)});

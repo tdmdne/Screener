@@ -58,61 +58,47 @@ async function fetchTdEndpoint(tdPath, qs, env) {
   }
 }
 
-function parseTdQuoteEntry(q) {
-  if (!q || typeof q !== "object" || q.status === "error") return null;
-  const c = Number(q.close ?? q.price);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  const prevClose = Number(q.previous_close);
-  const pctRaw = Number(q.percent_change);
-  const pct = Number.isFinite(pctRaw)
-    ? pctRaw
-    : Number.isFinite(prevClose) && prevClose > 0
-      ? ((c - prevClose) / prevClose) * 100
-      : 0;
-  const v = Number(q.volume);
-  const t = Number(q.timestamp);
-  return {
-    c,
-    prevClose: Number.isFinite(prevClose) && prevClose > 0 ? prevClose : c,
-    pct: Number(pct.toFixed(2)),
-    v: Number.isFinite(v) && v >= 0 ? v : 0,
-    t: Number.isFinite(t) && t > 0 ? Math.floor(t) : Math.floor(Date.now() / 1000),
-  };
+/**
+ * Live Twelve Data prices come from the MarketHub's outbound WebSocket cache (service binding `GET /api/quotes`).
+ * Twelve Data REST `/quote` is never called for live prices (that was the credit spike); REST stays for candle history only.
+ * @returns {Promise<Map<string,{c:number,t:number}>>} internal symbol -> latest WS-fed tick
+ */
+async function fetchHubQuotes(items, env) {
+  const out = new Map();
+  if (!env || !env.MARKET_SERVICE || typeof env.MARKET_SERVICE.fetch !== "function" || !items.length) return out;
+  const syms = [...new Set(items.map((x) => (typeof x === "string" ? x : x && x.s)).filter(Boolean))];
+  for (let i = 0; i < syms.length; i += 100) {
+    const chunk = syms.slice(i, i + 100);
+    try {
+      const r = await env.MARKET_SERVICE.fetch(
+        new Request(`https://market-service/api/quotes?symbols=${encodeURIComponent(chunk.join(","))}`, { method: "GET" })
+      );
+      if (!r || !r.ok) continue;
+      const j = await r.json().catch(() => null);
+      const quotes = j && j.quotes && typeof j.quotes === "object" ? j.quotes : {};
+      for (const [sym, q] of Object.entries(quotes)) {
+        const c = Number(q && q.c);
+        if (Number.isFinite(c) && c > 0) out.set(sym, { c, t: Number(q.t) > 0 ? Number(q.t) : Date.now() });
+      }
+    } catch (_e) {
+      /* hub unavailable: fall back to Yahoo for these symbols */
+    }
+  }
+  return out;
 }
 
-async function fetchTwelveDataQuotes(items, env) {
+/** WS price wins; Yahoo supplies previous close (percent change) and volume, and is the price fallback. */
+function mergeLiveTdQuotes(items, hubQuotes, yahooQuotes) {
   const out = new Map();
-  if (!tdSource(env) || !items.length) return out;
-  const tdToInternal = new Map();
-  const tdList = [];
   for (const item of items) {
-    const tdSym = toTdApiSymbol(item.s, item);
-    if (!tdSym || tdToInternal.has(tdSym)) continue;
-    tdToInternal.set(tdSym, item.s);
-    tdList.push(tdSym);
-  }
-  // Batch in groups of 8 symbols per Twelve Data /quote call
-  for (let i = 0; i < tdList.length; i += 8) {
-    const chunk = tdList.slice(i, i + 8);
-    const qs = new URLSearchParams({ symbol: chunk.join(",") });
-    const r = await fetchTdEndpoint("/quote", qs, env);
-    if (!r || !r.ok) {
-      if (r && r.status === 429) break; // stop immediately if rate-limited; remaining symbols fall back to Yahoo
-      continue;
-    }
-    const j = await r.json().catch(() => null);
-    if (!j || j.status === "error") {
-      if (j && (j.code === 429 || /credit|limit|quota/i.test(String(j.message || "")))) break;
-      continue;
-    }
-    if (chunk.length === 1) {
-      const parsed = parseTdQuoteEntry(j);
-      if (parsed) out.set(tdToInternal.get(chunk[0]), parsed);
-    } else {
-      for (const tdSym of chunk) {
-        const parsed = parseTdQuoteEntry(j[tdSym]);
-        if (parsed) out.set(tdToInternal.get(tdSym), parsed);
-      }
+    const h = hubQuotes.get(item.s);
+    const y = yahooQuotes.get(item.s);
+    if (h) {
+      const prev = y && y.prevClose > 0 ? y.prevClose : 0;
+      const pct = prev > 0 ? Number((((h.c - prev) / prev) * 100).toFixed(2)) : y && Number.isFinite(y.pct) ? y.pct : 0;
+      out.set(item.s, { c: h.c, pct, v: y && y.v > 0 ? y.v : 0, t: Math.floor(h.t / 1000), live: true });
+    } else if (y && y.c > 0) {
+      out.set(item.s, y);
     }
   }
   return out;
@@ -182,16 +168,16 @@ async function buildScreenerSnapshot(env) {
   const tdItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => isTdPrimaryMarket(item.m));
   const otherItems = LIVE_SCREENER_NON_CRYPTO.filter((item) => !isTdPrimaryMarket(item.m));
 
-  const [bnRows, tdQuotes, otherQuotes] = await Promise.all([
+  const [bnRows, hubQuotes, tdYahooQuotes, otherQuotes] = await Promise.all([
     fetchBinanceTickers(),
-    fetchTwelveDataQuotes(tdItems, env),
+    fetchHubQuotes(tdItems, env),
+    fetchYahooLiveQuotes(tdItems, 10),
     fetchYahooLiveQuotes(otherItems, 10),
   ]);
-  const missingTdItems = tdItems.filter((item) => !tdQuotes.has(item.s));
-  const [missingTdYahooQuotes, cryptoFallbackQuotes] = await Promise.all([
-    missingTdItems.length ? fetchYahooLiveQuotes(missingTdItems, 10) : Promise.resolve(new Map()),
-    bnRows && bnRows.length ? Promise.resolve(new Map()) : fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10),
-  ]);
+  const tdQuotes = mergeLiveTdQuotes(tdItems, hubQuotes, tdYahooQuotes);
+  const missingTdYahooQuotes = new Map();
+  const cryptoFallbackQuotes =
+    bnRows && bnRows.length ? new Map() : await fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10);
   const seen = new Set();
   const universe = [];
 
@@ -247,8 +233,8 @@ async function buildScreenerSnapshot(env) {
 
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
-  if (tdQuotes.size > 0) sources.push("twelvedata");
-  if (otherQuotes.size > 0 || missingTdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
+  if (hubQuotes.size > 0) sources.push("twelvedata");
+  if (otherQuotes.size > 0 || tdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
@@ -1246,17 +1232,10 @@ async function handleQuote(request, env, _ctx) {
           }
         }
       } else {
-        if (isTdPrimaryMarket(meta.m || "STK") && tdSource(env)) {
-          const tdSym = toTdApiSymbol(s, meta);
-          if (tdSym) {
-            const r = await fetchTdEndpoint("/quote", new URLSearchParams({ symbol: tdSym }), env);
-            if (r && r.ok) {
-              const j = await r.json().catch(() => null);
-              const q = parseTdQuoteEntry(j);
-              if (q && q.c > 0) {
-                quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "STK", source: "twelvedata" };
-              }
-            }
+        if (isTdPrimaryMarket(meta.m || "STK")) {
+          const hq = (await fetchHubQuotes([s], env)).get(s);
+          if (hq) {
+            quotes[s] = { s, c: hq.c, t: Math.floor(hq.t / 1000) || now, m: meta.m || "STK", source: "twelvedata" };
           }
         }
         if (!quotes[s]) {

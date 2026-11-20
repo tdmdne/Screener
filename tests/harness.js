@@ -39,9 +39,23 @@ async function launch(opts={}){
     if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.1",ts:Date.now(),cache:true,method:"test"}))}
     if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null,consent:opts.consent,auth:opts.auth});
   const offOrigin=[];
+  // Opt-in D1 auth mock (`launch({d1:true})`): stateful same-origin /api/auth/{providers,me,login,logout}, mirroring the real
+  // Worker contract (login needs a valid email; password "wrong" -> 401). Off by default: with it on, /api/auth/me answers 401 for
+  // signed-out visitors, which clears the legacy `scr2a` marker the auth:true suites rely on.
+  const d1={session:null,calls:[],users:{}};
+  const d1User=email=>({id:"u_"+email,email,username:email.split("@")[0].replace(/[^A-Za-z0-9_]/g,"_"),full_name:email.split("@")[0],role:"user",plan:"free",profile_completed:true,email_verified:true,phone_verified:true});
+  const d1Api=(q,route)=>{const m=route.request().method();d1.calls.push(m+" "+q.pathname);const j=(o,status)=>route.fulfill({status:status||200,contentType:"application/json",body:JSON.stringify(o)});
+    if(q.pathname==="/api/auth/providers")return j({ok:true,providers:{email:true,google:false,apple:false}});
+    if(q.pathname==="/api/auth/me")return d1.session?j({ok:true,user:d1.session}):j({ok:false,error:"Authentication required."},401);
+    if(q.pathname==="/api/auth/login"&&m==="POST"){let b={};try{b=JSON.parse(route.request().postData()||"{}")}catch(_e){}
+      if(!b.email||!b.password||b.password==="wrong")return j({ok:false,error:"Invalid email or password."},401);
+      d1.session=d1.users[b.email]||(d1.users[b.email]=d1User(String(b.email)));return j({ok:true,user:d1.session})}
+    if(q.pathname==="/api/auth/logout"&&m==="POST"){d1.session=null;return j({ok:true})}
+    return j({ok:false,error:"Not found"},404)};
   await ctx.route("**/*",route=>{const u=route.request().url();
     if(u.startsWith("http://127.0.0.1:"+port+"/config.local.js"))return route.fulfill({contentType:"application/javascript",body:opts.config?"window.VT_CONFIG="+JSON.stringify(opts.config)+";":"/* no local config in tests */"});
     if(u.startsWith("http://127.0.0.1:"+port+"/api/")){const q=new URL(u);const j=o=>route.fulfill({contentType:"application/json",body:JSON.stringify(o)});
+      if(opts.d1&&q.pathname.startsWith("/api/auth/"))return d1Api(q,route);
       if(q.pathname==="/api/screener")return j({ok:true,ts:Date.now(),tfs:["1D","1H"],universe:UNIVERSE});
       if(q.pathname==="/api/candles"){const tf=q.searchParams.get("interval")||"1H";return j({ok:true,bars:genBars(q.searchParams.get("symbol")||"BTCUSDT",250,STEPS[tf]||3600),hasMore:false})}
       return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({ok:false})})}
@@ -62,6 +76,6 @@ async function launch(opts={}){
   // The edge client only fetches candles for the active chart (card/heatmap data is server-side, Task 13). Tests that need
   // history for every symbol merge what /api/candles would return: `await h.seedBars("1D",40)`.
   const seedBars=(tf,n)=>page.evaluate(({tf,n})=>{for(const s of SYMS)vtMergeBars(s[0]+"|"+tf,__edge.bars(tf,s[2]||1,n||40,s[0]));if(typeof render==="function")render()},{tf,n});
-  return {browser,ctx,page,errors,consoleErr,offOrigin,seedBars,base,app,close:async()=>{await browser.close();srv.close()}};
+  return {browser,ctx,page,errors,consoleErr,offOrigin,seedBars,d1,base,app,close:async()=>{await browser.close();srv.close()}};
 }
 module.exports={launch,ROOT};

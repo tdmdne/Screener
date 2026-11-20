@@ -1,18 +1,18 @@
-// Sign-in screen: animated backdrop (static under reduced motion), real ticker snippets, guest mode,
+// Sign-in screen (D1-gated flow, opened at #/login; sign-in goes through /api/auth/login, mocked by harness `d1:true`): animated backdrop
+// (static under reduced motion), guest mode,
 // the sign-in prompt for guest-only limits, guest work not persisted, sign-in from guest without reload or new sockets.
 const {launch}=require("./harness");const assert=require("assert");const fs=require("fs");
 fs.mkdirSync(__dirname+"/../shots/m",{recursive:true});
 const frame=P=>P.evaluate(()=>document.getElementById("aubg").toDataURL());
 (async()=>{
 // 1) desktop, no consent yet, not signed in
-let h=await launch({auth:false,consent:false});let P=h.page;await P.goto(h.base+"#/workspace");
-await P.waitForSelector("#auth .auhero h1");assert(await P.evaluate(()=>document.documentElement.classList.contains("locked")));
-await P.waitForFunction(()=>document.querySelectorAll("#autick span b").length>=3);
-const tk=await P.evaluate(()=>[...document.querySelectorAll("#autick span b")].map(b=>b.textContent));assert.deepStrictEqual(tk.slice(0,3),["BTC","ETH","SOL"]);
+let h=await launch({auth:false,consent:false,d1:true});let P=h.page;await P.goto(h.base+"#/login");
+await P.waitForSelector("#auth h2");assert(await P.evaluate(()=>document.documentElement.classList.contains("locked")));
+// (the old live-ticker snippets under the form are no longer rendered by the redesigned screen: not asserted)
 const f1=await frame(P);await P.waitForTimeout(400);const f2=await frame(P);assert.notStrictEqual(f1,f2,"backdrop animates");
 assert(await P.isVisible("#auGuest"));assert.strictEqual(await P.isChecked("#auRem"),false,"keep-me-signed-in unticked");
-// keyboard: Tab order reaches the guest button
-await P.focus("#auBtn");await P.keyboard.press("Tab");assert.strictEqual(await P.evaluate(()=>document.activeElement.id),"auGuest");
+// keyboard: Tab order from the submit button reaches the guest button (after the "Create an account" switch)
+await P.focus("#auBtn");const tabIds=[];for(let i=0;i<3&&tabIds[tabIds.length-1]!=="auGuest";i++){await P.keyboard.press("Tab");tabIds.push(await P.evaluate(()=>document.activeElement.id))}assert.strictEqual(tabIds[tabIds.length-1],"auGuest","Tab order "+tabIds);
 await P.waitForTimeout(300);await P.screenshot({path:__dirname+"/../shots/11_signin.png"});
 // 2) guest: app boots, nothing optional stored
 await P.click("#auGuest");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
@@ -44,12 +44,11 @@ assert.deepStrictEqual(s2,{mark:1,ws:0,g:false,lgo:"Log out",a:JSON.stringify({i
 await P.evaluate(()=>vtAddAlertAt("BTCUSDT",123));assert(!(await P.$("#vg_h")),"no gate once signed in");
 console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // 4) reduced motion: one static frame, no animation loop
-h=await launch({auth:false,reducedMotion:"reduce"});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");await P.waitForTimeout(200);
+h=await launch({auth:false,reducedMotion:"reduce",d1:true});P=h.page;await P.goto(h.base+"#/login");await P.waitForSelector("#auth h2");await P.waitForTimeout(200);
 const r1=await frame(P);await P.waitForTimeout(400);const r2=await frame(P);assert.strictEqual(r1,r2,"static under reduced motion");assert.strictEqual(await P.evaluate(()=>AUBG.raf),0);
 assert(r1.length>5000,"static frame drawn");assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // 5) phone
-h=await launch({auth:false,viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");
-await P.waitForFunction(()=>document.querySelectorAll("#autick span b").length>=3);
+h=await launch({auth:false,viewport:{width:390,height:844},mobile:true,d1:true});P=h.page;await P.goto(h.base+"#/login");await P.waitForSelector("#auth h2");
 const ov=await P.evaluate(()=>{const a=document.getElementById("auth");return a.scrollWidth-a.clientWidth});assert(ov<=1,"no sideways scroll "+ov);
 const gb=await P.locator("#auGuest").boundingBox();assert(gb.height>=44);
 await P.waitForTimeout(300);await P.screenshot({path:__dirname+"/../shots/m/390_signin.png"});

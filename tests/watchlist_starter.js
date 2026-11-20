@@ -94,7 +94,7 @@ for(const [who,st,hash] of [["bob",bob,keys[0]],["carol",carol,keys[1]]]){
   assert.deepStrictEqual((await groups(P)).map(g=>g.syms),st.wlx.groups.map(g=>g.syms),who+": still untouched after reload")}
 clean(h,"existing");await h.close();
 // 6) guest: starter list in memory only, nothing written to localStorage; Clear works for the session
-h=await launch({auth:false});P=h.page;await P.goto(h.base);await P.waitForSelector("#auGuest");
+h=await launch({auth:false,d1:true});P=h.page;await P.goto(h.base+"#/login");await P.waitForSelector("#auGuest",{state:"visible"});
 await P.click("#auGuest");await ready(P);await P.waitForFunction(n=>wlAll().length===n,STARTER.length,{timeout:5000}).catch(()=>{});
 assert.deepStrictEqual(await wl(P),STARTER,"guest gets the starter list");
 const noWrites=async()=>{const ls=await P.evaluate(()=>Object.entries(localStorage));

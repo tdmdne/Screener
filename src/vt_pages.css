@@ -703,6 +703,8 @@ html.locked[data-page="legal"] .auth{display:none!important}
 :root:is([data-ui="phone"],[data-ui="tablet"]) .sm_sym{min-width:44px!important;min-height:44px!important}
 /* phone: chart header buttons start on the left when they wrap */
 :root[data-ui="phone"] .cpb .row.top>.sp{display:none}
+/* 98_institutional.css makes the chart header one non-wrapping, scrolling strip; on phones that strands the star + Add/Locate controls off-screen. Wrap them (same as tablet). */
+:root[data-ui="phone"] .cpb .row.top{flex-wrap:wrap;overflow-x:visible;height:auto;min-width:0;gap:6px}
 /* tablet: all nav pages visible (wrap nicely), zero horizontal clipping across portrait (768px) and landscape (1024px) */
 :root[data-ui="tablet"] .wrap{max-width:100%;padding:12px 14px}
 :root[data-ui="tablet"] header{flex-wrap:wrap;gap:8px}

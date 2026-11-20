@@ -176,15 +176,18 @@ r.items.forEach((it,id)=>{const a=it.drag?null:vtAlFind(id),price=it.drag?it.dp:
   if(it.y===y&&it.pw===pw&&it.lab.style.display!=="none")return;it.y=y;it.pw=pw;
   it.lab.style.display=it.hit.style.display="";it.lab.style.left=pw+"px";it.lab.style.width=w+"px";it.lab.style.top=(y-(VT_COARSE_AL?12:9))+"px";
   const hh=VTAL_HIT;it.hit.style.height=hh+"px";it.hit.style.width=Math.max(0,pw-(VT_COARSE_AL?40:24))+"px";it.hit.style.top=(y-hh/2)+"px"})}
+/* Touch/pen taps open the alert editor on pointerup; the browser then synthesizes a click at the same point, which lands on the
+   editor backdrop (.ov closes on target===this) and shuts it instantly. Swallow that one click (capture phase, expires after 500 ms). */
+function vtSwallowNextClick(){const h=e=>{e.stopPropagation();e.preventDefault()};document.addEventListener("click",h,{capture:true,once:true});setTimeout(()=>document.removeEventListener("click",h,true),500)}
 function vtAlDrag(r,id,el){el.addEventListener("mousedown",e=>e.stopPropagation());
 el.addEventListener("pointerdown",e=>{if(e.button)return;e.stopPropagation();e.preventDefault();const it=r.items.get(id),f=vtAlFind(id);if(!it||!f)return;
-  const y0=e.clientY,s=symOf(f.a.sym);let moved=false;try{el.setPointerCapture(e.pointerId)}catch(_){}
+  const y0=e.clientY,s=symOf(f.a.sym),coarse=e.pointerType&&e.pointerType!=="mouse";let moved=false;try{el.setPointerCapture(e.pointerId)}catch(_){}
   const mv=ev=>{if(!moved&&Math.abs(ev.clientY-y0)<4)return;moved=true;it.drag=true;it.lab.classList.add("drag");it.hit.classList.add("drag");
     const rc=r.host.getBoundingClientRect(),raw=r.series.coordinateToPrice(ev.clientY-rc.top);if(raw==null)return;
     it.dp=vtRoundPx(s,raw);try{it.pl.applyOptions({price:it.dp})}catch(_){}vtAlLabel(it,it.dp,f.a);it.y=null;vtAlPos(r)};
   const up=()=>{el.removeEventListener("pointermove",mv);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",up);
     it.lab.classList.remove("drag");it.hit.classList.remove("drag");
-    if(moved&&it.drag){it.drag=false;const p=it.dp;it.k="";if(p>0){vtAlUpdate(id,{price:p});toast("Alert moved to "+fp(p))}}else{it.drag=false;vtAlertEdit(id)}};
+    if(moved&&it.drag){it.drag=false;const p=it.dp;it.k="";if(p>0){vtAlUpdate(id,{price:p});toast("Alert moved to "+fp(p))}}else{it.drag=false;if(coarse)vtSwallowNextClick();vtAlertEdit(id)}};
   el.addEventListener("pointermove",mv);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up)})}
 // one light loop: keeps lines in sync with S.alerts (edits from the Alerts dialog, dock, firing) and follows zoom/scroll
 let VTAL_RAF=0,VTAL_T=0;

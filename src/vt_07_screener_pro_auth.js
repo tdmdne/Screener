@@ -122,6 +122,8 @@ function vtHideSignIn(){if(!BOOTED)return;document.documentElement.classList.rem
 // signing in from guest mode keeps the session's work and saves it under that account (asks first if the account already has saved work)
 const _vtAuthEnter=authEnter;authEnter=function(u){
   if(!(u&&u.guest)){const was=VT_GUEST;VT_GUEST=false;try{ssRemove(VT_GUEST_KEY)}catch(e){}vtGuestUI();
+    /* signing in as someone other than the scope this page loaded with (D1 sign-in from #/login, or a booted page with no user): S is read from scr2~<hash> at script load, so reload and let it load that account's saved work; assigning VT_SCOPE here would let a default-state save() overwrite it. authStore already holds the id. */
+    if(!was&&"~"+vtUidHash(u.id)!==VT_SCOPE){location.reload();return}
     if(BOOTED){document.documentElement.classList.remove("locked");const b=document.getElementById("lgo");if(b)b.title="Log out ("+u.id+")";document.getElementById("auPw").value="";VT_UID=String(u.id);VT_SCOPE="~"+vtUidHash(u.id);if(was){if(lsGet(vtSK("scr2"))!=null&&typeof vtAcctChoose==="function")vtAcctChoose();else{save();saveP();toast("Signed in \u2014 your work is now saved on this device");if(typeof vtLegacyCheck==="function")setTimeout(vtLegacyCheck,200)}}return}}
   const r=_vtAuthEnter.apply(this,arguments);vtGuestUI();return r};
 const _vtSaveG=save;save=function(){if(VT_GUEST)return;return _vtSaveG.apply(this,arguments)};
@@ -581,8 +583,6 @@ ${D.wl.length?`<div><h4>Your watchlist</h4><ol class="sml">${D.wl.map(mv).join("
 // entry points: a header button (desktop/tablet), the phone "More" sheet, and a one-off chip after 21:00 local time
 function vtSumBtn(){if(document.getElementById("sumb"))return;const t=document.getElementById("thm");if(!t)return;const b=document.createElement("button");b.type="button";b.id="sumb";b.className="theme-btn";b.title="Today\u2019s session summary";b.textContent="Today";b.onclick=vtSumM;t.before(b)}
 vtSumBtn();
-if(typeof vtMoreOpen==="function"){const _vtSMo=vtMoreOpen;vtMoreOpen=function(){const r=_vtSMo.apply(this,arguments);try{const m=document.getElementById("vmore");if(m&&!m.querySelector("#vm_sum")){const h=document.createElement("h3");h.textContent="Tools";const g=document.createElement("div");g.className="grid";
-  g.innerHTML='<button type="button" id="vm_sum">Today\u2019s session</button>';const pg=m.querySelector(".grid");(pg?pg.nextSibling:null)?m.insertBefore(h,pg.nextSibling):m.appendChild(h);h.after(g);g.querySelector("#vm_sum").onclick=()=>{vtMoreClose();vtSumM()}}}catch(e){}return r}}
 function vtSumChip(force){const now=new Date(),key=now.toDateString();if(SUM.chipDay===key||(!force&&now.getHours()<21))return; /* once per day; "force" only skips the 21:00 check */if(document.getElementById("vtsumchip")||document.documentElement.classList.contains("locked"))return;SUM.chipDay=key;
   const c=document.createElement("div");c.id="vtsumchip";c.className="vtsumchip";c.setAttribute("role","status");
   c.innerHTML='<span>Today\u2019s session summary is ready.</span><button type="button" class="pri" id="vtsum_open">Open</button><button type="button" class="ibtn" id="vtsum_x" aria-label="Dismiss">'+VT_IC.x+'</button>';document.body.appendChild(c);

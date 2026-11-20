@@ -312,6 +312,8 @@ function routerInit(){if(ROUTER)return;ROUTER=true;
     const q=pageOf(location.hash);
     if(q)showPage(q);
     else history.replaceState(null,"","#/"+(S.pageView||"workspace"));
+    /* boot() skips the edge socket on public/auth routes (#/login, landing); entering a terminal route from one must open it (idempotent, still the single same-origin /ws) */
+    try{if(q&&typeof vtWsConnect==="function"&&typeof VT_EDGE!=="undefined"&&!VT_EDGE.ws)vtWsConnect()}catch(e){console.error("ws connect error:",e)}
   });
 }
 // placeholder for pages that haven't been built yet

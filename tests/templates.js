@@ -55,7 +55,7 @@ assert.deepStrictEqual(await P.evaluate(()=>({n:S.tpl.list.length,def:S.tpl.def}
 assert.strictEqual(await P.evaluate(()=>__edge.sockets.length>=1),true);
 console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // guest: the menu opens but saving asks to sign in
-h=await launch({auth:false});P=h.page;await P.goto(h.app);await P.click("#auGuest");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
+h=await launch({auth:false,d1:true});P=h.page;await P.goto(h.base+"#/login");await P.waitForSelector("#auGuest",{state:"visible"});await P.click("#auGuest");await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{openChart("BTCUSDT","1H");go("chart")});await P.waitForFunction(()=>document.getElementById("tplb"));
 await P.click("#tplb");await P.fill("#tpl_name","G");await P.click("#tpl_save");await P.waitForSelector("#vg_h");assert(/chart templates/.test(await P.textContent("#vg_h")));
 assert.strictEqual(await P.evaluate(()=>(S.tpl&&S.tpl.list||[]).length),0);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();

@@ -3,8 +3,8 @@
 const {launch}=require("./harness");const assert=require("assert");const fs=require("fs");const path=require("path");
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
-const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"))};
-(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base);await ready(P);
+const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>{for(const s of SYMS)vtMergeBars(s[0]+"|1D",__edge.bars("1D",s[2]||1,40,s[0]))})};
+(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>{const a=candles(symOf("BTCUSDT"),"1H");return a&&a.length>30});
 // seed: one closed long (target hit today) and one open short, from the real candle store; two alerts (today, yesterday).
 // Open P&L uses the live price s[2] (vtSumPositions → posCalc.pnlAt). A previous flake (+45.87 vs 46.94) was that
@@ -51,16 +51,16 @@ if(theme==="dark"){await P.screenshot({path:__dirname+"/../shots/19_session_summ
   const e=await P.evaluate(()=>({real:document.getElementById("sm_real").textContent,t:document.querySelector(".smm").textContent}));
   assert.strictEqual(e.real,"\u2013");assert(/No positions closed today or open now/.test(e.t)&&/No alerts triggered today/.test(e.t));await P.evaluate(()=>closeM());
   // a triggered alert from the feed shows up
-  await P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2];S.alerts=[{id:9,sym:"BTCUSDT",price:+(p*1.01).toFixed(4),dir:"above",on:true}];const t=c=>BNWS.ws.onmessage({data:JSON.stringify([{s:"BTCUSDT",c:String(c),h:String(c),l:String(c)}])});t(p*.999);t(p*1.02);vtSumM()});
+  await P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2];S.alerts=[{id:9,sym:"BTCUSDT",price:+(p*1.01).toFixed(4),dir:"above",on:true}];const t=c=>__edge.quotes([{s:"BTCUSDT",c:c}]);t(p*.999);t(p*1.02);vtSumM()});
   assert.strictEqual(await P.textContent("#sm_alc"),"1","alert from the feed is counted");await P.evaluate(()=>closeM());
   // the evening chip
   await P.evaluate(()=>vtSumChip(true));assert(await P.isVisible("#vtsumchip"));await P.click("#vtsum_open");await P.waitForTimeout(100);assert(await P.evaluate(()=>!!document.querySelector(".smm")&&!document.getElementById("vtsumchip")));
   await P.evaluate(()=>closeM());await P.evaluate(()=>vtSumChip(true));assert(!(await P.isVisible("#vtsumchip").catch(()=>false)),"only once a day")}
-await P.evaluate(()=>{if(window.__sumPinId){clearInterval(window.__sumPinId);window.__sumPinId=0}});console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
+await P.evaluate(()=>{if(window.__sumPinId){clearInterval(window.__sumPinId);window.__sumPinId=0}});console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close()}
 // phone: header button hidden, entry in the More sheet
-const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base);await ready(P);
+const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.app);await ready(P);
 assert.strictEqual(await P.isVisible("#sumb"),false);await P.click("#vnmore");await P.waitForTimeout(200);await P.click("#vm_sum");await P.waitForTimeout(200);
 assert(await P.evaluate(()=>!!document.querySelector(".smm")));await P.screenshot({path:__dirname+"/../shots/m/390_session_summary.png"});
 const ov=await P.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1);assert(ov,"no sideways scroll");
-assert.deepStrictEqual(h.errors,[]);await h.close();
+assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 console.log("SUMMARY OK");process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

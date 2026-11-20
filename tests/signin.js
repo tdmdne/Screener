@@ -34,19 +34,19 @@ await P.evaluate(()=>{S.__probe=1;save()});assert.deepStrictEqual(await P.evalua
 // reload keeps guest mode for the tab
 await P.reload();await P.waitForFunction(()=>BOOTED);assert(await P.evaluate(()=>vtIsGuest()&&!document.documentElement.classList.contains("locked")));
 // 3) sign in from guest mode: no reload, sockets kept, work saved from now on
-await P.evaluate(()=>{openChart("BTCUSDT","1H");window.__ws0=__WS.length;window.__mark=1});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);
+await P.evaluate(()=>{openChart("BTCUSDT","1H");window.__ws0=__edge.sockets.length;window.__mark=1});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);
 await P.click("#lgo");await P.waitForSelector("#auId",{state:"visible"});assert(await P.isVisible("#auClose"));
 await P.waitForTimeout(150);await P.keyboard.press("Escape");await P.waitForFunction(()=>!document.documentElement.classList.contains("locked"),null,{timeout:3000});
 await P.click("#lgo");await P.fill("#auId","ann@example.com");await P.fill("#auPw","x");await P.click("#auBtn");
 await P.waitForFunction(()=>!document.documentElement.classList.contains("locked"));
-const s2=await P.evaluate(()=>({mark:window.__mark,ws:__WS.length-__ws0,g:vtIsGuest(),lgo:document.getElementById("lgo").textContent,a:sessionStorage.getItem("scr2a"),la:localStorage.getItem("scr2a"),vg:sessionStorage.getItem("vt_guest"),scr2:!!localStorage.getItem(vtSK("scr2"))}));
+const s2=await P.evaluate(()=>({mark:window.__mark,ws:__edge.sockets.length-__ws0,g:vtIsGuest(),lgo:document.getElementById("lgo").textContent,a:sessionStorage.getItem("scr2a"),la:localStorage.getItem("scr2a"),vg:sessionStorage.getItem("vt_guest"),scr2:!!localStorage.getItem(vtSK("scr2"))}));
 assert.deepStrictEqual(s2,{mark:1,ws:0,g:false,lgo:"Log out",a:JSON.stringify({id:"ann@example.com"}),la:null,vg:null,scr2:true});
 await P.evaluate(()=>vtAddAlertAt("BTCUSDT",123));assert(!(await P.$("#vg_h")),"no gate once signed in");
-console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // 4) reduced motion: one static frame, no animation loop
 h=await launch({auth:false,reducedMotion:"reduce"});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");await P.waitForTimeout(200);
 const r1=await frame(P);await P.waitForTimeout(400);const r2=await frame(P);assert.strictEqual(r1,r2,"static under reduced motion");assert.strictEqual(await P.evaluate(()=>AUBG.raf),0);
-assert(r1.length>5000,"static frame drawn");await h.close();
+assert(r1.length>5000,"static frame drawn");assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 // 5) phone
 h=await launch({auth:false,viewport:{width:390,height:844},mobile:true});P=h.page;await P.goto(h.base+"#/workspace");await P.waitForSelector("#auth .auhero h1");
 await P.waitForFunction(()=>document.querySelectorAll("#autick span b").length>=3);
@@ -54,5 +54,5 @@ const ov=await P.evaluate(()=>{const a=document.getElementById("auth");return a.
 const gb=await P.locator("#auGuest").boundingBox();assert(gb.height>=44);
 await P.waitForTimeout(300);await P.screenshot({path:__dirname+"/../shots/m/390_signin.png"});
 await P.tap("#auGuest");await P.waitForFunction(()=>BOOTED);assert(await P.evaluate(()=>vtIsGuest()));
-console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);await h.close();
+console.log("errors",h.errors,"console",h.consoleErr);assert.deepStrictEqual(h.errors,[]);assert.deepStrictEqual(h.offOrigin,[],"non-origin requests");await h.close();
 console.log("SIGNIN OK")})().catch(e=>{console.error(e);process.exit(1)});

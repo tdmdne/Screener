@@ -132,7 +132,21 @@ export async function fetchYahooCandles(apiSym, interval, opts = {}) {
   if (fromSec > 0) bars = bars.filter((b) => b.t >= fromSec);
   if (toSec > 0) bars = bars.filter((b) => b.t <= toSec);
   if (bars.length > limit) bars = bars.slice(-limit);
+  if (isDegenerateSeries(bars)) return null;
   return bars.length ? bars : null;
+}
+
+/**
+ * Yahoo's FX intraday feed (notably 1m) often returns tick samples with O=H=L=C on (nearly) every bar. Rendering
+ * those draws flat dashes instead of candles, so such a series is treated as "no data" and callers fall back to
+ * cached history / the hub's tick-built bars. Real candle series have only a few flat bars (quiet minutes).
+ */
+export const DEGENERATE_FLAT_RATIO = 0.9;
+export function isDegenerateSeries(bars) {
+  if (!Array.isArray(bars) || bars.length < 20) return false;
+  let flat = 0;
+  for (const b of bars) if (b.o === b.h && b.h === b.l && b.l === b.c) flat++;
+  return flat / bars.length >= DEGENERATE_FLAT_RATIO;
 }
 
 /**

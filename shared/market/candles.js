@@ -258,9 +258,15 @@ export function mergeBars(oldBars, incomingBars, opts = {}) {
   return maxBars && merged.length > maxBars ? merged.slice(-maxBars) : merged;
 }
 
+/** True when a bar carries no body or wick (O=H=L=C): a price sample rather than a candle. */
+export function isFlatBar(b) {
+  return Boolean(b) && b.o === b.h && b.h === b.l && b.l === b.c;
+}
+
 /**
  * Lay live (WebSocket-built) bars over a REST history series without duplicates or gaps.
- * - Closed history bars win on matching timestamps (REST carries real OHLC + volume).
+ * - Closed history bars win on matching timestamps (REST carries real OHLC + volume), unless the REST bar is a
+ *   degenerate O=H=L=C sample and the live bar has a real range (then the live candle is kept).
  * - Live bars fill holes inside history and extend it past the last REST bar (REST lag, WS reconnect gaps).
  * - The newest REST bar is the still-forming candle: it keeps the REST open/volume and takes the live close
  *   and the widest high/low, so the active candle is current without losing its true open.
@@ -279,10 +285,18 @@ export function overlayLiveBars(historyBars, liveBars) {
   const lastHist = hist[hist.length - 1];
   const byTime = new Map();
   for (const b of live) byTime.set(b.t, b);
-  for (const b of hist) byTime.set(b.t, b);
+  for (const b of hist) {
+    // REST wins on overlap (a hub bar may have started mid-bucket), except a degenerate O=H=L=C REST bar must never
+    // erase a real tick-built candle with a body/wick range at the same timestamp.
+    const lb = byTime.get(b.t);
+    if (lb && isFlatBar(b) && !isFlatBar(lb)) continue;
+    byTime.set(b.t, b);
+  }
 
   const liveAtLast = live.find((b) => b.t === lastHist.t);
-  if (liveAtLast) {
+  if (liveAtLast && isFlatBar(lastHist) && !isFlatBar(liveAtLast)) {
+    byTime.set(lastHist.t, liveAtLast);
+  } else if (liveAtLast) {
     byTime.set(lastHist.t, {
       t: lastHist.t,
       o: lastHist.o,

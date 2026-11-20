@@ -3,11 +3,16 @@
 
 import { toTwelveSymbol } from "../schema.js";
 import { INTERVAL_SECONDS } from "../intervals.js";
+import { isBinanceCryptoSymbol } from "./cryptoProvider.js";
 
-/** Hub `sym` query value: Twelve Data style ("EUR/USD", "BTC/USD", "AAPL"). */
+/**
+ * Hub `sym` query value. Crypto is Binance-only: the hub stores Binance bars under the Binance pair ("BTCUSDT"), so
+ * those symbols pass through unchanged. Everything else uses the Twelve Data spelling ("EUR/USD", "AAPL").
+ */
 export function hubBarsSymbol(rawSym, mktHint = "") {
   const sym = String(rawSym || "").trim().toUpperCase();
   if (!sym) return "";
+  if (isBinanceCryptoSymbol(sym)) return sym;
   if (sym.includes("/")) return sym;
   const mapped = toTwelveSymbol(sym);
   if (mapped && mapped.includes("/")) return mapped;

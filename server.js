@@ -221,7 +221,7 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 350
   for (const base of BINANCE_MIRRORS) {
     try {
       const r = await fetchWithTimeout(`${base}${pathAndQuery}`, init, timeoutMs);
-      if (r.status === 451 || (r.status >= 500 && r.status <= 599)) {
+      if (r.status === 403 || r.status === 418 || r.status === 429 || r.status === 451 || (r.status >= 500 && r.status <= 599)) {
         continue;
       }
       return r;
@@ -233,7 +233,6 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}, timeoutMs = 350
 const dukaBlockCache = new Map();
 
 const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
-const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
 const isTdPrimaryMarket = (m) => m === "FX" || m === "STK" || m === "ETF";
 
 function toTdApiSymbol(rawSym, meta) {
@@ -954,10 +953,7 @@ async function buildScreenerBody() {
     fetchYahooLiveQuotes(otherItems, 10),
   ]);
   const missingTdItems = tdItems.filter((item) => !tdQuotes.has(item.s));
-  const [missingTdYahooQuotes, cryptoFallbackQuotes] = await Promise.all([
-    missingTdItems.length ? fetchYahooLiveQuotes(missingTdItems, 10) : Promise.resolve(new Map()),
-    bnRows && bnRows.length ? Promise.resolve(new Map()) : fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10),
-  ]);
+  const missingTdYahooQuotes = missingTdItems.length ? await fetchYahooLiveQuotes(missingTdItems, 10) : new Map();
   const seen = new Set();
   const universe = [];
 
@@ -980,36 +976,8 @@ async function buildScreenerBody() {
       }
       universe.push(row);
     }
-  } else {
-    for (const item of LIVE_SCREENER_CRYPTO) {
-      const q = cryptoFallbackQuotes.get(item.s);
-      if (!q || !(q.c > 0)) continue;
-      seen.add(item.s);
-      const merged = upsertLiveQuote(item.s, {
-        c: q.c,
-        prevClose: q.prevClose,
-        chgPct: q.pct,
-        v: q.v || 0,
-        t: (q.t || Math.floor(ts / 1000)) * 1000,
-        source: "yahoo",
-      });
-      universe.push([
-        item.s,
-        item.m,
-        merged ? merged.c : q.c,
-        q.v || 0,
-        item.cs,
-        item.vf,
-        item.api,
-        item.tv,
-        item.pr,
-        resolveTdSymbol(item.td || item.s, item.s),
-        item.name,
-        item.ex,
-        merged && merged.chgPct !== undefined ? merged.chgPct : q.pct,
-      ]);
-    }
   }
+  // Crypto rows come from Binance only; if its tickers are unavailable, crypto is absent rather than another feed.
 
   for (const item of LIVE_SCREENER_NON_CRYPTO) {
     if (seen.has(item.s)) continue;
@@ -1047,7 +1015,7 @@ async function buildScreenerBody() {
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
   if (tdQuotes.size > 0) sources.push("twelvedata");
-  if (otherQuotes.size > 0 || missingTdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
+  if (otherQuotes.size > 0 || missingTdYahooQuotes.size > 0) sources.push("yahoo");
   const payload = {
     ok: true,
     ts,
@@ -1114,13 +1082,7 @@ app.get("/api/quote", async (req, res) => {
               qMeta = upsertLiveQuote(s, { c: px, t: Date.now(), source: "binance" });
             }
           }
-          if (!(px > 0)) {
-            const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
-            if (q && q.c > 0) {
-              px = q.c;
-              qMeta = upsertLiveQuote(s, { c: q.c, prevClose: q.prevClose, chgPct: q.pct, v: q.v, t: (q.t || now) * 1000, source: "yahoo" });
-            }
-          }
+          // Crypto quotes: Binance only.
         } else {
           if (isTdPrimaryMarket(meta.m || "STK") && TWELVEDATA_KEY) {
             const tdSym = toTdApiSymbol(s, meta);
@@ -1234,12 +1196,8 @@ app.get("/api/candles", async (req, res) => {
 
       if (replay) {
         if (isCrypto) {
-          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts); // crypto: Binance only
           if (bars) source = "binance";
-          if (!bars) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
-            if (bars && bars.length) source = "yahoo";
-          }
         } else if (DUKASCOPY_MAP[rawSym]) {
           bars = await fetchDukascopyCandles(rawSym, interval, opts, livePrices.get(rawSym) || meta.p);
           if (bars) source = "dukascopy";
@@ -1257,12 +1215,8 @@ app.get("/api/candles", async (req, res) => {
         }
       } else {
         if (isCrypto) {
-          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts);
+          bars = await fetchBinanceCandles(meta.api || rawSym, interval, opts); // crypto: Binance only
           if (bars !== null) source = "binance";
-          if (bars === null) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), interval, opts);
-            if (bars !== null) source = "yahoo";
-          }
         } else {
           if (TWELVEDATA_KEY) {
             const tdResolved = toTdApiSymbol(rawSym, meta);

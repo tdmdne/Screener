@@ -8,7 +8,10 @@ const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v 
 export const STABLE_RE = /^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|XUSD|AEUR|EUR|PYUSD|USD1)USDT$/;
 
 /** Binance REST hosts, tried in order (451 / 5xx -> next mirror). */
+// Binance public REST hosts, tried in order. Measured from a Cloudflare Worker (20 Nov 2026): data-api.binance.vision
+// and api[1-4].binance.com answer 403 to Cloudflare egress; api-gcp.binance.com answers 200, so it goes first.
 export const BINANCE_MIRRORS = Object.freeze([
+  "https://api-gcp.binance.com",
   "https://data-api.binance.vision",
   "https://api.binance.com",
 ]);

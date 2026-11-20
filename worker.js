@@ -18,7 +18,8 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
     try {
       const u = `${base}${pathAndQuery}`;
       const r = await fetch(u, init);
-      if (r.status === 451 || (r.status >= 500 && r.status <= 599)) {
+      // 403 (Binance WAF on Cloudflare egress), 418/429 (IP rate limits), 451 (geo) and 5xx are host-specific: try the next.
+      if (r.status === 403 || r.status === 418 || r.status === 429 || r.status === 451 || (r.status >= 500 && r.status <= 599)) {
         continue;
       }
       return r;
@@ -30,7 +31,6 @@ async function fetchBinanceWithFallback(pathAndQuery, init = {}) {
 const HISTORICAL_KV_TTL = 2592000; // 30 days for immutable historical blocks
 
 const LIVE_SCREENER_NON_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m !== "CRY");
-const LIVE_SCREENER_CRYPTO = BASE_INSTRUMENTS.filter((item) => item.m === "CRY");
 const isTdPrimaryMarket = (m) => m === "FX" || m === "STK" || m === "ETF";
 
 function toTdApiSymbol(rawSym, meta) {
@@ -206,36 +206,14 @@ async function buildScreenerSnapshot(env) {
   ]);
   const tdQuotes = mergeLiveTdQuotes(tdItems, hubQuotes, tdYahooQuotes);
   const missingTdYahooQuotes = new Map();
-  const cryptoFallbackQuotes =
-    bnRows && bnRows.length ? new Map() : await fetchYahooLiveQuotes(LIVE_SCREENER_CRYPTO, 10);
   const seen = new Set();
   const universe = [];
 
+  // Crypto rows come from Binance only; if its tickers are unavailable, crypto is absent rather than another feed.
   if (bnRows && bnRows.length) {
     for (const row of bnRows) {
       seen.add(row[0]);
       universe.push(row);
-    }
-  } else {
-    for (const item of LIVE_SCREENER_CRYPTO) {
-      const q = cryptoFallbackQuotes.get(item.s);
-      if (!q || !(q.c > 0)) continue;
-      seen.add(item.s);
-      universe.push([
-        item.s,
-        item.m,
-        q.c,
-        q.v || 0,
-        item.cs,
-        item.vf,
-        item.api,
-        item.tv,
-        item.pr,
-        resolveTdSymbol(item.td || item.s, item.s),
-        item.name,
-        item.ex,
-        q.pct,
-      ]);
     }
   }
 
@@ -264,7 +242,7 @@ async function buildScreenerSnapshot(env) {
   const sources = [];
   if (bnRows && bnRows.length) sources.push("binance");
   if (hubQuotes.size > 0) sources.push("twelvedata");
-  if (otherQuotes.size > 0 || tdYahooQuotes.size > 0 || cryptoFallbackQuotes.size > 0) sources.push("yahoo");
+  if (otherQuotes.size > 0 || tdYahooQuotes.size > 0) sources.push("yahoo");
   return {
     ok: true,
     ts,
@@ -918,6 +896,9 @@ async function fetchHubBars(env, rawSym, mktHint, baseKey, limit) {
 async function loadCandleHistory(p) {
   const { env, ctx, cache, t0, rawSym, meta, tdKey, isCrypto, iv, fromSec, toSec, beforeSec, fetchLimit, replay, refresh, ttl, isHistoricalChunk, isHistoricalReplay } = p;
   const base = iv.base;
+  // Crypto is Binance-only (same series as the hub's live Binance bars). Entries cached before that rule, e.g. Yahoo
+  // fallbacks, are never served for crypto.
+  const usable = (source) => !isCrypto || /^binance/.test(String(source || ""));
   const normUrl = `${p.origin}/api/candles?symbol=${encodeURIComponent(rawSym)}&interval=${encodeURIComponent(base)}&from=${fromSec}&to=${toSec}&before=${beforeSec}&limit=${fetchLimit}&replay=${replay ? 1 : 0}`;
   const cacheKey = new Request(normUrl, { method: "GET" });
 
@@ -926,7 +907,7 @@ async function loadCandleHistory(p) {
     if (edgeHit) {
       try {
         const j = await edgeHit.clone().json();
-        if (j && Array.isArray(j.bars)) return { bars: j.bars, source: j.source || "cache", cache: "HIT-EDGE" };
+        if (j && Array.isArray(j.bars) && usable(j.source)) return { bars: j.bars, source: j.source || "cache", cache: "HIT-EDGE" };
       } catch (_e) {}
     }
   }
@@ -937,6 +918,7 @@ async function loadCandleHistory(p) {
     if (
       kvCached &&
       Array.isArray(kvCached.bars) &&
+      usable(kvCached.source) &&
       (kvCached.bars.length || isHistoricalChunk) &&
       (isHistoricalChunk || isHistoricalReplay || Date.now() - kvCached.ts < ttl * 1000)
     ) {
@@ -957,10 +939,6 @@ async function loadCandleHistory(p) {
         if (isCrypto) {
           bars = await fetchBinanceCandles(meta.api || rawSym, base, opts);
           if (bars) source = "binance";
-          if (!bars) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
-            if (bars && bars.length) source = "yahoo";
-          }
         } else if (DUKASCOPY_MAP[rawSym]) {
           bars = await fetchDukascopyCandles(rawSym, base, opts, env, meta.p);
           if (bars) source = "dukascopy";
@@ -979,12 +957,9 @@ async function loadCandleHistory(p) {
       } else {
         // Live Workspace & Supercharts: Single-Source-Per-Chart Routing (Zero Cross-Feed Mixing, Zero Synthetic Data)
         if (isCrypto) {
+          // Binance only. On failure the caller serves last good Binance history, then the hub's Binance-fed bars.
           bars = await fetchBinanceCandles(meta.api || rawSym, base, opts);
           if (bars !== null) source = "binance";
-          if (bars === null) {
-            bars = await fetchYahooCandles(toYahooSymbol(rawSym, meta.api), base, opts);
-            if (bars !== null) source = "yahoo";
-          }
         } else {
           if (tdKey) {
             const tdResolved = toTdApiSymbol(rawSym, meta);
@@ -1012,7 +987,7 @@ async function loadCandleHistory(p) {
     // Upstream failed (credits, 429, Yahoo block, refresh=1 during an outage): serve the last good history for this
     // exact window rather than letting the caller drop to the hub's few tick-built bars (the "single 15m/4H candle").
     const stale = await readLastGoodHistory(env, kvKey);
-    if (stale) return { bars: stale.bars, source: `${stale.source}+stale`, cache: "STALE" };
+    if (stale && usable(stale.source)) return { bars: stale.bars, source: `${stale.source}+stale`, cache: "STALE" };
     return { bars: null, source, cache: "MISS" };
   }
   if (!isHistoricalChunk && !replay) rememberLastGoodHistory(kvKey, bars, source);
@@ -1360,12 +1335,7 @@ async function handleQuote(request, env, _ctx) {
             quotes[s] = { s, c: px, t: now, m: meta.m || "CRY", source: "binance" };
           }
         }
-        if (!quotes[s]) {
-          const q = await fetchYahooQuote(toYahooSymbol(s, meta.api));
-          if (q && q.c > 0) {
-            quotes[s] = { s, c: q.c, t: q.t || now, m: meta.m || "CRY", source: "yahoo" };
-          }
-        }
+        // Crypto quotes: Binance only.
       } else {
         if (isTdPrimaryMarket(meta.m || "STK")) {
           const hq = (await fetchHubQuotes([s], env)).get(s);

@@ -79,7 +79,8 @@ await ok("instrument catalog: 70 entries, legacy order, frozen, indexed", () => 
   assert.equal(Object.keys(DUKASCOPY_MAP).length, 26); assert.deepEqual(DUKASCOPY_MAP.USDJPY, { id: "USDJPY", scale: 1000 });
   assert.ok(Object.isFrozen(DUKASCOPY_MAP.USDJPY));
   assert.equal(Object.keys(FUTURES_TO_TWELVEDATA).length, 22);
-  assert.deepEqual([...BINANCE_MIRRORS], ["https://data-api.binance.vision", "https://api.binance.com"]);
+  // api-gcp first: the only Binance REST host that answers Cloudflare egress (others 403; see tests/crypto-binance-only).
+  assert.deepEqual([...BINANCE_MIRRORS], ["https://api-gcp.binance.com", "https://data-api.binance.vision", "https://api.binance.com"]);
   assert.ok(STABLE_RE.test("USDCUSDT") && !STABLE_RE.test("BTCUSDT"));
 });
 await ok("server.js and worker.js import catalogs from shared/ (no literal copies left)", () => {

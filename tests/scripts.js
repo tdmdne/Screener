@@ -5,9 +5,9 @@ const assert=require("assert"),fs=require("fs"),path=require("path");const {laun
 const AXE=fs.readFileSync(path.join(__dirname,"../node_modules/axe-core/axe.min.js"),"utf8");
 const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await axe.run(c||document,{runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21a","wcag21aa"]}})).violations.map(v=>v.id+" x"+v.nodes.length+" "+v.nodes[0].target.join(" ")),ctx)};
 const ready=P=>P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
-(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.base);await ready(P);
+(async()=>{for(const theme of ["dark","light"]){const h=await launch({viewport:{width:1440,height:900},colorScheme:theme,acceptDownloads:true});const P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>LIVE["BTCUSDT|1H"]&&LIVE["BTCUSDT|1H"].length>100);await P.waitForTimeout(400);
-const ws0=await P.evaluate(()=>(window.__w0=BNWS.ws,__WS.length));
+const ws0=await P.evaluate(()=>(window.__w0=VT_EDGE.ws,__edge.sockets.length));
 if(theme==="dark"){
 // 1) sandbox: spy on every dynamic-code door, then run hostile scripts
 const sb=await P.evaluate(()=>{const hits=[];const oe=window.eval,OF=window.Function,ost=window.setTimeout;
@@ -78,10 +78,10 @@ await P.evaluate(()=>vsM());await P.waitForSelector("#vs_src");await P.waitForTi
 let v=await axe(P,"#modal");assert.deepStrictEqual(v,[],theme+" scripts axe: "+v.join(" | "));
 if(theme==="dark")await P.screenshot({path:__dirname+"/../shots/20_scripts_editor.png"});
 await P.evaluate(()=>closeM());await P.waitForTimeout(300);if(theme==="dark")await P.screenshot({path:__dirname+"/../shots/21_scripts_chart.png"});
-const ws1=await P.evaluate(n=>BNWS.ws===__w0&&__WS.length===n,ws0);assert(ws1,"sockets untouched");
+const ws1=await P.evaluate(n=>VT_EDGE.ws===__w0&&__edge.sockets.length===n,ws0);assert(ws1,"sockets untouched");
 console.log(theme,"errors",h.errors);assert.deepStrictEqual(h.errors,[]);await h.close()}
 // 7) phone: editor fits, 44px targets, no sideways scroll
-const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.base);await ready(P);
+const h=await launch({viewport:{width:390,height:844},mobile:true});const P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>{openChart("BTCUSDT","1H");const n=vsNew(VS_EX[0].name,VS_EX[0].src);n.on=true;save()});await P.waitForTimeout(900);
 assert(await P.isVisible("#vsb"),"Scripts button on phone");await P.click("#vsb");await P.waitForSelector("#vs_src");await P.waitForTimeout(500);
 const ph=await P.evaluate(()=>{const W=document.documentElement.clientWidth,b=document.querySelector("#modal .box").getBoundingClientRect();const small=[...document.querySelectorAll("#modal button,#modal input,#modal textarea,#modal summary,#vsleg .vschip")].filter(e=>e.offsetParent&&e.type!=="file").map(e=>{const r=e.getBoundingClientRect();return[e.id||e.className||e.tagName,Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<43.5||x[2]<43.5);

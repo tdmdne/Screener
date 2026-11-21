@@ -11,3 +11,6 @@
 `): the commit then rewrites all 150 lines. Write `index.html` with `
 ` only and check `git show --stat` after each commit.
 - 2026-11-21: The hub only streams `bar` frames for `view.chart.sym/tf`; extra series (compare, layout panes) need their own `view.chart.*` field plus `_broadcastBar`/`_symbolsFromView` support, or they never update live.
+- 2026-11-21: Task 17 was ticked but alerts were still evaluated in the browser (`checkAlerts`); the hub evaluator never received alerts. Verify a 'server-side' claim by grepping for the client path, not by the existence of the server module.
+- 2026-11-21: Also failing on origin/main `abbc7d9`: `calendar`, `claims`, `screener`, `sound` (besides drawpresets/layout/postool/shortcuts). The full browser sweep takes ~20 min (`tests/*.js`).
+- 2026-11-21: Bash heredocs with JS containing `${...}` template literals plus quotes can break the tool's quoting (unexpected EOF); write such files with the Write tool and assemble with a short command.

@@ -1,0 +1,15 @@
+/* E-02 Command palette */
+.vt-cmd-bd{position:fixed;inset:0;z-index:2000;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px;background:rgba(0,0,0,.45)}
+.vt-cmd{width:min(560px,100%);max-height:min(70vh,520px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.45);overflow:hidden}
+.vt-cmd input{flex:none;width:100%;box-sizing:border-box;padding:12px 14px;font-size:15px;color:var(--fg);background:transparent;border:0;border-bottom:1px solid var(--line);outline:none}
+.vt-cmd-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 0}
+.vt-cmd-grp{padding:8px 14px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.vt-cmd-opt{display:flex;align-items:baseline;gap:10px;min-height:32px;padding:6px 14px;cursor:pointer;color:var(--fg);font-size:13px}
+.vt-cmd-opt[aria-selected="true"]{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+.vt-cmd-l{font-variant-numeric:tabular-nums;white-space:nowrap}
+.vt-cmd-d{color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt-cmd-empty{padding:16px 14px;color:var(--mut);font-size:13px}
+.vt-cmd-hint{flex:none;padding:6px 14px;font-size:11px;color:var(--mut);border-top:1px solid var(--line)}
+:root[data-ui="phone"] .vt-cmd-bd{padding-top:8vh}
+:root[data-ui="phone"] .vt-cmd-opt{min-height:44px}
+@media (prefers-reduced-motion:no-preference){.vt-cmd{animation:vtCmdIn .12s ease-out}@keyframes vtCmdIn{from{opacity:0;transform:translateY(-6px)}}}

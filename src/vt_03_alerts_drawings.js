@@ -594,7 +594,7 @@ let SYBUF="";
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 if(!chartOnPage())return; // chart shortcuts only where a chart is on screen
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
-// Ctrl+K opens symbol search
+// Ctrl+K: the global command palette (src/vt_14_command_palette.js) captures it first; this is a fallback
 if(ctrl&&!alt&&e.key.toLowerCase()==="k"){e.preventDefault();if(typeof syOpen==="function")syOpen();return}
 // start interval popup on first digit
 if(!ctrl&&!alt&&/^[0-9]$/.test(e.key)){TFBUF=e.key;tfShow();return}

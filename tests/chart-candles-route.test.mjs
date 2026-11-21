@@ -76,7 +76,7 @@ describe("/api/candles with ind=", () => {
       const data = await res.json();
       assert.equal(data.ind, undefined);
       assert.equal(data.bars.length, 50);
-      assert.ok(seen.includes("/api/bars?sym=BTC%2FUSD&tf=1d&limit=50"));
+      assert.ok(seen.includes("/api/bars?sym=BTCUSDT&tf=1d&limit=50"), "crypto: the hub keeps Binance pairs (#29)");
     });
   });
 

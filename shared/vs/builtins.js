@@ -665,7 +665,9 @@ export const VS_FN = Object.freeze(
 export const VS_BUILTIN_NAMES = Object.freeze(Object.keys(VS_FN));
 
 /** Declaration directives handled directly by the runtime. */
-export const VS_DECL = Object.freeze(["indicator", "input", "plot", "hline"]);
+export const VS_DECL = Object.freeze(["indicator", "input", "plot", "hline", "entry_long", "entry_short", "exit_long", "exit_short"]);
+/** E-12 strategy signal statements: entry_long(cond) etc. (see shared/vs/strategy.js). */
+export const VS_STRATEGY_DECL = Object.freeze(["entry_long", "entry_short", "exit_long", "exit_short"]);
 
 /** Levenshtein edit distance for "Did you mean ...?" hints. */
 export function vsLev(a, b) {

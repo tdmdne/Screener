@@ -831,3 +831,15 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 .al-wl input{width:80px}
 /* the drawing selection toolbar must sit above the floating favourites bar (z 18), or its buttons are unreachable */
 #dsel{z-index:19}
+/* E-12 strategy tester (inside the Vektor Script editor) */
+.st-in{width:72px}
+.vs-st h4{margin:10px 0 6px;font-size:13px}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.st-m{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+.st-m span{font-size:11px}
+.st-m b,.st-t td{font-variant-numeric:tabular-nums;font-family:var(--mono,ui-monospace,monospace)}
+.st-m.up b,.st-t td.up{color:var(--up,#089981)}.st-m.dn b,.st-t td.dn{color:var(--dn,#f23645)}
+.st-tw{max-height:220px;overflow:auto;margin-top:6px;border:1px solid var(--line);border-radius:6px}
+.st-t{width:100%;border-collapse:collapse;font-size:12px}
+.st-t th,.st-t td{padding:3px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.st-t th{position:sticky;top:0;background:var(--card);text-align:right}

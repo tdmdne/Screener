@@ -6,6 +6,8 @@ const {parseIndicatorList,buildIndicatorSeries}=require("../shared/market/chartI
 // Server-side chart transforms (E-10 Renko / Line Break) for /api/candles?type=: same module as the Pages Function.
 const {parseChartTransform,applyChartTransform}=require("../shared/market/chartTransforms.js");
 const {parseVolumeProfileQuery,volumeProfile}=require("../shared/market/volumeProfile.js");
+// /api/vs/run mock (E-12 strategy tester): the same server-side VS engine + backtest as the Pages Function.
+const {vsCompute}=require("../shared/vs/index.js");const {vsBacktest}=require("../shared/vs/strategy.js");
 const ROOT=path.resolve(__dirname,"..");
 function serve(){return new Promise(r=>{const s=http.createServer((q,res)=>{let p=decodeURIComponent(q.url.split("?")[0]);if(p==="/")p="/index.html";const f=path.join(ROOT,p);
 if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);res.end();return}
@@ -43,7 +45,7 @@ async function launch(opts={}){
   await ctx.addInitScript(({mode,state,consent,auth})=>{if(auth!==false&&!localStorage.getItem("scr2a"))localStorage.setItem("scr2a",JSON.stringify({id:"tester"}));
     if(consent!==false&&!localStorage.getItem("__cseed")){localStorage.setItem("__cseed","1");localStorage.setItem("vt_consent",JSON.stringify({v:"1.1",ts:Date.now(),cache:true,method:"test"}))}
     if(state&&!localStorage.getItem("__seeded")){localStorage.setItem("__seeded","1");localStorage.setItem("scr2",JSON.stringify(state))}},{mode:opts.mode,state:opts.state||null,consent:opts.consent,auth:opts.auth});
-  const offOrigin=[],candleCalls=[]; // candleCalls: query strings of /api/candles?ind= requests (server-indicator path)
+  const offOrigin=[],candleCalls=[],vsRuns=[]; // candleCalls: query strings of /api/candles?ind= requests (server-indicator path)
   // Opt-in D1 auth mock (`launch({d1:true})`): stateful same-origin /api/auth/{providers,me,login,logout}, mirroring the real
   // Worker contract (login needs a valid email; password "wrong" -> 401). Off by default: with it on, /api/auth/me answers 401 for
   // signed-out visitors, which clears the legacy `scr2a` marker the auth:true suites rely on.
@@ -62,6 +64,11 @@ async function launch(opts={}){
     if(u.startsWith("http://127.0.0.1:"+port+"/api/")){const q=new URL(u);const j=o=>route.fulfill({contentType:"application/json",body:JSON.stringify(o)});
       if(opts.d1&&q.pathname.startsWith("/api/auth/"))return d1Api(q,route);
       if(q.pathname==="/api/screener")return j({ok:true,ts:Date.now(),tfs:["1D","1H"],universe:UNIVERSE});
+      if(q.pathname==="/api/vs/run"){let b={};try{b=JSON.parse(route.request().postData()||"{}")}catch(e){}vsRuns.push(b);
+        const res=vsCompute(b.src||"",Array.isArray(b.bars)?b.bars:[],{inputs:b.inputs||{}});
+        if(res.error!==null)return route.fulfill({status:422,contentType:"application/json",body:JSON.stringify({ok:false,error:res.error,line:res.line,col:res.col,hint:res.hint})});
+        const o=res.ok;return j({ok:true,name:o.name,overlay:o.overlay,plots:o.plots.map(p=>({title:p.title,color:p.color,v:Array.from(p.v,x=>Number.isFinite(x)?x:null)})),hlines:o.hlines,inputs:o.inputs,
+          ...(o.signals&&Object.keys(o.signals).length?{strategy:vsBacktest(b.bars,o.signals,b.strategy||{})}:{})})}
       if(q.pathname==="/api/candles"){const tf=q.searchParams.get("interval")||"1H",bars=genBars(q.searchParams.get("symbol")||"BTCUSDT",250,STEPS[tf]||3600);
         const vpq=parseVolumeProfileQuery(q.searchParams);if(vpq){if(!vpq.ok)return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({ok:false,error:vpq.error})});
           candleCalls.push(q.search);return j({ok:true,vp:volumeProfile(bars,{rows:vpq.rows,from:vpq.from,to:vpq.to})})}
@@ -88,6 +95,6 @@ async function launch(opts={}){
   // The edge client only fetches candles for the active chart (card/heatmap data is server-side, Task 13). Tests that need
   // history for every symbol merge what /api/candles would return: `await h.seedBars("1D",40)`.
   const seedBars=(tf,n)=>page.evaluate(({tf,n})=>{for(const s of SYMS)vtSetServerBars(s[0]+"|"+tf,__edge.bars(tf,s[2]||1,n||40,s[0]));if(typeof render==="function")render()},{tf,n});
-  return {browser,ctx,page,errors,consoleErr,offOrigin,candleCalls,seedBars,d1,base,app,close:async()=>{await browser.close();srv.close()}};
+  return {browser,ctx,page,errors,consoleErr,offOrigin,candleCalls,vsRuns,seedBars,d1,base,app,close:async()=>{await browser.close();srv.close()}};
 }
 module.exports={launch,ROOT};

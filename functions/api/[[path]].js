@@ -26,6 +26,7 @@ import {
   warmupBars,
 } from "../../shared/market/chartIndicators.js";
 import { applyChartTransform, parseChartTransform } from "../../shared/market/chartTransforms.js";
+import { vsBacktest } from "../../shared/vs/strategy.js";
 import { parseVolumeProfileQuery, volumeProfile } from "../../shared/market/volumeProfile.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
@@ -832,6 +833,10 @@ async function handleVsRun(request, env) {
       inputs: res.ok.inputs,
       key: res.key,
       cached: res.cached,
+      // E-12: scripts with entry_/exit_ signals get a server-side backtest over the same bars
+      ...(res.ok.signals && Object.keys(res.ok.signals).length
+        ? { strategy: vsBacktest(bars, res.ok.signals, isPlainObject(body.strategy) ? body.strategy : {}) }
+        : {}),
     },
     200,
     { "cache-control": "no-store" },

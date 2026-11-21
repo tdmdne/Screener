@@ -18,8 +18,11 @@ const signed=await P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED&&!d
 ok("signed in with the test account",signed);if(!signed){console.log(out.join("\n"));await browser.close();process.exit(1)}
 em=pw=null;
 await P.waitForFunction(()=>typeof BOOTED!=="undefined"&&BOOTED,null,{timeout:45000});
+// the smoke account's email is unverified: dismiss the verification prompt like a user choosing "Verify later"
+try{await P.waitForSelector("#vtVerifyLaterBtn",{state:"visible",timeout:6000});await P.click("#vtVerifyLaterBtn");await P.waitForSelector("#vtVerifyModalOv",{state:"detached",timeout:5000})}catch(_e){}
 await P.evaluate(()=>{if(location.hash!=="#/chart")go("chart");openChart("BTCUSDT","1H")});
-const wsOk=await P.waitForFunction(()=>VT_EDGE.ws&&VT_EDGE.ws.readyState===1,null,{timeout:30000}).then(()=>true,()=>false);ok("edge WS open",wsOk);
+const wsOk=await P.waitForFunction(()=>VT_EDGE.ws&&VT_EDGE.ws.readyState===1,null,{timeout:30000}).then(()=>true,()=>false);
+ok("edge WS open",wsOk,wsOk?"":await P.evaluate(()=>JSON.stringify({ws:VT_EDGE.ws?VT_EDGE.ws.readyState:null,canEdge:typeof vtCanUseEdge==="function"?vtCanUseEdge():null,live:typeof isLive==="function"?isLive():null,hash:location.hash})));
 await P.waitForFunction(()=>ch&&G&&G.a&&G.a.length>30,null,{timeout:45000}).catch(()=>{});
 ok("main chart has bars",await P.evaluate(()=>!!(G&&G.a&&G.a.length>30)),await P.evaluate(()=>G&&G.a?G.a.length+" bars":"none"));
 

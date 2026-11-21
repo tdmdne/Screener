@@ -7,3 +7,7 @@
 - 2026-11-21: `rmInd()` reopens the Indicators dialog (it calls `indM()`); remove indicators from other UI with `S.chart.ind=filter; save(); drawChart()` instead.
 - 2026-11-21: A dock list that rebuilds on every `dsel()`/`save()` breaks dblclick (the second click lands on a new node). Rebuild only when a content signature changes and update selection classes in place.
 - 2026-11-21: `tests/drawpresets.js` (`#ds_tpl` timeout), `tests/shortcuts.js` (`#vft_kb` missing) and `tests/postool.js` already fail on origin/main `abbc7d9`.
+- 2026-11-21: `index.html` is LF in the repo, but autocrlf does not renormalise it if the working copy turns all-CRLF (e.g. a script that re-joins with `
+`): the commit then rewrites all 150 lines. Write `index.html` with `
+` only and check `git show --stat` after each commit.
+- 2026-11-21: The hub only streams `bar` frames for `view.chart.sym/tf`; extra series (compare, layout panes) need their own `view.chart.*` field plus `_broadcastBar`/`_symbolsFromView` support, or they never update live.

@@ -994,6 +994,12 @@ function vtHandleEdgeWsMessage(raw) {
     return;
   }
 
+  // Paper trading account update (E-13): src/vt_23_paper_trading.js
+  if (msg.type === "paper" && msg.account && typeof vtOnPaperFrame === "function") {
+    vtOnPaperFrame(msg);
+    return;
+  }
+
   // Hub-evaluated alert fired (alerts are never checked in the browser): src/vt_19_server_alerts.js
   if (msg.type === "alert" && msg.id != null && typeof vtOnServerAlert === "function") {
     vtOnServerAlert(msg);

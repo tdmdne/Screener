@@ -246,5 +246,5 @@ Gap list taken from tradingview.com/features (community and ideas left out). One
 - [x] **E-10 Chart types: Renko, Line Break, Baseline.** Renko/Line Break are built server-side in `shared/market/` (`/api/candles?type=`); Baseline is a render mode.
 - [x] **E-11 Volume Profile** (visible range and fixed range): rows computed server-side; crypto and stocks first (FX volume from Twelve Data is weak).
 - [x] **E-12 Vektor Script strategy tester**: entries/exits in the VS runtime, server-side; metrics, list of trades, CSV export.
-- [ ] **E-13 Paper trading on live data**: account balance, leverage, commission; reuses the replay fill rules (Task 18). Persisted per account (ACC).
-- [ ] **E-14 Earnings calendar**: check that Twelve Data Basic `/earnings_calendar` is available first; if it isn't, park it as 💷 D3.
+- [x] **E-13 Paper trading on live data**: account balance, leverage, commission; reuses the replay fill rules (Task 18). Persisted per account (ACC).
+- [ ] 💷 **E-14 Earnings calendar**: parked 21 Nov — Twelve Data `/earnings_calendar` needs Grow (individual) or Venture (business), not Basic. Build after D3.

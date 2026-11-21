@@ -9,6 +9,7 @@
 //   IndicatorTracker + buildScreenerSnapshot -> broadcasts Protocol v2 frames to Hibernation WS clients.
 // - Routes: GET /hub/stats, GET /api/bootstrap, GET /api/bars, GET /ws.
 import { createAlertEvaluator } from "../../shared/alerts.js";
+import { createPaperAccount } from "../../shared/paper.js";
 import { createCandleBuilder, mergeBars, normalizeTf, rollup } from "../../shared/market/candles.js";
 import { resolveInterval } from "../../shared/intervals.js";
 import {
@@ -247,6 +248,8 @@ export class MarketHub {
     this.sessionAlertTagSeq = 0;
     // Signed-in users' alerts (A3): persisted in SQLite, evaluated with or without an open socket.
     this.userAlerts = new Map();      // userId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
+    // E-13 paper accounts: "u:<userId>" (persisted) or "c:<clientId>" (session) -> account
+    this.paperAccounts = new Map();
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
@@ -278,6 +281,7 @@ export class MarketHub {
         }
         this._hydrateHibernatedSockets();
         this._loadUserAlerts();
+        this._loadUserPaper();
         await this._armAlarm();
       } finally {
         this._initializing = false;
@@ -855,6 +859,8 @@ export class MarketHub {
       alertTriggers.push(...tickAlertRes.triggers);
       this._broadcastAlerts(tickAlertRes.frames, tickAlertRes.triggers);
     }
+
+    if (this.paperAccounts.size) this._paperOnPrice(tick.s, tick.c);
 
     const candleRes = this.candles.onTick(tick);
     if (candleRes.ignored) {
@@ -1793,6 +1799,11 @@ export class MarketHub {
       return;
     }
 
+    if (msg.op === "paper") {
+      this._handlePaper(id, msg);
+      return;
+    }
+
     if (msg.op === "alerts") {
       this._applySessionAlerts(id, msg.alerts);
       return;
@@ -1892,6 +1903,7 @@ export class MarketHub {
     this.clientViews.delete(att.id);
     this.clientLastViewAt.delete(att.id);
     this._clearSessionAlerts(att.id);
+    this.paperAccounts.delete(`c:${att.id}`);
   }
 
   /** Upstream symbols a socket needs: its view plus the symbols of its session alerts. */
@@ -1899,6 +1911,8 @@ export class MarketHub {
     const syms = new Set(this._symbolsFromView(view));
     const sa = this.sessionAlerts.get(id);
     if (sa) for (const s of sa.syms) syms.add(s);
+    const pa = this.paperAccounts.get(`c:${id}`);
+    if (pa) for (const s of pa.symbols()) syms.add(s);
     return this._filterUpstreamSymbolsForClient(id, [...syms]);
   }
 
@@ -1933,6 +1947,7 @@ export class MarketHub {
   _syncUserAlertSymbols() {
     const syms = new Set();
     for (const ua of this.userAlerts.values()) for (const s of ua.syms) syms.add(s);
+    for (const [key, acct] of this.paperAccounts) if (key.startsWith("u:")) for (const s of acct.symbols()) syms.add(s);
     if (!syms.size) {
       if (this.core.clients.has(USER_ALERTS_CLIENT)) this.core.removeClient(USER_ALERTS_CLIENT);
       return;
@@ -1960,6 +1975,107 @@ export class MarketHub {
     }
     const ua = this.userAlerts.get(userId);
     return { accepted: ua ? ua.ids.size : 0, rejected: rejected.length };
+  }
+
+  // ---------- E-13 paper trading ----------
+  _paperKey(id) {
+    const c = this.core.clients.get(id);
+    return c && c.userId ? `u:${c.userId}` : `c:${id}`;
+  }
+
+  _paperPrice(sym) {
+    const t = this.core.last && this.core.last.get(sym);
+    return t && Number.isFinite(t.c) && t.c > 0 ? t.c : null;
+  }
+
+  _paperAccount(key) {
+    let acct = this.paperAccounts.get(key);
+    if (!acct) {
+      acct = createPaperAccount({ now: this.now });
+      this.paperAccounts.set(key, acct);
+    }
+    return acct;
+  }
+
+  _paperPersist(key, acct) {
+    if (!key.startsWith("u:")) return;
+    try {
+      this.store.saveUserPaper(key.slice(2), acct.serialize(), this.now());
+    } catch {
+      /* best effort */
+    }
+  }
+
+  _paperSend(key, event) {
+    const acct = this.paperAccounts.get(key);
+    if (!acct) return;
+    const snap = acct.snapshot((s) => this._paperPrice(s));
+    snap.history = snap.history.slice(0, 50);
+    const payload = { account: snap, ...(event ? { event } : {}) };
+    const targets = key.startsWith("u:")
+      ? [...this.core.clients.entries()].filter(([cid, c]) => cid !== USER_ALERTS_CLIENT && c && c.userId === key.slice(2)).map(([cid]) => cid)
+      : [key.slice(2)];
+    for (const cid of targets) {
+      try {
+        this._sendToClient(cid, "paper", payload);
+      } catch {
+        /* frame too large or socket gone */
+      }
+    }
+  }
+
+  _paperSymbolsChanged(id, key) {
+    if (key.startsWith("u:")) this._syncUserAlertSymbols();
+    else this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+  }
+
+  _handlePaper(id, msg) {
+    const key = this._paperKey(id);
+    const acct = this._paperAccount(key);
+    let res = { ok: true };
+    if (msg.action === "order") {
+      const sym = normSymbol(msg.sym);
+      res = acct.marketOrder({ sym, side: msg.side, qty: msg.qty, sl: msg.sl, tp: msg.tp }, this._paperPrice(sym));
+    } else if (msg.action === "close") {
+      const p = acct.snapshot(() => null).positions.find((x) => x.id === msg.id);
+      res = acct.close(String(msg.id), p ? this._paperPrice(p.sym) : null);
+    } else if (msg.action === "modify") {
+      const p = acct.snapshot(() => null).positions.find((x) => x.id === msg.id);
+      res = acct.modify(String(msg.id), { sl: msg.sl, tp: msg.tp }, p ? this._paperPrice(p.sym) : null);
+    } else if (msg.action === "reset") {
+      acct.reset({ balance: msg.balance, leverage: msg.leverage, commissionPct: msg.commissionPct });
+    }
+    if (msg.action !== "get") {
+      this._paperPersist(key, acct);
+      this._paperSymbolsChanged(id, key);
+    }
+    if (!res.ok) {
+      this._sendToClient(id, "error", { code: "PAPER_REJECTED", message: String(res.error || "Order rejected").slice(0, 256), fatal: false });
+    }
+    this._paperSend(key, res.ok && msg.action !== "get" ? { action: msg.action, ...(res.closed ? { closed: res.closed } : {}) } : undefined);
+  }
+
+  /** Stop-loss / take-profit fills on every price update (with or without the owner online). */
+  _paperOnPrice(sym, price) {
+    for (const [key, acct] of this.paperAccounts) {
+      const closed = acct.onPrice(sym, price);
+      if (!closed.length) continue;
+      this._paperPersist(key, acct);
+      for (const c of closed) this._paperSend(key, { action: c.reason, closed: c });
+    }
+  }
+
+  _loadUserPaper() {
+    let rows = [];
+    try {
+      rows = this.store.listUserPaper();
+    } catch {
+      return;
+    }
+    for (const { userId, state } of rows) {
+      if (USER_ID_RE.test(userId)) this.paperAccounts.set(`u:${userId}`, createPaperAccount({ now: this.now, state }));
+    }
+    this._syncUserAlertSymbols();
   }
 
   /** Persist a fired one-shot user alert so a DO restart does not re-arm it before the client syncs. */

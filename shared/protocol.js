@@ -27,7 +27,10 @@ export const PROVENANCE = Object.freeze({
   UNAVAILABLE: "UNAVAILABLE",
 });
 
-export const CLIENT_OPS = Object.freeze(["hello", "view", "ping", "alerts"]);
+export const CLIENT_OPS = Object.freeze(["hello", "view", "ping", "alerts", "paper"]);
+/** E-13 paper trading actions (client op `paper`); the account is run by the hub (shared/paper.js). */
+export const PAPER_ACTIONS = Object.freeze(["get", "order", "close", "modify", "reset"]);
+const PAPER_ACTION_SET = new Set(PAPER_ACTIONS);
 /** `alerts` op: the session's armed alert definitions (full replace), evaluated by the hub (AGENTS.md §0). */
 export const MAX_SESSION_ALERTS = 40;
 
@@ -44,6 +47,7 @@ export const SERVER_TYPES = Object.freeze([
   "alert",
   "error",
   "pong",
+  "paper",
 ]);
 
 /** Delta / control frames governed by MAX_LIVE_FRAME_BYTES (2 KB). */
@@ -448,6 +452,13 @@ export function validateClientMessage(input) {
       return { ok: true, value: msg, bytes };
     }
 
+    case "paper": {
+      if (!PAPER_ACTION_SET.has(msg.action)) return fail("INVALID_PAPER", `paper.action must be one of ${PAPER_ACTIONS.join(", ")}`);
+      if (msg.action === "order" && !isValidSymbol(msg.sym)) return fail("INVALID_PAPER", "paper.sym must be a valid symbol");
+      if ((msg.action === "close" || msg.action === "modify") && !isNonEmptyStr(msg.id, 32)) return fail("INVALID_PAPER", "paper.id is required");
+      return { ok: true, value: msg, bytes };
+    }
+
     case "alerts": {
       // Shape only; each definition is fully validated by shared/alerts.js normalizeAlert in the hub.
       if (!Array.isArray(msg.alerts)) return fail("INVALID_ALERTS", "alerts.alerts must be an array");
@@ -628,6 +639,12 @@ export function validateServerFrame(input, opts = {}) {
       if (frame.message !== undefined && !isNonEmptyStr(frame.message, 256)) {
         return fail("INVALID_ALERT", "alert.message must be a non-empty string <= 256 chars");
       }
+      return { ok: true, value: frame, bytes };
+    }
+
+    case "paper": {
+      if (!isPlainObject(frame.account)) return fail("INVALID_PAPER", "paper.account must be an object");
+      if (frame.event !== undefined && !isPlainObject(frame.event)) return fail("INVALID_PAPER", "paper.event must be an object");
       return { ok: true, value: frame, bytes };
     }
 

@@ -137,6 +137,13 @@ export class MarketStore {
         "defs TEXT NOT NULL, " +
         "updated_at INTEGER NOT NULL)"
     );
+    // Signed-in users' paper trading accounts (E-13): SL/TP keep working with no tab open.
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS paper_accounts (" +
+        "user_id TEXT PRIMARY KEY, " +
+        "state TEXT NOT NULL, " +
+        "updated_at INTEGER NOT NULL)"
+    );
     // Alert frames that fired while the owner had no socket open; delivered (then deleted) on their next connect.
     this.sql.exec(
       "CREATE TABLE IF NOT EXISTS user_alert_pending (" +
@@ -494,6 +501,32 @@ export class MarketStore {
       JSON.stringify(defs),
       nowMs
     );
+  }
+
+  /** E-13: persist a user's paper account state. */
+  saveUserPaper(userId, state, nowMs) {
+    this._ensureInit();
+    this.sql.exec(
+      "INSERT INTO paper_accounts (user_id, state, updated_at) VALUES (?, ?, ?) " +
+        "ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at",
+      userId,
+      JSON.stringify(state),
+      nowMs
+    );
+  }
+
+  /** E-13: all persisted paper accounts (for re-arming SL/TP after the DO restarts). */
+  listUserPaper() {
+    this._ensureInit();
+    const out = [];
+    for (const r of this.sql.exec("SELECT user_id, state FROM paper_accounts").toArray()) {
+      try {
+        out.push({ userId: r.user_id, state: JSON.parse(r.state) });
+      } catch {
+        /* skip corrupt row */
+      }
+    }
+    return out;
   }
 
   /** A3: every user's persisted alert definitions, for re-registering after the DO restarts. */

@@ -238,9 +238,9 @@ Gap list taken from tradingview.com/features (community and ideas left out). One
 - [x] **E-06 Drawing tools**: parallel channel, fib extension, Andrews/Schiff pitchfork. Accept: drag/edit/delete like the existing tools; persisted; object-tree entries.
 
 **Tier 1: alerts (builds on Task 17 server alerts)**
-- [ ] **E-07 Drawing alerts**: trendline/ray/channel/hline cross, evaluated in the hub (line value at bar time).
-- [ ] **E-08 Watchlist alerts**: one alert covers every symbol in a list; counts as one Free alert.
-- [ ] **E-09 Multi-condition alerts**: up to 5 conditions joined with AND, in `shared/alerts.js`.
+- [x] **E-07 Drawing alerts**: trendline/ray/channel/hline cross, evaluated in the hub (line value at bar time).
+- [x] **E-08 Watchlist alerts**: one alert covers every symbol in a list; counts as one Free alert.
+- [x] **E-09 Multi-condition alerts**: up to 5 conditions joined with AND, in `shared/alerts.js`.
 
 **Tier 2: what sets us apart**
 - [ ] **E-10 Chart types: Renko, Line Break, Baseline.** Renko/Line Break are built server-side in `shared/market/` (`/api/candles?type=`); Baseline is a render mode.

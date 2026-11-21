@@ -45,7 +45,7 @@ const pyy=await P.evaluate(()=>parseFloat(document.querySelector("#cv .vplus").s
 await plus.tap();await P.waitForSelector("#cv .vpmenu");await P.locator("#cv .vpmenu div",{hasText:"Add alert"}).tap();await P.waitForTimeout(300);
 const al=await P.evaluate(()=>S.alerts.slice(-1)[0]);const exp=await P.evaluate(y=>vtRoundPx(symOf("BTCUSDT"),MS.coordinateToPrice(y)),pyy);console.log("tap alert",al.price,exp);assert.strictEqual(al.price,exp);
 // 5) drag the alert line by touch, then open the editor as a bottom sheet
-await P.evaluate(()=>{window.checkAlerts=()=>{}});await P.waitForTimeout(200);
+await P.waitForTimeout(200);
 const hb=await P.locator(`#cv .valh[data-al="${al.id}"]`).boundingBox();assert(hb.height>=24);const hx=hb.x+hb.width/2,hy=hb.y+hb.height/2;
 await touch("touchStart",[[hx,hy]]);for(let i=1;i<=6;i++){await touch("touchMove",[[hx,hy+i*8]]);await P.waitForTimeout(16)}await touch("touchEnd",[]);await P.waitForTimeout(300);
 const moved=await P.evaluate(([id,y])=>({p:S.alerts.find(a=>a.id===id).price,exp:vtRoundPx(symOf("BTCUSDT"),MS.coordinateToPrice(y)),n:S.alerts.length}),[al.id,hy+48-box.y]);

@@ -822,3 +822,12 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 :root[data-ui="phone"] #sr{left:0;right:0;width:auto}
 :root[data-ui="phone"] .vt-sypop{top:8px;width:96vw;max-height:84vh}
 /* ==== VT PAGES CSS END ==== */
+/* alerts dialog: AND conditions + watchlist alert */
+.al-cond{gap:6px;align-items:center}
+.al-cond input{width:110px}
+.al-wl{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.al-wl h4{margin:0 0 2px;font-size:13px}
+.al-wl .row{gap:6px;flex-wrap:wrap}
+.al-wl input{width:80px}
+/* the drawing selection toolbar must sit above the floating favourites bar (z 18), or its buttons are unreachable */
+#dsel{z-index:19}

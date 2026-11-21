@@ -50,8 +50,8 @@ if(theme==="dark"){await P.screenshot({path:__dirname+"/../shots/19_session_summ
   await P.evaluate(()=>{S.dr={};S.alog=[];vtSumM()});await P.waitForTimeout(100);
   const e=await P.evaluate(()=>({real:document.getElementById("sm_real").textContent,t:document.querySelector(".smm").textContent}));
   assert.strictEqual(e.real,"\u2013");assert(/No positions closed today or open now/.test(e.t)&&/No alerts triggered today/.test(e.t));await P.evaluate(()=>closeM());
-  // a triggered alert from the feed shows up
-  await P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2];S.alerts=[{id:9,sym:"BTCUSDT",price:+(p*1.01).toFixed(4),dir:"above",on:true}];const t=c=>__edge.quotes([{s:"BTCUSDT",c:c}]);t(p*.999);t(p*1.02);vtSumM()});
+  // a triggered alert (hub-evaluated, delivered as an alert frame) shows up
+  await P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2];S.alerts=[{id:9,sym:"BTCUSDT",price:+(p*1.01).toFixed(4),dir:"above",on:true}];__edge.push(__edge.frame("alert",{id:"9",sym:"BTCUSDT",condition:"cross_up",price:p*1.02,triggeredAt:Date.now()}));vtSumM()});
   assert.strictEqual(await P.textContent("#sm_alc"),"1","alert from the feed is counted");await P.evaluate(()=>closeM());
   // the evening chip
   await P.evaluate(()=>vtSumChip(true));assert(await P.isVisible("#vtsumchip"));await P.click("#vtsum_open");await P.waitForTimeout(100);assert(await P.evaluate(()=>!!document.querySelector(".smm")&&!document.getElementById("vtsumchip")));

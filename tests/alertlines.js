@@ -5,8 +5,7 @@ const {launch}=require("./harness");const assert=require("assert");
 await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));
 await P.evaluate(()=>{S.alerts=[];save();openChart("BTCUSDT","1H")});await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);await P.waitForTimeout(600);
 await P.evaluate(()=>{window.__fires=0;const f=fireAlert;window.fireAlert=function(){__fires++;return f.apply(this,arguments)};
-  // the mock feed jumps around; only the test drives crosses
-  const c=checkAlerts;window.__manual=false;window.checkAlerts=function(){if(__manual)return c.apply(this,arguments)}});
+});
 const lab=(host,id)=>P.evaluate(([host,id])=>{const e=document.querySelector(`${host} .valb[data-al="${id}"]`);if(!e||e.style.display==="none")return null;
   const ser=host==="#cv"?MS:SC.serB;const a=S.alerts.find(x=>x.id===id);return{top:parseFloat(e.style.top)+9,want:a?ser.priceToCoordinate(a.price):null,txt:e.textContent,price:a&&a.price}},[host,id]);
 // 1) line + label render at the alert's price
@@ -23,12 +22,14 @@ let a=await P.evaluate(()=>S.alerts.map(x=>({...x})));assert.strictEqual(a.lengt
 assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem(vtSK("scr2")))).alerts[0].msg,"BTC breakout \u2014 check the 4H");
 await P.evaluate(()=>alertsM());const am=await P.textContent("#modal");assert(am.includes("BTC breakout")&&/crossing/i.test(am),am);await P.evaluate(()=>closeM());
 // 3) fire: toast shows the custom message, exactly once; "crossing" fires on a down-cross too; line goes away once fired
-const fr=await P.evaluate(p=>{__manual=true;lastPx.BTCUSDT=p+5;checkAlerts("BTCUSDT",p+5);checkAlerts("BTCUSDT",p-1);const t=document.getElementById("msg").textContent;checkAlerts("BTCUSDT",p+3);checkAlerts("BTCUSDT",p-3);__manual=false;return[__fires,t]},px);
+const fr=await P.evaluate(([id,p])=>{__edge.push(__edge.frame("alert",{id:String(id),sym:"BTCUSDT",condition:"cross",price:p-1,triggeredAt:Date.now()}));const t=document.getElementById("msg").textContent;return[__fires,t]},[id,px]);
 console.log("fire",fr);assert.deepStrictEqual(fr,[1,"BTC breakout \u2014 check the 4H"]);await P.waitForTimeout(200);assert.strictEqual(await lab("#cv",id),null,"fired alert line removed");
 // 4) editing a fired alert's price re-arms it on the same object; no duplicate fire from the stale baseline
 const p2=await P.evaluate(()=>vtRoundPx(symOf("BTCUSDT"),MS.coordinateToPrice(300)));
-const f2=await P.evaluate(([id,p2])=>{__manual=true;__fires=0;lastPx.BTCUSDT=p2-50;symOf("BTCUSDT")[2]=p2+10;vtAlUpdate(id,{price:p2});const re=!S.alerts[0].fired;
-  checkAlerts("BTCUSDT",p2+12);const n0=__fires;checkAlerts("BTCUSDT",p2-1);checkAlerts("BTCUSDT",p2+1);__manual=false;return[re,n0,__fires,S.alerts.length]},[id,p2]);
+const re0=await P.evaluate(([id,p2])=>{__fires=0;symOf("BTCUSDT")[2]=p2+10;vtAlUpdate(id,{price:p2});return[!S.alerts[0].fired,__fires]},[id,p2]);
+// the re-armed alert (new price) is sent to the hub again
+await P.waitForFunction(p2=>__edge.sent.some(m=>{try{const v=JSON.parse(m);return v.op==="alerts"&&v.alerts.some(a=>a.target===p2)}catch(e){return false}}),p2,{timeout:5000});
+const f2=await P.evaluate(([id,p2,re0])=>{__edge.push(__edge.frame("alert",{id:String(id),sym:"BTCUSDT",condition:"cross",price:p2-1,triggeredAt:Date.now()}));return[re0[0],re0[1],__fires,S.alerts.length]},[id,p2,re0]);
 console.log("edit+refire",f2);assert.deepStrictEqual(f2,[true,0,1,1]);
 // 5) drag the line to move the price (fresh alert)
 const p3=await P.evaluate(()=>vtRoundPx(symOf("BTCUSDT"),MS.coordinateToPrice(250)));const id3=await P.evaluate(p=>vtAddAlertAt("BTCUSDT",p).id,p3);await P.waitForTimeout(200);
@@ -49,7 +50,7 @@ console.log("delete",del);assert.deepStrictEqual(del,[false,0,1,1]);
 // 8) persists across reload: armed alert drawn again with its message
 await P.evaluate(id=>{const a=S.alerts.find(x=>x.id===id);a.fired=false;a.msg="kept";save()},id);await P.reload();await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"));await P.evaluate(()=>openChart("BTCUSDT","1H"));await P.waitForFunction(()=>ch&&LIVE["BTCUSDT|1H"]);
 // the mock feed may have crossed it during boot; stop that and re-arm, then check it is drawn from persisted state
-assert.strictEqual(await P.evaluate(()=>{window.checkAlerts=()=>{};S.alerts[0].fired=false;return S.alerts[0].msg}),"kept");await P.waitForTimeout(800);
+assert.strictEqual(await P.evaluate(()=>{S.alerts[0].fired=false;return S.alerts[0].msg}),"kept");await P.waitForTimeout(800);
 L=await lab("#cv",id);assert(L&&Math.abs(L.top-L.want)<=1,"after reload");assert.strictEqual(await P.evaluate(()=>S.alerts[0].msg),"kept");
 assert.strictEqual(await P.evaluate(()=>document.querySelectorAll("#cv .valb").length),1);
 console.log("errors",h.errors,"console",h.consoleErr);assert(!h.errors.length&&!h.consoleErr.length);await h.close();console.log("ALERTLINES OK")})().catch(e=>{console.error(e);process.exit(1)});

@@ -19,8 +19,8 @@ let px=await viaPlus("#cv",["ch","MS"],"Add alert");
 let al=await P.evaluate(()=>S.alerts.slice(-1)[0]);console.log("workspace alert",JSON.stringify(al),"expected",px);
 assert.strictEqual(al.sym,"BTCUSDT");assert.strictEqual(al.price,px);assert.strictEqual(JSON.parse(await P.evaluate(()=>localStorage.getItem(vtSK("scr2")))).alerts.length,1);
 await P.evaluate(()=>alertsM());assert((await P.textContent("#modal")).includes(String(px)));await P.evaluate(()=>closeM());
-// mocked cross: fires exactly once
-const fires=await P.evaluate(p=>{S.alerts.forEach(a=>{a.dir="above"});delete lastPx.ETHX;checkAlerts("BTCUSDT",p-1);checkAlerts("BTCUSDT",p+1);checkAlerts("BTCUSDT",p-1);checkAlerts("BTCUSDT",p+2);return[__fires,S.alerts[0].fired]},px);
+// hub alert frame: fires exactly once and marks the one-shot alert fired (crossing logic is tested server-side)
+const fires=await P.evaluate(p=>{S.alerts.forEach(a=>{a.dir="above"});__edge.push(__edge.frame("alert",{id:String(S.alerts[0].id),sym:"BTCUSDT",condition:"cross",price:p+1,triggeredAt:Date.now()}));return[__fires,S.alerts[0].fired]},px);
 console.log("fires",fires);assert.deepStrictEqual(fires,[1,true]);
 // 2) Workspace chart -> horizontal line
 px=await viaPlus("#cv",["ch","MS"],"Draw horizontal");const hl=await P.evaluate(()=>DL().filter(d=>d.t==="hline").map(d=>d.p[0].y));assert.deepStrictEqual(hl,[px]);

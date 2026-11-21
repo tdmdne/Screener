@@ -5,6 +5,33 @@
 // Protocol v2 provenance (`UNAVAILABLE`) when the service binding is not yet configured.
 
 import { PROVENANCE } from "../shared/protocol.js";
+import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../shared/auth.js";
+
+/**
+ * A3: forward the upgrade with the signed-in user's id so the hub can keep that user's alerts running with no tab open.
+ * Client-supplied X-Vektor-User / X-Vektor-Internal are always stripped; ours are added only for a valid session.
+ * Any auth failure degrades to an anonymous socket (never blocks market data).
+ */
+export async function withSessionUser(request, env) {
+  const headers = new Headers(request.headers);
+  headers.delete("X-Vektor-User");
+  headers.delete("X-Vektor-Internal");
+  const secret = env && typeof env.INTERNAL_TD_SECRET === "string" ? env.INTERNAL_TD_SECRET.trim() : "";
+  if (secret && env.DB) {
+    try {
+      const token = parseCookies(request.headers.get("Cookie") || "")[SESSION_COOKIE_NAME];
+      const user = token ? await getSessionUser(env.DB, token) : null;
+      const id = user && typeof user.id === "string" ? user.id : user && user.id != null ? String(user.id) : "";
+      if (/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+        headers.set("X-Vektor-User", id);
+        headers.set("X-Vektor-Internal", secret);
+      }
+    } catch {
+      /* anonymous socket */
+    }
+  }
+  return new Request(request, { headers });
+}
 
 function parseAllowedOrigins(env) {
   const set = new Set();
@@ -169,7 +196,7 @@ export async function onRequest(context) {
 
   try {
     // Return the service-binding response directly so 101 Switching Protocols + .webSocket remain intact.
-    return await env.MARKET_SERVICE.fetch(request);
+    return await env.MARKET_SERVICE.fetch(await withSessionUser(request, env));
   } catch {
     // Never leak upstream URLs, headers, internal binding names, secrets, or stack traces.
     return jsonResponse(

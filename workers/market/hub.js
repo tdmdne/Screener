@@ -63,6 +63,19 @@ const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D"
 /** Max extra (custom) timeframes the builder maintains live; custom bars are derived from native bars, never persisted. */
 const MAX_CUSTOM_TIMEFRAMES = 16;
 const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap", "alerts"]);
+const USER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** Pseudo-client that keeps signed-in users' alert symbols subscribed upstream while they have no tab open (A3). */
+const USER_ALERTS_CLIENT = "__user_alerts__";
+
+/** Short, stable evaluator-id prefix for a user's alerts (FNV-1a, 8 hex chars). */
+function userAlertTag(userId) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `u${h.toString(16).padStart(8, "0")}`;
+}
 const SCREENER_SNAPSHOT_KEY = "screener:latest";
 const VALID_PRESETS = new Set(["P1", "P2", "P3", "P4", "P5"]);
 const VALID_EVC = new Set(["H", "M", "L"]);
@@ -232,6 +245,8 @@ export class MarketHub {
     // `alerts` op: per-socket session alerts. Ids are namespaced `<tag>~<clientAlertId>` inside the evaluator.
     this.sessionAlerts = new Map();   // clientId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
     this.sessionAlertTagSeq = 0;
+    // Signed-in users' alerts (A3): persisted in SQLite, evaluated with or without an open socket.
+    this.userAlerts = new Map();      // userId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
@@ -262,6 +277,7 @@ export class MarketHub {
           this.core.pinSymbols(persisted);
         }
         this._hydrateHibernatedSockets();
+        this._loadUserAlerts();
         await this._armAlarm();
       } finally {
         this._initializing = false;
@@ -1677,17 +1693,24 @@ export class MarketHub {
       server.accept();
     }
 
-    const attachment = { id, seq: 0, view: {}, connectedAt: this.now() };
+    // Signed-in user id, set only by the vektor-market front Worker after it verified the internal secret (A3).
+    const rawUser = (req.headers.get("X-Vektor-User") || "").trim();
+    const userId = USER_ID_RE.test(rawUser) ? rawUser : null;
+    const attachment = { id, seq: 0, view: {}, connectedAt: this.now(), ...(userId ? { userId } : {}) };
     this._persistAttachment(server, attachment);
 
     this.socketById.set(id, server);
     this.clientViews.set(id, {});
-    this.core.addClient(id, (payload) => server.send(payload), { startSeq: 0 });
+    this.core.addClient(id, (payload) => server.send(payload), { startSeq: 0, userId });
 
     this._sendToClient(id, "hello", {
       serverTime: this.now(),
       capabilities: [...CAPABILITIES],
     });
+    // alerts that fired while this user had no tab open
+    if (userId) {
+      for (const payload of this.store.takeUserAlerts(userId)) this._sendToClient(id, "alert", payload);
+    }
 
     try {
       return new Response(null, { status: 101, webSocket: client });
@@ -1879,6 +1902,91 @@ export class MarketHub {
     return this._filterUpstreamSymbolsForClient(id, [...syms]);
   }
 
+  /**
+   * A3: register a signed-in user's alerts (full replace) under their user tag with `userId` set, so they are evaluated
+   * and delivered with or without an open socket. Returns the rejected-definition messages.
+   */
+  _registerUserAlerts(userId, defs) {
+    const tag = userAlertTag(userId);
+    const prev = this.userAlerts.get(userId);
+    if (prev) for (const cid of prev.ids) this.alerts.removeAlert(`${prev.tag}~${cid}`);
+    const ua = { tag, ids: new Set(), syms: new Set() };
+    const rejected = [];
+    for (const def of defs) {
+      const cid = String(def.id);
+      const { userId: _ignored, parentId: _p, ...rest } = def;
+      try {
+        const res = this.alerts.addAlert({ ...rest, id: `${tag}~${cid}`, userId });
+        ua.ids.add(cid);
+        for (const s of Array.isArray(res.syms) ? res.syms : [res.sym]) if (s) ua.syms.add(normSymbol(s));
+      } catch (err) {
+        rejected.push(`${cid}: ${err && err.message ? String(err.message).slice(0, 80) : "invalid"}`);
+      }
+    }
+    if (ua.ids.size) this.userAlerts.set(userId, ua);
+    else this.userAlerts.delete(userId);
+    this._syncUserAlertSymbols();
+    return rejected;
+  }
+
+  /** Keep every signed-in user's alert symbols subscribed upstream via one ref-counted pseudo-client. */
+  _syncUserAlertSymbols() {
+    const syms = new Set();
+    for (const ua of this.userAlerts.values()) for (const s of ua.syms) syms.add(s);
+    if (!syms.size) {
+      if (this.core.clients.has(USER_ALERTS_CLIENT)) this.core.removeClient(USER_ALERTS_CLIENT);
+      return;
+    }
+    if (!this.core.clients.has(USER_ALERTS_CLIENT)) this.core.addClient(USER_ALERTS_CLIENT, () => {}, { startSeq: 0 });
+    this.core.setClientSymbols(USER_ALERTS_CLIENT, [...syms]);
+  }
+
+  _applyUserAlerts(id, userId, defs) {
+    const rejected = this._registerUserAlerts(userId, defs);
+    try {
+      // persist only definitions that validated, so a restart never re-reports the same errors
+      const ua = this.userAlerts.get(userId);
+      this.store.saveUserAlerts(userId, ua ? defs.filter((d) => ua.ids.has(String(d.id))) : [], this.now());
+    } catch {
+      /* SQLite failure: alerts still run for this DO lifetime */
+    }
+    this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+    if (rejected.length) {
+      this._sendToClient(id, "error", {
+        code: "INVALID_ALERTS",
+        message: `Rejected ${rejected.length} alert(s): ${rejected.join("; ")}`.slice(0, 256),
+        fatal: false,
+      });
+    }
+    const ua = this.userAlerts.get(userId);
+    return { accepted: ua ? ua.ids.size : 0, rejected: rejected.length };
+  }
+
+  /** Persist a fired one-shot user alert so a DO restart does not re-arm it before the client syncs. */
+  _markUserAlertFired(userId, cid) {
+    try {
+      const row = this.store.listUserAlerts().find((r) => r.userId === userId);
+      if (!row) return;
+      const defs = row.defs.map((d) => (String(d.id) === cid ? { ...d, fired: true } : d));
+      this.store.saveUserAlerts(userId, defs, this.now());
+    } catch {
+      /* best effort */
+    }
+  }
+
+  /** On DO start: re-register every persisted user's alerts (invalid rows are skipped). */
+  _loadUserAlerts() {
+    let rows = [];
+    try {
+      rows = this.store.listUserAlerts();
+    } catch {
+      return;
+    }
+    for (const { userId, defs } of rows) {
+      if (USER_ID_RE.test(userId)) this._registerUserAlerts(userId, defs);
+    }
+  }
+
   _clearSessionAlerts(id) {
     const sa = this.sessionAlerts.get(id);
     if (!sa) return;
@@ -1891,6 +1999,8 @@ export class MarketHub {
    * skipped and reported in one non-fatal error frame. A client can never set `userId` (ownership comes from the socket).
    */
   _applySessionAlerts(id, defs) {
+    const owner = this.core.clients.get(id);
+    if (owner && owner.userId) return this._applyUserAlerts(id, owner.userId, defs);
     const prev = this.sessionAlerts.get(id);
     const tag = prev ? prev.tag : `s${(this.sessionAlertTagSeq++).toString(36)}`;
     this._clearSessionAlerts(id);
@@ -2156,6 +2266,26 @@ export class MarketHub {
         const [ownerId] = ownerSession;
         const client = this.core.clients.get(ownerId);
         if (client) this._sendToClient(ownerId, "alert", { ...payload, id: evalId.slice(tagSep + 1) });
+        continue;
+      }
+      // Signed-in users' persisted alerts: every socket of that user gets it; with none open it is queued (A3).
+      const ua = ownerUserId && tagSep > 0 ? this.userAlerts.get(ownerUserId) : null;
+      if (ua && ua.tag === evalId.slice(0, tagSep)) {
+        const wire = { ...payload, id: evalId.slice(tagSep + 1) };
+        if (triggers[i] && triggers[i].mode === "once" && !triggers[i].parentId) this._markUserAlertFired(ownerUserId, wire.id);
+        let delivered = 0;
+        for (const [id, client] of this.core.clients.entries()) {
+          if (id === USER_ALERTS_CLIENT || !client || client.userId !== ownerUserId) continue;
+          this._sendToClient(id, "alert", wire);
+          delivered += 1;
+        }
+        if (!delivered) {
+          try {
+            this.store.queueUserAlert(ownerUserId, wire, this.now());
+          } catch {
+            /* SQLite unavailable: the alert's fired state is still kept in the evaluator */
+          }
+        }
         continue;
       }
       for (const [id, client] of this.core.clients.entries()) {

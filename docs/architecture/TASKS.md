@@ -143,14 +143,14 @@ Before each step merges, Grok runs a preview with a network-egress check (Task 1
     - The module has no maths beyond formatting.
     - Add `src/data_service.js` to the `_middleware.js` allowlist.
 
-- [ ] **Task 11: Chart renders server bars and indicators only.** *Claude Sonnet.*
+- [x] **Task 11: Chart renders server bars and indicators only.** *Claude Sonnet.*
   - **Read:** `index.html` 1606-1712 (`updateLiveBar`, `vtBuildChartData`, `vtApplyHistoryPrepend`), 6407-6592 (`vtMergeBars`, `edgeFetchCandles`, `vtLoadMoreHistory`), 6902-7051 (TD tick/poll, `vtSyncChartFeed`, `vtWsConnect`).
   - **Do:** Feed lightweight-charts from `state`/`bar`/`ind` frames, then delete the client candle building and merging above. History paging becomes `GET /api/bars?before=` (server-merged).
   - **Accept:**
     - Live chart for 3 symbols works on a preview and on prod after merge.
     - `rg` finds none of the deleted function names.
     - `tests/supercharts.js`, `tests/reliability.js` and `tests/minicharts.js` are updated and green.
-  - **Status (20 Nov, `feat/tasks-9-11-bootstrap-server-indicators`):** code and tests done. **Preview verified** (`d34749c1`, EURUSD 15m / AAPL 1D / BTCUSDT 1m: one history+indicator request each, live `bar` and `ind` frames update the chart and legend). Tick this box after the prod check. Paging uses `/api/candles?before=&ind=` (server-merged, the same pipeline as the initial load) rather than a separate `/api/bars`. `vtBuildChartData`, `vtMergeBars` and `vtNewBarOpen` are deleted; `updateLiveBar`, `edgeFetchCandles` and `vtLoadMoreHistory` remain as render/transport wrappers with no maths. The dead `src/54_backtest.js` still contains old names (Task 20).
+  - **Status (20 Nov, `feat/tasks-9-11-bootstrap-server-indicators`):** code and tests done. **Preview verified** (`d34749c1`, EURUSD 15m / AAPL 1D / BTCUSDT 1m: one history+indicator request each, live `bar` and `ind` frames update the chart and legend). **Prod verified 21 Nov** (PR #27 merged as `f0395c4`): vektorterminal.com BTCUSDT `binance+hub`, EURUSD `twelvedata+hub`, NQ=F `yahoo`, each with `ema:20`/`rsi:14` series in the same response; live `/ws` sent `bar` and `ind` frames across a 1m close. Paging uses `/api/candles?before=&ind=` (server-merged, the same pipeline as the initial load) rather than a separate `/api/bars`. `vtBuildChartData`, `vtMergeBars` and `vtNewBarOpen` are deleted; `updateLiveBar`, `edgeFetchCandles` and `vtLoadMoreHistory` remain as render/transport wrappers with no maths. The dead `src/54_backtest.js` still contains old names (Task 20).
 
 - [ ] **Task 12: Vektor Script runs on the server; the editor stays.** *Claude Sonnet.*
   - **Read:** `index.html` 4246-4368, `src/48_vs_ui.js`.

@@ -235,7 +235,7 @@ Gap list taken from tradingview.com/features (community and ideas left out). One
 - [x] **E-03 Object tree**: panel listing every drawing and indicator, with hide, lock, delete and rename. Accept: state persists with the drawings; keyboard accessible.
 - [x] **E-04 Compare/overlay symbol**: a second series on the same pane, % or own scale, bars from `/api/candles`. Accept: no client maths beyond rendering; removable; persisted.
 - [x] **E-05 Multi-chart layouts**: 1/2/3/4/6/8 grids (Free = 3 charts), synced symbol/interval/crosshair/drawings toggles. Accept: one `/ws` connection shared by every pane; phone shows one chart. *Done 21 Nov: drawings are not mirrored onto panes yet, and the Free 3-chart cap waits for server-side plan checks (ACC).*
-- [ ] **E-06 Drawing tools**: parallel channel, fib extension, Andrews/Schiff pitchfork. Accept: drag/edit/delete like the existing tools; persisted; object-tree entries.
+- [x] **E-06 Drawing tools**: parallel channel, fib extension, Andrews/Schiff pitchfork. Accept: drag/edit/delete like the existing tools; persisted; object-tree entries.
 
 **Tier 1: alerts (builds on Task 17 server alerts)**
 - [ ] **E-07 Drawing alerts**: trendline/ray/channel/hline cross, evaluated in the hub (line value at bar time).

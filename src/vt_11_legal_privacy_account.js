@@ -437,8 +437,16 @@ function vtVolPill(s){const top=document.querySelector("#cp .cpb .row.top");if(!
   const set=i=>{const z=a[Math.max(0,Math.min(a.length-1,i))];el.textContent="Vol "+(z&&z.v!=null?vtFmtVol(z.v):"\u2013")};set(a.length-1);
   const ref=top.querySelector('button[title="Market status"]')||top.querySelector(":scope>div");top.insertBefore(el,ref||null);
   try{ch.subscribeCrosshairMove(p=>{if(!document.body.contains(el))return;if(p&&p.logical!=null&&p.logical>=0)set(Math.round(p.logical));else set(a.length-1)})}catch(e){}}
+// E-01: quick price scale mode toggle (auto / log / %), render-only (lightweight-charts PriceScaleMode)
+function vtScaleBtns(){const cv=document.getElementById("cv");if(!cv||typeof ch==="undefined"||!ch||typeof ch.priceScale!=="function")return;const old=cv.querySelector(".vt-scaleb");if(old)old.remove();
+  const C=S.chart,d=document.createElement("div");d.className="vt-scaleb";d.setAttribute("role","toolbar");d.setAttribute("aria-label","Price scale mode");if(C.scalePlace==="left")d.classList.add("left");
+  const apply=()=>{try{ch.priceScale("right").applyOptions({mode:+C.scMode||0,autoScale:C.scAuto!==false})}catch(_e){}save();paint()};
+  const btns=[["auto","Auto scale",()=>C.scAuto!==false,()=>{C.scAuto=C.scAuto===false}],["log","Log scale",()=>+C.scMode===1,()=>{C.scMode=+C.scMode===1?0:1}],["%","% (percent) scale",()=>+C.scMode===2,()=>{C.scMode=+C.scMode===2?0:2}]];
+  const paint=()=>d.querySelectorAll("button").forEach((b,i)=>{const on=btns[i][2]();b.classList.toggle("on",on);b.setAttribute("aria-pressed",String(on))});
+  btns.forEach(([t,l,,f])=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.title=l;b.setAttribute("aria-label",l);b.onclick=e=>{e.stopPropagation();f();apply()};b.onpointerdown=e=>e.stopPropagation();d.append(b)});
+  paint();cv.append(d)}
 function vtTimeCol(){const tb=document.getElementById("timebar");if(!tb)return;const c=S.chart.timeCol;tb.style.color=c&&/^#[0-9a-f]{6}$/i.test(c)&&c.toLowerCase()!=="#131722"?c:""}
-(function(){if(typeof vtAfterDraw!=="function")return;const base=vtAfterDraw;vtAfterDraw=function(s,a,T){base(s,a,T);for(const f of [vtNavBtns,vtPaneBtns,()=>vtVolPill(s),vtTimeCol]){try{f()}catch(e){console.error(e)}}}})();
+(function(){if(typeof vtAfterDraw!=="function")return;const base=vtAfterDraw;vtAfterDraw=function(s,a,T){base(s,a,T);for(const f of [vtNavBtns,vtScaleBtns,vtPaneBtns,()=>vtVolPill(s),vtTimeCol]){try{f()}catch(e){console.error(e)}}}})();
 // ---------- 98 layout: continuous, virtualised screener list on desktop ----------
 // Desktop shows every match in one scrolling list (sticky headers) instead of pages. Only the rows near
 // the viewport are in the DOM; spacer rows keep the scroll height right. The list, filters, sort and

@@ -392,7 +392,7 @@ PAGE_HOOK.heatmap={enter(){hmBuild();hmTick(true);requestAnimationFrame(()=>hmTi
 // Opens with "?" anywhere except while typing, or from the footer button; Esc or "?" closes it.
 const VT_MAC=/Mac|iPhone|iPad/.test((navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||"");
 const VT_KB=[
-  {id:"general",t:"Anywhere",rows:[[["?"],"Show or hide this list"],[["Esc"],"Close a dialog, menu or panel"],[["Tab"],"Move between controls; the first Tab offers \u201cSkip to main content\u201d"],[["Enter"],"Activate the focused item (also Space)"]]},
+  {id:"general",t:"Anywhere",rows:[[["Ctrl","K"],"Command palette: symbols, timeframes, tools, pages, settings"],[["?"],"Show or hide this list"],[["Esc"],"Close a dialog, menu or panel"],[["Tab"],"Move between controls; the first Tab offers \u201cSkip to main content\u201d"],[["Enter"],"Activate the focused item (also Space)"]]},
   {id:"list",t:"Screener list (Workspace, Chart, Screener)",pages:["workspace","chart","screener"],rows:[[["Down"],"Next symbol in the list"],[["Up"],"Previous symbol in the list"]]},
   {id:"chart",t:"Chart (Workspace and Chart pages)",pages:["workspace","chart"],rows:[
     [["0\u20139"],"Change interval: type a number, e.g. 15 or 4H"],[["A\u2013Z"],"Search symbol: start typing a name"],

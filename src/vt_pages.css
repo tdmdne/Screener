@@ -763,6 +763,12 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 .vt-indbtns{display:flex;gap:6px;flex:none}
 .vt-indnew{padding:10px 0;border-bottom:1px solid var(--line)}
 .vt-navb{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);z-index:8;display:flex;gap:4px;padding:4px;border-radius:8px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .15s}
+.vt-scaleb{position:absolute;right:4px;bottom:4px;z-index:8;display:flex;gap:2px}
+.vt-scaleb.left{right:auto;left:4px}
+.vt-scaleb button{min-width:28px;min-height:20px;padding:0 5px;font:600 11px/1 var(--mono,ui-monospace,monospace);color:var(--mut);background:transparent;border:1px solid transparent;border-radius:4px;cursor:pointer}
+.vt-scaleb button:hover{color:var(--fg);background:color-mix(in srgb,var(--card) 88%,transparent);border-color:var(--line)}
+.vt-scaleb button.on{color:var(--acc)}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-scaleb button{min-width:44px;min-height:44px}
 #cv:hover .vt-navb,.vt-navb:focus-within,.vt-navb.on{opacity:1;pointer-events:auto}
 .vt-navb button,.vt-paneb button{min-width:30px;min-height:28px;padding:0 6px;font-size:15px;line-height:1}
 .vt-paneb{position:absolute;right:64px;top:4px;z-index:8;display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .15s}
@@ -816,3 +822,45 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 :root[data-ui="phone"] #sr{left:0;right:0;width:auto}
 :root[data-ui="phone"] .vt-sypop{top:8px;width:96vw;max-height:84vh}
 /* ==== VT PAGES CSS END ==== */
+/* alerts dialog: AND conditions + watchlist alert */
+.al-cond{gap:6px;align-items:center}
+.al-cond input{width:110px}
+.al-wl{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.al-wl h4{margin:0 0 2px;font-size:13px}
+.al-wl .row{gap:6px;flex-wrap:wrap}
+.al-wl input{width:80px}
+/* the drawing selection toolbar must sit above the floating favourites bar (z 18), or its buttons are unreachable */
+#dsel{z-index:19}
+/* E-12 strategy tester (inside the Vektor Script editor) */
+.st-in{width:72px}
+.vs-st h4{margin:10px 0 6px;font-size:13px}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.st-m{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+.st-m span{font-size:11px}
+.st-m b,.st-t td{font-variant-numeric:tabular-nums;font-family:var(--mono,ui-monospace,monospace)}
+.st-m.up b,.st-t td.up{color:var(--up,#089981)}.st-m.dn b,.st-t td.dn{color:var(--dn,#f23645)}
+.st-tw{max-height:220px;overflow:auto;margin-top:6px;border:1px solid var(--line);border-radius:6px}
+.st-t{width:100%;border-collapse:collapse;font-size:12px}
+.st-t th,.st-t td{padding:3px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.st-t th{position:sticky;top:0;background:var(--card);text-align:right}
+/* E-13 paper trading (dock section) */
+.dkpp{padding:4px 10px 8px;font-size:12px}
+.pp-sum{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-bottom:6px}
+.pp-kv{display:flex;flex-direction:column}.pp-kv span{font-size:10.5px}
+.pp-kv b,.pp-row b,.pp-s{font-variant-numeric:tabular-nums;font-family:var(--mono,ui-monospace,monospace)}
+.pp-ticket{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pp-sym{font-weight:600;min-width:100%;font-family:var(--mono,ui-monospace,monospace)}
+.pp-in{width:64px;font-size:12px;padding:2px 4px}
+.pp-buy,.pp-sell{flex:1;min-height:28px;font-weight:600;border:0;border-radius:4px;color:#fff;cursor:pointer}
+.pp-buy{background:#00796b}.pp-sell{background:#c62828} /* darker than --up/--dn so white text meets WCAG AA */
+.pp-pos{margin-top:6px;border-top:1px solid var(--line)}
+.pp-row{display:flex;align-items:center;gap:6px;min-height:26px}
+.pp-s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-side{font-weight:700;width:12px}
+.pp-x{min-width:22px;height:22px;padding:0;background:none;border:0;color:var(--mut);cursor:pointer;font-size:14px}
+.pp-x:hover{color:var(--fg)}
+.dkpp .up{color:var(--up,#089981)}.dkpp .dn{color:var(--dn,#f23645)}
+.pp-reset{margin-top:6px}.pp-reset summary{cursor:pointer;color:var(--mut)}
+.pp-reset .pp-in{margin:4px 4px 0 0}
+.pp-hist{margin-top:4px;font-size:11px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .pp-buy,:root:is([data-ui="phone"],[data-ui="tablet"]) .pp-sell,:root:is([data-ui="phone"],[data-ui="tablet"]) .pp-x{min-height:44px;min-width:44px}

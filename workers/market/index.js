@@ -385,6 +385,22 @@ function constantTimeEqual(a, b) {
 }
 
 /**
+ * A3: the hub trusts `X-Vektor-User` (signed-in user id) only when the caller proved it is our Pages Function by
+ * sending `X-Vektor-Internal` = INTERNAL_TD_SECRET. Otherwise the header is stripped, so a browser cannot claim a user.
+ * The internal secret itself is never forwarded to the Durable Object.
+ */
+export function withVerifiedUser(req, env) {
+  const headers = new Headers(req.headers);
+  const expected = env && typeof env.INTERNAL_TD_SECRET === "string" ? env.INTERNAL_TD_SECRET.trim() : "";
+  const provided = (headers.get("X-Vektor-Internal") || "").trim();
+  const user = (headers.get("X-Vektor-User") || "").trim();
+  const trusted = Boolean(expected && provided && constantTimeEqual(provided, expected) && /^[A-Za-z0-9_-]{1,64}$/.test(user));
+  headers.delete("X-Vektor-Internal");
+  if (!trusted) headers.delete("X-Vektor-User");
+  return new Request(req, { headers });
+}
+
+/**
  * Proxy allowlisted `/td/*` requests through `TdBudget` DO and Cloudflare Cache API (NOT KV per miss!).
  */
 async function handleTd(req, url, env, ctx) {
@@ -525,7 +541,7 @@ async function route(req, env, ctx) {
     const stub = env.MARKET_HUB.get(env.MARKET_HUB.idFromName("global"));
     const targetPath = p === "/api/hub/stats" ? "/hub/stats" : p;
     const innerUrl = new URL(`${targetPath}${url.search}`, "https://market-hub");
-    return stub.fetch(new Request(innerUrl.toString(), req));
+    return stub.fetch(new Request(innerUrl.toString(), withVerifiedUser(req, env)));
   }
 
   if (p.startsWith("/td/")) {

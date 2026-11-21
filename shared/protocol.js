@@ -12,6 +12,10 @@ export const MAX_SCREENER_PAGE_ROWS = 50;       // max rows per screener page fr
 export const MAX_STATE_GZIP_BYTES = 153600;     // 150 KB gzipped cap on full state bootstrap
 export const MAX_CHART_BARS = 1500;             // max bars in initial chart state (older history paged via HTTP)
 export const MAX_WATCHLIST_SYMBOLS = 100;
+/** Compare/overlay symbols on one chart view (E-04); the hub streams their bars on the chart timeframe. */
+export const MAX_COMPARE_SYMBOLS = 3;
+/** Extra chart panes in a multi-chart layout (E-05): up to 8 charts = main + 7 panes, each its own symbol/timeframe. */
+export const MAX_LAYOUT_PANES = 7;
 export const MAX_HEATMAP_TILES = 100;
 export const MAX_CLIENT_FRAME_BYTES = 8192;
 
@@ -23,7 +27,12 @@ export const PROVENANCE = Object.freeze({
   UNAVAILABLE: "UNAVAILABLE",
 });
 
-export const CLIENT_OPS = Object.freeze(["hello", "view", "ping"]);
+export const CLIENT_OPS = Object.freeze(["hello", "view", "ping", "alerts", "paper"]);
+/** E-13 paper trading actions (client op `paper`); the account is run by the hub (shared/paper.js). */
+export const PAPER_ACTIONS = Object.freeze(["get", "order", "close", "modify", "reset"]);
+const PAPER_ACTION_SET = new Set(PAPER_ACTIONS);
+/** `alerts` op: the session's armed alert definitions (full replace), evaluated by the hub (AGENTS.md §0). */
+export const MAX_SESSION_ALERTS = 40;
 
 export const SERVER_TYPES = Object.freeze([
   "hello",
@@ -38,6 +47,7 @@ export const SERVER_TYPES = Object.freeze([
   "alert",
   "error",
   "pong",
+  "paper",
 ]);
 
 /** Delta / control frames governed by MAX_LIVE_FRAME_BYTES (2 KB). */
@@ -359,6 +369,24 @@ export function validateClientMessage(input) {
             }
           }
         }
+        if (msg.chart.cmp !== undefined) {
+          if (!Array.isArray(msg.chart.cmp) || msg.chart.cmp.length > MAX_COMPARE_SYMBOLS) {
+            return fail("INVALID_VIEW", `view.chart.cmp must be an array of at most ${MAX_COMPARE_SYMBOLS} symbols`);
+          }
+          for (let i = 0; i < msg.chart.cmp.length; i++) {
+            if (!isValidSymbol(msg.chart.cmp[i])) return fail("INVALID_VIEW", `view.chart.cmp[${i}] is not a valid symbol`);
+          }
+        }
+        if (msg.chart.panes !== undefined) {
+          if (!Array.isArray(msg.chart.panes) || msg.chart.panes.length > MAX_LAYOUT_PANES) {
+            return fail("INVALID_VIEW", `view.chart.panes must be an array of at most ${MAX_LAYOUT_PANES} panes`);
+          }
+          for (let i = 0; i < msg.chart.panes.length; i++) {
+            const p = msg.chart.panes[i];
+            if (!isPlainObject(p) || !isValidSymbol(p.sym)) return fail("INVALID_VIEW", `view.chart.panes[${i}].sym is not a valid symbol`);
+            if (!VALID_TF_SET.has(p.tf)) return fail("INVALID_VIEW", `view.chart.panes[${i}].tf (${p.tf}) is not a valid timeframe`);
+          }
+        }
         if (msg.chart.vs !== undefined) {
           if (!Array.isArray(msg.chart.vs) || msg.chart.vs.length > 10) {
             return fail("INVALID_VIEW", "view.chart.vs must be an array of at most 10 script IDs");
@@ -421,6 +449,29 @@ export function validateClientMessage(input) {
         }
       }
 
+      return { ok: true, value: msg, bytes };
+    }
+
+    case "paper": {
+      if (!PAPER_ACTION_SET.has(msg.action)) return fail("INVALID_PAPER", `paper.action must be one of ${PAPER_ACTIONS.join(", ")}`);
+      if (msg.action === "order" && !isValidSymbol(msg.sym)) return fail("INVALID_PAPER", "paper.sym must be a valid symbol");
+      if ((msg.action === "close" || msg.action === "modify") && !isNonEmptyStr(msg.id, 32)) return fail("INVALID_PAPER", "paper.id is required");
+      return { ok: true, value: msg, bytes };
+    }
+
+    case "alerts": {
+      // Shape only; each definition is fully validated by shared/alerts.js normalizeAlert in the hub.
+      if (!Array.isArray(msg.alerts)) return fail("INVALID_ALERTS", "alerts.alerts must be an array");
+      if (msg.alerts.length > MAX_SESSION_ALERTS) {
+        return fail("BUDGET_EXCEEDED", `alerts.alerts (${msg.alerts.length}) exceeds MAX_SESSION_ALERTS (${MAX_SESSION_ALERTS})`);
+      }
+      for (let i = 0; i < msg.alerts.length; i++) {
+        const a = msg.alerts[i];
+        if (!isPlainObject(a)) return fail("INVALID_ALERTS", `alerts.alerts[${i}] must be an object`);
+        if (!isNonEmptyStr(a.id === undefined || a.id === null ? "" : String(a.id), 40)) {
+          return fail("INVALID_ALERTS", `alerts.alerts[${i}].id must be a non-empty id <= 40 chars`);
+        }
+      }
       return { ok: true, value: msg, bytes };
     }
 
@@ -588,6 +639,12 @@ export function validateServerFrame(input, opts = {}) {
       if (frame.message !== undefined && !isNonEmptyStr(frame.message, 256)) {
         return fail("INVALID_ALERT", "alert.message must be a non-empty string <= 256 chars");
       }
+      return { ok: true, value: frame, bytes };
+    }
+
+    case "paper": {
+      if (!isPlainObject(frame.account)) return fail("INVALID_PAPER", "paper.account must be an object");
+      if (frame.event !== undefined && !isPlainObject(frame.event)) return fail("INVALID_PAPER", "paper.event must be an object");
       return { ok: true, value: frame, bytes };
     }
 

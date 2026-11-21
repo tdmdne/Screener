@@ -1,0 +1,17 @@
+/* E-03 Object tree (dock section) */
+.dkot{padding:2px 0 6px}
+.ot-h{padding:6px 10px 2px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.ot-r{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 6px 0 10px;font-size:12.5px;color:var(--fg);cursor:pointer}
+.ot-r:hover,.ot-r:focus-visible{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.ot-r.sel{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+.ot-r.off .ot-l{opacity:.5}
+.ot-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ot-d{color:var(--mut)}
+.ot-sw{flex:none;width:8px;height:8px;border-radius:2px}
+.ot-in{flex:1;min-width:0;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--acc);border-radius:3px;padding:2px 4px}
+.ot-b{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;color:var(--mut);background:none;border:0;border-radius:4px;cursor:pointer;opacity:0}
+.ot-b svg{width:14px;height:14px}
+.ot-r:hover .ot-b,.ot-r:focus-within .ot-b,.ot-b.on,.ot-r.off .ot-b:first-of-type{opacity:1}
+.ot-b:hover{color:var(--fg);background:color-mix(in srgb,var(--card) 70%,var(--line))}
+.ot-b.on{color:var(--acc)}
+@media (hover:none){.ot-b{opacity:1;width:44px;height:44px}}

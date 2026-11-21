@@ -581,7 +581,6 @@ async function vtBackfillChart(sym, tf, opts) {
           const row = SYMS.find((x) => x[0] === sym);
           if (row && !(row[2] > 0)) row[2] = lastBar.c;
         }
-        if (typeof checkAlerts === "function" && lastBar) checkAlerts(sym, lastBar.c);
 
         if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
           if (typeof drawChart === "function") drawChart();
@@ -906,8 +905,6 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
       }
     }
   }
-
-  if (typeof checkAlerts === "function") checkAlerts(sym, price);
   if (typeof markOk === "function") markOk("tdws");
   vtScheduleLiveUiFlush(sym);
 }
@@ -994,6 +991,18 @@ function vtHandleEdgeWsMessage(raw) {
         source: q.source || "twelvedata",
       });
     }
+    return;
+  }
+
+  // Paper trading account update (E-13): src/vt_23_paper_trading.js
+  if (msg.type === "paper" && msg.account && typeof vtOnPaperFrame === "function") {
+    vtOnPaperFrame(msg);
+    return;
+  }
+
+  // Hub-evaluated alert fired (alerts are never checked in the browser): src/vt_19_server_alerts.js
+  if (msg.type === "alert" && msg.id != null && typeof vtOnServerAlert === "function") {
+    vtOnServerAlert(msg);
     return;
   }
 

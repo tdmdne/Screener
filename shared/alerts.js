@@ -21,6 +21,13 @@ export const ALERT_CONDITIONS = Object.freeze([
 export const ALERT_MODES = Object.freeze(["once", "recurring"]);
 export const DEFAULT_COOLDOWN_MS = 60_000;
 export const DEFAULT_MAX_LOG = 500;
+/** E-09: at most 5 conditions per alert (the primary one plus 4 extra, all ANDed). */
+export const MAX_ALERT_CONDITIONS = 5;
+/** E-08: symbols one watchlist alert may cover. */
+export const MAX_WATCHLIST_ALERT_SYMBOLS = 100;
+/** E-07: how a drawing line extends past its two anchor points. */
+export const ALERT_LINE_EXTENDS = Object.freeze(["seg", "ray", "line"]);
+const LINE_CONDITIONS = new Set(["above", "below", "cross", "cross_up", "cross_down"]);
 
 const MAX_ID_CHARS = 64;
 const MAX_ID_UTF8_BYTES = 128;
@@ -71,6 +78,53 @@ const CONDITION_ALIASES = Object.freeze(
 
 const isPosFinite = (v) => typeof v === "number" && Number.isFinite(v) && v > 0;
 const isNonNegFinite = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/**
+ * E-07: price of a drawing line (two time/price anchors, unix seconds) at time `tSec`, or null outside its extent.
+ * @param {{t1:number,p1:number,t2:number,p2:number,ext:string}} line
+ * @param {number} tSec
+ * @returns {number|null}
+ */
+export function lineValueAt(line, tSec) {
+  if (!line || !Number.isFinite(tSec)) return null;
+  const { t1, p1, t2, p2, ext } = line;
+  if (t1 === t2) return null;
+  if (ext === "seg" && (tSec < Math.min(t1, t2) || tSec > Math.max(t1, t2))) return null;
+  if (ext === "ray" && (t2 > t1 ? tSec < t1 : tSec > t1)) return null;
+  const v = p1 + ((p2 - p1) * (tSec - t1)) / (t2 - t1);
+  return isPosFinite(v) ? v : null;
+}
+
+function normalizeAlertLine(raw) {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) throw new Error("Alert line must be an object");
+  const t1 = toFiniteNumber(raw.t1);
+  const t2 = toFiniteNumber(raw.t2);
+  const p1 = toFiniteNumber(raw.p1);
+  const p2 = toFiniteNumber(raw.p2);
+  if (!isPosFinite(t1) || !isPosFinite(t2) || t1 === t2) throw new Error("Alert line needs two distinct positive times (t1, t2)");
+  // anchors are unix seconds (drawings store bar times in seconds); reject milliseconds to avoid a silent 1000x slope
+  if (t1 > 1e11 || t2 > 1e11) throw new Error("Alert line times must be unix seconds");
+  if (!isPosFinite(p1) || !isPosFinite(p2)) throw new Error("Alert line prices (p1, p2) must be positive finite numbers");
+  const ext = raw.ext === undefined ? "seg" : String(raw.ext);
+  if (!ALERT_LINE_EXTENDS.includes(ext)) throw new Error(`Alert line ext must be one of ${ALERT_LINE_EXTENDS.join(", ")}`);
+  return { t1, p1, t2, p2, ext };
+}
+
+function normalizeExtraConditions(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new Error("Alert conds must be an array");
+  if (raw.length > MAX_ALERT_CONDITIONS - 1) throw new Error(`An alert can have at most ${MAX_ALERT_CONDITIONS} conditions`);
+  return raw.map((c, i) => {
+    if (!c || typeof c !== "object" || Array.isArray(c)) throw new Error(`Alert conds[${i}] must be an object`);
+    const condition = normalizeCondition(c.condition ?? c.dir);
+    if (!condition) throw new Error(`Unsupported alert condition in conds[${i}]`);
+    const target = toFiniteNumber(c.target ?? c.price ?? c.pct);
+    if (!isPosFinite(target)) throw new Error(`Alert conds[${i}].target must be a positive finite number`);
+    const r = toFiniteNumber(c.refPrice);
+    return { condition, target, refPrice: isPosFinite(r) ? r : null };
+  });
+}
 
 /**
  * Strict numeric coercion that rejects booleans, empty/whitespace strings, null, undefined, objects, and symbols.
@@ -220,10 +274,16 @@ export function normalizeAlert(input, nowMs = Date.now()) {
     throw new Error(`Unsupported alert condition: ${String(input.condition ?? input.dir ?? "")}`);
   }
 
-  const target = toFiniteNumber(input.target ?? input.price ?? input.threshold ?? input.pct);
+  const line = normalizeAlertLine(input.line);
+  if (line && !LINE_CONDITIONS.has(condition)) {
+    throw new Error(`Drawing-line alerts support above, below, cross, cross_up and cross_down (got ${condition})`);
+  }
+  // a line alert's target moves with time; the stored target is the first anchor price (used for labels only)
+  const target = line ? line.p1 : toFiniteNumber(input.target ?? input.price ?? input.threshold ?? input.pct);
   if (!isPosFinite(target)) {
     throw new Error("Alert target must be a positive finite number");
   }
+  const conds = normalizeExtraConditions(input.conds);
 
   let mode = "once";
   if (typeof input.mode === "string") {
@@ -309,7 +369,37 @@ export function normalizeAlert(input, nowMs = Date.now()) {
     createdAt,
     ...(message !== undefined ? { message } : {}),
     ...(input.userId !== undefined && input.userId !== null ? { userId: String(input.userId) } : {}),
+    ...(line ? { line } : {}),
+    ...(conds.length ? { conds } : {}),
+    ...(input.parentId !== undefined && input.parentId !== null ? { parentId: String(input.parentId).slice(0, MAX_ID_CHARS) } : {}),
   };
+}
+
+/**
+ * E-08: expand a watchlist alert ({ id, syms: [...], ...condition }) into one child definition per symbol
+ * (id `<id>~<SYM>`, parentId = id). A plain alert (no `syms`) comes back as a one-element list, unchanged.
+ * @param {object} def
+ * @returns {object[]}
+ */
+export function expandAlertDefinition(def) {
+  if (!def || typeof def !== "object" || !Array.isArray(def.syms)) return [def];
+  if (def.syms.length === 0) throw new Error("Watchlist alert needs at least one symbol");
+  if (def.syms.length > MAX_WATCHLIST_ALERT_SYMBOLS) {
+    throw new Error(`A watchlist alert covers at most ${MAX_WATCHLIST_ALERT_SYMBOLS} symbols`);
+  }
+  if (def.line) throw new Error("A watchlist alert cannot use a drawing line");
+  const parentId = String(def.id ?? "");
+  const { syms, ...rest } = def;
+  const seen = new Set();
+  const out = [];
+  for (const raw of syms) {
+    const sym = normalizeAlertSymbol(raw);
+    if (!sym) throw new Error(`Watchlist alert symbol is invalid: ${String(raw)}`);
+    if (seen.has(sym)) continue;
+    seen.add(sym);
+    out.push({ ...rest, id: `${parentId}~${sym}`, sym, parentId });
+  }
+  return out;
 }
 
 /**
@@ -347,6 +437,10 @@ export function formatAlertCondition(alert) {
       break;
     default:
       text = `${alert.condition} ${t}`;
+  }
+  if (alert.line) text += " (drawing line)";
+  if (Array.isArray(alert.conds) && alert.conds.length) {
+    text += " AND " + alert.conds.map((c) => `${c.condition} ${c.target}${/^pct/.test(c.condition) ? "%" : ""}`).join(" AND ");
   }
   return sanitizeAlertText(text, MAX_COND_CHARS, MAX_COND_UTF8_BYTES);
 }
@@ -628,7 +722,17 @@ export function createAlertEvaluator(opts = {}) {
   }
 
   function addAlert(def) {
-    const a = normalizeAlert(def, now());
+    if (def && typeof def === "object" && Array.isArray(def.syms)) {
+      const parentId = String(def.id ?? "");
+      const kids = expandAlertDefinition(def).map((d) => normalizeAlert(d, now())); // validate all before mutating
+      removeAlert(parentId);
+      for (const k of kids) addOne(k);
+      return { id: parentId, syms: kids.map((k) => k.sym), children: kids.length };
+    }
+    return addOne(normalizeAlert(def, now()));
+  }
+
+  function addOne(a) {
     const prev = alerts.get(a.id);
     if (prev) {
       unlinkAlert(prev);
@@ -682,8 +786,17 @@ export function createAlertEvaluator(opts = {}) {
 
   function removeAlert(id) {
     const key = String(id);
+    let removed = false;
+    // a watchlist alert id removes every per-symbol child
+    for (const [cid, a] of [...alerts.entries()]) {
+      if (a.parentId === key) {
+        alerts.delete(cid);
+        unlinkAlert(a);
+        removed = true;
+      }
+    }
     const existing = alerts.get(key);
-    if (!existing) return false;
+    if (!existing) return removed;
     alerts.delete(key);
     unlinkAlert(existing);
     return true;
@@ -766,7 +879,22 @@ export function createAlertEvaluator(opts = {}) {
         evalAlert = { ...a, refPrice: seedRef };
       }
 
-      const res = evaluateAlertCondition(evalAlert, sample, prev);
+      if (a.line) {
+        const lt = lineValueAt(a.line, Math.floor(evalTs / 1000));
+        if (lt === null) continue; // outside the drawn segment/ray
+        evalAlert = { ...evalAlert, target: lt };
+      }
+      let res = evaluateAlertCondition(evalAlert, sample, prev);
+      if (res.matched && a.conds) {
+        // E-09: every extra condition must hold on the same sample (AND)
+        for (const c of a.conds) {
+          if (isPctCondition(c.condition) && c.refPrice == null) c.refPrice = sample.type === "bar" ? sample.o : sample.price;
+          if (!evaluateAlertCondition({ condition: c.condition, target: c.target, refPrice: c.refPrice }, sample, prev).matched) {
+            res = { matched: false, triggerPrice: null };
+            break;
+          }
+        }
+      }
       if (!res.matched || !isPosFinite(res.triggerPrice)) {
         if (seedRef !== null) {
           a.refPrice = seedRef;
@@ -834,6 +962,7 @@ export function createAlertEvaluator(opts = {}) {
         message,
         ...(res.movePct !== undefined ? { movePct: res.movePct } : {}),
         ...(a.userId !== undefined ? { userId: a.userId } : {}),
+        ...(a.parentId !== undefined ? { parentId: a.parentId } : {}),
         seq: frame.seq,
       };
 

@@ -130,6 +130,27 @@ export class MarketStore {
         "src TEXT NOT NULL, " +
         "saved_at INTEGER NOT NULL)"
     );
+    // Signed-in users' alert definitions (A3): evaluated by the hub even when no tab is open.
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS user_alerts (" +
+        "user_id TEXT PRIMARY KEY, " +
+        "defs TEXT NOT NULL, " +
+        "updated_at INTEGER NOT NULL)"
+    );
+    // Signed-in users' paper trading accounts (E-13): SL/TP keep working with no tab open.
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS paper_accounts (" +
+        "user_id TEXT PRIMARY KEY, " +
+        "state TEXT NOT NULL, " +
+        "updated_at INTEGER NOT NULL)"
+    );
+    // Alert frames that fired while the owner had no socket open; delivered (then deleted) on their next connect.
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS user_alert_pending (" +
+        "user_id TEXT NOT NULL, " +
+        "ts INTEGER NOT NULL, " +
+        "frame TEXT NOT NULL)"
+    );
 
     this._initialized = true;
 
@@ -464,6 +485,92 @@ export class MarketStore {
       ts
     );
     return true;
+  }
+
+  /** A3: replace a user's persisted alert definitions (empty list deletes the row). */
+  saveUserAlerts(userId, defs, nowMs) {
+    this._ensureInit();
+    if (!Array.isArray(defs) || defs.length === 0) {
+      this.sql.exec("DELETE FROM user_alerts WHERE user_id = ?", userId);
+      return;
+    }
+    this.sql.exec(
+      "INSERT INTO user_alerts (user_id, defs, updated_at) VALUES (?, ?, ?) " +
+        "ON CONFLICT(user_id) DO UPDATE SET defs = excluded.defs, updated_at = excluded.updated_at",
+      userId,
+      JSON.stringify(defs),
+      nowMs
+    );
+  }
+
+  /** E-13: persist a user's paper account state. */
+  saveUserPaper(userId, state, nowMs) {
+    this._ensureInit();
+    this.sql.exec(
+      "INSERT INTO paper_accounts (user_id, state, updated_at) VALUES (?, ?, ?) " +
+        "ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at",
+      userId,
+      JSON.stringify(state),
+      nowMs
+    );
+  }
+
+  /** E-13: all persisted paper accounts (for re-arming SL/TP after the DO restarts). */
+  listUserPaper() {
+    this._ensureInit();
+    const out = [];
+    for (const r of this.sql.exec("SELECT user_id, state FROM paper_accounts").toArray()) {
+      try {
+        out.push({ userId: r.user_id, state: JSON.parse(r.state) });
+      } catch {
+        /* skip corrupt row */
+      }
+    }
+    return out;
+  }
+
+  /** A3: every user's persisted alert definitions, for re-registering after the DO restarts. */
+  listUserAlerts() {
+    this._ensureInit();
+    const out = [];
+    for (const r of this.sql.exec("SELECT user_id, defs FROM user_alerts").toArray()) {
+      try {
+        const defs = JSON.parse(r.defs);
+        if (Array.isArray(defs)) out.push({ userId: r.user_id, defs });
+      } catch {
+        /* skip a corrupt row rather than failing hub start-up */
+      }
+    }
+    return out;
+  }
+
+  /** A3: queue an alert frame for an offline user (keeps the newest `cap` per user). */
+  queueUserAlert(userId, frame, nowMs, cap = 50) {
+    this._ensureInit();
+    this.sql.exec("INSERT INTO user_alert_pending (user_id, ts, frame) VALUES (?, ?, ?)", userId, nowMs, JSON.stringify(frame));
+    this.sql.exec(
+      "DELETE FROM user_alert_pending WHERE user_id = ? AND rowid NOT IN " +
+        "(SELECT rowid FROM user_alert_pending WHERE user_id = ? ORDER BY ts DESC, rowid DESC LIMIT ?)",
+      userId,
+      userId,
+      cap
+    );
+  }
+
+  /** A3: take (and delete) a user's queued alert frames, oldest first. */
+  takeUserAlerts(userId) {
+    this._ensureInit();
+    const rows = this.sql.exec("SELECT frame FROM user_alert_pending WHERE user_id = ? ORDER BY ts ASC, rowid ASC", userId).toArray();
+    this.sql.exec("DELETE FROM user_alert_pending WHERE user_id = ?", userId);
+    const out = [];
+    for (const r of rows) {
+      try {
+        out.push(JSON.parse(r.frame));
+      } catch {
+        /* drop corrupt entries */
+      }
+    }
+    return out;
   }
 
   /** Retrieve and parse a snapshot from DO SQLite `snapshots`. */

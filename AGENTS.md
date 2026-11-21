@@ -88,6 +88,7 @@ The browser is a **dumb terminal, a presentation layer only**.
 4. Verified on a preview deploy, then live after merge. Tick the task in TASKS.md and add a 1-line bullet to STATE.md.
 5. **UI Audit pass (§6)** is done for every UI-touching task: Playwright screenshots and DOM checks against the live or preview site, all findings fixed or logged in STATE.md.
 6. Open a PR. Never push to `main`.
+7. Live smoke (preview or prod): `node tests/smoke-live.js <https url>` reads the smoke account from `smoke-creds.local.json` in the repo root (gitignored, never served; never print or commit it).
 
 ## 6. INSTITUTIONAL UI/UX STANDARD (Tyler, 18 Nov 2026)
 - **Benchmark:** every screen, modal, chart overlay, watchlist, auth form and replay control must meet institutional trading-terminal standards, modelled on **TradingView**, **Tradovate** and **FX Replay**.

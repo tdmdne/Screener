@@ -25,6 +25,9 @@ import {
   parseIndicatorList,
   warmupBars,
 } from "../../shared/market/chartIndicators.js";
+import { applyChartTransform, parseChartTransform } from "../../shared/market/chartTransforms.js";
+import { vsBacktest } from "../../shared/vs/strategy.js";
+import { parseVolumeProfileQuery, volumeProfile } from "../../shared/market/volumeProfile.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -523,6 +526,71 @@ async function handleCandlesViaMarketService(request, env) {
  * @returns {Promise<Response>}
  */
 async function withChartIndicators(request, env, loadCandles) {
+  const tUrl = new URL(request.url);
+  const vp = request.method === "GET" ? parseVolumeProfileQuery(tUrl.searchParams) : null;
+  if (vp) return withVolumeProfile(request, env, loadCandles, vp);
+  const xf = request.method === "GET" ? parseChartTransform(tUrl.searchParams) : null;
+  if (xf) return withChartTransform(request, env, loadCandles, xf);
+  return withChartIndicatorsOnly(request, env, loadCandles);
+}
+
+/**
+ * E-10: `/api/candles?type=renko|linebreak[&box=|&lb=]` returns Renko bricks / line-break lines built server-side from
+ * the normal candle history (shared/market/chartTransforms.js). `ind=` is ignored for transformed charts.
+ */
+async function withChartTransform(request, env, loadCandles, xf) {
+  if (!xf.ok) return jsonResponse({ ok: false, error: xf.error }, 400, { "cache-control": "no-store" }, request, env);
+  const upstreamUrl = new URL(request.url);
+  for (const k of ["type", "box", "lb", "ind"]) upstreamUrl.searchParams.delete(k);
+  upstreamUrl.searchParams.set("limit", String(CANDLES_MAX_LIMIT));
+  const res = await loadCandles(new Request(upstreamUrl.toString(), request));
+  if (!res.ok) return res;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.bars)) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+  let out;
+  try {
+    out = applyChartTransform(data.bars, xf);
+  } catch {
+    return serviceUnavailable("Chart transform failed", request, env);
+  }
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify({ ...data, bars: out.bars, transform: out.meta }), { status: 200, headers });
+}
+
+/**
+ * E-11: `/api/candles?...&vp=<rows>[&vpFrom=&vpTo=]` returns only the volume profile (rows, POC, value area) for that
+ * time range, computed server-side from the candle history (shared/market/volumeProfile.js).
+ */
+async function withVolumeProfile(request, env, loadCandles, vp) {
+  if (!vp.ok) return jsonResponse({ ok: false, error: vp.error }, 400, { "cache-control": "no-store" }, request, env);
+  const upstreamUrl = new URL(request.url);
+  for (const k of ["vp", "vpFrom", "vpTo", "ind", "type", "box", "lb"]) upstreamUrl.searchParams.delete(k);
+  upstreamUrl.searchParams.set("limit", String(CANDLES_MAX_LIMIT));
+  const res = await loadCandles(new Request(upstreamUrl.toString(), request));
+  if (!res.ok) return res;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.bars)) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+  const profile = volumeProfile(data.bars, { rows: vp.rows, from: vp.from, to: vp.to });
+  return jsonResponse({ ok: true, vp: profile }, 200, { "cache-control": "no-store" }, request, env);
+}
+
+async function withChartIndicatorsOnly(request, env, loadCandles) {
   const url = new URL(request.url);
   const rawInd = url.searchParams.getAll("ind");
   if (!rawInd.length || request.method !== "GET") return loadCandles(request);
@@ -765,6 +833,10 @@ async function handleVsRun(request, env) {
       inputs: res.ok.inputs,
       key: res.key,
       cached: res.cached,
+      // E-12: scripts with entry_/exit_ signals get a server-side backtest over the same bars
+      ...(res.ok.signals && Object.keys(res.ok.signals).length
+        ? { strategy: vsBacktest(bars, res.ok.signals, isPlainObject(body.strategy) ? body.strategy : {}) }
+        : {}),
     },
     200,
     { "cache-control": "no-store" },

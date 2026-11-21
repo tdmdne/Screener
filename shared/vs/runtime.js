@@ -306,7 +306,7 @@ export function vsRun(src, bars, inputVals, opts) {
     E.bar_index[i] = i;
   }
 
-  const out = { name: "", overlay: true, plots: [], hlines: [], inputs: [] };
+  const out = { name: "", overlay: true, plots: [], hlines: [], inputs: [], signals: {} };
   let nodes = 0;
   let evalDepth = 0;
   const iv = inputVals && typeof inputVals === "object" ? inputVals : {};
@@ -535,6 +535,16 @@ export function vsRun(src, bars, inputVals, opts) {
       out.plots.push({ title, color, width, style, v });
       return 0;
     }
+    if (f === "entry_long" || f === "entry_short" || f === "exit_long" || f === "exit_short") {
+      // E-12: strategy signal; a true value on a bar's close fills at the next bar's open (shared/vs/strategy.js)
+      if (x.args.length !== 1) throw vsErr(x, f + "() takes one condition", "e.g. " + f + "(crossover(ema(close, 9), ema(close, 21)))");
+      const cond = ev(x.args[0]);
+      const ser = vsIsS(cond) ? cond : new Float64Array(n).fill(cond ? 1 : 0);
+      const prev = out.signals[f];
+      if (prev) for (let i = 0; i < n; i++) prev[i] = prev[i] || ser[i] ? 1 : 0; // several calls are ORed
+      else out.signals[f] = Float64Array.from(ser, (v) => (v && !Number.isNaN(v) ? 1 : 0));
+      return 0;
+    }
     if (f === "hline") {
       if (out.hlines.length >= lim.hlines) {
         throw vsErr(
@@ -609,7 +619,7 @@ export function vsRun(src, bars, inputVals, opts) {
     if (st.k === "set") V[st.n] = ev(st.e);
     else ev(st.e);
   }
-  if (!out.plots.length && !out.hlines.length) {
+  if (!out.plots.length && !out.hlines.length && !Object.keys(out.signals).length) {
     throw new VSError(
       "Nothing to show: add a plot(...) line",
       0,

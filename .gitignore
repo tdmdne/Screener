@@ -14,3 +14,6 @@ shots/
 
 # graphify knowledge graph: generated locally by background rebuilds, never committed
 graphify-out/
+
+# local smoke-test account credentials (never commit or serve)
+smoke-creds.local.json

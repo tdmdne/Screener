@@ -3,7 +3,7 @@ function alertsM(prefill){
   const sym=S.chart.sym||"";
   const price=prefill&&prefill.price?prefill.price:"";
   const dir=prefill&&prefill.dir?prefill.dir:"above";
-  const list=(S.alerts||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(a.sym)} ${vtAlCond(a.dir).toLowerCase()} ${a.price}${a.msg?` <span class="mut">\u201c${esc(a.msg)}\u201d</span>`:""}${a.fired?` <span class="pill b" style="min-width:0">triggered</span>`:""}</span><span class="sp"></span>${a.fired?`<button onclick="rearmAlert(${i})" title="Arm this alert again">Re-arm</button>`:""}<button onclick="vtAlertEdit(${a.id})" title="Edit price, condition or message">Edit</button><button onclick="rmAlert(${i})" aria-label="Delete alert" title="Delete">${VT_IC.x}</button></div>`).join("")||`<p class="mut">No alerts yet.</p>`;
+  const list=(S.alerts||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(typeof vtAlDesc==="function"?vtAlDesc(a):a.sym+" "+a.price)}${a.msg?` <span class="mut">\u201c${esc(a.msg)}\u201d</span>`:""}${a.fired?` <span class="pill b" style="min-width:0">triggered</span>`:""}</span><span class="sp"></span>${a.fired?`<button onclick="rearmAlert(${i})" title="Arm this alert again">Re-arm</button>`:""}<button onclick="vtAlertEdit(${a.id})" title="Edit price, condition or message">Edit</button><button onclick="rmAlert(${i})" aria-label="Delete alert" title="Delete">${VT_IC.x}</button></div>`).join("")||`<p class="mut">No alerts yet.</p>`;
   modal(`<h3>Price Alerts</h3>
   <label>Symbol<input id="al_sym" value="${esc(sym)}"></label>
   <label>Price<input id="al_px" type="number" step="any" value="${price}"></label>
@@ -24,19 +24,7 @@ function addAlert(){
 function rmAlert(i){S.alerts.splice(i,1);save();alertsM()}
 function rearmAlert(i){const a=S.alerts[i];if(a){a.fired=false;a.on=true;delete lastPx[a.sym];save()}alertsM()}
 function alertFromHline(price){alertsM({price,dir:"above"})}
-let lastPx={};
-function checkAlerts(sym,price){
-  if(!S.alerts||!S.alerts.length||!price)return;
-  const prev=lastPx[sym];
-  lastPx[sym]=price;
-  if(prev==null)return;
-  S.alerts.forEach(a=>{
-    if(!a.on||a.fired||a.sym!==sym)return;
-    const up=prev<a.price&&price>=a.price,dn=prev>a.price&&price<=a.price;
-    const cross=a.dir==="above"?up:a.dir==="below"?dn:(up||dn);
-    if(cross){a.fired=true;save();fireAlert(a,price)}
-  });
-}
+let lastPx={}; // legacy; alerts are evaluated by the hub (src/vt_19_server_alerts.js), never in the browser
 function fireAlert(a,price){
   const msg=a.msg?String(a.msg):a.sym+" crossed "+(a.dir==="cross"?"":a.dir+" ")+a.price+" ("+price+")";
   toast(msg);
@@ -316,7 +304,7 @@ else if(t==="trend"||t==="ray"||t==="ext"||t==="fib"){const ax=Math.abs(dx),ay=M
 const r=un(x,y);if(h)r.y=anc.y;if(v)r.t=anc.t;return r}}return snapP(x,y)}
 function ends(d,q){const[a,b]=q,dx=b.x-a.x,dy=b.y-a.y,k=6000/(Math.hypot(dx,dy)||1);return d.t==="trend"?[a,b]:d.t==="ray"?[a,{x:a.x+dx*k,y:a.y+dy*k}]:[{x:a.x-dx*k,y:a.y-dy*k},{x:a.x+dx*k,y:a.y+dy*k}]}
 function sd(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l));return Math.hypot(x-a.x-t*dx,y-a.y-t*dy)}
-function hit(d,x,y){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
+function hit(d,x,y){if(d.lock||d.hide)return 0;const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
 if(t==="hline")return Math.abs(y-a.y)<n;if(t==="hray")return Math.abs(y-a.y)<n&&x>a.x-n;if(t==="vline")return Math.abs(x-a.x)<n;
 if(t==="text")return Math.abs(x-a.x)<60&&Math.abs(y-a.y)<14;
 if(t==="note"){
@@ -594,7 +582,7 @@ let SYBUF="";
 document.addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")||MD.innerHTML)return;
 if(!chartOnPage())return; // chart shortcuts only where a chart is on screen
 const ctrl=e.ctrlKey||e.metaKey,alt=e.altKey,sh=e.shiftKey;
-// Ctrl+K opens symbol search
+// Ctrl+K: the global command palette (src/vt_14_command_palette.js) captures it first; this is a fallback
 if(ctrl&&!alt&&e.key.toLowerCase()==="k"){e.preventDefault();if(typeof syOpen==="function")syOpen();return}
 // start interval popup on first digit
 if(!ctrl&&!alt&&/^[0-9]$/.test(e.key)){TFBUF=e.key;tfShow();return}
@@ -684,9 +672,12 @@ modal(`<h3>Settings</h3><div class="tabs">${[["sym","Symbol"],["status","Status 
 +ck("showMktStatus","Open market status")
 +ck("showVol","Volume")
 +sec("INDICATORS")
-+ck("indTitles","Indicator titles"))
++ck("indTitles","Indicator titles")
++ck("vpVis","Volume profile (visible range)"))
 +tp("scales",sl("scalePlace","Scales placement",[["auto","Auto"],["left","Left"],["right","Right"]])
++sl("scMode","Price scale",[["0","Regular"],["1","Logarithmic"],["2","Percent"],["3","Indexed to 100"]])
 +ck("scAuto","Auto scale")
++ck("scInv","Invert scale")
 +ck("plusBtn","Plus button")
 +sec("TIME SCALE")
 +ck("dowLabels","Day of week on labels")
@@ -787,5 +778,5 @@ const YFW=[...("ES NQ YM RTY CL BZ NG GC SI HG PL ZB ZN ZF ZT ZC ZS ZW KC SB CC 
 ...("AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO BRK-B LLY JPM V UNH XOM MA COST HD PG JNJ ABBV NFLX BAC CRM ORCL CVX WMT KO MRK AMD PEP TMO ADBE LIN ACN MCD CSCO ABT DIS TXN WFC INTU QCOM GE IBM CAT AMGN VZ DHR PM AMAT NOW ISRG UBER GS BKNG SPGI RTX NEE LOW T HON UNP PFE AXP BLK ELV PLTR COP SYK TJX MU LRCX ADI BA COIN MSTR SMCI MARA RIOT SOFI HOOD SHOP SNOW CRWD PANW DDOG NET ARM ASML TSM BABA PDD F GM NIO RIVN LCID AAL DAL UAL CCL NCLH FCX NEM AMC GME RBLX U PYPL INTC MRVL ON ABNB DASH ROKU ZM").split(" ").map(n=>({n:n.replace("-",""),m:"STK",td:n,tv:""})),
 ...("SPY QQQ IWM DIA GLD SLV USO UNG TLT XLE XLF XLK XLV XLY XLP XLI XLU XLB ARKK SMH SOXL TQQQ SQQQ").split(" ").map(n=>({n,m:"ETF",td:n,tv:""}))];
 let tk=0;const tick=()=>{if(!tk)tk=setTimeout(()=>{tk=0;render()},300)};
-const fin=(s,tf)=>{const fd=LIVE[s[0]+"|"+tf];if(fd&&fd.length)checkAlerts(s[0],fd[fd.length-1].c);tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
+const fin=(s,tf)=>{tick();if(S.chart.sym===s[0]&&S.chart.tf===tf)drawChart()};
 const E=(m,soft)=>{const e=Error(m);e.soft=soft;return e};

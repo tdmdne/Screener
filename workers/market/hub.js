@@ -9,6 +9,7 @@
 //   IndicatorTracker + buildScreenerSnapshot -> broadcasts Protocol v2 frames to Hibernation WS clients.
 // - Routes: GET /hub/stats, GET /api/bootstrap, GET /api/bars, GET /ws.
 import { createAlertEvaluator } from "../../shared/alerts.js";
+import { createPaperAccount } from "../../shared/paper.js";
 import { createCandleBuilder, mergeBars, normalizeTf, rollup } from "../../shared/market/candles.js";
 import { resolveInterval } from "../../shared/intervals.js";
 import {
@@ -25,6 +26,8 @@ import {
 import { buildScreenerSnapshot } from "../../shared/market/screener.js";
 import {
   MAX_CHART_BARS,
+  MAX_COMPARE_SYMBOLS,
+  MAX_LAYOUT_PANES,
   MAX_CLIENT_FRAME_BYTES,
   MAX_HEATMAP_TILES,
   MAX_SCREENER_PAGE_ROWS,
@@ -60,7 +63,20 @@ const MAX_SCREENER_CACHE_ENTRIES = 32;
 const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"]);
 /** Max extra (custom) timeframes the builder maintains live; custom bars are derived from native bars, never persisted. */
 const MAX_CUSTOM_TIMEFRAMES = 16;
-const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap"]);
+const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap", "alerts"]);
+const USER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** Pseudo-client that keeps signed-in users' alert symbols subscribed upstream while they have no tab open (A3). */
+const USER_ALERTS_CLIENT = "__user_alerts__";
+
+/** Short, stable evaluator-id prefix for a user's alerts (FNV-1a, 8 hex chars). */
+function userAlertTag(userId) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `u${h.toString(16).padStart(8, "0")}`;
+}
 const SCREENER_SNAPSHOT_KEY = "screener:latest";
 const VALID_PRESETS = new Set(["P1", "P2", "P3", "P4", "P5"]);
 const VALID_EVC = new Set(["H", "M", "L"]);
@@ -90,6 +106,38 @@ function previousMonthKeys(beforeSec, count = 3) {
       m = 12;
       y -= 1;
     }
+  }
+  return out;
+}
+
+/** Extra layout panes of a chart view (E-05) as normalised { sym, tf } pairs, de-duplicated, excluding the main chart. */
+function chartLayoutPanes(view) {
+  const c = view && view.chart;
+  if (!c || !Array.isArray(c.panes)) return [];
+  const mainKey = `${normSymbol(c.sym)}|${normalizeTf(c.tf || "1m") || "1m"}`;
+  const out = [];
+  const seen = new Set([mainKey]);
+  for (const p of c.panes.slice(0, MAX_LAYOUT_PANES)) {
+    const sym = p && normSymbol(p.sym);
+    const tf = p && (normalizeTf(p.tf) || null);
+    if (!sym || !tf) continue;
+    const k = `${sym}|${tf}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ sym, tf });
+  }
+  return out;
+}
+
+/** Normalised, de-duplicated compare symbols of a chart view (E-04), excluding the main symbol. */
+function chartCompareSymbols(view) {
+  const c = view && view.chart;
+  if (!c || !Array.isArray(c.cmp)) return [];
+  const main = normSymbol(c.sym);
+  const out = [];
+  for (const raw of c.cmp.slice(0, MAX_COMPARE_SYMBOLS)) {
+    const s = normSymbol(raw);
+    if (s && s !== main && !out.includes(s)) out.push(s);
   }
   return out;
 }
@@ -195,6 +243,13 @@ export class MarketHub {
     this.socketById = new Map();      // clientId -> server WebSocket
     this.clientViews = new Map();     // clientId -> { chart?, watchlist?, screener?, heatmap? }
     this.clientLastViewAt = new Map();// clientId -> last accepted `view` op timestamp (ms)
+    // `alerts` op: per-socket session alerts. Ids are namespaced `<tag>~<clientAlertId>` inside the evaluator.
+    this.sessionAlerts = new Map();   // clientId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
+    this.sessionAlertTagSeq = 0;
+    // Signed-in users' alerts (A3): persisted in SQLite, evaluated with or without an open socket.
+    this.userAlerts = new Map();      // userId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
+    // E-13 paper accounts: "u:<userId>" (persisted) or "c:<clientId>" (session) -> account
+    this.paperAccounts = new Map();
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
@@ -225,6 +280,8 @@ export class MarketHub {
           this.core.pinSymbols(persisted);
         }
         this._hydrateHibernatedSockets();
+        this._loadUserAlerts();
+        this._loadUserPaper();
         await this._armAlarm();
       } finally {
         this._initializing = false;
@@ -803,6 +860,8 @@ export class MarketHub {
       this._broadcastAlerts(tickAlertRes.frames, tickAlertRes.triggers);
     }
 
+    if (this.paperAccounts.size) this._paperOnPrice(tick.s, tick.c);
+
     const candleRes = this.candles.onTick(tick);
     if (candleRes.ignored) {
       return { accepted: true, tick, closed: [], updated: [], alerts: alertTriggers };
@@ -1018,6 +1077,9 @@ export class MarketHub {
    * candle starts from the REAL forming bucket (derived from base bars) instead of the first tick after the view opened.
    */
   _ensureCustomViewTf(view) {
+    if (view && view.chart) {
+      for (const p of chartLayoutPanes(view)) this._ensureCustomViewTf({ chart: { sym: p.sym, tf: p.tf } });
+    }
     try {
       if (!view || !view.chart || !view.chart.sym) return;
       const iv = resolveInterval(view.chart.tf);
@@ -1029,11 +1091,12 @@ export class MarketHub {
         if (custom >= MAX_CUSTOM_TIMEFRAMES) return;
         this.candles.addTimeframe(iv.key);
       }
-      if (!this.candles.getCurrent(sym, iv.key)) {
-        const derived = this._barsFor(sym, iv.key, { limit: 2, includeForming: true }).bars;
+      for (const s of [sym, ...chartCompareSymbols(view)]) {
+        if (this.candles.getCurrent(s, iv.key)) continue;
+        const derived = this._barsFor(s, iv.key, { limit: 2, includeForming: true }).bars;
         const last = derived[derived.length - 1];
         const nowBucket = Math.floor(this.now() / 1000);
-        if (last && nowBucket - last.t < iv.step * 2) this.candles.restoreState(sym, { tf: iv.key, current: last });
+        if (last && nowBucket - last.t < iv.step * 2) this.candles.restoreState(s, { tf: iv.key, current: last });
       }
     } catch {
       // Custom live bars are best-effort; HTTP /api/bars always derives them from native history.
@@ -1636,17 +1699,24 @@ export class MarketHub {
       server.accept();
     }
 
-    const attachment = { id, seq: 0, view: {}, connectedAt: this.now() };
+    // Signed-in user id, set only by the vektor-market front Worker after it verified the internal secret (A3).
+    const rawUser = (req.headers.get("X-Vektor-User") || "").trim();
+    const userId = USER_ID_RE.test(rawUser) ? rawUser : null;
+    const attachment = { id, seq: 0, view: {}, connectedAt: this.now(), ...(userId ? { userId } : {}) };
     this._persistAttachment(server, attachment);
 
     this.socketById.set(id, server);
     this.clientViews.set(id, {});
-    this.core.addClient(id, (payload) => server.send(payload), { startSeq: 0 });
+    this.core.addClient(id, (payload) => server.send(payload), { startSeq: 0, userId });
 
     this._sendToClient(id, "hello", {
       serverTime: this.now(),
       capabilities: [...CAPABILITIES],
     });
+    // alerts that fired while this user had no tab open
+    if (userId) {
+      for (const payload of this.store.takeUserAlerts(userId)) this._sendToClient(id, "alert", payload);
+    }
 
     try {
       return new Response(null, { status: 101, webSocket: client });
@@ -1729,6 +1799,16 @@ export class MarketHub {
       return;
     }
 
+    if (msg.op === "paper") {
+      this._handlePaper(id, msg);
+      return;
+    }
+
+    if (msg.op === "alerts") {
+      this._applySessionAlerts(id, msg.alerts);
+      return;
+    }
+
     if (msg.op === "view") {
       // Per-client cooldown on `view` updates to prevent DO CPU starvation via rapid state rebuilds.
       const now = this.now();
@@ -1778,7 +1858,7 @@ export class MarketHub {
       this._ensureCustomViewTf(nextView);
 
       // Sync ephemeral client subscriptions (unauthenticated clients restricted to known universe) & refcounted indicators
-      const desiredSyms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(nextView));
+      const desiredSyms = this._desiredSymbolsForClient(id, nextView);
       this.core.setClientSymbols(id, desiredSyms);
       this._syncClientIndicators(id, nextView);
 
@@ -1822,6 +1902,248 @@ export class MarketHub {
     this.socketById.delete(att.id);
     this.clientViews.delete(att.id);
     this.clientLastViewAt.delete(att.id);
+    this._clearSessionAlerts(att.id);
+    this.paperAccounts.delete(`c:${att.id}`);
+  }
+
+  /** Upstream symbols a socket needs: its view plus the symbols of its session alerts. */
+  _desiredSymbolsForClient(id, view) {
+    const syms = new Set(this._symbolsFromView(view));
+    const sa = this.sessionAlerts.get(id);
+    if (sa) for (const s of sa.syms) syms.add(s);
+    const pa = this.paperAccounts.get(`c:${id}`);
+    if (pa) for (const s of pa.symbols()) syms.add(s);
+    return this._filterUpstreamSymbolsForClient(id, [...syms]);
+  }
+
+  /**
+   * A3: register a signed-in user's alerts (full replace) under their user tag with `userId` set, so they are evaluated
+   * and delivered with or without an open socket. Returns the rejected-definition messages.
+   */
+  _registerUserAlerts(userId, defs) {
+    const tag = userAlertTag(userId);
+    const prev = this.userAlerts.get(userId);
+    if (prev) for (const cid of prev.ids) this.alerts.removeAlert(`${prev.tag}~${cid}`);
+    const ua = { tag, ids: new Set(), syms: new Set() };
+    const rejected = [];
+    for (const def of defs) {
+      const cid = String(def.id);
+      const { userId: _ignored, parentId: _p, ...rest } = def;
+      try {
+        const res = this.alerts.addAlert({ ...rest, id: `${tag}~${cid}`, userId });
+        ua.ids.add(cid);
+        for (const s of Array.isArray(res.syms) ? res.syms : [res.sym]) if (s) ua.syms.add(normSymbol(s));
+      } catch (err) {
+        rejected.push(`${cid}: ${err && err.message ? String(err.message).slice(0, 80) : "invalid"}`);
+      }
+    }
+    if (ua.ids.size) this.userAlerts.set(userId, ua);
+    else this.userAlerts.delete(userId);
+    this._syncUserAlertSymbols();
+    return rejected;
+  }
+
+  /** Keep every signed-in user's alert symbols subscribed upstream via one ref-counted pseudo-client. */
+  _syncUserAlertSymbols() {
+    const syms = new Set();
+    for (const ua of this.userAlerts.values()) for (const s of ua.syms) syms.add(s);
+    for (const [key, acct] of this.paperAccounts) if (key.startsWith("u:")) for (const s of acct.symbols()) syms.add(s);
+    if (!syms.size) {
+      if (this.core.clients.has(USER_ALERTS_CLIENT)) this.core.removeClient(USER_ALERTS_CLIENT);
+      return;
+    }
+    if (!this.core.clients.has(USER_ALERTS_CLIENT)) this.core.addClient(USER_ALERTS_CLIENT, () => {}, { startSeq: 0 });
+    this.core.setClientSymbols(USER_ALERTS_CLIENT, [...syms]);
+  }
+
+  _applyUserAlerts(id, userId, defs) {
+    const rejected = this._registerUserAlerts(userId, defs);
+    try {
+      // persist only definitions that validated, so a restart never re-reports the same errors
+      const ua = this.userAlerts.get(userId);
+      this.store.saveUserAlerts(userId, ua ? defs.filter((d) => ua.ids.has(String(d.id))) : [], this.now());
+    } catch {
+      /* SQLite failure: alerts still run for this DO lifetime */
+    }
+    this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+    if (rejected.length) {
+      this._sendToClient(id, "error", {
+        code: "INVALID_ALERTS",
+        message: `Rejected ${rejected.length} alert(s): ${rejected.join("; ")}`.slice(0, 256),
+        fatal: false,
+      });
+    }
+    const ua = this.userAlerts.get(userId);
+    return { accepted: ua ? ua.ids.size : 0, rejected: rejected.length };
+  }
+
+  // ---------- E-13 paper trading ----------
+  _paperKey(id) {
+    const c = this.core.clients.get(id);
+    return c && c.userId ? `u:${c.userId}` : `c:${id}`;
+  }
+
+  _paperPrice(sym) {
+    const t = this.core.last && this.core.last.get(sym);
+    return t && Number.isFinite(t.c) && t.c > 0 ? t.c : null;
+  }
+
+  _paperAccount(key) {
+    let acct = this.paperAccounts.get(key);
+    if (!acct) {
+      acct = createPaperAccount({ now: this.now });
+      this.paperAccounts.set(key, acct);
+    }
+    return acct;
+  }
+
+  _paperPersist(key, acct) {
+    if (!key.startsWith("u:")) return;
+    try {
+      this.store.saveUserPaper(key.slice(2), acct.serialize(), this.now());
+    } catch {
+      /* best effort */
+    }
+  }
+
+  _paperSend(key, event) {
+    const acct = this.paperAccounts.get(key);
+    if (!acct) return;
+    const snap = acct.snapshot((s) => this._paperPrice(s));
+    snap.history = snap.history.slice(0, 50);
+    const payload = { account: snap, ...(event ? { event } : {}) };
+    const targets = key.startsWith("u:")
+      ? [...this.core.clients.entries()].filter(([cid, c]) => cid !== USER_ALERTS_CLIENT && c && c.userId === key.slice(2)).map(([cid]) => cid)
+      : [key.slice(2)];
+    for (const cid of targets) {
+      try {
+        this._sendToClient(cid, "paper", payload);
+      } catch {
+        /* frame too large or socket gone */
+      }
+    }
+  }
+
+  _paperSymbolsChanged(id, key) {
+    if (key.startsWith("u:")) this._syncUserAlertSymbols();
+    else this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+  }
+
+  _handlePaper(id, msg) {
+    const key = this._paperKey(id);
+    const acct = this._paperAccount(key);
+    let res = { ok: true };
+    if (msg.action === "order") {
+      const sym = normSymbol(msg.sym);
+      res = acct.marketOrder({ sym, side: msg.side, qty: msg.qty, sl: msg.sl, tp: msg.tp }, this._paperPrice(sym));
+    } else if (msg.action === "close") {
+      const p = acct.snapshot(() => null).positions.find((x) => x.id === msg.id);
+      res = acct.close(String(msg.id), p ? this._paperPrice(p.sym) : null);
+    } else if (msg.action === "modify") {
+      const p = acct.snapshot(() => null).positions.find((x) => x.id === msg.id);
+      res = acct.modify(String(msg.id), { sl: msg.sl, tp: msg.tp }, p ? this._paperPrice(p.sym) : null);
+    } else if (msg.action === "reset") {
+      acct.reset({ balance: msg.balance, leverage: msg.leverage, commissionPct: msg.commissionPct });
+    }
+    if (msg.action !== "get") {
+      this._paperPersist(key, acct);
+      this._paperSymbolsChanged(id, key);
+    }
+    if (!res.ok) {
+      this._sendToClient(id, "error", { code: "PAPER_REJECTED", message: String(res.error || "Order rejected").slice(0, 256), fatal: false });
+    }
+    this._paperSend(key, res.ok && msg.action !== "get" ? { action: msg.action, ...(res.closed ? { closed: res.closed } : {}) } : undefined);
+  }
+
+  /** Stop-loss / take-profit fills on every price update (with or without the owner online). */
+  _paperOnPrice(sym, price) {
+    for (const [key, acct] of this.paperAccounts) {
+      const closed = acct.onPrice(sym, price);
+      if (!closed.length) continue;
+      this._paperPersist(key, acct);
+      for (const c of closed) this._paperSend(key, { action: c.reason, closed: c });
+    }
+  }
+
+  _loadUserPaper() {
+    let rows = [];
+    try {
+      rows = this.store.listUserPaper();
+    } catch {
+      return;
+    }
+    for (const { userId, state } of rows) {
+      if (USER_ID_RE.test(userId)) this.paperAccounts.set(`u:${userId}`, createPaperAccount({ now: this.now, state }));
+    }
+    this._syncUserAlertSymbols();
+  }
+
+  /** Persist a fired one-shot user alert so a DO restart does not re-arm it before the client syncs. */
+  _markUserAlertFired(userId, cid) {
+    try {
+      const row = this.store.listUserAlerts().find((r) => r.userId === userId);
+      if (!row) return;
+      const defs = row.defs.map((d) => (String(d.id) === cid ? { ...d, fired: true } : d));
+      this.store.saveUserAlerts(userId, defs, this.now());
+    } catch {
+      /* best effort */
+    }
+  }
+
+  /** On DO start: re-register every persisted user's alerts (invalid rows are skipped). */
+  _loadUserAlerts() {
+    let rows = [];
+    try {
+      rows = this.store.listUserAlerts();
+    } catch {
+      return;
+    }
+    for (const { userId, defs } of rows) {
+      if (USER_ID_RE.test(userId)) this._registerUserAlerts(userId, defs);
+    }
+  }
+
+  _clearSessionAlerts(id) {
+    const sa = this.sessionAlerts.get(id);
+    if (!sa) return;
+    for (const cid of sa.ids) this.alerts.removeAlert(`${sa.tag}~${cid}`);
+    this.sessionAlerts.delete(id);
+  }
+
+  /**
+   * `alerts` op: replace this socket's session alerts. Each definition is validated by normalizeAlert; invalid ones are
+   * skipped and reported in one non-fatal error frame. A client can never set `userId` (ownership comes from the socket).
+   */
+  _applySessionAlerts(id, defs) {
+    const owner = this.core.clients.get(id);
+    if (owner && owner.userId) return this._applyUserAlerts(id, owner.userId, defs);
+    const prev = this.sessionAlerts.get(id);
+    const tag = prev ? prev.tag : `s${(this.sessionAlertTagSeq++).toString(36)}`;
+    this._clearSessionAlerts(id);
+    const sa = { tag, ids: new Set(), syms: new Set() };
+    const rejected = [];
+    for (const def of defs) {
+      const cid = String(def.id);
+      const { userId: _ignored, parentId: _p, ...rest } = def;
+      try {
+        const res = this.alerts.addAlert({ ...rest, id: `${tag}~${cid}` });
+        sa.ids.add(cid);
+        const syms = Array.isArray(res.syms) ? res.syms : [res.sym];
+        for (const s of syms) if (s) sa.syms.add(normSymbol(s));
+      } catch (err) {
+        rejected.push(`${cid}: ${err && err.message ? String(err.message).slice(0, 80) : "invalid"}`);
+      }
+    }
+    if (sa.ids.size) this.sessionAlerts.set(id, sa);
+    this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+    if (rejected.length) {
+      this._sendToClient(id, "error", {
+        code: "INVALID_ALERTS",
+        message: `Rejected ${rejected.length} alert(s): ${rejected.join("; ")}`.slice(0, 256),
+        fatal: false,
+      });
+    }
+    return { accepted: sa.ids.size, rejected: rejected.length };
   }
 
   /**
@@ -1928,6 +2250,8 @@ export class MarketHub {
     if (view && view.chart && view.chart.sym) {
       const s = normSymbol(view.chart.sym);
       if (s) syms.add(s);
+      for (const raw of chartCompareSymbols(view)) syms.add(raw);
+      for (const p of chartLayoutPanes(view)) syms.add(p.sym);
     }
     if (view && Array.isArray(view.watchlist)) {
       for (const raw of view.watchlist) {
@@ -1989,8 +2313,11 @@ export class MarketHub {
     const tuple = toBarTuple(bar);
     for (const [id, view] of this.clientViews.entries()) {
       if (!view || !view.chart) continue;
-      if (normSymbol(view.chart.sym) !== sym) continue;
-      if ((normalizeTf(view.chart.tf) || "1m") !== tf) continue;
+      const onChartTf = (normalizeTf(view.chart.tf) || "1m") === tf;
+      const wanted =
+        (onChartTf && (normSymbol(view.chart.sym) === sym || chartCompareSymbols(view).includes(sym))) ||
+        chartLayoutPanes(view).some((p) => p.sym === sym && p.tf === tf);
+      if (!wanted) continue;
       this._sendToClient(id, "bar", {
         sym,
         tf,
@@ -2046,6 +2373,37 @@ export class MarketHub {
       // Read owner userId from zipped entry or paired trigger (NEVER placed on wire `payload`).
       const rawOwner = item.userId ?? triggers[i]?.userId ?? frame.userId;
       const ownerUserId = typeof rawOwner === "string" && rawOwner.trim() ? rawOwner.trim() : null;
+      // Session alerts (`alerts` op) go ONLY to the socket that registered them, under the client's own id
+      // (a watchlist alert reports its parent id; `sym` says which symbol fired).
+      const evalId = String(triggers[i]?.parentId ?? frame.id ?? "");
+      const tagSep = evalId.indexOf("~");
+      const ownerSession = tagSep > 0 ? [...this.sessionAlerts.entries()].find(([, sa]) => sa.tag === evalId.slice(0, tagSep)) : null;
+      if (ownerSession) {
+        const [ownerId] = ownerSession;
+        const client = this.core.clients.get(ownerId);
+        if (client) this._sendToClient(ownerId, "alert", { ...payload, id: evalId.slice(tagSep + 1) });
+        continue;
+      }
+      // Signed-in users' persisted alerts: every socket of that user gets it; with none open it is queued (A3).
+      const ua = ownerUserId && tagSep > 0 ? this.userAlerts.get(ownerUserId) : null;
+      if (ua && ua.tag === evalId.slice(0, tagSep)) {
+        const wire = { ...payload, id: evalId.slice(tagSep + 1) };
+        if (triggers[i] && triggers[i].mode === "once" && !triggers[i].parentId) this._markUserAlertFired(ownerUserId, wire.id);
+        let delivered = 0;
+        for (const [id, client] of this.core.clients.entries()) {
+          if (id === USER_ALERTS_CLIENT || !client || client.userId !== ownerUserId) continue;
+          this._sendToClient(id, "alert", wire);
+          delivered += 1;
+        }
+        if (!delivered) {
+          try {
+            this.store.queueUserAlert(ownerUserId, wire, this.now());
+          } catch {
+            /* SQLite unavailable: the alert's fired state is still kept in the evaluator */
+          }
+        }
+        continue;
+      }
       for (const [id, client] of this.core.clients.entries()) {
         if (!client || !client.syms || !client.syms.has(sym)) continue;
         // Fail closed: user-owned alerts ONLY deliver to sockets authenticated as that exact owner.

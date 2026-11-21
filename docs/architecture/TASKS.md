@@ -225,3 +225,26 @@ Before each step merges, Grok runs a preview with a network-egress check (Task 1
 - **UI-07** Trim the screener to the 6-column core view (legacy TASK-07). Uses server columns.
 - **UI-08** Show the replay window (bars and date range) before playback (legacy TASK-08). It comes from server metadata after Task 18.
 - **UI-09/10** Monolith decomposition (legacy TASK-09/10). Most of the JS removed in Tasks 11–15 simply goes away, so do styles (UI-09) first and module extraction last.
+
+## Phase E: TradingView parity (Tyler, 21 Nov 2026; Tiers 1–2)
+Gap list taken from tradingview.com/features (community and ideas left out). One branch and one PR per ticket. §0 applies to every ticket: any series transform or calculation runs in `shared/` (served by `/api/*` or hub frames), and the browser only renders it. Free limits stay at 3 charts, 3 indicators and 3 alerts (§3).
+
+**Tier 1: expected on day one**
+- [x] **E-01 Price scale modes** (log, percent, indexed to 100). Right-click on the price scale or use the chart settings; saved for each pane. Accept: mode survives reload; nothing is recomputed client-side (lightweight-charts `PriceScaleMode`).
+- [x] **E-02 Command palette** (Ctrl/Cmd+K): symbols, timeframes, chart types, tools, routes, settings. Accept: keyboard-only flow, focus trap, axe clean.
+- [x] **E-03 Object tree**: panel listing every drawing and indicator, with hide, lock, delete and rename. Accept: state persists with the drawings; keyboard accessible.
+- [x] **E-04 Compare/overlay symbol**: a second series on the same pane, % or own scale, bars from `/api/candles`. Accept: no client maths beyond rendering; removable; persisted.
+- [x] **E-05 Multi-chart layouts**: 1/2/3/4/6/8 grids (Free = 3 charts), synced symbol/interval/crosshair/drawings toggles. Accept: one `/ws` connection shared by every pane; phone shows one chart. *Done 21 Nov; drawings mirrored onto panes (E-05b). Plan caps (Free 3 charts etc.) deferred to pre-launch plan work (Tyler).*
+- [x] **E-06 Drawing tools**: parallel channel, fib extension, Andrews/Schiff pitchfork. Accept: drag/edit/delete like the existing tools; persisted; object-tree entries.
+
+**Tier 1: alerts (builds on Task 17 server alerts)**
+- [x] **E-07 Drawing alerts**: trendline/ray/channel/hline cross, evaluated in the hub (line value at bar time).
+- [x] **E-08 Watchlist alerts**: one alert covers every symbol in a list; counts as one Free alert.
+- [x] **E-09 Multi-condition alerts**: up to 5 conditions joined with AND, in `shared/alerts.js`.
+
+**Tier 2: what sets us apart**
+- [x] **E-10 Chart types: Renko, Line Break, Baseline.** Renko/Line Break are built server-side in `shared/market/` (`/api/candles?type=`); Baseline is a render mode.
+- [x] **E-11 Volume Profile** (visible range and fixed range): rows computed server-side; crypto and stocks first (FX volume from Twelve Data is weak).
+- [x] **E-12 Vektor Script strategy tester**: entries/exits in the VS runtime, server-side; metrics, list of trades, CSV export.
+- [x] **E-13 Paper trading on live data**: account balance, leverage, commission; reuses the replay fill rules (Task 18). Persisted per account (ACC).
+- [ ] 💷 **E-14 Earnings calendar**: parked 21 Nov — Twelve Data `/earnings_calendar` needs Grow (individual) or Venture (business), not Basic. Build after D3.

@@ -6,8 +6,9 @@ const axe=async(P,ctx)=>{await P.evaluate(AXE);return P.evaluate(async c=>(await
 const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"))};
 const spy=()=>{window.__osc=0;const A=window.AudioContext;if(A){window.AudioContext=function(){const c=new A();const o=c.createOscillator.bind(c);c.createOscillator=function(){window.__osc++;return o()};return c}}};
 // cross an alert level with two ticks from the existing feed handler
-const fire=P=>P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2],lvl=+(p*1.01).toFixed(4);S.alerts=S.alerts||[];S.alerts.push({id:Date.now(),sym:"BTCUSDT",price:lvl,dir:"above",on:true});
-  const t=c=>__edge.quotes([{s:"BTCUSDT",c:c}]);t(p*.999);t(p*1.02);return lvl});
+const fire=P=>P.evaluate(()=>{const s=symOf("BTCUSDT"),p=s[2],lvl=+(p*1.01).toFixed(4);S.alerts=S.alerts||[];const id=Date.now();S.alerts.push({id,sym:"BTCUSDT",price:lvl,dir:"above",on:true});
+  // alerts are evaluated by the hub; it delivers an alert frame
+  __edge.push(__edge.frame("alert",{id:String(id),sym:"BTCUSDT",condition:"cross_up",price:p*1.02,triggeredAt:Date.now()}));return lvl});
 const st=P=>P.evaluate(()=>({on:VT_PREF.alertSound,saved:localStorage.getItem("vt_prefs"),osc:window.__osc,chimes:window.__vtChimes||0}));
 (async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.addInitScript(spy);await P.goto(h.app);await ready(P);
 // 1) default: off, and an alert makes no sound at all

@@ -1,0 +1,19 @@
+/* E-05 Multi-chart layouts: panes grid inside .sc2 (main chart stays the left, full-featured pane) */
+.lay-bar{gap:12px;font-size:12px;color:var(--mut)}
+.lay-bar .chk{font-size:12px;margin:0}
+.lay-grid{flex:1 1 0;min-height:0;display:grid;gap:6px;grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(0,1fr)}
+.lay-grid[data-n="4"],.lay-grid[data-n="5"],.lay-grid[data-n="7"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lay-grid[data-n="5"] .lay-cell:first-child,.lay-grid[data-n="7"] .lay-cell:first-child{grid-column:span 2}
+.lay-cell{display:flex;flex-direction:column;min-width:0;min-height:140px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.lay-h{display:flex;align-items:center;gap:6px;padding:3px 6px;border-bottom:1px solid var(--line);font-size:12px}
+.lay-sym{padding:2px 6px;font:600 12px/1.2 var(--mono,ui-monospace,monospace);color:var(--fg);background:none;border:1px solid transparent;border-radius:4px;cursor:pointer}
+.lay-sym:hover{border-color:var(--line)}
+.lay-tf{font-size:12px;padding:1px 4px;max-width:70px}
+.lay-open{margin-left:auto;min-width:24px;height:22px;padding:0;color:var(--mut);background:none;border:0;border-radius:4px;cursor:pointer;font-size:14px}
+.lay-open:hover{color:var(--fg);background:var(--line)}
+.lay-cv{flex:1 1 0;min-height:0;position:relative}
+.sc2 #cvB.lay-cv{min-height:0}
+.lay-grid[data-n="1"] .lay-cell{min-height:300px}
+.lay-pick{display:flex;gap:2px;flex-wrap:wrap}
+:root[data-ui="phone"] .lay-cell{min-height:min(46vh,380px)}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .lay-sym,:root:is([data-ui="phone"],[data-ui="tablet"]) .lay-open,:root:is([data-ui="phone"],[data-ui="tablet"]) .lay-tf{min-height:44px;min-width:44px}

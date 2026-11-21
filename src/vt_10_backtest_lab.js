@@ -290,7 +290,7 @@ function btRenderChart(){
   const sl=D.D.slice(0,i);
   const ct=BT.chartType||"candles";
   if(ct==="line"||ct==="area")BT.ser.setData(sl.map(x=>({time:x.time,value:x.close})));
-  else if(ct==="heikin")BT.ser.setData(vtToHeikinAshi(sl));
+  else if(ct==="heikin"){const ha=typeof vtHaFor==="function"?vtHaFor(D.a,()=>{if(BT.D===D)btRenderChart()}):null;BT.ser.setData(ha?ha.slice(0,Math.max(0,i-(D.a.length-ha.length))):[])} // rows cover the dataset's last <=5000 bars
   else BT.ser.setData(sl);
   BT.plines.forEach(l=>{try{BT.ser.removePriceLine(l)}catch(e){}});
   BT.plines=[];

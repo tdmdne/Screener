@@ -4,7 +4,7 @@ const {chromium}=require("playwright");
 // Server-side indicator maths for the /api/candles?ind= mock: the exact module the Pages Function uses (Tasks 9/11).
 const {parseIndicatorList,buildIndicatorSeries}=require("../shared/market/chartIndicators.js");
 // Server-side chart transforms (E-10 Renko / Line Break) for /api/candles?type=: same module as the Pages Function.
-const {parseChartTransform,applyChartTransform}=require("../shared/market/chartTransforms.js");
+const {parseChartTransform,applyChartTransform,CHART_TRANSFORMS}=require("../shared/market/chartTransforms.js");
 const {parseVolumeProfileQuery,volumeProfile}=require("../shared/market/volumeProfile.js");
 // /api/vs/run mock (E-12 strategy tester): the same server-side VS engine + backtest as the Pages Function.
 const {vsCompute}=require("../shared/vs/index.js");const {vsBacktest}=require("../shared/vs/strategy.js");
@@ -64,6 +64,9 @@ async function launch(opts={}){
     if(u.startsWith("http://127.0.0.1:"+port+"/api/")){const q=new URL(u);const j=o=>route.fulfill({contentType:"application/json",body:JSON.stringify(o)});
       if(opts.d1&&q.pathname.startsWith("/api/auth/"))return d1Api(q,route);
       if(q.pathname==="/api/screener")return j({ok:true,ts:Date.now(),tfs:["1D","1H"],universe:UNIVERSE});
+      if(q.pathname==="/api/chart/transform"){let b={};try{b=JSON.parse(route.request().postData()||"{}")}catch(e){}candleCalls.push("POST transform "+b.type+" "+((b.bars||[]).length));
+        if(!CHART_TRANSFORMS.includes(b.type)||!Array.isArray(b.bars))return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({ok:false})});
+        const o=applyChartTransform(b.bars,{type:b.type});return j({ok:true,bars:o.bars,transform:o.meta})}
       if(q.pathname==="/api/vs/run"){let b={};try{b=JSON.parse(route.request().postData()||"{}")}catch(e){}vsRuns.push(b);
         const res=vsCompute(b.src||"",Array.isArray(b.bars)?b.bars:[],{inputs:b.inputs||{}});
         if(res.error!==null)return route.fulfill({status:422,contentType:"application/json",body:JSON.stringify({ok:false,error:res.error,line:res.line,col:res.col,hint:res.hint})});

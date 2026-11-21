@@ -25,7 +25,7 @@ import {
   parseIndicatorList,
   warmupBars,
 } from "../../shared/market/chartIndicators.js";
-import { applyChartTransform, parseChartTransform } from "../../shared/market/chartTransforms.js";
+import { applyChartTransform, parseChartTransform, CHART_TRANSFORMS, MAX_TRANSFORM_BARS } from "../../shared/market/chartTransforms.js";
 import { vsBacktest } from "../../shared/vs/strategy.js";
 import { parseVolumeProfileQuery, volumeProfile } from "../../shared/market/volumeProfile.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
@@ -629,6 +629,31 @@ async function withChartIndicatorsOnly(request, env, loadCandles) {
   headers.delete("content-length");
   headers.set("content-type", "application/json; charset=utf-8");
   return new Response(JSON.stringify({ ...data, bars: win.bars, ind: win.ind }), { status: 200, headers });
+}
+
+/**
+ * POST /api/chart/transform { type: "heikin"|"renko"|"linebreak", bars: [{t,o,h,l,c,v?}], box?, lb? } -> { ok, bars }
+ * For bar sets the browser already holds (e.g. a replay dataset), so every chart transform is computed server-side.
+ */
+async function handleChartTransform(request, env) {
+  const bad = (status, error) => jsonResponse({ ok: false, error }, status, { "cache-control": "no-store" }, request, env);
+  if (request.method !== "POST") return bad(405, "Method not allowed; use POST");
+  const parsed = await readJsonBody(request, 512 * 1024);
+  if (!parsed.ok) return bad(parsed.status, parsed.error);
+  const body = parsed.data;
+  if (!isPlainObject(body) || !CHART_TRANSFORMS.includes(body.type)) return bad(400, `type must be one of ${CHART_TRANSFORMS.join(", ")}`);
+  if (!Array.isArray(body.bars) || body.bars.length > MAX_TRANSFORM_BARS) return bad(400, `bars must be an array of at most ${MAX_TRANSFORM_BARS}`);
+  const bars = [];
+  for (const b of body.bars) {
+    if (!isPlainObject(b)) return bad(400, "each bar must be an object");
+    const row = { t: Number(b.t), o: Number(b.o), h: Number(b.h), l: Number(b.l), c: Number(b.c), v: Number(b.v) || 0 };
+    if (![row.t, row.o, row.h, row.l, row.c].every(Number.isFinite)) return bad(400, "bar fields t, o, h, l, c must be numbers");
+    bars.push(row);
+  }
+  const box = body.box === undefined ? undefined : Number(body.box);
+  const n = body.lb === undefined ? undefined : Number(body.lb);
+  const out = applyChartTransform(bars, { type: body.type, box: Number.isFinite(box) && box > 0 ? box : undefined, n: Number.isInteger(n) ? n : undefined });
+  return jsonResponse({ ok: true, bars: out.bars, transform: out.meta }, 200, { "cache-control": "no-store" }, request, env);
 }
 
 async function handleVsRun(request, env) {
@@ -1458,6 +1483,9 @@ export async function onRequest(context) {
   }
   if (pathname === "/api/replay/simulate") {
     return handleReplaySimulate(request, env);
+  }
+  if (pathname === "/api/chart/transform") {
+    return handleChartTransform(request, env);
   }
   if (pathname === "/api/alerts/evaluate") {
     return handleAlertsEvaluate(request, env);

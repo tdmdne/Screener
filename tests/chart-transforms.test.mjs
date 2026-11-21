@@ -2,7 +2,7 @@
 // Run: node tests/chart-transforms.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renkoBricks, lineBreak, parseChartTransform, applyChartTransform, averageTrueRange, niceBox } from "../shared/market/chartTransforms.js";
+import { renkoBricks, lineBreak, parseChartTransform, applyChartTransform, averageTrueRange, niceBox, heikinAshi } from "../shared/market/chartTransforms.js";
 
 const T0 = 1_763_000_000;
 const bar = (i, c, o = c) => ({ t: T0 + i * 60, o, h: Math.max(o, c), l: Math.min(o, c), c, v: 10 });
@@ -74,4 +74,21 @@ test("applyChartTransform returns bars + meta", () => {
   assert.equal(r.meta.box, 1);
   assert.equal(r.bars.length, 4);
   assert.equal(applyChartTransform(closes([1, 2, 3]), { type: "linebreak" }).meta.lb, 3);
+});
+
+test("heikin ashi: same values as the removed browser formula; causal (prefix of result == result of prefix)", () => {
+  const src = Array.from({ length: 60 }, (_, i) => { const o = 100 + Math.sin(i / 3) * 5, c = 100 + Math.sin((i + 1) / 3) * 5; return { t: T0 + i * 60, o, h: Math.max(o, c) + 0.7, l: Math.min(o, c) - 0.4, c, v: i }; });
+  // the former client implementation (vtToHeikinAshi), kept here only as the reference
+  const ref = [];
+  for (let i = 0; i < src.length; i++) { const b = src[i]; const hc = (b.o + b.h + b.l + b.c) / 4; const ho = i === 0 ? (b.o + b.c) / 2 : (ref[i - 1].o + ref[i - 1].c) / 2; ref.push({ o: ho, h: Math.max(b.h, ho, hc), l: Math.min(b.l, ho, hc), c: hc }); }
+  const ha = heikinAshi(src).bars;
+  assert.equal(ha.length, src.length);
+  for (let i = 0; i < ha.length; i++) {
+    assert.equal(ha[i].t, src[i].t, "same times as the source bars");
+    for (const k of ["o", "h", "l", "c"]) assert.ok(Math.abs(ha[i][k] - ref[i][k]) < 1e-12, k + " at " + i);
+  }
+  const prefix = heikinAshi(src.slice(0, 25)).bars;
+  assert.deepEqual(prefix, ha.slice(0, 25), "replay slices are exact prefixes");
+  assert.equal(parseChartTransform(new URLSearchParams("type=heikin")).type, "heikin");
+  assert.equal(applyChartTransform(src, { type: "heikin" }).meta.type, "heikin");
 });

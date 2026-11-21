@@ -3,7 +3,9 @@
 // Output times are real source-bar times; several bricks completed inside one source bar get t, t+1, t+2 ... seconds so
 // the series stays strictly increasing and time-aligned with drawings/indicators.
 
-export const CHART_TRANSFORMS = Object.freeze(["renko", "linebreak"]);
+export const CHART_TRANSFORMS = Object.freeze(["renko", "linebreak", "heikin"]);
+/** POST /api/chart/transform: max bars per request (a replay dataset or a chart's loaded history). */
+export const MAX_TRANSFORM_BARS = 5000;
 export const DEFAULT_LINE_BREAK = 3;
 export const MAX_BRICKS = 5000;
 
@@ -114,6 +116,24 @@ export function lineBreak(bars, opts = {}) {
 }
 
 /**
+ * Heikin Ashi (causal: bar i depends only on bars 0..i, so a prefix of the output equals the transform of that prefix).
+ * HA close = (o+h+l+c)/4; HA open = (prev HA open + prev HA close)/2 (first: (o+c)/2); high/low include HA open/close.
+ * @returns {{ bars: object[] }}
+ */
+export function heikinAshi(bars) {
+  const out = [];
+  if (!Array.isArray(bars)) return { bars: out };
+  for (const b of bars) {
+    if (!b || !isPos(b.o) || !isPos(b.h) || !isPos(b.l) || !isPos(b.c)) continue;
+    const c = (b.o + b.h + b.l + b.c) / 4;
+    const prev = out[out.length - 1];
+    const o = prev ? (prev.o + prev.c) / 2 : (b.o + b.c) / 2;
+    out.push({ t: b.t, o, h: Math.max(b.h, o, c), l: Math.min(b.l, o, c), c, v: Number.isFinite(b.v) ? b.v : 0 });
+  }
+  return { bars: out };
+}
+
+/**
  * Parse `type`, `box`, `lb` query values. Returns null for a normal (untransformed) request.
  * @returns {null | { ok: true, type: string, box?: number, n?: number } | { ok: false, error: string }}
  */
@@ -136,6 +156,7 @@ export function applyChartTransform(bars, spec) {
     const r = renkoBricks(bars, { box: spec.box });
     return { bars: r.bars, meta: { type: "renko", box: r.box } };
   }
+  if (spec.type === "heikin") return { bars: heikinAshi(bars).bars, meta: { type: "heikin" } };
   const r = lineBreak(bars, { n: spec.n });
   return { bars: r.bars, meta: { type: "linebreak", lb: r.n } };
 }

@@ -394,18 +394,7 @@ const VT_CHART_TYPES=[
   {id:"area",label:"Area",ic:'<path d="M3 16l5-5 4 3 9-9v14H3z" fill="currentColor" fill-opacity=".18"/><path d="M3 16l5-5 4 3 9-9"/>'},
   {id:"heikin",label:"Heikin Ashi",ic:'<path d="M7 5v14M17 4v16"/><rect x="5" y="9" width="4" height="6" rx=".8" fill="currentColor"/><rect x="15" y="6" width="4" height="9" rx=".8" fill="currentColor"/>'}
 ];
-function vtToHeikinAshi(D){
-  const out=[];
-  for(let i=0;i<D.length;i++){
-    const b=D[i];
-    const hc=(b.open+b.high+b.low+b.close)/4;
-    const ho=i===0?(b.open+b.close)/2:(out[i-1].open+out[i-1].close)/2;
-    const hh=Math.max(b.high,ho,hc);
-    const hl=Math.min(b.low,ho,hc);
-    out.push({time:b.time,open:ho,high:hh,low:hl,close:hc});
-  }
-  return out;
-}
+// Heikin Ashi is computed server-side (shared/market/chartTransforms.js heikinAshi); see src/vt_20_chart_types.js
 function vtChartTypeBtnHTML(cur,fnName,btnId){
   const ct=VT_CHART_TYPES.find(x=>x.id===(cur||"candles"))||VT_CHART_TYPES[0];
   return `<div style="position:relative;display:inline-flex"><button type="button" id="${btnId}" class="vt-ctype-btn" onclick="${fnName}(event)" title="Chart style: ${ct.label}" aria-label="Chart style: ${ct.label}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ct.ic}</svg><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="${btnId}_menu" class="vt-pop-ov vt-ctype-menu" role="menu" style="display:none"></div></div>`;
@@ -482,7 +471,7 @@ else if(C.type==="area"){const lc=C.lineCol||"#2962ff";const os=ch.addAreaSeries
 else if(C.type==="bars"){const os=ch.addBarSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody},so));os.setData(D);ms(os);meta.overlaySer=os;meta.candleSer=os}
 else if(C.type==="renko"||C.type==="linebreak"){const cser=ch.addCandlestickSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:false},so));cser.setData(typeof vtXfSeriesData==="function"?vtXfSeriesData(s,C.tf,C.type):[]);ms(cser);meta.candleSer=cser}
 else if(C.type==="baseline"){const os=ch.addBaselineSeries(Object.assign({baseValue:{type:"price",price:D.length?D[0].close:0},topLineColor:C.upBody,topFillColor1:C.upBody+"40",topFillColor2:C.upBody+"08",bottomLineColor:C.dnBody,bottomFillColor1:C.dnBody+"08",bottomFillColor2:C.dnBody+"40",lineWidth:C.lineW||2},so));os.setData(D.map(x=>({time:x.time,value:x.close})));ms(os);meta.overlaySer=os;meta.candleSer=os}
-else if(C.type==="heikin"){const cser=ch.addCandlestickSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(vtToHeikinAshi(D));ms(cser);meta.candleSer=cser}
+else if(C.type==="heikin"){const cser=ch.addCandlestickSeries(Object.assign({upColor:C.upBody,downColor:C.dnBody,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(typeof vtXfSeriesData==="function"?vtXfSeriesData(s,C.tf,"heikin"):[]);ms(cser);meta.candleSer=cser}
 else{const h=C.type==="hollow";const cser=ch.addCandlestickSeries(Object.assign({upColor:C.showBody&&!h?C.upBody:T0,downColor:C.showBody?C.dnBody:T0,borderVisible:C.showBorder,borderUpColor:C.upBorder,borderDownColor:C.dnBorder,wickVisible:C.showWick,wickUpColor:C.upWick,wickDownColor:C.dnWick},so));cser.setData(D);ms(cser);meta.candleSer=cser}
 // previous day close line
 if(C.prevClose==="line"||C.prevClose==="val"){

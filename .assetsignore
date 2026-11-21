@@ -17,3 +17,4 @@ site.config.js
 workers
 migrations
 docs
+smoke-creds.local.json

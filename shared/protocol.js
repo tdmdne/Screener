@@ -27,7 +27,9 @@ export const PROVENANCE = Object.freeze({
   UNAVAILABLE: "UNAVAILABLE",
 });
 
-export const CLIENT_OPS = Object.freeze(["hello", "view", "ping"]);
+export const CLIENT_OPS = Object.freeze(["hello", "view", "ping", "alerts"]);
+/** `alerts` op: the session's armed alert definitions (full replace), evaluated by the hub (AGENTS.md §0). */
+export const MAX_SESSION_ALERTS = 40;
 
 export const SERVER_TYPES = Object.freeze([
   "hello",
@@ -443,6 +445,22 @@ export function validateClientMessage(input) {
         }
       }
 
+      return { ok: true, value: msg, bytes };
+    }
+
+    case "alerts": {
+      // Shape only; each definition is fully validated by shared/alerts.js normalizeAlert in the hub.
+      if (!Array.isArray(msg.alerts)) return fail("INVALID_ALERTS", "alerts.alerts must be an array");
+      if (msg.alerts.length > MAX_SESSION_ALERTS) {
+        return fail("BUDGET_EXCEEDED", `alerts.alerts (${msg.alerts.length}) exceeds MAX_SESSION_ALERTS (${MAX_SESSION_ALERTS})`);
+      }
+      for (let i = 0; i < msg.alerts.length; i++) {
+        const a = msg.alerts[i];
+        if (!isPlainObject(a)) return fail("INVALID_ALERTS", `alerts.alerts[${i}] must be an object`);
+        if (!isNonEmptyStr(a.id === undefined || a.id === null ? "" : String(a.id), 40)) {
+          return fail("INVALID_ALERTS", `alerts.alerts[${i}].id must be a non-empty id <= 40 chars`);
+        }
+      }
       return { ok: true, value: msg, bytes };
     }
 

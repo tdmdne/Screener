@@ -62,7 +62,7 @@ const MAX_SCREENER_CACHE_ENTRIES = 32;
 const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"]);
 /** Max extra (custom) timeframes the builder maintains live; custom bars are derived from native bars, never persisted. */
 const MAX_CUSTOM_TIMEFRAMES = 16;
-const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap"]);
+const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap", "alerts"]);
 const SCREENER_SNAPSHOT_KEY = "screener:latest";
 const VALID_PRESETS = new Set(["P1", "P2", "P3", "P4", "P5"]);
 const VALID_EVC = new Set(["H", "M", "L"]);
@@ -229,6 +229,9 @@ export class MarketHub {
     this.socketById = new Map();      // clientId -> server WebSocket
     this.clientViews = new Map();     // clientId -> { chart?, watchlist?, screener?, heatmap? }
     this.clientLastViewAt = new Map();// clientId -> last accepted `view` op timestamp (ms)
+    // `alerts` op: per-socket session alerts. Ids are namespaced `<tag>~<clientAlertId>` inside the evaluator.
+    this.sessionAlerts = new Map();   // clientId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
+    this.sessionAlertTagSeq = 0;
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
@@ -1767,6 +1770,11 @@ export class MarketHub {
       return;
     }
 
+    if (msg.op === "alerts") {
+      this._applySessionAlerts(id, msg.alerts);
+      return;
+    }
+
     if (msg.op === "view") {
       // Per-client cooldown on `view` updates to prevent DO CPU starvation via rapid state rebuilds.
       const now = this.now();
@@ -1816,7 +1824,7 @@ export class MarketHub {
       this._ensureCustomViewTf(nextView);
 
       // Sync ephemeral client subscriptions (unauthenticated clients restricted to known universe) & refcounted indicators
-      const desiredSyms = this._filterUpstreamSymbolsForClient(id, this._symbolsFromView(nextView));
+      const desiredSyms = this._desiredSymbolsForClient(id, nextView);
       this.core.setClientSymbols(id, desiredSyms);
       this._syncClientIndicators(id, nextView);
 
@@ -1860,6 +1868,56 @@ export class MarketHub {
     this.socketById.delete(att.id);
     this.clientViews.delete(att.id);
     this.clientLastViewAt.delete(att.id);
+    this._clearSessionAlerts(att.id);
+  }
+
+  /** Upstream symbols a socket needs: its view plus the symbols of its session alerts. */
+  _desiredSymbolsForClient(id, view) {
+    const syms = new Set(this._symbolsFromView(view));
+    const sa = this.sessionAlerts.get(id);
+    if (sa) for (const s of sa.syms) syms.add(s);
+    return this._filterUpstreamSymbolsForClient(id, [...syms]);
+  }
+
+  _clearSessionAlerts(id) {
+    const sa = this.sessionAlerts.get(id);
+    if (!sa) return;
+    for (const cid of sa.ids) this.alerts.removeAlert(`${sa.tag}~${cid}`);
+    this.sessionAlerts.delete(id);
+  }
+
+  /**
+   * `alerts` op: replace this socket's session alerts. Each definition is validated by normalizeAlert; invalid ones are
+   * skipped and reported in one non-fatal error frame. A client can never set `userId` (ownership comes from the socket).
+   */
+  _applySessionAlerts(id, defs) {
+    const prev = this.sessionAlerts.get(id);
+    const tag = prev ? prev.tag : `s${(this.sessionAlertTagSeq++).toString(36)}`;
+    this._clearSessionAlerts(id);
+    const sa = { tag, ids: new Set(), syms: new Set() };
+    const rejected = [];
+    for (const def of defs) {
+      const cid = String(def.id);
+      const { userId: _ignored, parentId: _p, ...rest } = def;
+      try {
+        const res = this.alerts.addAlert({ ...rest, id: `${tag}~${cid}` });
+        sa.ids.add(cid);
+        const syms = Array.isArray(res.syms) ? res.syms : [res.sym];
+        for (const s of syms) if (s) sa.syms.add(normSymbol(s));
+      } catch (err) {
+        rejected.push(`${cid}: ${err && err.message ? String(err.message).slice(0, 80) : "invalid"}`);
+      }
+    }
+    if (sa.ids.size) this.sessionAlerts.set(id, sa);
+    this.core.setClientSymbols(id, this._desiredSymbolsForClient(id, this.clientViews.get(id) || {}));
+    if (rejected.length) {
+      this._sendToClient(id, "error", {
+        code: "INVALID_ALERTS",
+        message: `Rejected ${rejected.length} alert(s): ${rejected.join("; ")}`.slice(0, 256),
+        fatal: false,
+      });
+    }
+    return { accepted: sa.ids.size, rejected: rejected.length };
   }
 
   /**
@@ -2089,6 +2147,17 @@ export class MarketHub {
       // Read owner userId from zipped entry or paired trigger (NEVER placed on wire `payload`).
       const rawOwner = item.userId ?? triggers[i]?.userId ?? frame.userId;
       const ownerUserId = typeof rawOwner === "string" && rawOwner.trim() ? rawOwner.trim() : null;
+      // Session alerts (`alerts` op) go ONLY to the socket that registered them, under the client's own id
+      // (a watchlist alert reports its parent id; `sym` says which symbol fired).
+      const evalId = String(triggers[i]?.parentId ?? frame.id ?? "");
+      const tagSep = evalId.indexOf("~");
+      const ownerSession = tagSep > 0 ? [...this.sessionAlerts.entries()].find(([, sa]) => sa.tag === evalId.slice(0, tagSep)) : null;
+      if (ownerSession) {
+        const [ownerId] = ownerSession;
+        const client = this.core.clients.get(ownerId);
+        if (client) this._sendToClient(ownerId, "alert", { ...payload, id: evalId.slice(tagSep + 1) });
+        continue;
+      }
       for (const [id, client] of this.core.clients.entries()) {
         if (!client || !client.syms || !client.syms.has(sym)) continue;
         // Fail closed: user-owned alerts ONLY deliver to sockets authenticated as that exact owner.

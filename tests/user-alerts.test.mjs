@@ -174,6 +174,13 @@ function createMockDoCtx(sql) {
 }
 
 
+/** Send a client op with the per-socket op rate limits reset (the tests run on a frozen clock). */
+async function sendOp(hub, ws, raw) {
+  hub.alertsLastAt.clear();
+  hub.paperLastAt.clear();
+  return hub.webSocketMessage(ws, raw);
+}
+
 async function makeHub(nowMs) {
   const state = { now: nowMs, upWs: null, browser: null };
   const { sql } = createSqliteDb();
@@ -271,7 +278,7 @@ await test("signed-in user's alert keeps running after the tab closes; offline f
   let ws = await connectAs(hub, state, USER);
   await hub.webSocketMessage(ws, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m" } }));
   await hub.ensureUpstream();
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [{ id: "a1", sym: "GBPUSD", condition: "cross_up", target: 1.3 }] }));
+  await sendOp(hub, ws, JSON.stringify({ op: "alerts", alerts: [{ id: "a1", sym: "GBPUSD", condition: "cross_up", target: 1.3 }] }));
   assert.equal(hub.store.listUserAlerts().length, 1, "persisted");
   await hub.webSocketClose(ws);
   assert.equal(hub.alerts.listAlerts().length, 1, "still registered after the tab closed");
@@ -300,7 +307,7 @@ await test("user alerts go to every socket of that user and to nobody else", asy
   const anon = await connectAs(hub, state, null);
   for (const w of [u1, u2, other, anon]) await hub.webSocketMessage(w, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m" } }));
   await hub.ensureUpstream();
-  await hub.webSocketMessage(u1, JSON.stringify({ op: "alerts", alerts: [{ id: "x", sym: "EURUSD", condition: "above", target: 1.2 }] }));
+  await sendOp(hub, u1, JSON.stringify({ op: "alerts", alerts: [{ id: "x", sym: "EURUSD", condition: "above", target: 1.2 }] }));
   for (const w of [u1, u2, other, anon]) w.sent.length = 0;
   hub.ingestTick({ s: "EURUSD", c: 1.25, t: nowSec + 1, v: 0, src: "twelvedata" });
   await ctx.flushWaitUntil();
@@ -319,7 +326,7 @@ await test("persisted user alerts are re-registered when the DO starts (invalid 
   assert.ok(ids[0].endsWith("~p1"));
   assert.equal(hub.alerts.listAlerts()[0].userId, USER);
   const ws = await connectAs(hub, state, USER);
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [] }));
+  await sendOp(hub, ws, JSON.stringify({ op: "alerts", alerts: [] }));
   assert.equal(hub.alerts.listAlerts().length, 0);
   assert.equal(hub.store.listUserAlerts().filter((r) => r.userId === USER).length, 0, "row deleted");
   assert.equal(hub.core.clients.has("__user_alerts__"), false, "pseudo-client removed with no user alerts left");
@@ -334,7 +341,7 @@ await test("post-merge: a stale resend after an offline fire keeps the one-shot 
   const def = { id: "r1", sym: "GBPUSD", condition: "cross_up", target: 1.3, armedAt: fakeNow - 60_000 };
   let ws = await connectAs(hub, state, USER);
   await hub.ensureUpstream();
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [def] }));
+  await sendOp(hub, ws, JSON.stringify({ op: "alerts", alerts: [def] }));
   await hub.webSocketClose(ws);
   hub.ingestTick({ s: "GBPUSD", c: 1.29, t: nowSec + 1, v: 0, src: "twelvedata" });
   hub.ingestTick({ s: "GBPUSD", c: 1.31, t: nowSec + 2, v: 0, src: "twelvedata" });
@@ -343,12 +350,12 @@ await test("post-merge: a stale resend after an offline fire keeps the one-shot 
   assert.equal(hub.alerts.getAlert(tagId).fired, true);
   // reconnect: the tab resends its pre-fire set (armedAt older than the fire)
   ws = await connectAs(hub, state, USER);
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [def] }));
+  await sendOp(hub, ws, JSON.stringify({ op: "alerts", alerts: [def] }));
   assert.equal(hub.alerts.getAlert(tagId).fired, true, "stale resend does not re-arm");
   assert.equal(hub.alerts.getAlert(tagId).armed, false);
   // user presses Re-arm (armedAt after the fire)
   hub.clientLastViewAt.clear();
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [{ ...def, armedAt: fakeNow + 3_600_000 }] }));
+  await sendOp(hub, ws, JSON.stringify({ op: "alerts", alerts: [{ ...def, armedAt: fakeNow + 3_600_000 }] }));
   assert.equal(hub.alerts.getAlert(tagId).armed, true, "explicit re-arm wins");
   hub.destroy();
 });

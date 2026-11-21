@@ -1,5 +1,7 @@
 # VEKTOR TERMINAL (`tdmdne/Screener`): AGENT DIRECTIVES (index)
 
+> **Product goal (Tyler, 21 Nov 2026):** Vektor Terminal is a lag-free, institutional-grade charting and screening platform that delivers more capability than TradingView at less than half the price. It is built on **60fps zero-lag client rendering** (canvas drawing, pan/zoom/crosshair, local panel state, WS frame dispatch) and **100% server-side intelligence** (bars, transforms, indicators, alerts, screening, backtests, paper fills), so unit costs stay tiny as we scale. One upstream stream per symbol fans out to unlimited browsers; upstream subscribe/unsubscribe stays inside the Twelve Data event budget (`shared/market/tdThrottle.js`).
+
 This is a short index, so read it in full. The detail lives in the linked docs: open only the one your task names. **Never put secrets in any repo file.** AGENTS.md is no longer served publicly (PR #12), but the repo is shared.
 
 ## 0. NON-NEGOTIABLE: ZERO FRONTEND LOGIC (Tyler, 18 Nov 2026)

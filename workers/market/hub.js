@@ -10,6 +10,7 @@
 // - Routes: GET /hub/stats, GET /api/bootstrap, GET /api/bars, GET /ws.
 import { createAlertEvaluator } from "../../shared/alerts.js";
 import { createPaperAccount } from "../../shared/paper.js";
+import { createTdThrottle } from "../../shared/market/tdThrottle.js";
 import { createCandleBuilder, mergeBars, normalizeTf, rollup } from "../../shared/market/candles.js";
 import { resolveInterval } from "../../shared/intervals.js";
 import {
@@ -67,6 +68,8 @@ const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap", "alert
 const USER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 /** Paper orders/closes only fill at a price seen in the last 5 minutes (closed markets / unstreamed symbols reject). */
 const PAPER_MAX_PRICE_AGE_MS = 5 * 60 * 1000;
+const ALERTS_OP_MIN_MS = 1000;
+const PAPER_OP_MIN_MS = 150;
 /** Pseudo-client that keeps signed-in users' alert symbols subscribed upstream while they have no tab open (A3). */
 const USER_ALERTS_CLIENT = "__user_alerts__";
 
@@ -186,6 +189,9 @@ export class MarketHub {
     this.clearTimer = opts.clearTimer || ((h) => clearInterval(h));
     this.setTimeoutFn = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
     this.clearTimeoutFn = opts.clearTimeout || ((h) => clearTimeout(h));
+    // Hard budget for Twelve Data subscribe/unsubscribe events (shared/market/tdThrottle.js); opts.tdEventsPerMin for tests
+    this.tdThrottle = createTdThrottle({ capacity: opts.tdEventsPerMin, now: () => this.now() });
+    this.tdPumpTimer = null;
     this.jitter = opts.jitter !== undefined ? Boolean(opts.jitter) : true;
 
     this.store = new MarketStore(ctx.storage.sql, {
@@ -252,6 +258,12 @@ export class MarketHub {
     this.userAlerts = new Map();      // userId -> { tag, ids: Set<clientAlertId>, syms: Set<sym> }
     // E-13 paper accounts: "u:<userId>" (persisted) or "c:<clientId>" (session) -> account
     this.paperAccounts = new Map();
+    // Op rate limits: `alerts` applies at most once per ALERTS_OP_MIN_MS (trailing: the latest set always wins);
+    // `paper` actions need PAPER_OP_MIN_MS between them.
+    this.alertsLastAt = new Map();    // clientId -> ms of last applied alerts op
+    this.alertsPending = new Map();   // clientId -> latest deferred definitions
+    this.alertsApplyTimers = new Map();
+    this.paperLastAt = new Map();
     this.clientIndicators = new Map();// clientId -> Map<fullIndKey, { sym, tf, config }>
     this.indicatorRefs = new Map();   // fullIndKey -> { count, sym, tf, config }
     this._lastDayVolume = new Map();  // sym -> { day: "YYYY-MM-DD", value: number }
@@ -491,6 +503,7 @@ export class MarketHub {
         ws.addEventListener("error", onLost);
 
         this._startHeartbeat();
+        this.tdThrottle.reset(); // fresh connection: nothing is subscribed upstream yet
         this._sendUpstreamSubscribe(this._activeUpstreamSymbols());
         this._emitHealth("Twelve Data stream connected");
         return true;
@@ -543,34 +556,51 @@ export class MarketHub {
 
   _sendUpstreamSubscribe(syms) {
     if (!this.upWs || !this.upConnected || !syms || !syms.length) return;
-    const mapped = [];
+    const internal = [];
     for (const raw of syms) {
       const s = normSymbol(raw);
       if (!s || this._isBinance(s)) continue;
-      const td = toTwelveSymbol(s);
-      this.tdToInternal.set(td, s);
-      mapped.push(td);
+      this.tdToInternal.set(toTwelveSymbol(s), s);
+      internal.push(s);
     }
-    if (!mapped.length) return;
-    try {
-      this.upWs.send(JSON.stringify({ action: "subscribe", params: { symbols: mapped.join(",") } }));
-    } catch {
-      /* alarm reconnect will recover */
-    }
+    if (!internal.length) return;
+    this.tdThrottle.enqueue("subscribe", internal);
+    this._pumpTd();
   }
 
   _sendUpstreamUnsubscribe(syms) {
     if (!this.upWs || !this.upConnected || !syms || !syms.length) return;
-    const mapped = syms.filter((x) => !this._isBinance(x)).map(toTwelveSymbol);
-    if (!mapped.length) return;
+    const internal = syms.map((x) => normSymbol(x)).filter((x) => x && !this._isBinance(x));
+    if (!internal.length) return;
+    this.tdThrottle.enqueue("unsubscribe", internal);
+    this._pumpTd();
+  }
+
+  /** Send whatever the Twelve Data event budget allows now; schedule the rest (never exceeds ~80 events/min). */
+  _pumpTd() {
+    if (this.tdPumpTimer !== null) return; // a scheduled pump will pick up the queue
+    if (!this.upWs || !this.upConnected) return;
+    const { subscribe, unsubscribe } = this.tdThrottle.take();
     try {
-      this.upWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: mapped.join(",") } }));
+      if (unsubscribe.length) this.upWs.send(JSON.stringify({ action: "unsubscribe", params: { symbols: unsubscribe.map(toTwelveSymbol).join(",") } }));
+      if (subscribe.length) this.upWs.send(JSON.stringify({ action: "subscribe", params: { symbols: subscribe.map(toTwelveSymbol).join(",") } }));
     } catch {
-      /* ignore */
+      /* alarm reconnect will recover; reconnect resets the throttle and resubscribes */
+    }
+    const wait = this.tdThrottle.waitMs();
+    if (wait !== null) {
+      this.tdPumpTimer = this.setTimeoutFn(() => {
+        this.tdPumpTimer = null;
+        this._pumpTd();
+      }, Math.max(50, wait));
     }
   }
 
   _teardownUpstreamSocket(closeWs = true, reason = "reconnect") {
+    if (this.tdPumpTimer !== null) {
+      this.clearTimeoutFn(this.tdPumpTimer);
+      this.tdPumpTimer = null;
+    }
     this._stopHeartbeat();
     const ws = this.upWs;
     this.upWs = null;
@@ -1802,12 +1832,18 @@ export class MarketHub {
     }
 
     if (msg.op === "paper") {
+      const last = this.paperLastAt.get(id) || 0;
+      if (this.now() - last < PAPER_OP_MIN_MS) {
+        this._sendToClient(id, "error", { code: "RATE_LIMITED", message: "Too many paper trading actions; try again in a moment.", fatal: false });
+        return;
+      }
+      this.paperLastAt.set(id, this.now());
       this._handlePaper(id, msg);
       return;
     }
 
     if (msg.op === "alerts") {
-      this._applySessionAlerts(id, msg.alerts);
+      this._queueAlertsOp(id, msg.alerts);
       return;
     }
 
@@ -1906,15 +1942,51 @@ export class MarketHub {
     this.clientLastViewAt.delete(att.id);
     this._clearSessionAlerts(att.id);
     this.paperAccounts.delete(`c:${att.id}`);
+    this.paperLastAt.delete(att.id);
+    this.alertsLastAt.delete(att.id);
+    this.alertsPending.delete(att.id);
+    const at = this.alertsApplyTimers.get(att.id);
+    if (at) {
+      this.clearTimeoutFn(at);
+      this.alertsApplyTimers.delete(att.id);
+    }
+  }
+
+  /** Apply an alerts op now, or defer it to the end of the cooldown (only the newest deferred set is kept). */
+  _queueAlertsOp(id, defs) {
+    const since = this.now() - (this.alertsLastAt.get(id) || 0);
+    if (since >= ALERTS_OP_MIN_MS && !this.alertsApplyTimers.has(id)) {
+      this.alertsLastAt.set(id, this.now());
+      this._applySessionAlerts(id, defs);
+      return;
+    }
+    this.alertsPending.set(id, defs);
+    if (this.alertsApplyTimers.has(id)) return;
+    const t = this.setTimeoutFn(() => {
+      this.alertsApplyTimers.delete(id);
+      const pending = this.alertsPending.get(id);
+      this.alertsPending.delete(id);
+      if (!pending || !this.core.clients.has(id)) return;
+      this.alertsLastAt.set(id, this.now());
+      this._applySessionAlerts(id, pending);
+    }, Math.max(50, ALERTS_OP_MIN_MS - since));
+    this.alertsApplyTimers.set(id, t);
+  }
+
+  /** Alert/paper symbols never take Twelve Data chart slots; cap-exempt feeds (Binance crypto) are always fine. */
+  _sideSymbolOk(s) {
+    return Boolean(s) && this.core.capExempt(s);
   }
 
   /** Upstream symbols a socket needs: its view plus the symbols of its session alerts. */
   _desiredSymbolsForClient(id, view) {
     const syms = new Set(this._symbolsFromView(view));
+    // Session alert / paper symbols: Binance crypto is subscribed; Twelve Data symbols are evaluated while they are
+    // streamed for a viewer (they never evict a chart's slot).
     const sa = this.sessionAlerts.get(id);
-    if (sa) for (const s of sa.syms) syms.add(s);
+    if (sa) for (const s of sa.syms) if (this._sideSymbolOk(s)) syms.add(s);
     const pa = this.paperAccounts.get(`c:${id}`);
-    if (pa) for (const s of pa.symbols()) syms.add(s);
+    if (pa) for (const s of pa.symbols()) if (this._sideSymbolOk(s)) syms.add(s);
     return this._filterUpstreamSymbolsForClient(id, [...syms]);
   }
 
@@ -1947,9 +2019,21 @@ export class MarketHub {
 
   /** Keep every signed-in user's alert symbols subscribed upstream via one ref-counted pseudo-client. */
   _syncUserAlertSymbols() {
+    const all = new Set();
+    for (const ua of this.userAlerts.values()) for (const s of ua.syms) all.add(s);
+    for (const [key, acct] of this.paperAccounts) if (key.startsWith("u:")) for (const s of acct.symbols()) all.add(s);
+    // Offline alerts / paper SL-TP: every cap-exempt symbol, plus at most a quarter of the Twelve Data slots so persisted
+    // alerts can never push live charts out of the pool (2 slots on Basic's TD_WS_MAX=8).
+    const tdReserve = Math.floor(this.maxUpstreamSymbols / 4);
     const syms = new Set();
-    for (const ua of this.userAlerts.values()) for (const s of ua.syms) syms.add(s);
-    for (const [key, acct] of this.paperAccounts) if (key.startsWith("u:")) for (const s of acct.symbols()) syms.add(s);
+    let td = 0;
+    for (const s of all) {
+      if (this._sideSymbolOk(s)) syms.add(s);
+      else if (td < tdReserve) {
+        syms.add(s);
+        td += 1;
+      }
+    }
     if (!syms.size) {
       if (this.core.clients.has(USER_ALERTS_CLIENT)) this.core.removeClient(USER_ALERTS_CLIENT);
       return;
@@ -2435,6 +2519,8 @@ export class MarketHub {
 
   /** Cleanly release timers and upstream socket (for tests and graceful teardown). */
   destroy() {
+    for (const t of this.alertsApplyTimers.values()) this.clearTimeoutFn(t);
+    this.alertsApplyTimers.clear();
     this._stopHeartbeat();
     this._clearReconnectTimer();
     this._teardownUpstreamSocket(true, "destroy");

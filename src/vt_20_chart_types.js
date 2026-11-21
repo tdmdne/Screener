@@ -3,7 +3,7 @@
    Live: raw hub bars are not pushed into a brick series; the transformed series is re-fetched at most once a minute
    (the /api/candles cache window), keeping the visible range. */
 const VT_XF={data:{},pend:{},timer:0};
-const VT_XF_TYPES=new Set(["renko","linebreak"]);
+const VT_XF_TYPES=new Set(["renko","linebreak","heikin"]);
 (function(){
   const icon={renko:'<rect x="4" y="13" width="5" height="5"/><rect x="9" y="8" width="5" height="5"/><rect x="14" y="3" width="5" height="5"/>',
     linebreak:'<rect x="4" y="12" width="4" height="7"/><rect x="10" y="6" width="4" height="10"/><rect x="16" y="9" width="4" height="9"/>',
@@ -24,12 +24,21 @@ async function vtXfLoad(s,tf,type){
         const ser=typeof vtChartMeta!=="undefined"&&vtChartMeta&&vtChartMeta.candleSer;
         if(prev&&ser&&typeof ser.setData==="function"){let rg=null;try{rg=ch.timeScale().getVisibleLogicalRange()}catch(_e){}ser.setData(vtXfRows(VT_XF.data[k].bars));if(rg)try{ch.timeScale().setVisibleLogicalRange(rg)}catch(_e){}}
         else drawChart()}}
-    else if(typeof toast==="function")toast("Couldn't load "+(type==="renko"?"Renko":"Line Break")+" data. Try again shortly.");
+    else if(typeof toast==="function")toast("Couldn't load "+({renko:"Renko",linebreak:"Line Break",heikin:"Heikin Ashi"}[type]||type)+" data. Try again shortly.");
   }catch(e){console.error("chart transform load:",e)}finally{delete VT_XF.pend[k]}}
 function vtXfRows(bars){return bars.map(b=>({time:b.t,open:b.o,high:b.h,low:b.l,close:b.c}))}
 // called by drawChart for renko / linebreak: cached rows now, fetch (or refresh after 60 s) in the background
 function vtXfSeriesData(s,tf,type){const k=vtXfKey(s[0],tf,type),d=VT_XF.data[k];
   if(!d||Date.now()-d.at>60000)vtXfLoad(s,tf,type);return d?vtXfRows(d.bars):[]}
+// Heikin Ashi for bar sets the browser already holds (backtest replay dataset): one POST per dataset, cached
+const VT_HA={rows:{},pend:{}};
+function vtHaKey(a){return a.length?a.length+"|"+a[0].t+"|"+a[a.length-1].t+"|"+a[a.length-1].c:"0"}
+function vtHaFor(a,onReady){const k=vtHaKey(a);if(VT_HA.rows[k])return VT_HA.rows[k];
+  if(!VT_HA.pend[k]){VT_HA.pend[k]=1;const bars=a.slice(-5000).map(b=>({t:b.t,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v||0}));
+    fetch("/api/chart/transform",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"heikin",bars})})
+      .then(r=>r.ok?r.json():null).then(j=>{if(j&&j.ok&&Array.isArray(j.bars)){VT_HA.rows[k]=vtXfRows(j.bars);if(typeof onReady==="function")onReady()}else if(typeof toast==="function")toast("Couldn't load Heikin Ashi data. Try again shortly.")})
+      .catch(e=>console.error("heikin ashi:",e)).finally(()=>{delete VT_HA.pend[k]})}
+  return null}
 function vtXfMeta(sym,tf,type){const d=VT_XF.data[vtXfKey(sym,tf,type)];return d?d.meta:null}
 (function(){
   // raw live bars must not be written into a brick series

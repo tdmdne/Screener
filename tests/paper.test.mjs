@@ -172,6 +172,13 @@ function createMockDoCtx(sql) {
 }
 
 
+/** Send a client op with the per-socket op rate limits reset (the tests run on a frozen clock). */
+async function sendOp(hub, ws, raw) {
+  hub.alertsLastAt.clear();
+  hub.paperLastAt.clear();
+  return hub.webSocketMessage(ws, raw);
+}
+
 async function makeHub(nowMs) {
   const state = { now: nowMs, upWs: null, browser: null };
   const { sql } = createSqliteDb();
@@ -248,18 +255,18 @@ await test("hub: guest paper order fills at the live price, SL fills on ticks, a
   const ws = await connectAs(hub, state, null);
   await hub.webSocketMessage(ws, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m" } }));
   await hub.ensureUpstream();
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
   assert.equal(errors(ws).pop().code, "PAPER_REJECTED", "no live price yet");
   hub.ingestTick({ s: "GBPUSD", c: 1.27, t: nowSec + 1, v: 0, src: "twelvedata" });
   ws.sent.length = 0;
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000, sl: 1.26 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000, sl: 1.26 }));
   let f = papers(ws).pop();
   assert.equal(validateServerFrame(f, { lastSeq: 0 }).ok, true);
   assert.equal(f.account.positions.length, 1);
   assert.equal(f.account.positions[0].entry, 1.27);
   const id = [...hub.paperAccounts.keys()][0];
   assert.ok(id.startsWith("c:"));
-  assert.ok(hub.core.clients.get(id.slice(2)).syms.has("GBPUSD"), "position symbol subscribed");
+  assert.ok(!hub.core.clients.get(id.slice(2)).syms.has("GBPUSD"), "a Twelve Data position never takes a chart slot");
   ws.sent.length = 0;
   hub.ingestTick({ s: "GBPUSD", c: 1.259, t: nowSec + 2, v: 0, src: "twelvedata" });
   await ctx.flushWaitUntil();
@@ -278,8 +285,8 @@ await test("hub: signed-in user's paper account persists, SL fills with no tab o
   let ws = await connectAs(hub, state, USER);
   await hub.ensureUpstream();
   hub.ingestTick({ s: "EURUSD", c: 1.1, t: nowSec + 1, v: 0, src: "twelvedata" });
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "reset", balance: 20000, leverage: 5 }));
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "EURUSD", side: "short", qty: 10000, tp: 1.09 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "reset", balance: 20000, leverage: 5 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "order", sym: "EURUSD", side: "short", qty: 10000, tp: 1.09 }));
   assert.equal(hub.store.listUserPaper()[0].state.positions.length, 1, "persisted");
   await hub.webSocketClose(ws);
   assert.ok(hub.core.clients.get("__user_alerts__").syms.has("EURUSD"), "kept subscribed offline");
@@ -290,7 +297,7 @@ await test("hub: signed-in user's paper account persists, SL fills with no tab o
   assert.equal(st.history[0].reason, "target");
   ws = await connectAs(hub, state, USER);
   const ws2 = await connectAs(hub, state, USER);
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "get" }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "get" }));
   const f1 = papers(ws).pop(), f2 = papers(ws2).pop();
   assert.ok(f1 && f2, "both sockets of the user get the account");
   assert.equal(f1.account.settings.balance, 20000);
@@ -318,11 +325,11 @@ await test("post-merge: paper orders reject a stale price (>5 min) instead of fi
   await hub.ensureUpstream();
   hub.ingestTick({ s: "GBPUSD", c: 1.27, t: nowSec - 600, v: 0, src: "twelvedata" });
   ws.sent.length = 0;
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
   assert.match(errors(ws).pop().message, /No live price/);
   assert.equal(papers(ws).pop().account.positions.length, 0);
   hub.ingestTick({ s: "GBPUSD", c: 1.271, t: nowSec - 5, v: 0, src: "twelvedata" });
-  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
+  await sendOp(hub, ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
   assert.equal(papers(ws).pop().account.positions[0].entry, 1.271, "fresh price fills");
   hub.destroy();
 });

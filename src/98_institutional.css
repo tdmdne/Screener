@@ -3928,3 +3928,15 @@ html.locked #lgo {
     padding-bottom: 196px;
   }
 }
+
+/* Left drawing rail, TradingView behaviour: the icon keeps its full hit area (click = activate the current tool);
+   a separate thin strip on the group's right edge opens the tool drawer (click, or hover ~300 ms). `.tbar button`
+   (34x34) used to win over .vt-rail-fly and lay a 34px arrow across the icon. */
+.tbar .vt-rail-grp{width:46px;height:36px;display:grid;grid-template-columns:36px 10px;align-items:center;justify-items:center}
+.tbar .vt-rail-grp > .vt-rail-btn{grid-column:1;width:36px;height:36px}
+.tbar .vt-rail-grp > .vt-rail-fly{position:static;transform:none;grid-column:2;width:10px!important;min-width:10px!important;height:22px;min-height:22px;padding:0!important;border:0!important;
+  border-radius:3px;font-size:8px;line-height:1;opacity:.45;color:var(--mut);background:transparent}
+.tbar .vt-rail-grp:hover > .vt-rail-fly,.tbar .vt-rail-grp > .vt-rail-fly:focus-visible,.tbar .vt-rail-grp > .vt-rail-fly[aria-expanded="true"]{opacity:1;color:var(--fg);background:var(--bg-2)}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .tbar .vt-rail-grp{width:56px;height:44px;grid-template-columns:44px 12px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .tbar .vt-rail-grp > .vt-rail-btn{width:44px;height:44px}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .tbar .vt-rail-grp > .vt-rail-fly{width:12px!important;min-width:12px!important;height:44px;min-height:44px}

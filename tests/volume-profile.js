@@ -34,6 +34,17 @@ await P.waitForFunction(([a,b])=>Object.keys(VT_VP.cache).some(k=>k.endsWith("|"
 assert.ok(await P.evaluate(()=>!("_vp" in DL().find(x=>x.t==="fvp"))),"no profile data saved into the drawing");
 await P.waitForFunction(()=>[...document.querySelectorAll("#dkot .ot-l")].some(e=>e.textContent==="Fixed range volume profile"));
 
+// FX (no volume in the feed): a time-at-price histogram is still drawn, labelled as such
+await P.evaluate(()=>{const a=LIVE["BTCUSDT|1H"];void a;openChart("EURUSD","1H");vtVpToggle(true)});
+await P.waitForFunction(()=>ch&&G&&G.a&&G.a.length>50&&S.chart.sym==="EURUSD");
+await P.waitForFunction(()=>Object.keys(VT_VP.cache).some(k=>k.startsWith("EURUSD|1H|")),null,{timeout:10000});
+const fx=await P.evaluate(()=>{const k=Object.keys(VT_VP.cache).find(k=>k.startsWith("EURUSD|1H|"));const v=VT_VP.cache[k].vp;return{basis:v.basis,total:v.total,poc:v.poc,rows:v.rows.filter(r=>r.v>0).length}});
+assert.ok(fx.total>0&&fx.rows>5&&fx.poc>0,"FX profile has a histogram: "+JSON.stringify(fx));
+await P.waitForTimeout(300);
+const fxPx=await P.evaluate(()=>{const c=document.getElementById("dc"),g=c.getContext("2d"),r=devicePixelRatio||1,tw=(ch.timeScale().width()||c.clientWidth-60)*r;const d=g.getImageData(Math.max(0,tw-200*r),0,Math.floor(150*r),c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i]>20)n++;return n});
+assert.ok(fxPx>500,"FX histogram painted: "+fxPx);
+await P.evaluate(()=>vtVpToggle(false));
+
 // settings checkbox mirrors the toggle
 await P.evaluate(()=>setM("all"));assert.ok(await P.$('input[data-c="vpVis"]'),"settings checkbox");await P.evaluate(()=>closeM());
 

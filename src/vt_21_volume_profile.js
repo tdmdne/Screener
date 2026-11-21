@@ -23,18 +23,23 @@ function vtVpGet(sym,tf,from,to){
 // draw rows between x0 and x0 +/- width (dir +1 grows right, -1 grows left from the right edge)
 function vtVpDraw(g,vp,x0,width,dir){
   if(!vp||!vp.rows||!vp.rows.length||!vp.total||typeof MS==="undefined"||!MS)return false;
-  const max=Math.max(...vp.rows.map(r=>r.v))||1,C=S.chart,up=C.upBody||"#089981",dn=C.dnBody||"#f23645";
+  const max=Math.max(...vp.rows.map(r=>r.v))||1,C=S.chart,time=vp.basis==="time";
+  // a time-at-price profile (no volume in the feed) is drawn in one neutral colour: it has no buy/sell split to show
+  const up=time?"#6b8fd6":(C.upBody||"#089981"),dn=time?"#6b8fd6":(C.dnBody||"#f23645");
   g.save();g.setLineDash([]);
   for(const r of vp.rows){const y1=MS.priceToCoordinate(r.hi),y2=MS.priceToCoordinate(r.lo);if(y1==null||y2==null)continue;
     const h=Math.max(1,Math.abs(y2-y1)-1),y=Math.min(y1,y2),inVa=r.lo>=vp.val-1e-12&&r.hi<=vp.vah+1e-12,wU=width*(r.up/max),wD=width*(r.dn/max);
     g.globalAlpha=inVa?.55:.25;g.fillStyle=up;g.fillRect(dir>0?x0:x0-wU,y,wU,h);g.fillStyle=dn;g.fillRect(dir>0?x0+wU:x0-wU-wD,y,wD,h)}
-  const yp=MS.priceToCoordinate(vp.poc);if(yp!=null){g.globalAlpha=.9;g.strokeStyle="#f7a21b";g.lineWidth=1;g.beginPath();g.moveTo(dir>0?x0:x0-width,yp);g.lineTo(dir>0?x0+width:x0,yp);g.stroke()}
+  const xa=dir>0?x0:x0-width,xb=dir>0?x0+width:x0,line=(p,col,dash)=>{const yy=MS.priceToCoordinate(p);if(yy==null)return null;g.globalAlpha=.9;g.strokeStyle=col;g.lineWidth=1;g.setLineDash(dash);g.beginPath();g.moveTo(xa,yy);g.lineTo(xb,yy);g.stroke();return yy};
+  line(vp.vah,"#9aa4b2",[3,3]);line(vp.val,"#9aa4b2",[3,3]);const yp=line(vp.poc,"#f7a21b",[]);
+  g.setLineDash([]);g.globalAlpha=.95;g.font="10px system-ui,sans-serif";g.fillStyle="#f7a21b";
+  if(yp!=null)g.fillText("POC",dir>0?xa+2:xb-24,yp-3);
+  if(time){const yt=MS.priceToCoordinate(vp.rows[vp.rows.length-1].hi);g.fillStyle="#9aa4b2";if(yt!=null)g.fillText("TPO · time at price (no volume in feed)",dir>0?xa+2:Math.max(2,xb-200),Math.max(12,yt-4))}
   g.restore();return true}
 function vtVpVisible(g,tw){
   if(!S.chart.vpVis||typeof ch==="undefined"||!ch)return;
   let r=null;try{r=ch.timeScale().getVisibleRange()}catch(_e){}if(!r)return;
   const vp=vtVpGet(S.chart.sym,S.chart.tf,+r.from,+r.to);
-  if(vp&&!vp.total){g.save();g.globalAlpha=.8;g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--mut")||"#888";g.font="11px system-ui,sans-serif";g.fillText("Volume profile: no volume data for this market",8,18);g.restore();return}
   vtVpDraw(g,vp,tw-2,Math.min(220,tw*.28),-1)}
 (function(){
   // visible-range profile painted every frame with the drawings (cheap: <=200 rows)

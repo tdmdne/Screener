@@ -26,6 +26,7 @@ import {
   warmupBars,
 } from "../../shared/market/chartIndicators.js";
 import { applyChartTransform, parseChartTransform } from "../../shared/market/chartTransforms.js";
+import { parseVolumeProfileQuery, volumeProfile } from "../../shared/market/volumeProfile.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -525,6 +526,8 @@ async function handleCandlesViaMarketService(request, env) {
  */
 async function withChartIndicators(request, env, loadCandles) {
   const tUrl = new URL(request.url);
+  const vp = request.method === "GET" ? parseVolumeProfileQuery(tUrl.searchParams) : null;
+  if (vp) return withVolumeProfile(request, env, loadCandles, vp);
   const xf = request.method === "GET" ? parseChartTransform(tUrl.searchParams) : null;
   if (xf) return withChartTransform(request, env, loadCandles, xf);
   return withChartIndicatorsOnly(request, env, loadCandles);
@@ -560,6 +563,30 @@ async function withChartTransform(request, env, loadCandles, xf) {
   headers.delete("content-length");
   headers.set("content-type", "application/json; charset=utf-8");
   return new Response(JSON.stringify({ ...data, bars: out.bars, transform: out.meta }), { status: 200, headers });
+}
+
+/**
+ * E-11: `/api/candles?...&vp=<rows>[&vpFrom=&vpTo=]` returns only the volume profile (rows, POC, value area) for that
+ * time range, computed server-side from the candle history (shared/market/volumeProfile.js).
+ */
+async function withVolumeProfile(request, env, loadCandles, vp) {
+  if (!vp.ok) return jsonResponse({ ok: false, error: vp.error }, 400, { "cache-control": "no-store" }, request, env);
+  const upstreamUrl = new URL(request.url);
+  for (const k of ["vp", "vpFrom", "vpTo", "ind", "type", "box", "lb"]) upstreamUrl.searchParams.delete(k);
+  upstreamUrl.searchParams.set("limit", String(CANDLES_MAX_LIMIT));
+  const res = await loadCandles(new Request(upstreamUrl.toString(), request));
+  if (!res.ok) return res;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.bars)) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+  const profile = volumeProfile(data.bars, { rows: vp.rows, from: vp.from, to: vp.to });
+  return jsonResponse({ ok: true, vp: profile }, 200, { "cache-control": "no-store" }, request, env);
 }
 
 async function withChartIndicatorsOnly(request, env, loadCandles) {

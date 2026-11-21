@@ -10,19 +10,19 @@ const mode=()=>P.evaluate(()=>ch.priceScale("right").options().mode);
 assert.strictEqual(await mode(),0,"regular by default");
 const before=await P.evaluate(()=>JSON.stringify(LIVE["EURUSD|1H"].slice(-5)));
 
-await P.click('#cv .vt-scaleb button[aria-label="Logarithmic scale"]');
+await P.click('#cv .vt-scaleb button[aria-label="Log scale"]');
 assert.strictEqual(await mode(),1,"log applied");
-assert.strictEqual(await P.getAttribute('#cv .vt-scaleb button[aria-label="Logarithmic scale"]',"aria-pressed"),"true");
-await P.click('#cv .vt-scaleb button[aria-label="Percent scale"]');
+assert.strictEqual(await P.getAttribute('#cv .vt-scaleb button[aria-label="Log scale"]',"aria-pressed"),"true");
+await P.click('#cv .vt-scaleb button[aria-label="% (percent) scale"]');
 assert.strictEqual(await mode(),2,"percent applied");
-assert.strictEqual(await P.getAttribute('#cv .vt-scaleb button[aria-label="Logarithmic scale"]',"aria-pressed"),"false","only one mode on");
+assert.strictEqual(await P.getAttribute('#cv .vt-scaleb button[aria-label="Log scale"]',"aria-pressed"),"false","only one mode on");
 assert.strictEqual(await P.evaluate(()=>S.chart.scMode),2,"saved in chart state");
 
 // survives a redraw (settings are re-applied from S.chart when the chart is rebuilt)
 await P.evaluate(()=>openChart("EURUSD","1H"));
 await P.waitForFunction(()=>document.querySelector("#cv .vt-scaleb"));
 assert.strictEqual(await mode(),2,"mode kept after redraw");
-await P.click('#cv .vt-scaleb button[aria-label="Percent scale"]');
+await P.click('#cv .vt-scaleb button[aria-label="% (percent) scale"]');
 assert.strictEqual(await mode(),0,"toggle off returns to regular");
 
 // auto scale toggle

@@ -441,7 +441,7 @@ function vtVolPill(s){const top=document.querySelector("#cp .cpb .row.top");if(!
 function vtScaleBtns(){const cv=document.getElementById("cv");if(!cv||typeof ch==="undefined"||!ch||typeof ch.priceScale!=="function")return;const old=cv.querySelector(".vt-scaleb");if(old)old.remove();
   const C=S.chart,d=document.createElement("div");d.className="vt-scaleb";d.setAttribute("role","toolbar");d.setAttribute("aria-label","Price scale mode");if(C.scalePlace==="left")d.classList.add("left");
   const apply=()=>{try{ch.priceScale("right").applyOptions({mode:+C.scMode||0,autoScale:C.scAuto!==false})}catch(_e){}save();paint()};
-  const btns=[["auto","Auto scale",()=>C.scAuto!==false,()=>{C.scAuto=C.scAuto===false}],["log","Logarithmic scale",()=>+C.scMode===1,()=>{C.scMode=+C.scMode===1?0:1}],["%","Percent scale",()=>+C.scMode===2,()=>{C.scMode=+C.scMode===2?0:2}]];
+  const btns=[["auto","Auto scale",()=>C.scAuto!==false,()=>{C.scAuto=C.scAuto===false}],["log","Log scale",()=>+C.scMode===1,()=>{C.scMode=+C.scMode===1?0:1}],["%","% (percent) scale",()=>+C.scMode===2,()=>{C.scMode=+C.scMode===2?0:2}]];
   const paint=()=>d.querySelectorAll("button").forEach((b,i)=>{const on=btns[i][2]();b.classList.toggle("on",on);b.setAttribute("aria-pressed",String(on))});
   btns.forEach(([t,l,,f])=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.title=l;b.setAttribute("aria-label",l);b.onclick=e=>{e.stopPropagation();f();apply()};b.onpointerdown=e=>e.stopPropagation();d.append(b)});
   paint();cv.append(d)}

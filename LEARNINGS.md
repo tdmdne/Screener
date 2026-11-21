@@ -16,3 +16,6 @@
 - 2026-11-21: Bash heredocs with JS containing `${...}` template literals plus quotes can break the tool's quoting (unexpected EOF); write such files with the Write tool and assemble with a short command.
 - 2026-11-21: Heikin Ashi is still computed in the browser (`vtToHeikinAshi` in vt_02 and the backtest lab) - a §0 violation; move it to `shared/market/chartTransforms.js` (`type=heikin`) like Renko/Line Break.
 - 2026-11-21: `tests/motion.js` is flaky (failed once in a full sweep, passed twice standalone).
+- 2026-11-21: A reconnecting tab sends its alert set before processing queued 'fired offline' frames; the hub keeps one-shot user alerts fired unless the client's `armedAt` is newer than the hub's `firedAt`.
+- 2026-11-21: `core.last` can hold hours-old ticks for unstreamed symbols; anything that fills at 'the current price' (paper) must check tick age (`t` is ms after normalizeTick).
+- 2026-11-21: After a vektor-market deploy the first /ws connections can still hit the old MarketHub instance for a short while; re-test before concluding a deploy failed.

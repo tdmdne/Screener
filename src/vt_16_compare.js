@@ -41,6 +41,9 @@ function vtCmpRender(){
   const md=document.createElement("button");md.type="button";md.className="vt-cmpm";md.textContent=pct?"%":"Own scale";md.title=pct?"Compared in percent: switch each symbol to its own scale":"Each symbol on its own scale: switch to percent";
   md.setAttribute("aria-label",(pct?"% percent":"Own scale")+" compare mode");md.onclick=e=>{e.stopPropagation();vtCmpTogMode()};md.onpointerdown=e=>e.stopPropagation();lg.append(md);
   cv.append(lg);
+  // percent compare forces a percentage price scale: show it on the quick toggle, and let % switch compare modes
+  const pb=cv.querySelector('.vt-scaleb button[aria-label="% (percent) scale"]');
+  if(pb){pb.classList.toggle("on",pct);pb.setAttribute("aria-pressed",String(pct));if(pct){pb.title="Percent (compare mode): click for each symbol on its own scale";pb.onclick=e=>{e.stopPropagation();vtCmpTogMode()}}}
   clearTimeout(vtCmpRetry);if(missing)vtCmpRetry=setTimeout(()=>{if(vtCmpList().some(c=>vtCmpData(c.sym))&&typeof drawChart==="function")drawChart();else vtCmpRender()},800);
 }
 (function(){

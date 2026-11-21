@@ -65,6 +65,8 @@ const HUB_TIMEFRAMES = Object.freeze(["1m", "5m", "15m", "30m", "1H", "4H", "1D"
 const MAX_CUSTOM_TIMEFRAMES = 16;
 const CAPABILITIES = Object.freeze(["bars", "ind", "screener", "heatmap", "alerts"]);
 const USER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** Paper orders/closes only fill at a price seen in the last 5 minutes (closed markets / unstreamed symbols reject). */
+const PAPER_MAX_PRICE_AGE_MS = 5 * 60 * 1000;
 /** Pseudo-client that keeps signed-in users' alert symbols subscribed upstream while they have no tab open (A3). */
 const USER_ALERTS_CLIENT = "__user_alerts__";
 
@@ -1956,7 +1958,23 @@ export class MarketHub {
     this.core.setClientSymbols(USER_ALERTS_CLIENT, [...syms]);
   }
 
-  _applyUserAlerts(id, userId, defs) {
+  _applyUserAlerts(id, userId, rawDefs) {
+    // A reconnecting tab sends its alert set before it has processed the "fired while offline" frames, so a one-shot
+    // alert that already fired would be re-armed. Keep it fired unless the client re-armed it after it fired (armedAt).
+    let prevDefs = [];
+    try {
+      const row = this.store.listUserAlerts().find((r) => r.userId === userId);
+      prevDefs = row ? row.defs : [];
+    } catch {
+      prevDefs = [];
+    }
+    const prevById = new Map(prevDefs.map((d) => [String(d.id), d]));
+    const defs = rawDefs.map((d) => {
+      const p = prevById.get(String(d.id));
+      const once = d.mode !== "recurring" && d.recurring !== true;
+      if (p && p.fired && once && !(Number(d.armedAt) > Number(p.firedAt || 0))) return { ...d, fired: true, firedAt: p.firedAt };
+      return d;
+    });
     const rejected = this._registerUserAlerts(userId, defs);
     try {
       // persist only definitions that validated, so a restart never re-reports the same errors
@@ -1985,7 +2003,9 @@ export class MarketHub {
 
   _paperPrice(sym) {
     const t = this.core.last && this.core.last.get(sym);
-    return t && Number.isFinite(t.c) && t.c > 0 ? t.c : null;
+    if (!t || !Number.isFinite(t.c) || t.c <= 0) return null;
+    if (Number.isFinite(t.t) && this.now() - t.t > PAPER_MAX_PRICE_AGE_MS) return null;
+    return t.c;
   }
 
   _paperAccount(key) {
@@ -2035,7 +2055,7 @@ export class MarketHub {
     let res = { ok: true };
     if (msg.action === "order") {
       const sym = normSymbol(msg.sym);
-      res = acct.marketOrder({ sym, side: msg.side, qty: msg.qty, sl: msg.sl, tp: msg.tp }, this._paperPrice(sym));
+      res = acct.marketOrder({ sym, side: msg.side, qty: msg.qty, sl: msg.sl, tp: msg.tp }, this._paperPrice(sym), (s) => this._paperPrice(s));
     } else if (msg.action === "close") {
       const p = acct.snapshot(() => null).positions.find((x) => x.id === msg.id);
       res = acct.close(String(msg.id), p ? this._paperPrice(p.sym) : null);
@@ -2083,7 +2103,7 @@ export class MarketHub {
     try {
       const row = this.store.listUserAlerts().find((r) => r.userId === userId);
       if (!row) return;
-      const defs = row.defs.map((d) => (String(d.id) === cid ? { ...d, fired: true } : d));
+      const defs = row.defs.map((d) => (String(d.id) === cid ? { ...d, fired: true, firedAt: this.now() } : d));
       this.store.saveUserAlerts(userId, defs, this.now());
     } catch {
       /* best effort */

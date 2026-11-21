@@ -26,6 +26,14 @@ test("renko: one brick per full box, reversal needs two boxes, bricks are strict
   for (const b of bars) assert.ok(b.h === Math.max(b.o, b.c) && b.l === Math.min(b.o, b.c), "no wicks");
 });
 
+test("renko clamps a tiny client box to price/5000 and keeps the newest bricks", () => {
+  const src = closes(Array.from({ length: 300 }, (_, i) => 100 + i));
+  const r = renkoBricks(src, { box: 1e-9 });
+  assert.equal(r.box, 0.02, "100 / 5000");
+  assert.ok(r.bars.length <= 5000);
+  assert.ok(Math.abs(r.bars[r.bars.length - 1].c - 399) < r.box, "latest brick reaches the last close");
+});
+
 test("renko default box = rounded ATR(14)", () => {
   const src = Array.from({ length: 40 }, (_, i) => ({ t: T0 + i * 60, o: 100, h: 100.5, l: 99.5, c: 100 + (i % 2 ? 0.2 : -0.2), v: 1 }));
   const atr = averageTrueRange(src, 14);

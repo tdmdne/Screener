@@ -43,7 +43,10 @@ function pushBrick(out, srcT, o, c, v, seen) {
  */
 export function renkoBricks(bars, opts = {}) {
   if (!Array.isArray(bars) || bars.length === 0) return { bars: [], box: 0 };
-  const box = isPos(opts.box) ? opts.box : niceBox(averageTrueRange(bars, 14));
+  const first = bars.find((b) => isPos(b.c));
+  // floor: 1/5000 of price, so a tiny client-supplied box cannot explode the brick count (CPU) or truncate history
+  const minBox = first ? niceBox(first.c / 5000) : 0;
+  const box = Math.max(isPos(opts.box) ? opts.box : niceBox(averageTrueRange(bars, 14)), minBox);
   if (!isPos(box)) return { bars: [], box: 0 };
   const out = [];
   const seen = new Map();
@@ -54,7 +57,7 @@ export function renkoBricks(bars, opts = {}) {
     const vol = Number.isFinite(b.v) ? b.v : 0;
     let guard = 0;
     for (;;) {
-      if (out.length >= MAX_BRICKS || guard++ > 1000) break;
+      if (guard++ > 1000) break;
       if (dir >= 0 && b.c >= base + box) {
         pushBrick(out, b.t, base, base + box, vol, seen);
         base += box;
@@ -73,6 +76,7 @@ export function renkoBricks(bars, opts = {}) {
         base += 2 * box;
         dir = 1;
       } else break;
+      if (out.length > MAX_BRICKS * 2) out.splice(0, out.length - MAX_BRICKS); // keep memory bounded, newest bricks win
     }
   }
   return { bars: out.slice(-MAX_BRICKS), box };

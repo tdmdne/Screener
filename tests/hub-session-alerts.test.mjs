@@ -172,6 +172,13 @@ function createMockDoCtx(sql) {
 }
 
 
+/** Send a client op with the per-socket op rate limits reset (the tests run on a frozen clock). */
+async function sendOp(hub, ws, raw) {
+  hub.alertsLastAt.clear();
+  hub.paperLastAt.clear();
+  return hub.webSocketMessage(ws, raw);
+}
+
 async function makeHub(nowMs) {
   const state = { now: nowMs, upWs: null, browser: null };
   const { sql } = createSqliteDb();
@@ -225,9 +232,9 @@ await test("session alert fires only to its socket, with the client's id, and su
   const b = await connect(hub, state);
   await hub.webSocketMessage(b, JSON.stringify({ op: "view", chart: { sym: "GBPUSD", tf: "1m" } }));
   await hub.ensureUpstream();
-  await hub.webSocketMessage(a, JSON.stringify({ op: "alerts", alerts: [{ id: 1700000000001, sym: "GBPUSD", condition: "cross_up", target: 1.3, userId: "someone-else" }] }));
+  await sendOp(hub, a, JSON.stringify({ op: "alerts", alerts: [{ id: 1700000000001, sym: "GBPUSD", condition: "cross_up", target: 1.3, userId: "someone-else" }] }));
   const idA = [...hub.sessionAlerts.keys()][0];
-  assert.ok(hub.core.clients.get(idA).syms.has("GBPUSD"), "alert symbol subscribed for socket A");
+  assert.ok(!hub.core.clients.get(idA).syms.has("GBPUSD"), "a Twelve Data alert symbol never takes a chart slot");
   hub.ingestTick({ s: "GBPUSD", c: 1.29, t: nowSec + 1, v: 0, src: "twelvedata" });
   a.sent.length = 0; b.sent.length = 0;
   hub.ingestTick({ s: "GBPUSD", c: 1.31, t: nowSec + 2, v: 0, src: "twelvedata" });
@@ -248,7 +255,7 @@ await test("watchlist + multi-condition + line alerts through the op; invalid on
   const a = await connect(hub, state);
   await hub.webSocketMessage(a, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m" } }));
   await hub.ensureUpstream();
-  await hub.webSocketMessage(a, JSON.stringify({ op: "alerts", alerts: [
+  await sendOp(hub, a, JSON.stringify({ op: "alerts", alerts: [
     { id: "w1", syms: ["EURUSD", "GBPUSD"], condition: "above", target: 1.2 },
     { id: "bad", sym: "EURUSD", condition: "nope", target: 1 },
     { id: "m1", sym: "EURUSD", condition: "above", target: 1.0, conds: [{ condition: "below", target: 1.1 }] },
@@ -271,11 +278,11 @@ await test("replacing with [] or closing the socket removes the session alerts",
   const fakeNow = Date.UTC(2026, 10, 18, 10, 17, 30);
   const { hub, state } = await makeHub(fakeNow);
   const a = await connect(hub, state);
-  await hub.webSocketMessage(a, JSON.stringify({ op: "alerts", alerts: [{ id: "x", sym: "EURUSD", condition: "above", target: 2 }] }));
+  await sendOp(hub, a, JSON.stringify({ op: "alerts", alerts: [{ id: "x", sym: "EURUSD", condition: "above", target: 2 }] }));
   assert.equal(hub.alerts.listAlerts().length, 1);
-  await hub.webSocketMessage(a, JSON.stringify({ op: "alerts", alerts: [] }));
+  await sendOp(hub, a, JSON.stringify({ op: "alerts", alerts: [] }));
   assert.equal(hub.alerts.listAlerts().length, 0);
-  await hub.webSocketMessage(a, JSON.stringify({ op: "alerts", alerts: [{ id: "y", syms: ["EURUSD", "GBPUSD"], condition: "above", target: 2 }] }));
+  await sendOp(hub, a, JSON.stringify({ op: "alerts", alerts: [{ id: "y", syms: ["EURUSD", "GBPUSD"], condition: "above", target: 2 }] }));
   assert.equal(hub.alerts.listAlerts().length, 2);
   await hub.webSocketClose(a);
   assert.equal(hub.alerts.listAlerts().length, 0);

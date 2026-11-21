@@ -21,3 +21,6 @@
 - 2026-11-21: After a vektor-market deploy the first /ws connections can still hit the old MarketHub instance for a short while; re-test before concluding a deploy failed.
 - 2026-11-21: The TD LRU pool evicts by recency regardless of viewers, so any server-side 'keep subscribed' (alerts, paper) can evict live charts' slots. Keep side subscriptions to cap-exempt feeds plus a small fixed TD reservation.
 - 2026-11-21: Claude Security scans need the Workflow tool (Dynamic workflows setting); without it the plugin refuses to run and a manual review is the fallback.
+- 2026-11-21: Twelve Data spot FX bars have v=0; anything volume-based (volume profile) needs a time-at-price fallback, labelled as such.
+- 2026-11-21: html2canvas 1.4.1 throws on modern CSS colours (color(), color-mix()) and its promise never settles; use the chart library's takeScreenshot() and composite overlay canvases instead.
+- 2026-11-21: `.tbar button{width:34px}` (vt_base) out-specifies single-class rail rules; scope rail button rules as `.tbar .vt-rail-grp > ...` (a global padding rule also needs `!important` there).

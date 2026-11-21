@@ -223,10 +223,31 @@ function vtTogChartMore(ev){
   `<div class="vt-pop-item" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px" onclick="document.getElementById('vt_chmore').style.display='none';scrSetM()"><span>Screener Settings</span><span class="mut" style="font-size:11px">P1–P5</span></div>`;
   d.style.display="block";
 }
-function snapCanvas(){return new Promise(r=>{const cm=document.querySelector(".cm"),bs=document.getElementById("bs"),ind=document.getElementById("indbar");if(bs)bs.style.visibility="hidden";if(!S.chart.snapInd&&ind)ind.style.visibility="hidden";html2canvas(cm,{backgroundColor:null,scale:2}).then(c=>{if(bs)bs.style.visibility="";if(ind)ind.style.visibility="";r(c)})})}
-async function snapDownload(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL();a.click()}
-async function snapCopy(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>navigator.clipboard.write([new ClipboardItem({"image/png":b})]))}
-async function snapOpen(){document.getElementById("snapdrop").style.display="none";const c=await snapCanvas();c.toBlob(b=>{const u=URL.createObjectURL(b);window.open(u)})}
+// Snapshot of the active chart = the main pane's own rendering (candles, overlay indicators, compare, overlays) via
+// Lightweight Charts takeScreenshot(), the drawings canvas composited on top, the oscillator pane (ch2, e.g. RSI) stacked
+// below when "Show indicators in snapshot" is on, and a header strip. Layout panes are separate charts and not included.
+// (html2canvas 1.4.1 throws on modern CSS colour functions such as color-mix() and never resolved.)
+function snapCanvas(){
+  if(typeof ch==="undefined"||!ch||typeof ch.takeScreenshot!=="function")return Promise.reject(new Error("Open a chart first"));
+  const shot=ch.takeScreenshot(),dpr=Math.max(1,shot.width/((document.getElementById("cv")||{}).clientWidth||shot.width)),dc=document.getElementById("dc");
+  const sub=S.chart.snapInd!==false&&typeof ch2!=="undefined"&&ch2&&typeof ch2.takeScreenshot==="function"?ch2.takeScreenshot():null;
+  const head=Math.round(28*dpr),out=document.createElement("canvas");
+  out.width=shot.width;out.height=head+shot.height+(sub?sub.height:0);const g=out.getContext("2d"),p=typeof pal==="function"?pal():{bg:"#131722",tx:"#d1d4dc"};
+  g.fillStyle=p.bg||"#131722";g.fillRect(0,0,out.width,out.height);g.drawImage(shot,0,head);
+  if(dc&&dc.width&&!HIDD)g.drawImage(dc,0,0,dc.width,dc.height,0,head,shot.width,shot.height); // drawings (+ volume profile)
+  if(sub)g.drawImage(sub,0,head+shot.height,Math.min(sub.width,out.width),sub.height);
+  const a=G&&G.a&&G.a[G.a.length-1],f=v=>typeof fp==="function"?fp(v):String(v);
+  g.fillStyle=p.tx||"#d1d4dc";g.font="600 "+Math.round(13*dpr)+"px system-ui,sans-serif";g.textBaseline="middle";
+  g.fillText(S.chart.sym+" · "+S.chart.tf+(a?"   O "+f(a.o)+"  H "+f(a.h)+"  L "+f(a.l)+"  C "+f(a.c):""),Math.round(10*dpr),head/2);
+  g.font=Math.round(11*dpr)+"px system-ui,sans-serif";g.textAlign="right";g.globalAlpha=.7;g.fillText("Vektor Terminal · "+new Date().toISOString().slice(0,16).replace("T"," ")+" UTC",out.width-Math.round(10*dpr),head/2);
+  return Promise.resolve(out)}
+function snapBlob(c){return new Promise((res,rej)=>c.toBlob(x=>x?res(x):rej(new Error("could not encode PNG")),"image/png"))}
+function snapFail(e){console.error("snapshot:",e);if(typeof toast==="function")toast("Snapshot failed: "+(e&&e.message?e.message:"try again"))}
+async function snapDownload(){document.getElementById("snapdrop").style.display="none";try{const c=await snapCanvas();const a=document.createElement("a");a.download=S.chart.sym+"_"+S.chart.tf+".png";a.href=c.toDataURL("image/png");document.body.append(a);a.click();a.remove();toast("Snapshot saved as "+a.download)}catch(e){snapFail(e)}}
+async function snapCopy(){document.getElementById("snapdrop").style.display="none";try{const c=await snapCanvas();const b=await snapBlob(c);
+  if(!navigator.clipboard||typeof ClipboardItem==="undefined")throw new Error("this browser can't copy images; use Download");
+  await navigator.clipboard.write([new ClipboardItem({"image/png":b})]);toast("Snapshot copied to clipboard")}catch(e){snapFail(e)}}
+async function snapOpen(){document.getElementById("snapdrop").style.display="none";try{const c=await snapCanvas();const u=URL.createObjectURL(await snapBlob(c));window.open(u);setTimeout(()=>URL.revokeObjectURL(u),60000)}catch(e){snapFail(e)}}
 function resetLive(){
   try{
     const cvEl=document.getElementById("cv");

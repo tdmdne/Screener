@@ -40,7 +40,11 @@ test("time range filter, empty and zero-volume inputs", () => {
   assert.equal(vp.rows.length, VP_DEFAULT_ROWS);
   assert.equal(volumeProfile([], {}).rows.length, 0);
   const z = volumeProfile(bars.map((x) => ({ ...x, v: 0 })), { rows: 5 });
-  assert.equal(z.total, 0, "FX feeds without volume report total 0 (client shows a note)");
+  assert.equal(z.basis, "time", "FX feeds without volume get a time-at-price profile");
+  assert.equal(z.total, z.rows.reduce((s, r) => s + r.v, 0), "TPO: one unit per touched row; total = sum of rows");
+  assert.ok(z.rows.every((r) => Number.isInteger(r.v)), "whole TPO counts");
+  assert.ok(z.poc > 0 && z.val <= z.poc && z.poc <= z.vah, "POC and value area still computed");
+  assert.equal(volumeProfile(bars, { rows: 5 }).basis, "volume");
 });
 
 test("parseVolumeProfileQuery", () => {

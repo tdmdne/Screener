@@ -34,19 +34,24 @@ export function volumeProfile(bars, opts = {}) {
   const step = (hi - lo) / rowsN;
   const rows = Array.from({ length: rowsN }, (_, i) => ({ lo: lo + i * step, hi: lo + (i + 1) * step, v: 0, up: 0, dn: 0 }));
   let total = 0;
+  // Spot FX feeds (Twelve Data) carry no volume. Then build a time-at-price (TPO-style) profile: every bar counts once
+  // across the rows it touches. `basis` tells the client which one it got, so it is never presented as real volume.
+  const hasVolume = sel.some((b) => fin(b.v) && b.v > 0);
+  const basis = hasVolume ? "volume" : "time";
   for (const b of sel) {
-    const vol = fin(b.v) && b.v > 0 ? b.v : 0;
+    const vol = hasVolume ? (fin(b.v) && b.v > 0 ? b.v : 0) : 1;
     if (!vol) continue;
     const i0 = Math.max(0, Math.min(rowsN - 1, Math.floor((b.l - lo) / step)));
     const i1 = Math.max(0, Math.min(rowsN - 1, Math.floor((b.h - lo) / step)));
-    const share = vol / (i1 - i0 + 1);
+    // volume is spread across the rows a bar touches; a time-at-price (TPO) profile counts one unit in every touched row
+    const share = hasVolume ? vol / (i1 - i0 + 1) : 1;
     const up = b.c >= b.o;
     for (let i = i0; i <= i1; i++) {
       rows[i].v += share;
       if (up) rows[i].up += share;
       else rows[i].dn += share;
     }
-    total += vol;
+    total += hasVolume ? vol : i1 - i0 + 1;
   }
   if (!total) return { ...empty, rows, bars: sel.length };
   // point of control and value area: grow from the POC row towards the heavier neighbour until vaPct of volume
@@ -67,6 +72,7 @@ export function volumeProfile(bars, opts = {}) {
     vah: rows[z].hi,
     val: rows[a].lo,
     total,
+    basis,
     from: sel[0].t,
     to: sel[sel.length - 1].t,
     bars: sel.length,

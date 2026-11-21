@@ -3928,3 +3928,21 @@ html.locked #lgo {
     padding-bottom: 196px;
   }
 }
+
+/* Left drawing rail, TradingView behaviour: the icon keeps its full hit area (click = activate the current tool);
+   a separate thin strip on the group's right edge opens the tool drawer (click, or hover ~300 ms). `.tbar button`
+   (34x34) used to win over .vt-rail-fly and lay a 34px arrow across the icon. */
+/* the rail is 52px (45px content after padding + border) so a 44px group (34px icon + 10px strip) fits without clipping */
+:root:not([data-ui="phone"]) .tbar{width:52px!important;min-width:52px!important}
+.tbar .vt-rail-grp{width:44px;height:36px;display:grid;grid-template-columns:34px 10px;align-items:center;justify-items:center}
+.tbar .vt-rail-grp > .vt-rail-btn{grid-column:1;width:34px;height:34px}
+.tbar .vt-rail-grp > .vt-rail-fly{position:static;transform:none;grid-column:2;width:10px!important;min-width:10px!important;height:22px;min-height:22px;padding:0!important;border:0!important;
+  border-radius:3px;font-size:8px;line-height:1;opacity:.45;color:var(--mut);background:transparent}
+.tbar .vt-rail-grp:hover > .vt-rail-fly,.tbar .vt-rail-grp > .vt-rail-fly:focus-visible,.tbar .vt-rail-grp > .vt-rail-fly[aria-expanded="true"]{opacity:1;color:var(--fg);background:var(--bg-2)}
+/* touch (tablet, phone): one 44x44 target per group (tap = tool, long-press = drawer, src/vt_25_tool_style.js); a corner
+   triangle marks groups that have a drawer. Tablet rail is 52px (45px content). */
+:root[data-ui="tablet"] .tbar{width:52px!important;min-width:52px!important}
+:root:is([data-ui="tablet"],[data-ui="phone"]) .tbar .vt-rail-grp{width:44px;height:44px;grid-template-columns:44px;position:relative}
+:root:is([data-ui="tablet"],[data-ui="phone"]) .tbar .vt-rail-grp > .vt-rail-btn{width:44px;height:44px}
+:root:is([data-ui="tablet"],[data-ui="phone"]) .tbar .vt-rail-grp > .vt-rail-fly{display:none!important}
+:root:is([data-ui="tablet"],[data-ui="phone"]) .tbar .vt-rail-grp:has(> .vt-rail-fly)::after{content:"";position:absolute;right:3px;bottom:3px;width:0;height:0;border-left:5px solid transparent;border-bottom:5px solid var(--mut);pointer-events:none}

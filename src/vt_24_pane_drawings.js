@@ -8,10 +8,14 @@ function vtPdCanvas(p){let c=p.el.querySelector("canvas.vt-pdc");if(!c){c=docume
   c.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;z-index:6;pointer-events:none";p.el.append(c)}return c}
 function vtPdPaintPane(p){
   const c=vtPdCanvas(p),W=c.clientWidth,H=c.clientHeight,r=devicePixelRatio||1;if(!W||!H)return;
+  // 60fps budget: repaint only when something visible changed (pan/zoom, price scale, size, drawings, an active drag)
+  const raw=(S.dr||{})[p.sym]||[];let rg=null,py=null;try{rg=p.ch.timeScale().getVisibleLogicalRange();const a=p.B.a,l=a&&a[a.length-1];py=l?p.ser.priceToCoordinate(l.c):null}catch(_e){}
+  const sig=[W,H,r,rg&&rg.from,rg&&rg.to,py,S.sc.syncDr,HIDD,raw.length,DRG?Date.now():0,raw.length?JSON.stringify(raw[raw.length-1].p)+raw.reduce((n,d)=>n+(d.hide?1:0)+(d.p?d.p.length:0),0):"",p.B&&p.B.a&&p.B.a.length].join("|");
+  if(p._pdSig===sig)return;p._pdSig=sig;
   if(c.width!==Math.round(W*r)||c.height!==Math.round(H*r)){c.width=Math.round(W*r);c.height=Math.round(H*r)}
   const g=c.getContext("2d");g.setTransform(r,0,0,r,0,0);g.clearRect(0,0,W,H);
   if(S.sc.syncDr===false||HIDD||!p.B||!p.B.a||!p.B.a.length)return;
-  const list=((S.dr||{})[p.sym]||[]).filter(d=>d&&!d.hide&&!VT_PD.skip.has(d.t)&&Array.isArray(d.p)&&d.p.length);if(!list.length)return;
+  const list=raw.filter(d=>d&&!d.hide&&!VT_PD.skip.has(d.t)&&Array.isArray(d.p)&&d.p.length);if(!list.length)return;
   const tw=(p.ch.timeScale().width&&p.ch.timeScale().width())||W-60;
   const sv={ch,MS,G};
   try{ch=p.ch;MS=p.ser;G={a:p.B.a,st:p.B.st||STEP[p.tf]||3600,tt:p.B.a.map(x=>x.t)};

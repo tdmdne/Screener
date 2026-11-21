@@ -19,3 +19,5 @@
 - 2026-11-21: A reconnecting tab sends its alert set before processing queued 'fired offline' frames; the hub keeps one-shot user alerts fired unless the client's `armedAt` is newer than the hub's `firedAt`.
 - 2026-11-21: `core.last` can hold hours-old ticks for unstreamed symbols; anything that fills at 'the current price' (paper) must check tick age (`t` is ms after normalizeTick).
 - 2026-11-21: After a vektor-market deploy the first /ws connections can still hit the old MarketHub instance for a short while; re-test before concluding a deploy failed.
+- 2026-11-21: The TD LRU pool evicts by recency regardless of viewers, so any server-side 'keep subscribed' (alerts, paper) can evict live charts' slots. Keep side subscriptions to cap-exempt feeds plus a small fixed TD reservation.
+- 2026-11-21: Claude Security scans need the Workflow tool (Dynamic workflows setting); without it the plugin refuses to run and a manual review is the fallback.

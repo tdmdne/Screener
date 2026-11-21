@@ -14,6 +14,7 @@ const { handleWaitlistRoute } = require("./shared/waitlist.js");
 const { jrStats, tradeStats, propStatus, equityCurve, drawdownSeries, rDistribution, dailyPnlCalendar } = require("./shared/journal.js");
 const { createReplaySession } = require("./shared/replay.js");
 const { FEED, assetFeed, tdSymbolFor } = require("./shared/market/feedRouting.js");
+const { chartKeepCount, chartWindowWithIndicators, parseIndicatorList, warmupBars } = require("./shared/market/chartIndicators.js");
 const { createAlertEvaluator } = require("./shared/alerts.js");
 const { vsCompute } = require("./shared/vs/index.js");
 const { normSymbol, toTwelveSymbol, createTickGuard } = require("./shared/schema.js");
@@ -1138,6 +1139,32 @@ app.get("/api/ws-config", (_req, res) => {
       lastSubscribeStatus: lastTdSubStatus,
     },
   });
+});
+
+// `ind=` (Tasks 9/11): same contract as the Pages Function — history plus server-computed indicator series. Fetches
+// limit + warm-up bars from the plain /api/candles route below, computes, and returns only the newest `limit` bars.
+app.get("/api/candles", async (req, res, next) => {
+  const u = new URL(req.originalUrl, "http://local");
+  const rawInd = u.searchParams.getAll("ind");
+  if (!rawInd.length) return next();
+  const parsed = parseIndicatorList(rawInd);
+  if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
+  const warm = warmupBars(parsed.specs);
+  const rawLimit = Math.floor(Number(u.searchParams.get("limit")) || 0);
+  const limit = rawLimit > 0 ? Math.min(5000, rawLimit) : 0;
+  u.searchParams.delete("ind");
+  if (limit && warm) u.searchParams.set("limit", String(Math.min(5000, limit + warm)));
+  try {
+    const up = await fetch(`http://127.0.0.1:${PORT}/api/candles${u.search}`);
+    const data = await up.json();
+    if (!up.ok || !data || data.ok === false || !Array.isArray(data.bars)) return res.status(up.ok ? 502 : up.status).json(data || { ok: false });
+    const win = chartWindowWithIndicators(data.bars, parsed.specs, chartKeepCount(data.bars.length, warm, limit || undefined));
+    res.set("cache-control", "no-store");
+    return res.json({ ...data, bars: win.bars, ind: win.ind });
+  } catch (e) {
+    console.error(JSON.stringify({ op: "candles.ind", error: String(e && e.message || e) }));
+    return res.status(502).json({ ok: false, error: "Upstream candle feed unavailable" });
+  }
 });
 
 app.get("/api/candles", async (req, res) => {

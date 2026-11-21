@@ -19,6 +19,12 @@ import worker, {
 import { MAX_CHART_BARS, PROVENANCE } from "../../shared/protocol.js";
 import { resolveInterval } from "../../shared/intervals.js";
 import { hubBarsSymbol, hubTfLabel } from "../../shared/market/candleRoute.js";
+import {
+  chartKeepCount,
+  chartWindowWithIndicators,
+  parseIndicatorList,
+  warmupBars,
+} from "../../shared/market/chartIndicators.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -53,6 +59,8 @@ export {
 const MARKET_SERVICE_PATHS = new Set(["/api/bootstrap", "/api/bars", "/api/hub/stats"]);
 
 const VS_RUN_MAX_BYTES = 256 * 1024;
+// worker.js handleCandles clamps `limit` to this; indicator warm-up bars must fit inside it.
+const CANDLES_MAX_LIMIT = 5000;
 const JOURNAL_STATS_MAX_BYTES = 1024 * 1024;
 const REPLAY_SIMULATE_MAX_BYTES = 512 * 1024;
 const REPLAY_MAX_ACTIONS = 500;
@@ -502,6 +510,57 @@ async function handleCandlesViaMarketService(request, env) {
     request,
     env
   );
+}
+
+/**
+ * `GET /api/candles?...&ind=ema:20,bb:20:2` — chart history plus server-computed indicator series in one response
+ * (Tasks 9/11). Fetches extra warm-up bars, computes every series over them, then returns only the newest bars, so
+ * each returned point is fully warmed and independently fetched `before=` pages join without gaps.
+ * Without `ind`, the request passes straight through to `loadCandles`.
+ * @param {Request} request
+ * @param {object} env
+ * @param {(req: Request) => Promise<Response>} loadCandles
+ * @returns {Promise<Response>}
+ */
+async function withChartIndicators(request, env, loadCandles) {
+  const url = new URL(request.url);
+  const rawInd = url.searchParams.getAll("ind");
+  if (!rawInd.length || request.method !== "GET") return loadCandles(request);
+
+  const parsed = parseIndicatorList(rawInd);
+  if (!parsed.ok) {
+    return jsonResponse({ ok: false, error: parsed.error }, 400, { "cache-control": "no-store" }, request, env);
+  }
+  const warm = warmupBars(parsed.specs);
+  const rawLimit = Math.floor(Number(url.searchParams.get("limit")) || 0);
+  const limit = rawLimit > 0 ? Math.min(CANDLES_MAX_LIMIT, rawLimit) : 0;
+  const upstreamUrl = new URL(url);
+  upstreamUrl.searchParams.delete("ind");
+  if (limit && warm) upstreamUrl.searchParams.set("limit", String(Math.min(CANDLES_MAX_LIMIT, limit + warm)));
+
+  const res = await loadCandles(new Request(upstreamUrl.toString(), request));
+  if (!res.ok) return res;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.bars)) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+
+  const keep = chartKeepCount(data.bars.length, warm, limit || undefined);
+  let win;
+  try {
+    win = chartWindowWithIndicators(data.bars, parsed.specs, keep);
+  } catch {
+    return serviceUnavailable("Indicator computation failed", request, env);
+  }
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify({ ...data, bars: win.bars, ind: win.ind }), { status: 200, headers });
 }
 
 async function handleVsRun(request, env) {
@@ -1345,18 +1404,21 @@ export async function onRequest(context) {
     env.MARKET_SERVICE &&
     typeof env.MARKET_SERVICE.fetch === "function"
   ) {
-    // 1) Backend pipeline: Twelve Data REST (/time_series) history, cached server-side, with the hub's live WebSocket bars
-    //    laid on top and custom timeframes resampled here (worker.js handleCandles). This is what backfills 5m/30m/1H/4H/custom.
-    if (request.method === "GET") {
-      try {
-        const full = await worker.fetch(request, augmentedEnv, context);
-        if (full && full.ok) return withCors(full, request, env);
-      } catch {
-        // fall through to the hub-only answer
+    // `ind=` adds server-computed indicator series to the same response (withChartIndicators).
+    return withChartIndicators(request, env, async (req) => {
+      // 1) Backend pipeline: Twelve Data REST (/time_series) history, cached server-side, with the hub's live WebSocket bars
+      //    laid on top and custom timeframes resampled here (worker.js handleCandles). This is what backfills 5m/30m/1H/4H/custom.
+      if (req.method === "GET") {
+        try {
+          const full = await worker.fetch(req, augmentedEnv, context);
+          if (full && full.ok) return withCors(full, req, env);
+        } catch {
+          // fall through to the hub-only answer
+        }
       }
-    }
-    // 2) Fallback: whatever the hub's tick-built store holds (also owns 400/405 validation and the clean 503 body).
-    return handleCandlesViaMarketService(request, env);
+      // 2) Fallback: whatever the hub's tick-built store holds (also owns 400/405 validation and the clean 503 body).
+      return handleCandlesViaMarketService(req, env);
+    });
   }
 
   // Forward legacy /api/screener, /api/candles, /api/calendar, /api/news, etc. to worker.js

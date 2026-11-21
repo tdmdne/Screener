@@ -1,6 +1,7 @@
-// FX chart: sparse /ws quote ticks must build candles with visible bodies, in the browser's live-bar path.
-// FX opens each new bar at the previous close (continuous market). Crypto keeps tick-open. Also checks the rendered
-// canvas actually contains candle pixels in the up/down colours for an FX chart (not just data).
+// FX chart: live candles are the hub's `bar` frames rendered verbatim (Task 11). The hub's candle builder opens each new
+// FX bar at the previous close (shared/market/candles.js openMode "auto", covered by tests/fx-candles.test.mjs); the
+// browser must keep those opens exactly as sent and never build or reshape a candle from quote ticks.
+// Also checks the rendered canvas actually contains candle pixels in the up/down colours for an FX chart.
 const assert=require("assert");const {launch}=require("./harness");
 (async()=>{const h=await launch({viewport:{width:1440,height:900}});const P=h.page;
 await P.goto(h.app);
@@ -10,22 +11,25 @@ for(const [sym,tf] of [["GBPUSD","1m"],["GBPUSD","5m"],["EURUSD","1H"]]){
   await P.evaluate(([s,t])=>openChart(s,t),[sym,tf]);
   await P.waitForFunction(([s,t])=>LIVE[s+"|"+t]&&LIVE[s+"|"+t].length>50,[sym,tf]);
   const r=await P.evaluate(([s,t])=>{const k=s+"|"+t,step=STEP[t],a0=LIVE[k],last=a0[a0.length-1];
-    let p=last.c,ts=last.t+step;const startLen=a0.length;
-    // one quote per bucket, like a quiet FX feed: every new bar is born from a single tick
-    for(let i=0;i<40;i++){p=+(p*(1+Math.sin(i*1.3)*0.0002)).toFixed(5);__edge.quotes([{s,c:p,t:ts+i*step+5}])}
-    const a=LIVE[k].slice(startLen-1);let flat=0,linked=0,n=0;
-    for(let i=1;i<a.length;i++){const b=a[i];n++;if(b.o===b.h&&b.h===b.l&&b.l===b.c)flat++;if(b.o===a[i-1].c)linked++}
-    return{n,flat,linked}},[sym,tf]);
-  assert.ok(r.n>=30,sym+" "+tf+" new bars were built: "+JSON.stringify(r));
-  assert.ok(r.flat/r.n<0.1,sym+" "+tf+" flat one-tick dashes: "+JSON.stringify(r));
-  assert.ok(r.linked/r.n>0.9,sym+" "+tf+" each new FX bar opens at the previous close: "+JSON.stringify(r));
+    let prev=last.c;const startLen=a0.length,sent=[];
+    // a quiet FX feed as the hub emits it: one bar per bucket, opening at the previous close
+    for(let i=1;i<=40;i++){const c=+(prev*(1+Math.sin(i*1.3)*0.0002)).toFixed(5),o=prev,bar=[last.t+i*step,o,Math.max(o,c),Math.min(o,c),c,0];
+      sent.push(bar);__edge.push(__edge.frame("bar",{sym:s,tf:t,bar,closed:false}));prev=c}
+    // quote ticks in between must not touch the series
+    __edge.quotes([{s,c:prev*1.01,t:(last.t+40*step+5)*1000}]);
+    const got=LIVE[k].slice(startLen).map(b=>[b.t,b.o,b.h,b.l,b.c,b.v]);
+    return{sent,got,len:LIVE[k].length,startLen}},[sym,tf]);
+  assert.strictEqual(r.len,r.startLen+40,sym+" "+tf+" one candle per server bar frame");
+  assert.deepStrictEqual(r.got,r.sent,sym+" "+tf+" server bars rendered verbatim (opens kept at the previous close)");
 }
 
-// crypto keeps tick-open: a new bar is a point at its first tick, not stitched to the previous close
+// crypto: whatever open the hub sends is rendered as-is (tick-open in the builder), never stitched by the client
 await P.evaluate(()=>openChart("BTCUSDT","1m"));
 await P.waitForFunction(()=>LIVE["BTCUSDT|1m"]&&LIVE["BTCUSDT|1m"].length>50);
-const c=await P.evaluate(()=>{const a=LIVE["BTCUSDT|1m"],last=a[a.length-1],px=last.c*1.004;__edge.quotes([{s:"BTCUSDT",c:px,t:last.t+65}]);const b=LIVE["BTCUSDT|1m"].slice(-1)[0];return{o:b.o,px,prev:last.c,t:b.t}});
-assert.strictEqual(c.o,c.px,"crypto new bar opens at its first tick: "+JSON.stringify(c));
+const c=await P.evaluate(()=>{const a=LIVE["BTCUSDT|1m"],last=a[a.length-1],px=last.c*1.004;
+  __edge.push(__edge.frame("bar",{sym:"BTCUSDT",tf:"1m",bar:[last.t+60,px,px,px,px,0],closed:false}));
+  const b=LIVE["BTCUSDT|1m"].slice(-1)[0];return{o:b.o,px,prev:last.c,t:b.t}});
+assert.strictEqual(c.o,c.px,"crypto server bar keeps its own open: "+JSON.stringify(c));
 
 // rendered chart: an FX candle chart paints coloured bodies (not hairlines): count candle-coloured pixels in the plot
 await P.evaluate(()=>openChart("GBPUSD","1H"));

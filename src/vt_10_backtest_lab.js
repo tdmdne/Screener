@@ -73,7 +73,7 @@ async function btFetchIfNeeded(sym,tf,fromSec,toSec){
       try{
         const bars=await edgeFetchCandles(s,tf,{limit:1500,replay:true,from:fromSec,to:toSec});
         if(bars&&bars.length){
-          if(typeof vtMergeBars==="function")vtMergeBars(k,bars);
+          if(typeof vtSetServerBars==="function")vtSetServerBars(k,bars);
           else{LIVE[k]=bars;LT[k]=Date.now();dirty(k)}
         }
       }catch(e){}

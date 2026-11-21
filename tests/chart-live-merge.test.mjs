@@ -4,6 +4,7 @@
 // Root cause under test (src/vt_12_edge_and_search.js): a tick arriving on a timeframe with no history yet did
 // `LIVE[k] = [oneTickBar]`; every later tick refreshed LT[k], so need() saw "fresh" data and never queued the REST
 // history request. pumpEdge() also replaced LIVE[k] wholesale, dropping live bars received while REST was in flight.
+// Since Task 11 the chart never builds candles from quote ticks; hub `bar` frames are applied verbatim.
 // Run: node tests/chart-live-merge.test.mjs
 
 import assert from "node:assert/strict";
@@ -73,31 +74,34 @@ const flush = () => new Promise((r) => setImmediate(r));
 console.log("chart-live-merge.test.mjs");
 
 for (const tf of ["15m", "30m", "4H"]) {
-  await test(`${tf}: a tick with no history never seeds a one-bar series; full history is requested from the backend`, async () => {
+  await test(`${tf}: a server bar with no history never seeds a one-bar series; full history is requested from the backend`, async () => {
     const step = STEP[tf];
     const now = Math.floor(Date.now() / 1000);
     const forming = Math.floor(now / step) * step;
     const history = Array.from({ length: 300 }, (_, i) => mk(forming - (300 - i) * step));
     const { sandbox, fetches } = makeSandbox(tf, { fetchBars: history });
-
-    sandbox.vtApplyNormalizedTick("EURUSD", 1.0811, now * 1000, { source: "twelvedata" });
-    sandbox.vtApplyNormalizedTick("EURUSD", 1.0813, now * 1000 + 500, { source: "twelvedata" });
-    // no fabricated one-tick array that would make need() think history is fresh
     const k = `EURUSD|${tf}`;
+
+    // Quote ticks never build candles (Task 11): they neither seed nor request anything for the chart series.
+    sandbox.vtApplyNormalizedTick("EURUSD", 1.0811, now * 1000, { source: "twelvedata" });
+    assert.equal(sandbox.LIVE[k], undefined, "a quote tick never creates a chart series");
+
+    // The first hub bar frame for a timeframe with no history asks for the server-merged history instead.
+    sandbox.vtApplyServerBar("EURUSD", tf, [forming, 1.08, 1.0815, 1.0799, 1.0811, 0]);
     assert.ok(!Array.isArray(sandbox.LIVE[k]) || sandbox.LIVE[k].length !== 1, "no single-bar LIVE series");
     assert.ok(fetches.some((u) => u.includes("/api/candles") && u.includes(`interval=${encodeURIComponent(tf)}`)), "history requested");
     await flush();
     await flush();
     assert.equal(sandbox.LIVE[k].length, 300, "full server history installed");
 
-    // subsequent ticks merge onto the last bar / append the forming bar (never replace the series)
-    sandbox.vtApplyNormalizedTick("EURUSD", 1.0820, now * 1000 + 1000, { source: "twelvedata" });
-    assert.ok(sandbox.LIVE[k].length === 300 || sandbox.LIVE[k].length === 301);
-    assert.equal(sandbox.LIVE[k].at(-1).c, 1.082);
+    // Later server bars append the forming bar verbatim and never replace the series.
+    sandbox.vtApplyServerBar("EURUSD", tf, [forming, 1.08, 1.0822, 1.0799, 1.082, 0]);
+    assert.equal(sandbox.LIVE[k].length, 301);
+    assert.deepEqual({ ...sandbox.LIVE[k].at(-1) }, { t: forming, o: 1.08, h: 1.0822, l: 1.0799, c: 1.082, v: 0 });
     assert.equal(sandbox.LIVE[k][0].t, history[0].t, "history head untouched");
   });
 
-  await test(`${tf}: pumpEdge merges server bars by timestamp instead of replacing live bars that arrived in flight`, async () => {
+  await test(`${tf}: pumpEdge installs server bars without dropping a live bar newer than the server window`, async () => {
     const step = STEP[tf];
     const forming = Math.floor(Date.now() / 1000 / step) * step;
     const server = Array.from({ length: 200 }, (_, i) => mk(forming - (200 - i) * step)); // REST lags: no forming bar

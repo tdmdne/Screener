@@ -3,7 +3,7 @@
 // from the IndexedDB cache with the network blocked, reduced motion, phone layout.
 const {launch}=require("./harness");const assert=require("assert");
 const ready=async P=>{await P.waitForFunction(()=>BOOTED&&SYMS.some(s=>s[0]==="BTCUSDT"))};
-const enter=async(P,min=10)=>{await P.evaluate(()=>{for(const tf of ["1D","1H","4H","1W"])for(const s of SYMS)vtMergeBars(s[0]+"|"+tf,__edge.bars(tf,s[2]||1,40,s[0]));go("heatmap")});await P.waitForFunction(m=>document.querySelectorAll(".hmt:not(.na)").length>=m,min,{timeout:20000})};
+const enter=async(P,min=10)=>{await P.evaluate(()=>{for(const tf of ["1D","1H","4H","1W"])for(const s of SYMS)vtSetServerBars(s[0]+"|"+tf,__edge.bars(tf,s[2]||1,40,s[0]));go("heatmap")});await P.waitForFunction(m=>document.querySelectorAll(".hmt:not(.na)").length>=m,min,{timeout:20000})};
 (async()=>{let h=await launch({viewport:{width:1440,height:900}});let P=h.page;await P.goto(h.app);await ready(P);
 await P.evaluate(()=>{S.hm={};save()});await enter(P);
 // 1) values are exactly (live price / previous 1D close - 1) for every tile with data

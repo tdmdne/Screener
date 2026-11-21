@@ -372,18 +372,19 @@ async function edgeScreenerInit() {
   }
 }
 
-function vtMergeBars(k, incoming) {
-  if (!Array.isArray(incoming) || !incoming.length) return LIVE[k] || [];
-  const map = new Map();
+// Server bars are authoritative and already merged server-side (REST history + hub live bars). A server window replaces
+// the time range it covers; bars the client holds outside that range (older paged history, or newer bars when a replay
+// window is loaded) stay. OHLC values are never reconciled in the browser.
+function vtSetServerBars(k, bars) {
+  if (!Array.isArray(bars) || !bars.length) return LIVE[k] || [];
   const prev = Array.isArray(LIVE[k]) ? LIVE[k] : [];
-  for (const b of prev) {
-    if (b && b.t != null && b.c > 0) map.set(b.t, b);
-  }
-  for (const b of incoming) {
-    if (b && b.t != null && b.c > 0) map.set(b.t, b);
-  }
-  const merged = [...map.values()].sort((a, b) => a.t - b.t);
-  LIVE[k] = merged.length > VT_MAX_BARS ? merged.slice(-VT_MAX_BARS) : merged;
+  const headT = bars[0].t, tailT = bars[bars.length - 1].t;
+  let cut = 0;
+  while (cut < prev.length && prev[cut].t < headT) cut++;
+  let after = prev.length;
+  while (after > cut && prev[after - 1].t > tailT) after--;
+  const next = prev.slice(0, cut).concat(bars, prev.slice(after));
+  LIVE[k] = next.length > VT_MAX_BARS ? next.slice(-VT_MAX_BARS) : next;
   LT[k] = Date.now();
   dirty(k);
   return LIVE[k];
@@ -400,12 +401,15 @@ async function edgeFetchCandles(s, tf, opts) {
   const refresh = o.refresh ? 1 : 0;
   const defaultLim = replay ? (fromSec || toSec ? 1500 : 1000) : (vtIsCryptoSym(s) ? 1000 : 5000);
   const limit = o.limit != null && isFinite(+o.limit) && +o.limit > 0 ? Math.floor(+o.limit) : defaultLim;
-  const flightKey = `${s[0]}|${tf}|${fromSec}|${toSec}|${beforeSec}|${limit}|${replay}|${refresh}`;
+  // Charts get their server-computed indicator series in the same response (Tasks 9/11); replay never needs them.
+  const indQ = !replay && typeof vtIndQuery === "function" ? vtIndQuery(s[0], tf) : "";
+  const flightKey = `${s[0]}|${tf}|${fromSec}|${toSec}|${beforeSec}|${limit}|${replay}|${refresh}|${indQ}`;
   const memTtlMs = beforeSec > 0 ? 86400000 : 60000;
 
-  if (!replay && !refresh) {
+  if (!replay && !refresh && !o.noMemo) {
     const cached = VT_CANDLE_EDGE_CACHE.get(flightKey);
     if (cached && Date.now() - cached.ts < memTtlMs) {
+      if (cached.ind && typeof vtStoreServerInd === "function") vtStoreServerInd(s[0], tf, cached.ind);
       return cached.bars;
     }
   }
@@ -424,6 +428,7 @@ async function edgeFetchCandles(s, tf, opts) {
       if (limit > 0) u += `&limit=${limit}`;
       if (replay) u += `&replay=1`;
       if (refresh) u += `&refresh=1`;
+      u += indQ;
       let j = null;
       try {
         const r = await fetch(u);
@@ -449,9 +454,11 @@ async function edgeFetchCandles(s, tf, opts) {
         if (!replay && !beforeSec && s[0]) vtMarkFeedUnavailable(s[0], tf);
         return null;
       }
+      const ind = indQ && j.ind && typeof j.ind === "object" ? j.ind : null;
+      if (ind && typeof vtStoreServerInd === "function") vtStoreServerInd(s[0], tf, ind);
       if (!replay) {
         if (VT_CANDLE_EDGE_CACHE.size > 160) VT_CANDLE_EDGE_CACHE.clear();
-        VT_CANDLE_EDGE_CACHE.set(flightKey, { ts: Date.now(), bars: j.bars });
+        VT_CANDLE_EDGE_CACHE.set(flightKey, { ts: Date.now(), bars: j.bars, ind });
       }
       if (!replay && !beforeSec && s[0]) {
         VT_EDGE.pausedCharts.delete(s[0] + "|" + tf);
@@ -490,16 +497,9 @@ async function vtLoadMoreHistory(sym, tf) {
 
   const job = (async () => {
     try {
-      const rawOlder = await edgeFetchCandles(s, tf, { before: oldestT, limit: lim });
-      if (rawOlder === null) return null;
-
-      const byT = new Map();
-      for (const b of rawOlder) {
-        if (b && b.t != null && b.t < oldestT && b.c > 0) {
-          byT.set(b.t, b);
-        }
-      }
-      const older = [...byT.values()].sort((a, b) => a.t - b.t);
+      // Server-merged page of bars strictly older than `before` (its indicator points are stored by edgeFetchCandles).
+      const older = await edgeFetchCandles(s, tf, { before: oldestT, limit: lim });
+      if (older === null) return null;
       if (!older.length) {
         VT_EDGE.hasMoreHistory.set(k, false);
         return [];
@@ -570,40 +570,8 @@ async function vtBackfillChart(sym, tf, opts) {
     try {
       const bars = await edgeFetchCandles(s, tf, { refresh: true });
       if (bars && bars.length) {
-        const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-        const prevArr = Array.isArray(LIVE[k]) && LIVE[k].length ? LIVE[k] : null;
-        const prevLast = prevArr ? prevArr[prevArr.length - 1] : null;
-        if (prevArr) {
-          const headCut = bars[0].t;
-          const older = prevArr.filter((b) => b && b.t < headCut && b.c > 0);
-          const combined = older.concat(bars);
-          if (prevLast && prevLast.c > 0) {
-            const pT = step < 86400 ? Math.floor(prevLast.t / step) * step : prevLast.t;
-            const cLast = combined[combined.length - 1];
-            const cT = cLast ? (step < 86400 ? Math.floor(cLast.t / step) * step : cLast.t) : 0;
-            if (cLast && pT === cT) {
-              const restFlat = cLast.o === cLast.h && cLast.h === cLast.l && cLast.l === cLast.c;
-              const liveHasRange = prevLast.h > prevLast.l || prevLast.o !== prevLast.c;
-              if (restFlat && liveHasRange) {
-                combined[combined.length - 1] = Object.assign({}, prevLast, { t: pT });
-              } else {
-                combined[combined.length - 1] = Object.assign({}, cLast, {
-                  t: cT,
-                  h: Math.max(cLast.h, prevLast.h, prevLast.c),
-                  l: Math.min(cLast.l, prevLast.l, prevLast.c),
-                  c: prevLast.c,
-                });
-              }
-            } else if (pT > cT) {
-              combined.push(Object.assign({}, prevLast, { t: pT }));
-            }
-          }
-          LIVE[k] = combined.length > VT_MAX_BARS ? combined.slice(-VT_MAX_BARS) : combined;
-        } else {
-          LIVE[k] = bars;
-        }
-        LT[k] = Date.now();
-        dirty(k);
+        // The server already laid the hub's live bars over REST history; render its answer as-is.
+        vtSetServerBars(k, bars);
         if (typeof markOk === "function") markOk("edge");
         vtClearFeedGap(sym, tf);
 
@@ -660,9 +628,8 @@ async function pumpEdge() {
       try {
         const bars = await edgeFetchCandles(s, tf);
         if (bars && bars.length) {
-          // Merge by timestamp (server bars win) so live bars that arrived while the request was in flight survive.
-          vtMergeBars(k, bars);
-          LT[k] = Date.now();
+          // Server bars win; bars paged in earlier stay in front. Live updates resume from the next hub `bar` frame.
+          vtSetServerBars(k, bars);
           const lastC = bars[bars.length - 1] && bars[bars.length - 1].c;
           if (lastC > 0) {
             if (Array.isArray(s) && !(s[2] > 0)) s[2] = lastC;
@@ -731,9 +698,11 @@ function vtBuildViewFrame() {
   const syms = vtCollectWsPrioritySymbols();
   const sym = (typeof S !== "undefined" && S && S.chart && S.chart.sym) || syms[0] || "EURUSD";
   const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
+  // `ind`: the hub computes these on every bar close and pushes `ind` frames (vtApplyServerIndPoint).
+  const ind = typeof vtChartIndSpecs === "function" ? vtChartIndSpecs() : [];
   return {
     op: "view",
-    chart: { sym: String(sym).toUpperCase(), tf: String(tf) },
+    chart: { sym: String(sym).toUpperCase(), tf: String(tf), ind },
     watchlist: syms,
   };
 }
@@ -868,17 +837,8 @@ function vtScheduleLiveUiFlush(sym) {
   VT_EDGE.uiRaf = raf(vtFlushLiveUi);
 }
 
-// Single normalized real-time price ingestion store for Charts, Watchlists, Screeners, and Heatmaps
-// Open of a bar born from a live tick. FX/CFD quotes are a continuous market and arrive sparsely, so a bar opens at the
-// previous close when it follows it directly (no flat one-tick dashes). Everything else opens at its first tick, and a
-// gap of more than two steps never bridges the previous close. Mirrors shared/market/candles.js ("auto" open mode).
-function vtNewBarOpen(sym, prevBar, prevBucket, bucket, step, price) {
-  const rec = typeof symOf === "function" ? symOf(sym) : null;
-  const cont = rec && (rec[1] === "FX" || rec[1] === "CFD");
-  if (cont && prevBar && prevBar.c > 0 && bucket - prevBucket <= step * 2) return prevBar.c;
-  return price;
-}
-
+// Single normalized real-time price store for Watchlists, Screeners, Heatmaps and the chart price label.
+// Candles are never built here: the chart renders the hub's `bar` frames verbatim (vtApplyServerBar, Task 11).
 function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
   const sym = String(rawSym || "").trim().toUpperCase();
   const price = Number(rawPrice);
@@ -934,101 +894,15 @@ function vtApplyNormalizedTick(rawSym, rawPrice, rawTs, meta) {
     if (vol > 0) CUS["L" + sym][3] = vol;
   }
 
-  // 3. Keep loaded 1D bar in sync so Watchlist/Screener/Heatmap 1D change matches live tick
-  if (d1 && d1.length) {
-    const dayBucket = Math.floor(rawTsSec / 86400) * 86400;
-    const last1D = d1[d1.length - 1];
-    if (last1D && dayBucket >= last1D.t && dayBucket - last1D.t <= 86400) {
-      if (dayBucket === last1D.t) {
-        last1D.c = price;
-        if (price > last1D.h) last1D.h = price;
-        if (price < last1D.l) last1D.l = price;
-        if (vol > 0 && vol > (last1D.v || 0)) last1D.v = vol;
-      }
-    }
-  }
-
-  // 4. Sync active chart & split pane B in real time (standard WS bar aggregation, no polling gap freeze)
-  if (!opts.skipChartUpdate) {
-    const tf = (typeof S !== "undefined" && S && S.chart && S.chart.tf) || "1H";
-    if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym) {
-      const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-      const bucket = Math.floor(rawTsSec / step) * step;
-      const kChart = sym + "|" + tf;
-      const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[kChart]) ? LIVE[kChart] : null;
-      const last = arr && arr.length ? arr[arr.length - 1] : null;
-
-      if (!last) {
-        // No history on this timeframe yet: never seed the series with a one-tick bar. A one-bar LIVE entry looked
-        // "fresh" to need(), so REST history was never requested and 15m/30m/4H stayed a single candle. Ask the
-        // backend for the full series instead; ticks start merging once it lands.
-        if (typeof PEND === "undefined" || !PEND[kChart]) {
-          vtBackfillChart(sym, tf);
-        }
-      } else {
-        const lastBucket = step < 86400 ? Math.floor(last.t / step) * step : last.t;
-        if (bucket < lastBucket) {
-          // Ignore out-of-order older packets
-        } else {
-          if (bucket === lastBucket) {
-            last.t = lastBucket;
-            last.h = Math.max(last.h, last.o, price);
-            last.l = Math.min(last.l, last.o, price);
-            last.c = price;
-          } else {
-            const open = vtNewBarOpen(sym, last, lastBucket, bucket, step, price);
-            arr.push({
-              t: bucket,
-              o: open,
-              h: Math.max(open, price),
-              l: Math.min(open, price),
-              c: price,
-              v: 0,
-            });
-            if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
-            if (bucket - lastBucket > step * 2 && typeof vtBackfillChart === "function") {
-              vtBackfillChart(sym, tf);
-            }
-          }
-          if (typeof LT !== "undefined") LT[kChart] = nowMs;
-          if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
-            updateLiveBar(sym, tf, bucket);
-          }
-          const q = document.getElementById("cpx");
-          if (q) {
-            const sRec = typeof symOf === "function" ? symOf(sym) : null;
-            const txt = fp(price, sRec || sym);
-            if (q.textContent !== txt) {
-              q.textContent = txt;
-              if (typeof vtPxWatch === "function") vtPxWatch();
-            }
-          }
-        }
-      }
-    }
-
-    if (typeof SC !== "undefined" && SC && SC.keyB && SC.keyB.startsWith(sym + "|") && SC.serB) {
-      const tfB = (S && S.sc && S.sc.tfB) || "1D";
-      const kB = sym + "|" + tfB;
-      const stB = (typeof STEP !== "undefined" && STEP[tfB]) || 86400;
-      const bktB = Math.floor(rawTsSec / stB) * stB;
-      if (LIVE[kB] && LIVE[kB].length) {
-        const lb = LIVE[kB][LIVE[kB].length - 1];
-        const lbBucket = stB < 86400 ? Math.floor(lb.t / stB) * stB : lb.t;
-        if (bktB >= lbBucket) {
-          if (bktB === lbBucket) {
-            lb.t = lbBucket;
-            lb.h = Math.max(lb.h, lb.o, price);
-            lb.l = Math.min(lb.l, lb.o, price);
-            lb.c = price;
-            try { SC.serB.update({ time: lb.t, open: lb.o, high: lb.h, low: lb.l, close: lb.c }); } catch (_e) {}
-          } else {
-            const openB = vtNewBarOpen(sym, lb, lbBucket, bktB, stB, price);
-            const nb = { t: bktB, o: openB, h: Math.max(openB, price), l: Math.min(openB, price), c: price, v: 0 };
-            LIVE[kB].push(nb);
-            try { SC.serB.update({ time: nb.t, open: nb.o, high: nb.h, low: nb.l, close: nb.c }); } catch (_e) {}
-          }
-        }
+  // 3. Active chart price label only (bars and indicators arrive as server frames).
+  if (!opts.skipChartUpdate && typeof S !== "undefined" && S && S.chart && S.chart.sym === sym) {
+    const q = typeof document !== "undefined" ? document.getElementById("cpx") : null;
+    if (q) {
+      const sRec = typeof symOf === "function" ? symOf(sym) : null;
+      const txt = fp(price, sRec || sym);
+      if (q.textContent !== txt) {
+        q.textContent = txt;
+        if (typeof vtPxWatch === "function") vtPxWatch();
       }
     }
   }
@@ -1043,58 +917,39 @@ function vtApplyTwelveDataTick(sym, price, tsSec) {
   vtApplyNormalizedTick(sym, price, tsSec, { source: "twelvedata" });
 }
 
+// Render one hub `bar` frame verbatim: same open time replaces the forming bar, a newer one is appended. A jump of more
+// than two steps means frames were missed, so the server-merged history is requested instead of patching locally.
 function vtApplyServerBar(sym, tf, rawBar) {
   if (!sym || !tf || !rawBar) return;
   const b = Array.isArray(rawBar)
     ? { t: Number(rawBar[0]), o: Number(rawBar[1]), h: Number(rawBar[2]), l: Number(rawBar[3]), c: Number(rawBar[4]), v: Number(rawBar[5]) || 0 }
     : { t: Number(rawBar.t), o: Number(rawBar.o), h: Number(rawBar.h), l: Number(rawBar.l), c: Number(rawBar.c), v: Number(rawBar.v) || 0 };
   if (!(b.t > 0) || !(b.c > 0) || !isFinite(b.c)) return;
-  const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
-  if (step < 86400) b.t = Math.floor(b.t / step) * step;
 
   const k = sym + "|" + tf;
   const arr = typeof LIVE !== "undefined" && Array.isArray(LIVE[k]) ? LIVE[k] : null;
-  if (arr && arr.length) {
+  const isChart = typeof S !== "undefined" && S && S.chart && S.chart.sym === sym && S.chart.tf === tf;
+  if (!arr || !arr.length) {
+    // No history yet: never seed a one-bar series (need() would then treat it as fresh). Ask for the full history.
+    if (isChart && (typeof PEND === "undefined" || !PEND[k])) vtBackfillChart(sym, tf);
+  } else {
     const last = arr[arr.length - 1];
-    const lastBucket = step < 86400 ? Math.floor(last.t / step) * step : last.t;
-    if (b.t === lastBucket) {
-      last.t = lastBucket;
-      const lastFlat = last.o === last.h && last.h === last.l && last.l === last.c;
-      const barHasRange = b.h > b.l || b.o !== b.c;
-      if (lastFlat && barHasRange) {
-        last.o = b.o;
-        last.h = b.h;
-        last.l = b.l;
-        last.c = b.c;
-      } else {
-        last.h = Math.max(last.h, last.o, b.h, b.c);
-        last.l = Math.min(last.l, last.o, b.l, b.c);
-        last.c = b.c;
-      }
-      if (b.v > 0) last.v = Math.max(last.v || 0, b.v);
-    } else if (b.t > lastBucket) {
+    const step = (typeof STEP !== "undefined" && STEP[tf]) || 3600;
+    if (b.t === last.t) {
+      arr[arr.length - 1] = b;
+    } else if (b.t > last.t) {
       arr.push(b);
       if (arr.length > VT_MAX_BARS) arr.splice(0, arr.length - VT_MAX_BARS);
+      if (b.t - last.t > step * 2 && isChart) vtBackfillChart(sym, tf);
     }
     if (typeof LT !== "undefined") LT[k] = Date.now();
-    if (typeof S !== "undefined" && S && S.chart && S.chart.sym === sym && S.chart.tf === tf) {
-      if (typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
-        updateLiveBar(sym, tf, b.t);
-      }
-      const q = document.getElementById("cpx");
-      if (q) {
-        const sRec = typeof symOf === "function" ? symOf(sym) : sym;
-        const txt = fp(b.c, sRec);
-        if (q.textContent !== txt) {
-          q.textContent = txt;
-          if (typeof vtPxWatch === "function") vtPxWatch();
-        }
-      }
+    if (isChart && typeof ch !== "undefined" && ch && typeof updateLiveBar === "function") {
+      updateLiveBar(sym, tf, b.t);
     }
   }
 
-  // Feed the same normalized price into Watchlist, Screener, and Heatmap store
-  vtApplyNormalizedTick(sym, b.c, b.t * 1000, { source: "twelvedata", skipChartUpdate: true });
+  // Same price into the Watchlist, Screener and Heatmap store, plus the chart price label.
+  vtApplyNormalizedTick(sym, b.c, b.t * 1000, { source: "twelvedata" });
 }
 
 function vtHandleEdgeWsMessage(raw) {
@@ -1144,6 +999,14 @@ function vtHandleEdgeWsMessage(raw) {
 
   if (msg.type === "bar" && msg.sym && msg.tf && msg.bar) {
     vtApplyServerBar(String(msg.sym).toUpperCase(), String(msg.tf), msg.bar);
+    return;
+  }
+
+  // Hub-computed indicator value for a closed bar (view.chart.ind); see vt_13_server_indicators.js.
+  if (msg.type === "ind" && msg.sym && msg.tf && msg.id && typeof vtApplyServerIndPoint === "function") {
+    const sym = String(msg.sym).toUpperCase(), tf = String(msg.tf), id = String(msg.id);
+    if (msg.point) vtApplyServerIndPoint(sym, tf, id, msg.point);
+    if (Array.isArray(msg.points)) for (const p of msg.points) vtApplyServerIndPoint(sym, tf, id, p);
     return;
   }
 

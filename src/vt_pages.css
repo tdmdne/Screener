@@ -867,3 +867,5 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 /* template menus: one-click Save (overwrite) */
 .tpl_up,.dp_up{padding:2px 8px;font-size:12px}
 .tpl-savecur{margin:0 0 8px}
+/* phones: the quick scale strip sat under the bottom nav; log / % stay in chart settings and the command palette */
+:root[data-ui="phone"] .vt-scaleb{display:none}

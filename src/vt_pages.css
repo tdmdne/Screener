@@ -763,6 +763,12 @@ th .h{display:inline-flex;align-items:center;gap:3px}
 .vt-indbtns{display:flex;gap:6px;flex:none}
 .vt-indnew{padding:10px 0;border-bottom:1px solid var(--line)}
 .vt-navb{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);z-index:8;display:flex;gap:4px;padding:4px;border-radius:8px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .15s}
+.vt-scaleb{position:absolute;right:4px;bottom:4px;z-index:8;display:flex;gap:2px}
+.vt-scaleb.left{right:auto;left:4px}
+.vt-scaleb button{min-width:28px;min-height:20px;padding:0 5px;font:600 11px/1 var(--mono,ui-monospace,monospace);color:var(--mut);background:transparent;border:1px solid transparent;border-radius:4px;cursor:pointer}
+.vt-scaleb button:hover{color:var(--fg);background:color-mix(in srgb,var(--card) 88%,transparent);border-color:var(--line)}
+.vt-scaleb button.on{color:var(--acc)}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-scaleb button{min-width:44px;min-height:44px}
 #cv:hover .vt-navb,.vt-navb:focus-within,.vt-navb.on{opacity:1;pointer-events:auto}
 .vt-navb button,.vt-paneb button{min-width:30px;min-height:28px;padding:0 6px;font-size:15px;line-height:1}
 .vt-paneb{position:absolute;right:64px;top:4px;z-index:8;display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .15s}

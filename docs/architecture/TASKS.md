@@ -233,7 +233,7 @@ Gap list taken from tradingview.com/features (community and ideas left out). One
 - [x] **E-01 Price scale modes** (log, percent, indexed to 100). Right-click on the price scale or use the chart settings; saved for each pane. Accept: mode survives reload; nothing is recomputed client-side (lightweight-charts `PriceScaleMode`).
 - [x] **E-02 Command palette** (Ctrl/Cmd+K): symbols, timeframes, chart types, tools, routes, settings. Accept: keyboard-only flow, focus trap, axe clean.
 - [x] **E-03 Object tree**: panel listing every drawing and indicator, with hide, lock, delete and rename. Accept: state persists with the drawings; keyboard accessible.
-- [ ] **E-04 Compare/overlay symbol**: a second series on the same pane, % or own scale, bars from `/api/candles`. Accept: no client maths beyond rendering; removable; persisted.
+- [x] **E-04 Compare/overlay symbol**: a second series on the same pane, % or own scale, bars from `/api/candles`. Accept: no client maths beyond rendering; removable; persisted.
 - [ ] **E-05 Multi-chart layouts**: 1/2/3/4/6/8 grids (Free = 3 charts), synced symbol/interval/crosshair/drawings toggles. Accept: one `/ws` connection shared by every pane; phone shows one chart.
 - [ ] **E-06 Drawing tools**: parallel channel, fib extension, Andrews/Schiff pitchfork. Accept: drag/edit/delete like the existing tools; persisted; object-tree entries.
 

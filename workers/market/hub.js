@@ -25,6 +25,7 @@ import {
 import { buildScreenerSnapshot } from "../../shared/market/screener.js";
 import {
   MAX_CHART_BARS,
+  MAX_COMPARE_SYMBOLS,
   MAX_CLIENT_FRAME_BYTES,
   MAX_HEATMAP_TILES,
   MAX_SCREENER_PAGE_ROWS,
@@ -90,6 +91,19 @@ function previousMonthKeys(beforeSec, count = 3) {
       m = 12;
       y -= 1;
     }
+  }
+  return out;
+}
+
+/** Normalised, de-duplicated compare symbols of a chart view (E-04), excluding the main symbol. */
+function chartCompareSymbols(view) {
+  const c = view && view.chart;
+  if (!c || !Array.isArray(c.cmp)) return [];
+  const main = normSymbol(c.sym);
+  const out = [];
+  for (const raw of c.cmp.slice(0, MAX_COMPARE_SYMBOLS)) {
+    const s = normSymbol(raw);
+    if (s && s !== main && !out.includes(s)) out.push(s);
   }
   return out;
 }
@@ -1029,11 +1043,12 @@ export class MarketHub {
         if (custom >= MAX_CUSTOM_TIMEFRAMES) return;
         this.candles.addTimeframe(iv.key);
       }
-      if (!this.candles.getCurrent(sym, iv.key)) {
-        const derived = this._barsFor(sym, iv.key, { limit: 2, includeForming: true }).bars;
+      for (const s of [sym, ...chartCompareSymbols(view)]) {
+        if (this.candles.getCurrent(s, iv.key)) continue;
+        const derived = this._barsFor(s, iv.key, { limit: 2, includeForming: true }).bars;
         const last = derived[derived.length - 1];
         const nowBucket = Math.floor(this.now() / 1000);
-        if (last && nowBucket - last.t < iv.step * 2) this.candles.restoreState(sym, { tf: iv.key, current: last });
+        if (last && nowBucket - last.t < iv.step * 2) this.candles.restoreState(s, { tf: iv.key, current: last });
       }
     } catch {
       // Custom live bars are best-effort; HTTP /api/bars always derives them from native history.
@@ -1928,6 +1943,7 @@ export class MarketHub {
     if (view && view.chart && view.chart.sym) {
       const s = normSymbol(view.chart.sym);
       if (s) syms.add(s);
+      for (const raw of chartCompareSymbols(view)) syms.add(raw);
     }
     if (view && Array.isArray(view.watchlist)) {
       for (const raw of view.watchlist) {
@@ -1989,7 +2005,7 @@ export class MarketHub {
     const tuple = toBarTuple(bar);
     for (const [id, view] of this.clientViews.entries()) {
       if (!view || !view.chart) continue;
-      if (normSymbol(view.chart.sym) !== sym) continue;
+      if (normSymbol(view.chart.sym) !== sym && !chartCompareSymbols(view).includes(sym)) continue;
       if ((normalizeTf(view.chart.tf) || "1m") !== tf) continue;
       this._sendToClient(id, "bar", {
         sym,

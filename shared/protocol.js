@@ -12,6 +12,8 @@ export const MAX_SCREENER_PAGE_ROWS = 50;       // max rows per screener page fr
 export const MAX_STATE_GZIP_BYTES = 153600;     // 150 KB gzipped cap on full state bootstrap
 export const MAX_CHART_BARS = 1500;             // max bars in initial chart state (older history paged via HTTP)
 export const MAX_WATCHLIST_SYMBOLS = 100;
+/** Compare/overlay symbols on one chart view (E-04); the hub streams their bars on the chart timeframe. */
+export const MAX_COMPARE_SYMBOLS = 3;
 export const MAX_HEATMAP_TILES = 100;
 export const MAX_CLIENT_FRAME_BYTES = 8192;
 
@@ -357,6 +359,14 @@ export function validateClientMessage(input) {
             } else {
               return fail("INVALID_VIEW", `view.chart.ind[${i}] must be a string or descriptor object`);
             }
+          }
+        }
+        if (msg.chart.cmp !== undefined) {
+          if (!Array.isArray(msg.chart.cmp) || msg.chart.cmp.length > MAX_COMPARE_SYMBOLS) {
+            return fail("INVALID_VIEW", `view.chart.cmp must be an array of at most ${MAX_COMPARE_SYMBOLS} symbols`);
+          }
+          for (let i = 0; i < msg.chart.cmp.length; i++) {
+            if (!isValidSymbol(msg.chart.cmp[i])) return fail("INVALID_VIEW", `view.chart.cmp[${i}] is not a valid symbol`);
           }
         }
         if (msg.chart.vs !== undefined) {

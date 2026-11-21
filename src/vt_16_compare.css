@@ -1,0 +1,9 @@
+/* E-04 Compare legend (top-left of the chart, under the OHLC legend) */
+.vt-cmpl{position:absolute;left:8px;top:52px;z-index:7;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100% - 90px);pointer-events:none}
+.vt-cmpc,.vt-cmpm{pointer-events:auto;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 4px 0 7px;font:600 11.5px/1 var(--mono,ui-monospace,monospace);font-variant-numeric:tabular-nums;color:var(--fg);background:color-mix(in srgb,var(--card) 85%,transparent);border:1px solid var(--line);border-radius:4px}
+.vt-cmpc i{width:8px;height:8px;border-radius:2px}
+.vt-cmpc button{min-width:18px;height:18px;padding:0;font-size:14px;line-height:1;color:var(--mut);background:none;border:0;border-radius:3px;cursor:pointer}
+.vt-cmpc button:hover{color:var(--fg);background:var(--line)}
+.vt-cmpm{padding:0 7px;color:var(--mut);cursor:pointer}
+.vt-cmpm:hover{color:var(--fg)}
+:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-cmpc button,:root:is([data-ui="phone"],[data-ui="tablet"]) .vt-cmpm{min-height:44px;min-width:44px}

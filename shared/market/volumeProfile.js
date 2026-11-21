@@ -43,14 +43,15 @@ export function volumeProfile(bars, opts = {}) {
     if (!vol) continue;
     const i0 = Math.max(0, Math.min(rowsN - 1, Math.floor((b.l - lo) / step)));
     const i1 = Math.max(0, Math.min(rowsN - 1, Math.floor((b.h - lo) / step)));
-    const share = vol / (i1 - i0 + 1);
+    // volume is spread across the rows a bar touches; a time-at-price (TPO) profile counts one unit in every touched row
+    const share = hasVolume ? vol / (i1 - i0 + 1) : 1;
     const up = b.c >= b.o;
     for (let i = i0; i <= i1; i++) {
       rows[i].v += share;
       if (up) rows[i].up += share;
       else rows[i].dn += share;
     }
-    total += vol;
+    total += hasVolume ? vol : i1 - i0 + 1;
   }
   if (!total) return { ...empty, rows, bars: sel.length };
   // point of control and value area: grow from the POC row towards the heavier neighbour until vaPct of volume

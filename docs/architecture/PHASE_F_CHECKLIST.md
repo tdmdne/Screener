@@ -21,6 +21,10 @@ journal analytics run on the backend; the browser is a 60fps display and interac
 - [ ] Merge gate.
 
 ## Phase 2: Navigation, header cleanup, mobile/tablet
+- [ ] **Save Layout control (TradingView-style)** in the chart header: one-click Save (Ctrl/Cmd+S) with an unsaved-changes
+      dot when drawings, indicators, timeframe or pane layout change; split arrow menu with Save As / Rename, Make a Copy,
+      Load Layout and an Auto-save toggle. Persisted per user in D1 via `/api/me/data` (`layouts` namespace); guests keep
+      a local copy. Covered in `tests/smoke-live.js` (save, dirty dot, load) and a harness browser test.
 - [ ] Persistent top-left workspace switcher on every view.
 - [ ] Header declutter: no Locate in Screener, no volume in the readout, Scripts inside Indicators (Indicators | Scripts | Templates).
 - [ ] Centred symbol search modal (asset-class tabs, type-to-search, keyboard navigation).

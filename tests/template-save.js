@@ -18,7 +18,16 @@ await P.evaluate(()=>{S.chart.type="area";save();tplM()});
 assert.ok(/Save .Desk./.test(await P.textContent("#tpl_save_cur")),"top Save names the current template");
 await P.click("#tpl_save_cur");
 assert.strictEqual(await P.evaluate(()=>S.tpl.list.length===1&&S.tpl.list[0].chart.type),"area","top Save overwrote it");
-await P.evaluate(()=>closeM());
+// Restore undoes the last Save
+await P.evaluate(()=>tplM());await P.click('.tpl_rs[aria-label="Restore previous version of Desk"]');
+assert.strictEqual(await P.evaluate(()=>S.tpl.list[0].chart.type),"line","Restore brought back the previous version");
+// a template saved with a symbol keeps it when overwritten from another symbol
+await P.evaluate(()=>{closeM();S.tpl.list.push(Object.assign(tplCapture("Sym tpl",true),{id:"tsym"}));openChart("GBPUSD","1H");tplUpdate("tsym")});
+assert.strictEqual(await P.evaluate(()=>S.tpl.list.find(t=>t.id==="tsym").sym),"EURUSD","symbol kept");
+// the default template auto-applied at start-up does not become the 'current' one
+await P.evaluate(()=>{S.tpl.cur=null;tplApply(S.tpl.list[0],{setupOnly:true,quiet:true})});
+assert.strictEqual(await P.evaluate(()=>S.tpl.cur),null,"setup-only apply leaves no current template");
+await P.evaluate(()=>{closeM();openChart("EURUSD","1H")});
 // drawing template: save as new from a selected drawing, restyle, Save overwrites
 await P.evaluate(()=>{const a=G.a;const d={id:41,t:"trend",p:[{t:a[5].t,y:a[5].c},{t:a[25].t,y:a[25].c}],c:"#2962ff",w:2,s:0};DL().push(d);SELD=d;dpe();dsel();dpM()});
 assert.strictEqual(await P.textContent("#dp_save"),"Save as new");

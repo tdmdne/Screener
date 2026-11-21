@@ -13,6 +13,13 @@ const info=await P.evaluate(async()=>{const c=await snapCanvas();const g=c.getCo
   for(let i=0;i<d.length;i+=4)if(d[i]>220&&d[i+1]<60&&d[i+2]>220)mag++;return{w:c.width,h:c.height,cw:document.getElementById("cv").clientWidth,mag}});
 assert.ok(info.w>=info.cw&&info.h>100,"snapshot size "+JSON.stringify(info));
 assert.ok(info.mag>200,"drawings included in the snapshot: "+info.mag);
+// the oscillator pane (RSI) is stacked under the main pane when "Show indicators in snapshot" is on (default)
+const h1=await P.evaluate(async()=>(await snapCanvas()).height);
+await P.evaluate(()=>{S.chart.ind.push({id:"rsiT",t:"rsi",len:14,col:"#7e57c2"});save();drawChart()});
+await P.waitForFunction(()=>typeof ch2!=="undefined"&&ch2,null,{timeout:10000});await P.waitForTimeout(300);
+const h2=await P.evaluate(async()=>(await snapCanvas()).height);assert.ok(h2>h1+40,"RSI pane included: "+h1+" -> "+h2);
+const h3=await P.evaluate(async()=>{S.chart.snapInd=false;const c=await snapCanvas();S.chart.snapInd=true;return c.height});assert.ok(h3<h2,"setting off: pane left out");
+await P.evaluate(()=>{S.chart.ind=S.chart.ind.filter(d=>d.id!=="rsiT");save();drawChart()});
 // download via the top-bar button
 await P.click('button[aria-label="Snapshot"]');
 const [dl]=await Promise.all([P.waitForEvent("download"),P.click('#snapdrop >> text=/Download/i')]);

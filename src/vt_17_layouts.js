@@ -9,11 +9,15 @@ const VT_LAY_ICONS={1:'<rect x="3" y="4" width="18" height="16" rx="1"/>',2:'<re
   6:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M9 4v16M15 4v16M3 12h18"/>',8:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7.5 4v16M12 4v16M16.5 4v16M3 12h18"/>'};
 function vtLayInit(){const D=S.sc;
   if(!VT_LAYOUTS.includes(D.layout))D.layout=D.panes===2?2:1;
+  // S.sc.panes set directly by older code paths wins: 2 = at least two charts, 1 = one chart
+  if(D.panes===2&&D.layout===1)D.layout=2;else if(D.panes===1&&D.layout>1)D.layout=1;
   if(!Array.isArray(D.cells))D.cells=[];
   const defs=[D.tfB||"1D","4H","15m","1W","5m","1H","30m"];
   for(let i=0;i<7;i++){const c=D.cells[i];if(!c||typeof c!=="object")D.cells[i]={sym:null,tf:defs[i]};else if(!c.tf)c.tf=defs[i]}
   if(typeof D.syncSym!=="boolean")D.syncSym=true;if(typeof D.syncTf!=="boolean")D.syncTf=false;
-  D.panes=D.layout>1?2:1;D.tfB=D.cells[0].tf}
+  D.panes=D.layout>1?2:1;
+  // S.sc.tfB (pane 2 timeframe in older code, templates) stays the source of truth for pane 0
+  if(D.tfB)D.cells[0].tf=D.tfB;else D.tfB=D.cells[0].tf}
 function vtLayPhone(){return document.documentElement.dataset.ui==="phone"}
 function vtLayCount(){vtLayInit();if(S.pageView!=="chart")return 0;return vtLayPhone()?Math.min(1,S.sc.layout-1):S.sc.layout-1}
 function vtPaneSym(i){const c=S.sc.cells[i];return S.sc.syncSym||!c.sym?S.chart.sym:c.sym}
@@ -60,7 +64,9 @@ function vtLayPane(grid,i){
   const n=B.D.length;try{c.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+8})}catch(_e){}
   Object.assign(P,{ch:c,ser,B});
   if(i===0){SC.chB=c;SC.serB=ser;SC.barsB=B;SC.indSeries=P.ind;SC.keyB=s[0]+"|"+tf}
-  try{vtTouchChart(c)}catch(_e){}
+  // same chart affordances as the main chart: alert lines + plus button (per-pane symbol), touch, gap badge
+  try{vtPlusAttach(c,ser,el,()=>P.sym);vtAlertAttach(c,ser,el,()=>P.sym);vtTouchChart(c)}catch(_e){}
+  if(i===0&&typeof vtRenderGapBadge==="function")try{vtRenderGapBadge()}catch(_e){}
   c.subscribeCrosshairMove(p=>{if(SC.lock||!S.sc.xsync)return;SC.lock=1;try{vtLayCross(p&&p.time!=null?p.time:null,P)}catch(_e){}SC.lock=0});
 }
 // crosshair sync by time across the main chart and every pane (nearest bar at or before t)

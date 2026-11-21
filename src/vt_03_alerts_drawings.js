@@ -316,7 +316,7 @@ else if(t==="trend"||t==="ray"||t==="ext"||t==="fib"){const ax=Math.abs(dx),ay=M
 const r=un(x,y);if(h)r.y=anc.y;if(v)r.t=anc.t;return r}}return snapP(x,y)}
 function ends(d,q){const[a,b]=q,dx=b.x-a.x,dy=b.y-a.y,k=6000/(Math.hypot(dx,dy)||1);return d.t==="trend"?[a,b]:d.t==="ray"?[a,{x:a.x+dx*k,y:a.y+dy*k}]:[{x:a.x-dx*k,y:a.y-dy*k},{x:a.x+dx*k,y:a.y+dy*k}]}
 function sd(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l));return Math.hypot(x-a.x-t*dx,y-a.y-t*dy)}
-function hit(d,x,y){const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
+function hit(d,x,y){if(d.lock||d.hide)return 0;const q=d.p.map(px);if(q.some(o=>o.x==null||o.y==null))return 0;const t=d.t,a=q[0],n=7;
 if(t==="hline")return Math.abs(y-a.y)<n;if(t==="hray")return Math.abs(y-a.y)<n&&x>a.x-n;if(t==="vline")return Math.abs(x-a.x)<n;
 if(t==="text")return Math.abs(x-a.x)<60&&Math.abs(y-a.y)<14;
 if(t==="note"){

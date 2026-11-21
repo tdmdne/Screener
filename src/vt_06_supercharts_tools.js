@@ -1,5 +1,5 @@
 // ---------- Supercharts: full-width chart, optional second pane (HTF/LTF), right dock ----------
-S.sc=Object.assign({panes:1,tfB:"1D",xsync:true,dock:true,secs:{wl:true,al:true,dw:true}},S.sc||{});
+S.sc=Object.assign({panes:1,tfB:"1D",xsync:true,dock:true,secs:{wl:true,al:true,dw:true}},S.sc||{});if(S.sc.secs&&S.sc.secs.ot===undefined)S.sc.secs.ot=true;
 const SC={chB:null,serB:null,barsB:null,keyB:"",dw:null,iv:0,retry:0,lock:0,mainHook:null};
 const SC_TFS=["5m","15m","1H","4H","1D","1W"];
 function scApplyAttr(){document.documentElement.dataset.panes=S.sc.panes===2?"2":"1"}
@@ -83,7 +83,7 @@ el.className="dock"+(D.dock?"":" shut");
 const head=`<div class="dkh"><button class="ibtn ${D.panes===1?"on":""}" title="One chart" onclick="scSetPanes(1)">${ic(P1)}</button><button class="ibtn ${D.panes===2?"on":""}" title="Two charts side by side (e.g. higher + lower timeframe)" onclick="scSetPanes(2)">${ic(P2)}</button>${D.dock?'<span class="sp"></span>':""}<button class="ibtn" title="${D.dock?"Collapse":"Expand"} panel" onclick="scTogDock()">${ic(D.dock?'<path d="M9 6l6 6-6 6"/>':'<path d="M15 6l-6 6 6 6"/>')}</button></div>`;
 if(!D.dock){el.innerHTML=head;return}
 const sec=(k,t,body,extra)=>`<div class="dks"><div class="dkt"><button type="button" class="dktb" onclick="scTogSec('${k}')" aria-expanded="${!!D.secs[k]}">${D.secs[k]?VT_IC.chevDown:VT_IC.chevRight}<span>${t}</span></button><span class="sp" onclick="scTogSec('${k}')" aria-hidden="true"></span>${extra||""}</div>${D.secs[k]?body:""}</div>`;
-el.innerHTML=head+`<div class="dkb">`+sec("wl","Watchlist",`<div id="dkwl"></div>`)+sec("al","Active alerts",`<div id="dkal"></div>`,`<button class="ib" onclick="event.stopPropagation();alertsM()">+ Alert</button>`)+sec("dw","Data window",`<div class="dkdw" id="dkdw"></div>`)+`</div>`;
+el.innerHTML=head+`<div class="dkb">`+sec("wl","Watchlist",`<div id="dkwl"></div>`)+sec("al","Active alerts",`<div id="dkal"></div>`,`<button class="ib" onclick="event.stopPropagation();alertsM()">+ Alert</button>`)+sec("ot","Object tree",`<div class="dkot" id="dkot"></div>`)+sec("dw","Data window",`<div class="dkdw" id="dkdw"></div>`)+`</div>`;
 scDockLive();scDW()}
 function scRow(n){const d=wlData(n);return`<div class="dkr ${n===S.chart.sym?"sel":""}" data-s="${esc(n)}" onclick="openChart('${esc(n)}')"><b>${esc(n)}</b><span class="dkp">${d.last==null?"\u2026":fp(d.last,n)}</span><span class="dkc ${d.chg==null?"":d.chg<0?"dn":"up"}">${d.chg==null?"\u2026":(d.chg>0?"+":"")+d.chg.toFixed(2)+"%"}</span></div>`}
 function scDockLive(){const w=document.getElementById("dkwl");

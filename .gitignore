@@ -11,3 +11,6 @@ node_modules/
 
 # test screenshots
 shots/
+
+# graphify knowledge graph: generated locally by background rebuilds, never committed
+graphify-out/

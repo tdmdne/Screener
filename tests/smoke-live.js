@@ -56,7 +56,8 @@ const audit=async view=>{await P.waitForTimeout(700);return P.evaluate(()=>{
       if(!top.closest(".vt-pop-ov,.vt-cmd-bd,#vt_draw_flyout,.vt-auth-modal-ov,#msg"))bad.push("covered: "+label(e)+" by "+((top.id&&"#"+top.id)||top.className||top.tagName).toString().slice(0,40))}}
   const ov=document.documentElement.scrollWidth>document.documentElement.clientWidth+1;
   return{bad:[...new Set(bad)].slice(0,8),overflow:ov}})};
-const auditView=async(name,fn)=>{await P.evaluate(fn);const a=await audit(name);ok("layout clean on "+name+" (no overlapping/clipped buttons, no horizontal scroll)",!a.bad.length&&!a.overflow,(a.overflow?"horizontal overflow; ":"")+a.bad.join(" | "))};
+const answerBanner=async()=>{try{const b=await P.$("#vcb_rej");if(b&&await b.isVisible()){await b.click();await P.waitForSelector("#vcb",{state:"hidden",timeout:4000})}}catch(_e){}};
+const auditView=async(name,fn)=>{await P.evaluate(fn);await P.waitForTimeout(400);await answerBanner();const a=await audit(name);ok("layout clean on "+name+" (no overlapping/clipped buttons, no horizontal scroll)",!a.bad.length&&!a.overflow,(a.overflow?"horizontal overflow; ":"")+a.bad.join(" | "))};
 
 if(!MOBILE){
   // multi-pane layout + live pane subscription

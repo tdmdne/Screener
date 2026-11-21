@@ -445,7 +445,7 @@ await test("single normalized WS quotes & bar frames update chart, watchlist, sc
 
   assert.equal(sandbox.SYMS[2][2], 91250.25, "SYMS BTCUSDT updated");
   assert.equal(metaMap.get("BTCUSDT").last, 91250.25, "VT_EDGE_META BTCUSDT updated");
-  assert.equal(alerted.length, 3, "alerts checked for all incoming quotes");
+  assert.equal(alerted.length, 0, "quotes never trigger browser-side alert checks (alerts are evaluated by the hub)");
 
   const barFrame = JSON.stringify({
     v: 2,

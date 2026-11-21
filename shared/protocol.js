@@ -14,6 +14,8 @@ export const MAX_CHART_BARS = 1500;             // max bars in initial chart sta
 export const MAX_WATCHLIST_SYMBOLS = 100;
 /** Compare/overlay symbols on one chart view (E-04); the hub streams their bars on the chart timeframe. */
 export const MAX_COMPARE_SYMBOLS = 3;
+/** Extra chart panes in a multi-chart layout (E-05): up to 8 charts = main + 7 panes, each its own symbol/timeframe. */
+export const MAX_LAYOUT_PANES = 7;
 export const MAX_HEATMAP_TILES = 100;
 export const MAX_CLIENT_FRAME_BYTES = 8192;
 
@@ -367,6 +369,16 @@ export function validateClientMessage(input) {
           }
           for (let i = 0; i < msg.chart.cmp.length; i++) {
             if (!isValidSymbol(msg.chart.cmp[i])) return fail("INVALID_VIEW", `view.chart.cmp[${i}] is not a valid symbol`);
+          }
+        }
+        if (msg.chart.panes !== undefined) {
+          if (!Array.isArray(msg.chart.panes) || msg.chart.panes.length > MAX_LAYOUT_PANES) {
+            return fail("INVALID_VIEW", `view.chart.panes must be an array of at most ${MAX_LAYOUT_PANES} panes`);
+          }
+          for (let i = 0; i < msg.chart.panes.length; i++) {
+            const p = msg.chart.panes[i];
+            if (!isPlainObject(p) || !isValidSymbol(p.sym)) return fail("INVALID_VIEW", `view.chart.panes[${i}].sym is not a valid symbol`);
+            if (!VALID_TF_SET.has(p.tf)) return fail("INVALID_VIEW", `view.chart.panes[${i}].tf (${p.tf}) is not a valid timeframe`);
           }
         }
         if (msg.chart.vs !== undefined) {

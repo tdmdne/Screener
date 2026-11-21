@@ -3,7 +3,7 @@
 // Run: node tests/hub-compare.test.mjs
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { validateServerFrame, validateClientMessage, MAX_COMPARE_SYMBOLS } from "../shared/protocol.js";
+import { validateServerFrame, validateClientMessage, MAX_COMPARE_SYMBOLS, MAX_LAYOUT_PANES } from "../shared/protocol.js";
 import { bucketStart } from "../shared/market/candles.js";
 import { MarketHub } from "../workers/market/hub.js";
 
@@ -246,6 +246,51 @@ await test("compare symbols are subscribed and their chart-tf bars reach the vie
   hub.ingestTick({ s: "GBPUSD", c: 1.271, t: nowSec + 2, v: 0, src: "twelvedata" });
   await ctx.flushWaitUntil();
   assert.equal(state.browser.sent.map((s) => JSON.parse(s)).filter((f) => f.type === "bar" && f.sym === "GBPUSD").length, 0, "no bars after compare removed");
+  hub.destroy();
+});
+
+await test("protocol accepts view.chart.panes (E-05) up to MAX_LAYOUT_PANES {sym, tf}", () => {
+  const ok = validateClientMessage(JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1H", panes: [{ sym: "GBPUSD", tf: "15m" }, { sym: "EURUSD", tf: "4H" }] } }));
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const many = validateClientMessage(JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1H", panes: Array(MAX_LAYOUT_PANES + 1).fill({ sym: "GBPUSD", tf: "1H" }) } }));
+  assert.equal(many.ok, false);
+  assert.equal(validateClientMessage(JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1H", panes: [{ sym: "GBPUSD", tf: "7x" }] } })).ok, false);
+  assert.equal(validateClientMessage(JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1H", panes: ["GBPUSD"] } })).ok, false);
+});
+
+await test("layout panes get bars for their own symbol AND timeframe; same symbol on another tf works", async () => {
+  const fakeNow = Date.UTC(2026, 10, 18, 10, 17, 30);
+  const { hub, ctx, state } = await makeHub(fakeNow);
+  const nowSec = Math.floor(fakeNow / 1000);
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  await hub.webSocketMessage(state.browser, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1m", panes: [{ sym: "GBPUSD", tf: "15m" }, { sym: "EURUSD", tf: "1H" }] } }));
+  await hub.ensureUpstream();
+  const id = [...hub.clientViews.keys()][0];
+  assert.ok(hub._symbolsFromView(hub.clientViews.get(id)).includes("GBPUSD"));
+  state.browser.sent.length = 0;
+  hub.ingestTick({ s: "GBPUSD", c: 1.27, t: nowSec + 1, v: 0, src: "twelvedata" });
+  hub.ingestTick({ s: "EURUSD", c: 1.09, t: nowSec + 1, v: 0, src: "twelvedata" });
+  await ctx.flushWaitUntil();
+  const keys = new Set(state.browser.sent.map((s) => JSON.parse(s)).filter((f) => f.type === "bar").map((f) => f.sym + "|" + f.tf));
+  assert.ok(keys.has("GBPUSD|15m"), "pane GBPUSD 15m: " + [...keys]);
+  assert.ok(keys.has("EURUSD|1H"), "pane EURUSD 1H");
+  assert.ok(keys.has("EURUSD|1m"), "main chart");
+  assert.ok(!keys.has("GBPUSD|1m") && !keys.has("GBPUSD|1H"), "no other GBPUSD timeframes: " + [...keys]);
+  hub.destroy();
+});
+
+await test("a pane on a custom timeframe gets live bars", async () => {
+  const fakeNow = Date.UTC(2026, 10, 18, 10, 17, 30);
+  const { hub, ctx, state } = await makeHub(fakeNow);
+  const nowSec = Math.floor(fakeNow / 1000);
+  await hub.fetch(new Request("https://market-hub/ws", { headers: { Upgrade: "websocket" } }));
+  await hub.webSocketMessage(state.browser, JSON.stringify({ op: "view", chart: { sym: "EURUSD", tf: "1H", panes: [{ sym: "GBPUSD", tf: "3m" }] } }));
+  await hub.ensureUpstream();
+  assert.ok(hub.candles.hasTimeframe("3m"), "custom pane timeframe registered");
+  state.browser.sent.length = 0;
+  hub.ingestTick({ s: "GBPUSD", c: 1.27, t: nowSec + 1, v: 0, src: "twelvedata" });
+  await ctx.flushWaitUntil();
+  assert.ok(state.browser.sent.map((s) => JSON.parse(s)).some((f) => f.type === "bar" && f.sym === "GBPUSD" && f.tf === "3m"));
   hub.destroy();
 });
 

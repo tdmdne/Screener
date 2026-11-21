@@ -26,6 +26,7 @@ import { buildScreenerSnapshot } from "../../shared/market/screener.js";
 import {
   MAX_CHART_BARS,
   MAX_COMPARE_SYMBOLS,
+  MAX_LAYOUT_PANES,
   MAX_CLIENT_FRAME_BYTES,
   MAX_HEATMAP_TILES,
   MAX_SCREENER_PAGE_ROWS,
@@ -91,6 +92,25 @@ function previousMonthKeys(beforeSec, count = 3) {
       m = 12;
       y -= 1;
     }
+  }
+  return out;
+}
+
+/** Extra layout panes of a chart view (E-05) as normalised { sym, tf } pairs, de-duplicated, excluding the main chart. */
+function chartLayoutPanes(view) {
+  const c = view && view.chart;
+  if (!c || !Array.isArray(c.panes)) return [];
+  const mainKey = `${normSymbol(c.sym)}|${normalizeTf(c.tf || "1m") || "1m"}`;
+  const out = [];
+  const seen = new Set([mainKey]);
+  for (const p of c.panes.slice(0, MAX_LAYOUT_PANES)) {
+    const sym = p && normSymbol(p.sym);
+    const tf = p && (normalizeTf(p.tf) || null);
+    if (!sym || !tf) continue;
+    const k = `${sym}|${tf}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ sym, tf });
   }
   return out;
 }
@@ -1032,6 +1052,9 @@ export class MarketHub {
    * candle starts from the REAL forming bucket (derived from base bars) instead of the first tick after the view opened.
    */
   _ensureCustomViewTf(view) {
+    if (view && view.chart) {
+      for (const p of chartLayoutPanes(view)) this._ensureCustomViewTf({ chart: { sym: p.sym, tf: p.tf } });
+    }
     try {
       if (!view || !view.chart || !view.chart.sym) return;
       const iv = resolveInterval(view.chart.tf);
@@ -1944,6 +1967,7 @@ export class MarketHub {
       const s = normSymbol(view.chart.sym);
       if (s) syms.add(s);
       for (const raw of chartCompareSymbols(view)) syms.add(raw);
+      for (const p of chartLayoutPanes(view)) syms.add(p.sym);
     }
     if (view && Array.isArray(view.watchlist)) {
       for (const raw of view.watchlist) {
@@ -2005,8 +2029,11 @@ export class MarketHub {
     const tuple = toBarTuple(bar);
     for (const [id, view] of this.clientViews.entries()) {
       if (!view || !view.chart) continue;
-      if (normSymbol(view.chart.sym) !== sym && !chartCompareSymbols(view).includes(sym)) continue;
-      if ((normalizeTf(view.chart.tf) || "1m") !== tf) continue;
+      const onChartTf = (normalizeTf(view.chart.tf) || "1m") === tf;
+      const wanted =
+        (onChartTf && (normSymbol(view.chart.sym) === sym || chartCompareSymbols(view).includes(sym))) ||
+        chartLayoutPanes(view).some((p) => p.sym === sym && p.tf === tf);
+      if (!wanted) continue;
       this._sendToClient(id, "bar", {
         sym,
         tf,

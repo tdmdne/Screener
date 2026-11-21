@@ -3,6 +3,8 @@ const http=require("http"),fs=require("fs"),path=require("path");
 const {chromium}=require("playwright");
 // Server-side indicator maths for the /api/candles?ind= mock: the exact module the Pages Function uses (Tasks 9/11).
 const {parseIndicatorList,buildIndicatorSeries}=require("../shared/market/chartIndicators.js");
+// Server-side chart transforms (E-10 Renko / Line Break) for /api/candles?type=: same module as the Pages Function.
+const {parseChartTransform,applyChartTransform}=require("../shared/market/chartTransforms.js");
 const ROOT=path.resolve(__dirname,"..");
 function serve(){return new Promise(r=>{const s=http.createServer((q,res)=>{let p=decodeURIComponent(q.url.split("?")[0]);if(p==="/")p="/index.html";const f=path.join(ROOT,p);
 if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);res.end();return}
@@ -60,6 +62,8 @@ async function launch(opts={}){
       if(opts.d1&&q.pathname.startsWith("/api/auth/"))return d1Api(q,route);
       if(q.pathname==="/api/screener")return j({ok:true,ts:Date.now(),tfs:["1D","1H"],universe:UNIVERSE});
       if(q.pathname==="/api/candles"){const tf=q.searchParams.get("interval")||"1H",bars=genBars(q.searchParams.get("symbol")||"BTCUSDT",250,STEPS[tf]||3600);
+        const xf=parseChartTransform(q.searchParams);if(xf){if(!xf.ok)return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({ok:false,error:xf.error})});
+          candleCalls.push(q.search);const o=applyChartTransform(bars,xf);return j({ok:true,bars:o.bars,hasMore:false,transform:o.meta})}
         const ind=q.searchParams.getAll("ind");if(!ind.length)return j({ok:true,bars,hasMore:false});
         const p=parseIndicatorList(ind);if(!p.ok)return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({ok:false,error:p.error})});
         candleCalls.push(q.search);return j({ok:true,bars,hasMore:false,ind:buildIndicatorSeries(bars,p.specs)})}

@@ -25,6 +25,7 @@ import {
   parseIndicatorList,
   warmupBars,
 } from "../../shared/market/chartIndicators.js";
+import { applyChartTransform, parseChartTransform } from "../../shared/market/chartTransforms.js";
 import { SESSION_COOKIE_NAME, getSessionUser, parseCookies } from "../../shared/auth.js";
 import { handleAuthRoute } from "../../shared/authRoutes.js";
 import { handleWaitlistRoute } from "../../shared/waitlist.js";
@@ -523,6 +524,45 @@ async function handleCandlesViaMarketService(request, env) {
  * @returns {Promise<Response>}
  */
 async function withChartIndicators(request, env, loadCandles) {
+  const tUrl = new URL(request.url);
+  const xf = request.method === "GET" ? parseChartTransform(tUrl.searchParams) : null;
+  if (xf) return withChartTransform(request, env, loadCandles, xf);
+  return withChartIndicatorsOnly(request, env, loadCandles);
+}
+
+/**
+ * E-10: `/api/candles?type=renko|linebreak[&box=|&lb=]` returns Renko bricks / line-break lines built server-side from
+ * the normal candle history (shared/market/chartTransforms.js). `ind=` is ignored for transformed charts.
+ */
+async function withChartTransform(request, env, loadCandles, xf) {
+  if (!xf.ok) return jsonResponse({ ok: false, error: xf.error }, 400, { "cache-control": "no-store" }, request, env);
+  const upstreamUrl = new URL(request.url);
+  for (const k of ["type", "box", "lb", "ind"]) upstreamUrl.searchParams.delete(k);
+  upstreamUrl.searchParams.set("limit", String(CANDLES_MAX_LIMIT));
+  const res = await loadCandles(new Request(upstreamUrl.toString(), request));
+  if (!res.ok) return res;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.bars)) {
+    return serviceUnavailable("Upstream candle feed unavailable", request, env);
+  }
+  let out;
+  try {
+    out = applyChartTransform(data.bars, xf);
+  } catch {
+    return serviceUnavailable("Chart transform failed", request, env);
+  }
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify({ ...data, bars: out.bars, transform: out.meta }), { status: 200, headers });
+}
+
+async function withChartIndicatorsOnly(request, env, loadCandles) {
   const url = new URL(request.url);
   const rawInd = url.searchParams.getAll("ind");
   if (!rawInd.length || request.method !== "GET") return loadCandles(request);

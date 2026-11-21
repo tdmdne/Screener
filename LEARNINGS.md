@@ -14,3 +14,4 @@
 - 2026-11-21: Task 17 was ticked but alerts were still evaluated in the browser (`checkAlerts`); the hub evaluator never received alerts. Verify a 'server-side' claim by grepping for the client path, not by the existence of the server module.
 - 2026-11-21: Also failing on origin/main `abbc7d9`: `calendar`, `claims`, `screener`, `sound` (besides drawpresets/layout/postool/shortcuts). The full browser sweep takes ~20 min (`tests/*.js`).
 - 2026-11-21: Bash heredocs with JS containing `${...}` template literals plus quotes can break the tool's quoting (unexpected EOF); write such files with the Write tool and assemble with a short command.
+- 2026-11-21: Heikin Ashi is still computed in the browser (`vtToHeikinAshi` in vt_02 and the backtest lab) - a §0 violation; move it to `shared/market/chartTransforms.js` (`type=heikin`) like Renko/Line Break.

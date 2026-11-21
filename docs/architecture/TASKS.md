@@ -243,7 +243,7 @@ Gap list taken from tradingview.com/features (community and ideas left out). One
 - [x] **E-09 Multi-condition alerts**: up to 5 conditions joined with AND, in `shared/alerts.js`.
 
 **Tier 2: what sets us apart**
-- [ ] **E-10 Chart types: Renko, Line Break, Baseline.** Renko/Line Break are built server-side in `shared/market/` (`/api/candles?type=`); Baseline is a render mode.
+- [x] **E-10 Chart types: Renko, Line Break, Baseline.** Renko/Line Break are built server-side in `shared/market/` (`/api/candles?type=`); Baseline is a render mode.
 - [ ] **E-11 Volume Profile** (visible range and fixed range): rows computed server-side; crypto and stocks first (FX volume from Twelve Data is weak).
 - [ ] **E-12 Vektor Script strategy tester**: entries/exits in the VS runtime, server-side; metrics, list of trades, CSV export.
 - [ ] **E-13 Paper trading on live data**: account balance, leverage, commission; reuses the replay fill rules (Task 18). Persisted per account (ACC).

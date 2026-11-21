@@ -140,7 +140,7 @@ function vtAlRefresh(){save();if(typeof scDockLive==="function")scDockLive();vtA
 // apply a change to an existing alert; re-arms it and resets the cross baseline when price or condition change
 function vtAlUpdate(id,ch){const f=vtAlFind(id);if(!f)return null;const a=f.a,moved=(ch.price!=null&&ch.price!==a.price)||(ch.dir&&ch.dir!==a.dir);
 if(ch.price!=null)a.price=ch.price;if(ch.dir)a.dir=ch.dir;if("msg"in ch){if(ch.msg)a.msg=ch.msg;else delete a.msg}
-if(moved){a.fired=false;a.on=true;const s=symOf(a.sym);if(s&&s[2]!=null)lastPx[a.sym]=s[2];else delete lastPx[a.sym]}
+if(moved){a.fired=false;a.on=true;a.armedAt=Date.now();const s=symOf(a.sym);if(s&&s[2]!=null)lastPx[a.sym]=s[2];else delete lastPx[a.sym]}
 vtAlRefresh();return a}
 function vtAlDelete(id){const f=vtAlFind(id);if(!f)return false;S.alerts.splice(f.i,1);vtAlRefresh();return true}
 function vtAlertEdit(id){const f=vtAlFind(id);if(!f){toast("Alert not found");return}const a=f.a;

@@ -23,6 +23,10 @@ const st=await P.evaluate(()=>{const it=vtCmpSer[0],d=it.ser.data(),a=LIVE["GBPU
 assert.strictEqual(st.n,st.a,"one point per server bar");
 assert.strictEqual(st.lastV,st.lastC,"values are the server closes, untouched");
 assert.strictEqual(st.mode,2,"percent scale while comparing");
+assert.strictEqual(await P.getAttribute('#cv .vt-scaleb button[aria-label="% (percent) scale"]',"aria-pressed"),"true","quick toggle shows % while comparing");
+await P.click('#cv .vt-scaleb button[aria-label="% (percent) scale"]');
+await P.waitForFunction(()=>S.chart.cmpMode==="own"&&vtCmpSer.length===1);
+await P.click('.vt-cmpm');await P.waitForFunction(()=>S.chart.cmpMode==="pct"&&vtCmpSer.length===1);
 
 // the hub is told about the compare symbol
 await P.waitForFunction(()=>__edge.sent.some(m=>{try{const v=JSON.parse(m);return v.op==="view"&&v.chart&&Array.isArray(v.chart.cmp)&&v.chart.cmp.includes("GBPUSD")}catch(e){return false}}),null,{timeout:5000});

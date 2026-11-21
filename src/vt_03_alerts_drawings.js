@@ -22,7 +22,7 @@ function addAlert(){
   if(typeof Notification!=="undefined"&&Notification.permission==="default")Notification.requestPermission();
 }
 function rmAlert(i){S.alerts.splice(i,1);save();alertsM()}
-function rearmAlert(i){const a=S.alerts[i];if(a){a.fired=false;a.on=true;delete lastPx[a.sym];save()}alertsM()}
+function rearmAlert(i){const a=S.alerts[i];if(a){a.fired=false;a.on=true;a.armedAt=Date.now();delete lastPx[a.sym];save()}alertsM()}
 function alertFromHline(price){alertsM({price,dir:"above"})}
 let lastPx={}; // legacy; alerts are evaluated by the hub (src/vt_19_server_alerts.js), never in the browser
 function fireAlert(a,price){

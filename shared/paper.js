@@ -41,7 +41,7 @@ export function createPaperAccount(opts = {}) {
   const usedMargin = () => positions.reduce((a, p) => a + (p.entry * p.qty) / settings.leverage, 0);
 
   /** Open a market position at `price`. Returns { ok, position? , error? }. */
-  function marketOrder(o, price) {
+  function marketOrder(o, price, priceOf) {
     const sym = String(o && o.sym || "").toUpperCase();
     if (!SYM_RE.test(sym)) return { ok: false, error: "Invalid symbol" };
     const side = o.side === "short" || o.side === "sell" ? "short" : o.side === "long" || o.side === "buy" ? "long" : null;
@@ -57,7 +57,10 @@ export function createPaperAccount(opts = {}) {
     const notional = price * qty;
     const margin = notional / settings.leverage;
     const entryFee = fee(notional);
-    const equity = cash; // free margin check against realised cash minus margin in use (conservative: ignores open profit)
+    // free margin = equity (cash + open P&L, losses included) minus margin already in use; without live prices for the
+    // other positions, open P&L is taken as 0 for them
+    const open = typeof priceOf === "function" ? positions.reduce((a, p) => a + upnl(p, priceOf(p.sym)), 0) : 0;
+    const equity = cash + open;
     if (margin + entryFee > equity - usedMargin()) return { ok: false, error: "Not enough free margin" };
     cash -= entryFee;
     const p = { id: "p" + seq++, sym, side, qty, entry: price, sl, tp, openedAt: now(), fees: entryFee };

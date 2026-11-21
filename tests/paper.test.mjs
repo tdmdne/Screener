@@ -309,5 +309,32 @@ await test("protocol: paper op shape", () => {
   assert.equal(validateClientMessage(JSON.stringify({ op: "paper", action: "close" })).ok, false);
 });
 
+
+await test("post-merge: paper orders reject a stale price (>5 min) instead of filling at it", async () => {
+  const fakeNow = Date.UTC(2026, 10, 18, 10, 17, 30);
+  const { hub, state } = await makeHub(fakeNow);
+  const nowSec = Math.floor(fakeNow / 1000);
+  const ws = await connectAs(hub, state, null);
+  await hub.ensureUpstream();
+  hub.ingestTick({ s: "GBPUSD", c: 1.27, t: nowSec - 600, v: 0, src: "twelvedata" });
+  ws.sent.length = 0;
+  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
+  assert.match(errors(ws).pop().message, /No live price/);
+  assert.equal(papers(ws).pop().account.positions.length, 0);
+  hub.ingestTick({ s: "GBPUSD", c: 1.271, t: nowSec - 5, v: 0, src: "twelvedata" });
+  await hub.webSocketMessage(ws, JSON.stringify({ op: "paper", action: "order", sym: "GBPUSD", side: "long", qty: 1000 }));
+  assert.equal(papers(ws).pop().account.positions[0].entry, 1.271, "fresh price fills");
+  hub.destroy();
+});
+
+await test("post-merge: free margin counts open losses", () => {
+  const a = createPaperAccount({ settings: { balance: 1000, leverage: 1, commissionPct: 0 } });
+  assert.equal(a.marketOrder({ sym: "BTCUSDT", side: "long", qty: 5 }, 100).ok, true, "500 margin used");
+  // BTC fell to 20: open loss 400 -> equity 600, used 500, free 100
+  const px = (s) => (s === "BTCUSDT" ? 20 : 50);
+  assert.match(a.marketOrder({ sym: "ETHUSDT", side: "long", qty: 4 }, 50, px).error, /margin/, "200 needed > 100 free");
+  assert.equal(a.marketOrder({ sym: "ETHUSDT", side: "long", qty: 1 }, 50, px).ok, true, "50 fits");
+});
+
 if (failed > 0) process.exit(1);
 console.log("PAPER OK");

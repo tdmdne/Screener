@@ -8,9 +8,13 @@
 const VT_AL={key:"",ws:null,timer:0};
 const VT_AL_DIR={above:"cross_up",below:"cross_down",cross:"cross"};
 function vtAlertToServer(a){
-  const d={id:String(a.id),mode:a.repeat?"recurring":"once"};
+  const d={id:String(a.id),mode:a.repeat?"recurring":"once",armedAt:+a.armedAt||+a.id||0};
   if(a.msg)d.message=String(a.msg).slice(0,256);
-  if(Array.isArray(a.syms)){d.syms=a.syms.slice(0,100);d.condition=a.cond||"pct_move";d.target=+a.pct;d.resetRefOnTrigger=true;}
+  if(Array.isArray(a.syms)){
+    // follow the watchlist as it is now (symbols added/removed after the alert was created), falling back to the snapshot
+    const G=S.wlx&&Array.isArray(S.wlx.groups)?S.wlx.groups:[],g=G.find(x=>x&&a.wlId!=null&&x.id===a.wlId)||G.find(x=>x&&a.wl&&x.name===a.wl)||null;
+    const syms=g&&Array.isArray(g.syms)&&g.syms.length?g.syms:a.syms;
+    d.syms=syms.slice(0,100);d.condition=a.cond||"pct_move";d.target=+a.pct;d.resetRefOnTrigger=true;}
   else{d.sym=a.sym;d.condition=a.cond||VT_AL_DIR[a.dir]||"cross";d.target=+a.price;
     if(a.line)d.line={t1:a.line.t1,p1:a.line.p1,t2:a.line.t2,p2:a.line.p2,ext:a.line.ext||"seg"}}
   if(Array.isArray(a.conds)&&a.conds.length)d.conds=a.conds.slice(0,4).map(c=>({condition:c.cond,target:+c.target}));
@@ -54,7 +58,7 @@ function vtAddWatchlistAlert(){
   const g=(S.wlx&&S.wlx.groups||[])[+document.getElementById("alw_g").value],cond=document.getElementById("alw_c").value,pct=+document.getElementById("alw_p").value;
   if(!g||!Array.isArray(g.syms)||!g.syms.length){toast("That watchlist is empty");return}
   if(!(pct>0)){toast("Enter a percentage above 0");return}
-  S.alerts=S.alerts||[];S.alerts.push({id:Date.now(),wl:String(g.name||"Watchlist"),syms:g.syms.slice(0,100),cond,pct,on:true,fired:false,repeat:true});
+  S.alerts=S.alerts||[];S.alerts.push({id:Date.now(),wlId:g.id,wl:String(g.name||"Watchlist"),syms:g.syms.slice(0,100),cond,pct,on:true,fired:false,repeat:true});
   save();toast("Watchlist alert added ("+Math.min(100,g.syms.length)+" symbols)");alertsM()}
 function vtAlertFromDrawing(d){
   if(!d||!Array.isArray(d.p)||d.p.length<2)return;

@@ -40,6 +40,12 @@ const wlId=await P.evaluate(()=>S.alerts.find(a=>a.syms).id);
 await P.evaluate(id=>__edge.push(__edge.frame("alert",{id:String(id),sym:"ETHUSDT",condition:"pct_up >= 3%",price:3100,triggeredAt:Date.now()})),wlId);
 await P.waitForFunction(()=>/ETHUSDT/.test(document.getElementById("msg").textContent));
 assert.strictEqual(await P.evaluate(()=>S.alerts.find(a=>a.syms).fired),false,"watchlist alert stays armed");
+// the alert follows the watchlist's current symbols
+await P.evaluate(()=>{S.wlx.groups[0].syms=["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"];save()});
+await waitAlertsOp(P,a=>a.some(x=>Array.isArray(x.syms)&&x.syms.length===4&&x.syms.includes("XRPUSDT")));
+// re-arm stamps armedAt so the hub can tell it from a stale resend
+await P.evaluate(()=>{const i=S.alerts.findIndex(a=>!a.syms);if(i>=0){rearmAlert(i);closeM()}});
+await waitAlertsOp(P,a=>a.some(x=>!x.syms&&x.armedAt>Date.now()-60000));
 
 // drawing alert from a selected trend line, and both lines of a channel
 await P.evaluate(()=>{const a=G.a;const d={id:77,t:"trend",p:[{t:a[5].t,y:a[5].c},{t:a[25].t,y:a[25].c}],c:"#2962ff",w:2,s:0};DL().push(d);SELD=d;dpe();dsel()});
@@ -55,7 +61,7 @@ assert.strictEqual(await P.evaluate(()=>S.alerts.filter(x=>x.drawId===78).length
 await P.evaluate(()=>{VT_EDGE.ws.close()});
 await P.waitForFunction(()=>VT_EDGE.ws&&VT_EDGE.ws.readyState===1,null,{timeout:15000});
 await P.waitForFunction(()=>{const s=__edge.sockets[__edge.sockets.length-1];return true});
-await waitAlertsOp(P,a=>a.length===4); // watchlist + trend + 2 channel lines
+await waitAlertsOp(P,a=>a.length===5); // re-armed price alert + watchlist + trend + 2 channel lines
 
 assert.deepStrictEqual(h.offOrigin,[],"no non-origin requests");
 assert.deepStrictEqual(h.errors,[],"no page errors");

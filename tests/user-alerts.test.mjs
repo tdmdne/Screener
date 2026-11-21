@@ -326,5 +326,32 @@ await test("persisted user alerts are re-registered when the DO starts (invalid 
   hub.destroy();
 });
 
+
+await test("post-merge: a stale resend after an offline fire keeps the one-shot alert fired; a later re-arm arms it", async () => {
+  const fakeNow = Date.UTC(2026, 10, 18, 10, 17, 30);
+  const { hub, ctx, state } = await makeHub(fakeNow);
+  const nowSec = Math.floor(fakeNow / 1000);
+  const def = { id: "r1", sym: "GBPUSD", condition: "cross_up", target: 1.3, armedAt: fakeNow - 60_000 };
+  let ws = await connectAs(hub, state, USER);
+  await hub.ensureUpstream();
+  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [def] }));
+  await hub.webSocketClose(ws);
+  hub.ingestTick({ s: "GBPUSD", c: 1.29, t: nowSec + 1, v: 0, src: "twelvedata" });
+  hub.ingestTick({ s: "GBPUSD", c: 1.31, t: nowSec + 2, v: 0, src: "twelvedata" });
+  await ctx.flushWaitUntil();
+  const tagId = hub.alerts.listAlerts().find((a) => a.id.endsWith("~r1")).id;
+  assert.equal(hub.alerts.getAlert(tagId).fired, true);
+  // reconnect: the tab resends its pre-fire set (armedAt older than the fire)
+  ws = await connectAs(hub, state, USER);
+  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [def] }));
+  assert.equal(hub.alerts.getAlert(tagId).fired, true, "stale resend does not re-arm");
+  assert.equal(hub.alerts.getAlert(tagId).armed, false);
+  // user presses Re-arm (armedAt after the fire)
+  hub.clientLastViewAt.clear();
+  await hub.webSocketMessage(ws, JSON.stringify({ op: "alerts", alerts: [{ ...def, armedAt: fakeNow + 3_600_000 }] }));
+  assert.equal(hub.alerts.getAlert(tagId).armed, true, "explicit re-arm wins");
+  hub.destroy();
+});
+
 if (failed > 0) process.exit(1);
 console.log("USER ALERTS OK");
